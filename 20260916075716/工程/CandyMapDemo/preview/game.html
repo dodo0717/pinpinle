@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>萌宠拼拼乐 · 对局（跑真源码）</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#15171c; color:#ddd; font:14px/1.6 "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; display:flex; height:100vh; }
+  #panel { width:220px; padding:16px; box-sizing:border-box; border-right:1px solid #333; flex:none; overflow:auto; }
+  #stage { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+  canvas { background:#20242c; box-shadow:0 0 0 1px #444; display:block; touch-action:none; cursor:pointer; }
+  h1 { font-size:15px; margin:0 0 4px; }
+  .sub { font-size:12px; color:#7a8290; margin:0 0 14px; }
+  .row { margin-bottom:12px; }
+  label { display:block; font-size:12px; color:#9aa; margin-bottom:4px; }
+  select, button { width:100%; padding:7px; margin-bottom:6px; background:#2c3140; color:#ddd; border:1px solid #4a5266; border-radius:6px; cursor:pointer; font-size:13px; }
+  button:hover { background:#3a4152; }
+  #log { font:11px/1.6 ui-monospace,Consolas,monospace; color:#8fb; white-space:pre-wrap; background:#20232b; padding:8px; border-radius:6px; max-height:320px; overflow:auto; }
+  .note { font-size:12px; color:#6f7684; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>对局（真源码）</h1>
+  <p class="sub">直接 import assets/scripts 下的 TS，改动刷新即生效</p>
+
+  <div class="row">
+    <label>关卡</label>
+    <select id="lv"></select>
+    <button id="restart">重开本关</button>
+    <button id="hint">提示</button>
+  </div>
+
+  <div class="row"><label>日志</label><div id="log"></div></div>
+  <p class="note">玩法：按住一块拖动整片，拼成 2×2 完整图即消除。松手前可拖回原位取消。</p>
+</div>
+
+<div id="stage"><canvas id="cv" width="1080" height="1920"></canvas></div>
+
+<script type="importmap">
+{ "imports": { "cc": "/preview/cc-shim.js" } }
+</script>
+
+<script type="module">
+import { Renderer, Node, UITransform, Layers } from '/preview/cc-shim.js';
+import { GameBootstrap } from '/assets/scripts/game/GameBootstrap.ts';
+
+const logBox = document.getElementById('log');
+const log = (s) => { logBox.textContent += s + '\n'; logBox.scrollTop = logBox.scrollHeight; };
+window.addEventListener('error', (e) => log('[error] ' + (e.message || e)));
+
+/* 自适应：canvas 内部固定 1080×1920，CSS 缩放到窗口高度 */
+const cv = document.getElementById('cv');
+function fit() {
+  const stage = document.getElementById('stage');
+  const h = stage.clientHeight - 24;
+  const w = (h * 1080) / 1920;
+  cv.style.height = h + 'px';
+  cv.style.width = w + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+
+/* 场景根 —— 对应 Cocos 里的 Canvas */
+const root = new Node('Canvas');
+root.layer = Layers.Enum.UI_2D;
+root.addComponent(UITransform).setContentSize(1080, 1920);
+
+const game = root.addComponent(GameBootstrap);
+game.levelIndex = 1;
+game.autoStart = true;
+
+const renderer = new Renderer(cv, root);
+renderer.start();
+window.__game = game; // 便于控制台调试
+
+/* 侧栏 */
+const sel = document.getElementById('lv');
+for (let i = 1; i <= 60; i++) {
+  const o = document.createElement('option');
+  o.value = String(i);
+  o.textContent = '第 ' + i + ' 关';
+  sel.appendChild(o);
+}
+sel.value = '1';
+sel.onchange = () => { const n = Number(sel.value); game.levelIndex = n; game.startLevel(n); log('开局：第 ' + n + ' 关'); };
+document.getElementById('restart').onclick = () => { game.startLevel(Number(sel.value)); log('重开'); };
+document.getElementById('hint').onclick = () => game.showHint();
+
+log('已加载 GameBootstrap，第 1 关开局');
+</script>
+</body>
+</html>

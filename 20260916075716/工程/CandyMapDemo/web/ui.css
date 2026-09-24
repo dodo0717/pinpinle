@@ -1,0 +1,698 @@
+/*
+ * M5 元系统界面样式（主界面 / 图鉴 / 排行榜 / 设置 / 弹窗 / 引导）。
+ *
+ * 为什么单独一个文件：`index.html` 里的 style 块只负责**棋盘与玩法 HUD**，
+ * 元系统界面是另一套布局（整屏 + 滚动列表），混在一起会越写越难找。
+ * 本文件在 `index.html` 的 style 之后加载，同权重规则**后者胜**，
+ * 所以这里可以覆盖 `.dialog-card button` 这类既有规则，而不用回去改老代码。
+ *
+ * 尺寸基准仍是 1080×1920 竖屏（整体缩放），所以字号按「屏幕像素」写，别按 CSS 惯例的小字号。
+ */
+
+/* ---------- 屏幕容器 ---------- */
+.screen {
+  position: absolute; inset: 0; z-index: 10;
+  display: none; flex-direction: column;
+  background: radial-gradient(120% 80% at 50% 0%, #fffdf6 0%, #fff7ec 45%, #fdeed8 100%);
+}
+/* 只有当前屏参与布局：`display:none` 的屏不会影响 flex 高度 */
+.screen.active { display: flex; }
+
+.screen-top {
+  padding: 72px 56px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.screen-title {
+  font: inherit; font-size: 52px; font-weight: 800; color: var(--ink);
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.screen-back {
+  font: inherit; font-size: 32px; font-weight: 600; color: var(--ink-soft);
+  background: var(--card); border: 2px solid rgba(224,169,74,.45);
+  border-radius: 100px; padding: 16px 34px; cursor: pointer;
+}
+.screen-back:active { transform: scale(.96); }
+
+/* ---------- 主界面 ---------- */
+.home-top {
+  padding: 64px 56px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+}
+.home-stamina { display: flex; flex-direction: column; gap: 10px; }
+.home-hearts { display: flex; align-items: center; gap: 14px; }
+.hearts-text { font-size: 52px; letter-spacing: 4px; }
+.home-plus {
+  font: inherit; font-size: 44px; font-weight: 800; line-height: 1;
+  width: 76px; height: 76px; border-radius: 50%;
+  color: #fff; background: var(--honey); border: 0; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(224,169,74,.45);
+}
+.home-plus:active { transform: scale(.92); }
+.home-recover {
+  font-size: 30px; color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+.home-icons { display: flex; gap: 18px; }
+.icon-btn {
+  font: inherit; font-size: 46px; line-height: 1;
+  width: 96px; height: 96px; border-radius: 28px;
+  background: var(--card); border: 2px solid rgba(224,169,74,.35); cursor: pointer;
+}
+.icon-btn:active { transform: scale(.94); }
+
+.home-logo {
+  margin: 120px 56px 0; text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: 22px;
+}
+.home-logo-emoji { font-size: 96px; }
+.home-logo-text { font-size: 76px; font-weight: 800; letter-spacing: 6px; color: var(--ink); }
+
+.home-menu {
+  margin: 110px 120px 0;
+  display: flex; flex-direction: column; gap: 34px;
+}
+.menu-btn {
+  font: inherit; font-size: 44px; font-weight: 700; color: var(--ink);
+  background: var(--card); border: 3px solid rgba(224,169,74,.45);
+  border-radius: 100px; padding: 32px 40px; cursor: pointer;
+  box-shadow: 0 10px 24px rgba(74,59,42,.08);
+}
+.menu-btn:active { transform: scale(.97); }
+.menu-btn.primary { color: #fff; background: var(--honey); border-color: var(--honey); }
+.menu-btn.small { font-size: 34px; padding: 24px 30px; }
+/* 置灰：仍然可点（点了给提示文案），所以不用 disabled —— 见 dialog.ts 的注释 */
+.menu-btn.dim, .dim { opacity: .42; }
+
+.home-progress {
+  margin-top: auto; padding: 0 56px 72px;
+}
+.home-level-line {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 40px; font-weight: 700; margin-bottom: 18px;
+}
+.home-stars { color: var(--honey); font-size: 40px; letter-spacing: 4px; }
+.progress-bar { display: flex; gap: 8px; }
+.progress-cell {
+  flex: 1; height: 26px; border-radius: 8px;
+  background: rgba(224,169,74,.20);
+}
+.progress-cell.on { background: var(--honey); }
+.home-count { margin-top: 16px; font-size: 30px; color: var(--ink-soft); text-align: right; }
+
+/* ---------- 图鉴 ---------- */
+.collection-count {
+  padding: 0 56px 20px; font-size: 34px; font-weight: 700; color: var(--ink-soft);
+}
+.collection-grid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 56px 72px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+}
+.collection-grid .cell {
+  background: var(--card); border-radius: 28px; padding: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  border: 2px solid rgba(224,169,74,.28); cursor: pointer; position: relative;
+}
+.collection-grid .cell:active { transform: scale(.97); }
+.cell-img { width: 100%; aspect-ratio: 1 / 1; border-radius: 20px; object-fit: cover; }
+.cell-label { font-size: 26px; font-weight: 700; color: var(--ink-soft); }
+.collection-grid .cell.locked .cell-img { filter: grayscale(1) opacity(.35); }
+.cell-lock {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%);
+  font-size: 60px;
+}
+
+/* ---------- 大图预览 ---------- */
+.preview-figure {
+  display: grid; place-items: center; padding: 8px 56px;
+}
+.preview-img {
+  width: 620px; height: 620px; border-radius: 48px;
+  background: var(--card); border: 3px solid rgba(224,169,74,.35);
+  box-shadow: 0 20px 50px rgba(74,59,42,.14);
+}
+.preview-meta { padding: 30px 56px 0; text-align: center; }
+.preview-name { font-size: 44px; font-weight: 800; }
+.preview-caption { margin-top: 14px; font-size: 36px; color: var(--ink-soft); }
+.preview-note { margin-top: 8px; font-size: 26px; color: #c08a52; }
+.preview-actions {
+  margin-top: auto; padding: 0 56px 20px;
+  display: flex; gap: 24px;
+}
+.preview-actions .menu-btn { flex: 1; }
+.preview-source {
+  padding: 0 56px 56px; text-align: center; font-size: 24px; color: var(--ink-soft);
+}
+
+/* ---------- 排行榜 ---------- */
+/* 「◀ 第 N 关 · 段位 ▶」：把关卡切换塞进一行，纵向空间全留给 20 行榜单 */
+.lb-header {
+  padding: 0 56px 18px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.lb-header-text { flex: 1; text-align: center; font-size: 40px; font-weight: 800; }
+.lb-step {
+  font: inherit; font-size: 40px; font-weight: 800; line-height: 1; color: var(--ink);
+  width: 88px; height: 88px; border-radius: 24px;
+  background: var(--card); border: 2px solid rgba(224,169,74,.45); cursor: pointer;
+}
+.lb-step:active { transform: scale(.94); }
+.lb-step.dim { opacity: .35; }
+
+.lb-mine {
+  padding: 0 56px 18px; font-size: 32px; color: var(--honey); font-weight: 700;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.lb-my-best { color: var(--ink-soft); }
+.lb-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 56px; display: flex; flex-direction: column; gap: 14px;
+}
+.lb-row {
+  display: flex; align-items: center; gap: 24px;
+  background: var(--card); border-radius: 24px; padding: 22px 30px;
+  font-size: 34px; border: 2px solid rgba(224,169,74,.20);
+}
+.lb-row.mine {
+  border-color: var(--honey); background: #fff4dc;
+  box-shadow: inset 0 0 0 2px rgba(224,169,74,.5);
+}
+.lb-rank { width: 84px; text-align: center; font-weight: 800; color: var(--honey); }
+.lb-name { flex: 1; font-weight: 700; }
+.lb-score { font-weight: 800; font-variant-numeric: tabular-nums; }
+.lb-empty {
+  padding: 120px 0; text-align: center; font-size: 36px; color: var(--ink-soft);
+}
+/* 每页 20 名 → 翻页条（只有一页时整条隐藏，见 leaderboard.ts） */
+.lb-pager {
+  padding: 24px 56px 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.lb-page-btn {
+  font: inherit; font-size: 30px; font-weight: 700; color: var(--ink-soft);
+  background: var(--card); border: 2px solid rgba(224,169,74,.45);
+  border-radius: 100px; padding: 16px 30px; cursor: pointer; white-space: nowrap;
+}
+.lb-page-btn:active { transform: scale(.96); }
+.lb-page-btn.dim { opacity: .35; }
+.lb-page-label { font-size: 30px; font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* 「挑战本关」通栏按钮：直接挂在 .leaderboard 下，需要自己撑开边距 */
+.leaderboard > .menu-btn {
+  margin: 28px 56px 0;
+  font-size: 38px; padding: 28px 40px;
+}
+.lb-note {
+  padding: 20px 56px 0; font-size: 26px; color: var(--ink-soft); text-align: center;
+}
+.lb-note.dim { color: #b39a7c; font-size: 24px; padding-bottom: 48px; }
+
+/* ---------- 设置 ---------- */
+.settings-rows {
+  padding: 40px 56px 0; display: flex; flex-direction: column; gap: 24px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); border-radius: 28px; padding: 32px 40px;
+  font-size: 40px; font-weight: 700;
+  border: 2px solid rgba(224,169,74,.28);
+}
+.toggle {
+  font: inherit; font-size: 34px; font-weight: 800; color: #fff;
+  min-width: 140px; padding: 16px 0; border-radius: 100px;
+  background: var(--honey); border: 0; cursor: pointer;
+}
+.toggle.off { background: #d9cbb6; }
+.settings-about { padding: 60px 56px 0; text-align: center; }
+.settings-about-title { font-size: 34px; font-weight: 800; }
+.settings-about-line { margin-top: 12px; font-size: 30px; color: var(--ink-soft); }
+.settings-note {
+  margin-top: auto; padding: 0 56px 72px;
+  font-size: 26px; color: #c08a52; text-align: center;
+}
+
+/* ---------- 弹窗按钮（覆盖 index.html 里的 .dialog-card button 基础样式） ---------- */
+.dialog-card .dialog-buttons {
+  display: flex; gap: 16px; justify-content: stretch; flex-wrap: nowrap;
+  margin-top: 14px;
+}
+.dialog-card .dialog-btn {
+  flex: 1;
+  font: inherit; font-size: 32px; font-weight: 700;
+  color: var(--ink-soft); background: transparent;
+  box-shadow: inset 0 0 0 3px rgba(224,169,74,.45);
+  border: 0; border-radius: 100px; padding: 24px 18px; cursor: pointer;
+  white-space: nowrap;
+}
+.dialog-card .dialog-btn:active { transform: scale(.96); }
+.dialog-card .dialog-btn.primary {
+  color: #fff; background: var(--honey); box-shadow: none;
+}
+.dialog-card .dialog-btn.dim { opacity: .42; }
+
+/* ---------- 荣誉结算弹窗（《通关及排名》§五） ---------- */
+/*
+ * 结构：.dialog-honor [honor-god|honor-king|honor-pass]
+ *        └ .dialog-hero（.hero-halo 光环 + .hero-icon 图标 或 .hero-stars 三颗星）
+ *        └ h2 / .dialog-desc / .dialog-score(.score-label + .score-value) / .dialog-sub
+ *
+ * 三档只用**配色**区分（超神紫金 / 王者蜜金 / 优秀青绿），结构与字号完全一致 ——
+ * 免得三套版式各写一份、改一处漏两处。粒子/光环是纯 CSS 占位，美术出图后换背景图即可。
+ */
+.dialog-honor { position: relative; overflow: hidden; }
+.dialog-honor h2 { font-size: 52px; margin-bottom: 4px; }
+.dialog-honor .dialog-desc {
+  margin: 0 0 8px; font-size: 34px; font-weight: 700; color: var(--ink);
+}
+.dialog-honor .dialog-sub {
+  margin: 12px 0 26px; font-size: 30px; color: var(--ink-soft);
+}
+
+.dialog-hero {
+  position: relative; width: 240px; height: 240px; margin: 0 auto 8px;
+  display: grid; place-items: center;
+}
+/* 光环：径向渐变 + 呼吸缩放 */
+.hero-halo {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.9) 0%, rgba(255,255,255,0) 68%);
+  animation: hero-breathe 2.4s ease-in-out infinite;
+}
+@keyframes hero-breathe {
+  0%, 100% { transform: scale(1); opacity: .75; }
+  50% { transform: scale(1.14); opacity: 1; }
+}
+/* 图标落地：从大缩到 1 倍（一次性的「砸下来」） */
+.hero-icon {
+  position: relative; font-size: 140px; line-height: 1;
+  filter: drop-shadow(0 12px 24px rgba(74,59,42,.28));
+  animation: hero-drop .46s cubic-bezier(.22,1.3,.42,1) both;
+}
+@keyframes hero-drop {
+  from { transform: scale(1.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.hero-stars { position: relative; display: flex; justify-content: center; width: 100%; gap: 10px; }
+.hero-star { font-size: 68px; line-height: 1; filter: grayscale(1) opacity(.28); }
+/* 逐颗点亮：animation-delay 由 dialog.ts 按序写入 */
+.hero-star.lit { animation: hero-star-in .38s cubic-bezier(.22,1.3,.42,1) both; }
+@keyframes hero-star-in {
+  from { transform: scale(.2) rotate(-40deg); opacity: .2; filter: grayscale(1) opacity(.3); }
+  to { transform: scale(1) rotate(0); opacity: 1; filter: none; }
+}
+
+/* 大号分数：等宽数字，滚动时宽度不跳 */
+.dialog-score { margin: 4px 0 0; }
+.score-label { font-size: 28px; font-weight: 700; color: var(--ink-soft); letter-spacing: 2px; }
+.score-value {
+  font-size: 104px; font-weight: 800; line-height: 1.1; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 三档配色：只改 el 的主题色与卡片底色 */
+.dialog-honor.honor-god {
+  background: linear-gradient(180deg, #fff6df 0%, #fffdf7 46%);
+  box-shadow: inset 0 0 0 4px rgba(190,120,255,.5), 0 30px 80px rgba(0,0,0,.28);
+}
+.dialog-honor.honor-god .score-value { color: #8a35c9; }
+.dialog-honor.honor-god h2 { color: #6d28a8; }
+
+.dialog-honor.honor-king {
+  background: linear-gradient(180deg, #fff4d8 0%, #fffdf7 46%);
+  box-shadow: inset 0 0 0 4px rgba(224,169,74,.75), 0 30px 80px rgba(0,0,0,.28);
+}
+.dialog-honor.honor-king .score-value { color: #c98a12; }
+
+.dialog-honor.honor-pass {
+  background: linear-gradient(180deg, #ecfbf3 0%, #fffdf7 46%);
+  box-shadow: inset 0 0 0 4px rgba(84,196,148,.6), 0 30px 80px rgba(0,0,0,.28);
+}
+.dialog-honor.honor-pass .score-value { color: #2f9c74; }
+
+/* ---------- 新手引导 ---------- */
+.guide {
+  position: absolute; left: 56px; right: 56px; bottom: 300px; z-index: 150;
+  background: rgba(74, 59, 42, .94); color: #fff;
+  border-radius: 32px; padding: 34px 40px;
+  display: flex; align-items: center; gap: 24px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.3);
+}
+.guide[hidden] { display: none; }
+.guide-text { flex: 1; font-size: 36px; font-weight: 700; }
+.guide-btn {
+  font: inherit; font-size: 30px; font-weight: 800; color: var(--ink);
+  background: var(--honey-soft); border: 0; border-radius: 100px;
+  padding: 16px 32px; cursor: pointer; white-space: nowrap;
+}
+
+/* ---------- 玩法屏顶部的「返回主界面」 ---------- */
+/* HUD 多了「← 主界面」之后是 4 个元素，1080 宽下必须收窄字号，否则会挤成两行 */
+#hud { gap: 18px; }
+.hud-item { font-size: 36px; padding: 16px 28px; }
+#screen-game .hud-exit {
+  font: inherit; font-size: 30px; font-weight: 700; color: var(--ink-soft);
+  background: var(--card); border: 2px solid rgba(224,169,74,.35);
+  border-radius: 100px; padding: 14px 26px; cursor: pointer;
+}
+#screen-game .hud-exit:active { transform: scale(.96); }
+
+/* ---------- 关卡地图（测试件：翻滚式选关） ----------
+   滚动是 JS 自实现的（见 map.ts 的注释）：`touch-action:none` 让浏览器只当观众，
+   所以这里**不写 `overflow-y:auto`** —— 那样在真机上只有鼠标滚轮能滚。 */
+/* 糖果传奇式：整屏当「场景」用 —— 天空渐变 + 云 + 地面雾，全是纯 CSS 占位，
+   美术出图后整块换成一张背景图（`.map.world-N` 只留着切主题色）。 */
+.map { overflow: hidden; background: var(--map-sky); }
+.map.world-0 { --map-sky: linear-gradient(180deg, #bfe6ff 0%, #e8f7ff 38%, #fff3d6 72%, #ffe1a8 100%); }
+.map.world-1 { --map-sky: linear-gradient(180deg, #cfe9d2 0%, #eaf8e4 40%, #fff2cf 74%, #ffdca0 100%); }
+.map.world-2 { --map-sky: linear-gradient(180deg, #d7d9ff 0%, #eae9ff 38%, #ffe6c9 74%, #ffd7a0 100%); }
+
+/* 顶栏：返回 · 世界名 · 模式角标 */
+.map-top {
+  padding: 56px 56px 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.map-title {
+  flex: 1; text-align: center;
+  font-size: 40px; font-weight: 800; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 模式角标（普通 / 困难）：两套进度各自独立，首页上必须明说 */
+.map-mode {
+  font-size: 28px; font-weight: 800; color: #fff;
+  background: var(--honey); border-radius: 100px; padding: 12px 26px;
+  box-shadow: 0 6px 0 rgba(180,120,40,.35);
+  white-space: nowrap;
+}
+
+/* 体力行：进关要花体力，糖果传奇的做法是「地图上就看得见」 */
+.map-hud { padding: 18px 56px 0; }
+.map-stamina { display: flex; align-items: center; gap: 12px; }
+.map-stamina .hearts-text { font-size: 44px; }
+.map-recover { font-size: 26px; color: #a97f45; font-variant-numeric: tabular-nums; }
+.home-plus.small { width: 56px; height: 56px; font-size: 34px; box-shadow: 0 6px 14px rgba(224,169,74,.4); }
+
+.map-tabs { display: flex; gap: 14px; padding: 16px 56px 14px; }
+.map-tab {
+  flex: 1; font: inherit; font-size: 26px; font-weight: 800; color: #a97f45;
+  background: rgba(255,255,255,.86); border: 3px solid #fff;
+  border-radius: 100px; padding: 16px 8px; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 6px 0 rgba(198,140,50,.25);
+}
+.map-tab:active { transform: scale(.96); }
+.map-tab.on { color: #fff; background: var(--honey); border-color: #fff; box-shadow: 0 6px 0 rgba(180,120,40,.45); }
+
+/* 卷轴：负责裁剪 + 给翻转动画提供透视 */
+.map-scroll {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  perspective: 1700px; cursor: grab;
+}
+.map-scroll:active { cursor: grabbing; }
+/* 场景装饰：纯 CSS 占位（云 + 地面雾），美术出图后整块删掉换背景图。
+   不定位，所以天然画在定位过的 `.map-track`（absolute）下面。 */
+.map-scroll::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 14%, rgba(255,255,255,.85) 0 66px, rgba(255,255,255,0) 67px),
+    radial-gradient(circle at 80% 26%, rgba(255,255,255,.7) 0 48px, rgba(255,255,255,0) 49px),
+    radial-gradient(ellipse 70% 20% at 50% 100%, rgba(255,255,255,.5) 0, rgba(255,255,255,0) 100%);
+}
+/* 轨道：三段底图竖排（一页 = 一段 1080×1920）。分屏翻页时整条轨道按 fitScale 等比缩放，
+   让一页正好铺满一屏 —— 所以这里居中 + 以顶边为缩放原点（transform 由程序设置）。 */
+.map-track {
+  position: absolute; top: 0; left: 50%; width: 1536px; margin-left: -768px;
+  transform-origin: 50% 0;
+  will-change: transform;
+}
+
+/* 美术底图：三段 1080×1920 纵向拼在 track 上，铺满 5760 的整条轨道。
+   底图与关卡牌共用同一套坐标系（map-slices/底图规格与坐标.md），牌正好落在石台上。
+   缺图时这三层是透明的，自动退回上面的 CSS 天空渐变 + 云。 */
+.map-bg { position: absolute; inset: 0; pointer-events: none; }
+.map-bg-seg {
+  position: absolute; left: 0; width: 1536px; height: 2731px;
+  background-size: 100% 100%; background-repeat: no-repeat;
+}
+/* 有真图后让位：CSS 占位云、程序画的小路都撤掉（路底图里已经画了，进度看节点星级） */
+.map.has-art .map-scroll::before { display: none; }
+.map.has-art .map-path { display: none; }
+/* 定位/吸附时的平滑滚动。⚠️ 拖动中绝不能有这个类，否则整片会「追着手指慢慢飘」 */
+.map-track.snap { transition: transform .38s cubic-bezier(.25,.9,.3,1); }
+
+/* 小路：底衬 + 路面两层。走过的（下面那关已通关）= 实心蜜色；没走过的 = 白色虚线 */
+.map-path { position: absolute; top: 0; left: 0; }
+.map-path .seg-case { fill: none; stroke: rgba(255,255,255,.55); stroke-width: 34; stroke-linecap: round; }
+.map-path .seg { fill: none; stroke: rgba(255,255,255,.92); stroke-width: 20; stroke-linecap: round; stroke-dasharray: 22 28; }
+.map-path .seg.lit { stroke: var(--honey); stroke-dasharray: none; }
+
+/* 节点：糖果传奇那种「戳一下会陷进去」的圆牌 —— 厚底边 + 内高光，纯 CSS 假装 3D。
+   用 margin 负偏移居中，把 transform 留给「翻滚」的 rotate。 */
+.map .node {
+  position: absolute; width: 156px; height: 156px; margin: -78px 0 0 -78px;
+  border-radius: 50%; border: 8px solid #fff;
+  background: radial-gradient(circle at 50% 28%, #fffdf6 0%, #ffe6bd 58%, #f7cf85 100%);
+  box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20),
+              inset 0 -6px 0 rgba(255,255,255,.55);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; cursor: pointer;
+  /* 圆柱滚动：--focus = cos θ（缩放）、--fy = 弧线位移，由 JS 每帧算（map.ts applyFocus） */
+  transform: translateY(var(--fy, 0px)) scale(var(--focus, 1)) rotate(var(--roll, 0deg));
+  /* 不再用过渡：每帧都在写 transform，加了过渡反而会「缩放跟不上滚动」 */
+  transition: none;
+}
+/* 核对用（?debug=stone）：画出程序算出的椭圆轮廓，跟美术画的石台比对 */
+.map.debug-stone .node { outline: 2px dashed #ff2d55; background: rgba(255,45,85,.14); }
+/* 状态色盖在石台素材之上，不能挡住数字 —— 数字层提到上面 */
+.map.has-art .node::after { content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 0; pointer-events: none; }
+.map.has-art .node > * { position: relative; z-index: 1; }
+.map.has-art .node-num { transform: scaleY(1.3); text-shadow: 0 3px 0 rgba(255,255,255,.9), 0 6px 10px rgba(60,40,20,.25); }
+.map .node-num { font-size: 52px; font-weight: 800; color: #8a5a1e; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,.85); }
+.map .node-stars { font-size: 26px; color: #c98a12; letter-spacing: 1px; }
+.map .node-meta { font-size: 24px; font-weight: 700; color: #a97f45; }
+.map .node-lock {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 60px; pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,.22));
+}
+
+/* 有底图时关卡融进石台：牌不再自己画圆盘，只留文字与状态 */
+.map.has-art .node {
+  width: var(--pw, 190px); height: var(--ph, 118px); margin: 0;
+  border: 0; box-shadow: none;
+  background: url("/art/map/stone.png") center / 100% 100% no-repeat;
+  transform: translate(-50%, -50%) translateY(var(--fy, 0px))
+    scale(var(--focus, 1)) rotate(var(--prot, 0deg)) rotate(var(--roll, 0deg));
+}
+.map.has-art .node.current { width: calc(var(--pw, 190px) * 1.12); height: calc(var(--ph, 118px) * 1.12); }
+.map.has-art .node.cleared::after { background: radial-gradient(circle, rgba(255,214,120,.5) 0%, rgba(255,196,80,.22) 64%, rgba(255,196,80,0) 80%); }
+.map.has-art .node.cleared { box-shadow: inset 0 0 0 6px rgba(255,255,255,.5); }
+/* 已通关：金色实心 */
+.map .node.cleared {
+  background: radial-gradient(circle at 50% 28%, #fff8e2 0%, #ffd98a 58%, #f0b95c 100%);
+  border-color: #fff;
+}
+.map.has-art .node.locked::after { background: radial-gradient(circle, rgba(226,220,208,.7) 0%, rgba(202,194,180,.5) 72%, rgba(202,194,180,0) 88%); }
+.map.has-art .node.locked .node-num { color: rgba(74,59,42,.4); }
+/* 未解锁：灰掉 + 挂锁 */
+.map .node.locked {
+  background: #e9e2d6; border-color: #f6f1e8;
+  box-shadow: 0 8px 0 rgba(140,120,95,.3), 0 12px 20px rgba(74,59,42,.10);
+}
+.map .node.locked .node-num { color: rgba(74,59,42,.30); }
+.map .node.locked .node-meta { color: rgba(74,59,42,.24); }
+/* 当前可打（已解锁未通关）：白牌 + 呼吸光圈
+   （只动 box-shadow，不动 transform —— 翻滚角要留给滚动） */
+/* 石台素材优先级拉满：状态规则用的是 background 简写，会把素材图清掉 */
+.map.has-art .node.cleared, .map.has-art .node.locked, .map.has-art .node.unlocked {
+  background-image: url("/art/map/stone.png"); background-size: 100% 100%;
+  background-repeat: no-repeat; background-position: center;
+}
+.map.has-art .node.unlocked { animation: none; box-shadow: inset 0 0 0 7px rgba(255,255,255,.9); }
+.map .node.unlocked {
+  background: radial-gradient(circle at 50% 28%, #fff 0%, #fff8ea 60%, #ffeecb 100%);
+  border-color: var(--honey);
+  animation: mapNodePulse 1.1s ease-in-out infinite;
+}
+@keyframes mapNodePulse {
+  0%, 100% { box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20), 0 0 0 0 rgba(224,169,74,.55); }
+  50%      { box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20), 0 0 0 26px rgba(224,169,74,0); }
+}
+/* 默认定位到的那一关：再放大一圈，一眼能找到 */
+.map .node.current { width: 188px; height: 188px; margin: -94px 0 0 -94px; border-width: 10px; z-index: 3; }
+.map .node.current .node-num { font-size: 64px; }
+
+/* 切地图：整张地图绕 X 轴翻滚。
+   `--anchor` = 定位后的 translateY，进场动画的起止都加上它 —— 否则动画结束一移除类，
+   元素会从动画终帧「跳」回 inline transform 的位置。 */
+.map-track.flip-out-up   { animation: mapFlipOutUp .28s ease-in forwards; }
+.map-track.flip-out-down { animation: mapFlipOutDown .28s ease-in forwards; }
+.map-track.flip-in-up    { animation: mapFlipInUp .42s cubic-bezier(.3,.8,.35,1.12) both; }
+.map-track.flip-in-down  { animation: mapFlipInDown .42s cubic-bezier(.3,.8,.35,1.12) both; }
+/* ⚠️ 翻转的 scale 里必须带上 `--fit`（程序按可视高度算的整屏缩放），
+   否则动画一结束就会从 scale(1) 跳回 fitScale，地图「咚」地缩一下。 */
+@keyframes mapFlipOutUp {
+  to { transform: translate3d(0, -150px, 0) rotateX(-72deg) scale(calc(var(--fit, 1) * .9)); opacity: 0; }
+}
+@keyframes mapFlipOutDown {
+  to { transform: translate3d(0, 150px, 0) rotateX(72deg) scale(calc(var(--fit, 1) * .9)); opacity: 0; }
+}
+@keyframes mapFlipInUp {
+  from { transform: translate3d(0, calc(var(--anchor, 0px) + 170px), 0) rotateX(72deg) scale(calc(var(--fit, 1) * .9)); opacity: 0; }
+  to   { transform: translate3d(0, var(--anchor, 0px), 0) rotateX(0deg) scale(var(--fit, 1)); opacity: 1; }
+}
+@keyframes mapFlipInDown {
+  from { transform: translate3d(0, calc(var(--anchor, 0px) - 170px), 0) rotateX(-72deg) scale(calc(var(--fit, 1) * .9)); opacity: 0; }
+  to   { transform: translate3d(0, var(--anchor, 0px), 0) rotateX(0deg) scale(var(--fit, 1)); opacity: 1; }
+}
+
+/* 翻页控件：整屏翻页的显式入口（右侧一列「▲ · 页点 · ▼」） */
+.map-pager {
+  position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 5;
+}
+.map-pager-btn {
+  font: inherit; font-size: 26px; line-height: 1; padding: 0;
+  width: 64px; height: 64px; border-radius: 50%; cursor: pointer;
+  color: #a97f45; background: rgba(255,255,255,.88); border: 3px solid #fff;
+  box-shadow: 0 6px 0 rgba(198,140,50,.25);
+}
+.map-pager-btn:active { transform: scale(.94); }
+.map-pager-btn:disabled { opacity: .32; box-shadow: none; cursor: default; }
+.map-pager-dots { display: flex; flex-direction: column; gap: 10px; }
+.map-pager-dot {
+  width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(255,255,255,.78); box-shadow: 0 2px 0 rgba(198,140,50,.3);
+}
+.map-pager-dot.on { background: var(--honey); box-shadow: 0 2px 0 rgba(180,120,40,.45); }
+
+/* ---------- 首页 = 地图：`.home` 既有规则的按需覆盖 ----------
+   首页与关卡地图合并成一屏（见 map.ts 的注释）后，`.home-logo / .home-progress`
+   那套「居中卡片 + 进度区贴底」的排版不再适用 —— 地图要占满剩余高度。
+   这里只改排版，不动配色。 */
+/* 首页 = 地图：顶栏改成「头像 + 昵称 ｜ ❤️ N/M」，下面依次是
+   「世界名 · 进度」与「普通 / 困难」两行，地图占满剩余高度。
+   这里只改排版，不动配色。 */
+.home.map .home-top { padding: 40px 56px 0; align-items: center; }
+
+.home-user { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.home-avatar {
+  width: 84px; height: 84px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; font-size: 44px; line-height: 1;
+  background: var(--card); border: 3px solid rgba(224,169,74,.45);
+  box-shadow: 0 6px 14px rgba(74,59,42,.10);
+}
+.home-nick {
+  font-size: 32px; font-weight: 800; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 体力整块是一个按钮：点它 = 加体力（顶栏只留这一个元素，不再单独摆「＋」） */
+.home.map .home-stamina {
+  display: flex; align-items: center; gap: 12px; margin-left: auto;
+  font: inherit; padding: 10px 28px; cursor: pointer;
+  background: var(--card); border: 2px solid rgba(224,169,74,.45);
+  border-radius: 100px; box-shadow: 0 6px 14px rgba(74,59,42,.10);
+}
+.home.map .home-stamina:active { transform: scale(.96); }
+.home.map .hearts-text { font-size: 34px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+.home.map .home-recover { font-size: 22px; color: #a97f45; font-variant-numeric: tabular-nums; }
+
+/* 世界名 · 本世界进度（两侧小箭头切三张地图） */
+.map-title-row { padding: 12px 56px 0; display: flex; align-items: center; gap: 16px; }
+.map-world-nav {
+  flex: none; font: inherit; font-size: 40px; line-height: 1;
+  width: 60px; height: 60px; border-radius: 50%;
+  color: #a97f45; background: rgba(255,255,255,.86); border: 3px solid #fff;
+  cursor: pointer; box-shadow: 0 6px 0 rgba(198,140,50,.25);
+}
+.map-world-nav:active { transform: scale(.94); }
+
+/* 难度切换：普通 / 困难 */
+.map-modes { padding: 14px 56px 0; display: flex; justify-content: center; gap: 20px; }
+.map-mode-btn {
+  font: inherit; font-size: 28px; font-weight: 800; color: #a97f45;
+  background: rgba(255,255,255,.86); border: 3px solid #fff;
+  border-radius: 100px; padding: 14px 44px; cursor: pointer;
+  box-shadow: 0 6px 0 rgba(198,140,50,.25);
+}
+.map-mode-btn:active { transform: scale(.96); }
+.map-mode-btn.on { color: #fff; background: var(--honey); box-shadow: 0 6px 0 rgba(180,120,40,.45); }
+
+/* 当前关上的宠物、每张地图末关的奖杯（都挂在节点牌上，程序画） */
+.map .node-pet, .map .node-trophy {
+  position: absolute; font-size: 52px; line-height: 1; pointer-events: none;
+  filter: drop-shadow(0 3px 5px rgba(0,0,0,.22));
+}
+.map .node-pet { right: -16px; bottom: -12px; }
+.map .node-trophy { right: -18px; top: -24px; }
+
+/* 已通关节点上的历史最高分（可以直接再挑战，所以分数要看得见） */
+.map .node-best { font-size: 20px; font-weight: 800; color: #8a5a1e; line-height: 1; }
+
+/* ---------- 底部页签栏（糖果传奇式全局导航） ----------
+   它是**浮层**：压在所有屏与功能浮层（z=65/66）之上、弹窗（z=90）之下，
+   所以弹窗一开就自动把它压住；功能浮层开着时它也常驻，随时能切走。
+   玩法屏整条隐藏 —— 局内不能有一键跳走的入口（同「不设暂停」那条约束）。 */
+.tabbar {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 70;
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 12px 28px 14px;
+  background: linear-gradient(180deg, rgba(255,247,236,0) 0%, rgba(255,247,236,.94) 40%, #fff7ec 100%);
+}
+.tabbar[hidden] { display: none; }
+.tabbar .tab {
+  flex: 1; font: inherit; color: var(--ink-soft);
+  background: transparent; border: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 0 6px; border-radius: 26px;
+}
+.tabbar .tab:active { transform: scale(.94); }
+.tabbar .tab-icon { font-size: 44px; line-height: 1; filter: grayscale(.4) opacity(.7); }
+.tabbar .tab-label { font-size: 24px; font-weight: 800; }
+.tabbar .tab.on {
+  background: var(--card);
+  box-shadow: inset 0 0 0 3px rgba(224,169,74,.55), 0 6px 14px rgba(74,59,42,.10);
+}
+.tabbar .tab.on .tab-icon { filter: none; }
+.tabbar .tab.on .tab-label { color: var(--honey); }
+
+/* 页签栏是浮层 → 给整屏（非玩法、非功能浮层）留出等高的下内边距，底部内容不会被压住。
+   功能浮层自己用 inset 让出页签的位置（见下 `.screen.sheet`），不吃这条 padding。 */
+.screen:not(#screen-game):not(.sheet) { padding-bottom: 132px; box-sizing: border-box; }
+
+/* ---------- 主界面功能浮层（§11 最终结构：地图常驻底屏 + 功能浮层叠加） ----------
+   图鉴 / 排行榜 / 设置**不再是另一屏**，而是盖在常驻地图上的卡片浮层；
+   四周露出来的那圈地图就是「这是浮层、不是新页面」的视觉说明。
+   层级：地图（10）< 遮罩（64）< 浮层（65）< 大图预览（66）< 页签栏（70）< 弹窗（90）。 */
+#scrim {
+  position: absolute; inset: 0; z-index: 64; display: none;
+  background: rgba(74, 59, 42, .46);
+}
+#scrim.on { display: block; }
+
+.screen.sheet {
+  z-index: 65;
+  /* 顶部让开地图标题、底部让开页签栏 */
+  inset: 92px 40px 158px;
+  border-radius: 52px;
+  border: 3px solid rgba(255, 255, 255, .92);
+  background: linear-gradient(180deg, #fffdf6 0%, #fff7ec 58%, #fdeed8 100%);
+  box-shadow: 0 34px 90px rgba(40, 28, 16, .42);
+  overflow: hidden;
+}
+.screen.sheet.active { display: flex; animation: sheetUp .3s cubic-bezier(.25, .9, .3, 1) both; }
+/* 图鉴里点开的大图 = 二级浮层：再叠一层，返回时原样露出图鉴 */
+#screen-preview.sheet { z-index: 66; }
+@keyframes sheetUp {
+  from { transform: translateY(46px) scale(.97); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* 浮层内的顶部：左侧标题（纯文本）、右侧 ✕ 关闭 */
+.screen.sheet .screen-top { padding: 40px 44px 10px; }
+.sheet-title { font-size: 46px; font-weight: 800; color: var(--ink); }
+.sheet-close {
+  font: inherit; font-size: 34px; font-weight: 800; line-height: 1;
+  width: 74px; height: 74px; padding: 0; border-radius: 50%; cursor: pointer;
+  color: #a97f45; background: var(--card); border: 3px solid rgba(224, 169, 74, .42);
+  box-shadow: 0 6px 14px rgba(74, 59, 42, .12);
+}
+.sheet-close:active { transform: scale(.94); }

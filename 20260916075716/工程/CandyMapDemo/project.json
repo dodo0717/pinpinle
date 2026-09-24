@@ -1,0 +1,7 @@
+{
+  "engine": "cocos-creator-js",
+  "packages": "packages",
+  "name": "CandyMapDemo",
+  "uuid": "c1d2e3f4-a5b6-7890-cdef-123456789012",
+  "version": "3.8.8"
+}

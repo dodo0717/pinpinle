@@ -1,0 +1,557 @@
+import { _decorator, Component, Node, Graphics, UITransform, Color, Vec3, ScrollView, Mask, view, Layers, Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
+import { LevelNode } from './LevelNode';
+const { ccclass } = _decorator;
+
+interface LevelPos {
+    level: number;
+    x: number;
+    y: number;
+}
+
+const DESIGN_W = 1080;
+const DESIGN_H = 1920;
+const MAP_H = 3840; // 2 屏
+const LEVEL_COUNT = 10;
+const CURRENT_LEVEL = 6;
+
+/** 主题色 */
+const SKY_TOP = new Color(135, 200, 255);
+const SKY_MID = new Color(200, 235, 255);
+const SKY_BOTTOM = new Color(230, 250, 255);
+const GRASS_DARK = new Color(80, 170, 80);
+const GRASS_LIGHT = new Color(140, 210, 100);
+const VINE_DARK = new Color(70, 140, 50);
+const VINE_LIGHT = new Color(120, 190, 80);
+const WOOD_DARK = new Color(160, 100, 50);
+const WOOD_LIGHT = new Color(220, 160, 90);
+const TEXT_BROWN = new Color(90, 50, 25);
+const TEXT_YELLOW = new Color(255, 240, 180);
+const TEXT_WHITE = new Color(255, 255, 255);
+
+/**
+ * 地图启动器 —— 田园奶油果园风格选关主界面
+ * 2 屏 10 关 + 顶栏 + 模式切换 + 底部导航
+ */
+@ccclass('MapBootstrap')
+export class MapBootstrap extends Component {
+    private content: Node = null!;
+    private levels: LevelPos[] = [];
+    private visibleSize = new Size(0, 0);
+
+    onLoad() {
+        view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
+        this.visibleSize = view.getVisibleSize();
+        this.generateLevelPositions();
+        this.buildUI();
+        this.buildMap();
+    }
+
+    /** 生成 10 个关卡坐标：纵向均匀，左右轻微蜿蜒 */
+    private generateLevelPositions() {
+        const startY = 260;
+        const endY = MAP_H - 260;
+        const step = (endY - startY) / (LEVEL_COUNT - 1);
+        for (let i = 0; i < LEVEL_COUNT; i++) {
+            const y = startY + step * i;
+            const swing = Math.sin(i * 0.9 + 0.5) * 120 + Math.sin(i * 0.4) * 40;
+            const x = DESIGN_W / 2 + swing;
+            this.levels.push({ level: i + 1, x, y });
+        }
+    }
+
+    /** 创建文字节点 */
+    private makeLabel(parent: Node, name: string, str: string, x: number, y: number, size: number, color: Color, w = 300, h = 60): Label {
+        const n = new Node(name);
+        n.parent = parent;
+        n.layer = parent.layer;
+        const uit = n.addComponent(UITransform);
+        uit.setContentSize(w, h);
+        n.setPosition(x, y);
+        const l = n.addComponent(Label);
+        l.string = str;
+        l.fontSize = size;
+        l.lineHeight = size + 6;
+        l.color = color;
+        l.horizontalAlign = HorizontalTextAlignment.CENTER;
+        l.verticalAlign = VerticalTextAlignment.CENTER;
+        return l;
+    }
+
+    /** 绘制圆角矩形（木牌/按钮） */
+    private drawRoundedRect(g: Graphics, w: number, h: number, r: number, fill: Color, stroke?: Color, sw = 4) {
+        const hw = w / 2;
+        const hh = h / 2;
+        g.moveTo(-hw + r, hh);
+        g.lineTo(hw - r, hh);
+        g.arc(hw - r, hh - r, r, Math.PI / 2, 0, true);
+        g.lineTo(hw, -hh + r);
+        g.arc(hw - r, -hh + r, r, 0, -Math.PI / 2, true);
+        g.lineTo(-hw + r, -hh);
+        g.arc(-hw + r, -hh + r, r, -Math.PI / 2, -Math.PI, true);
+        g.lineTo(-hw, hh - r);
+        g.arc(-hw + r, hh - r, r, -Math.PI, -Math.PI * 1.5, true);
+        g.close();
+        g.fillColor = fill;
+        g.fill();
+        if (stroke) {
+            g.lineWidth = sw;
+            g.strokeColor = stroke;
+            g.stroke();
+        }
+    }
+
+    // ========== 顶部 UI ==========
+    private buildTopbar() {
+        const top = new Node('Topbar');
+        top.parent = this.node;
+        top.layer = Layers.Enum.UI_2D;
+        top.addComponent(UITransform).setContentSize(DESIGN_W, 220);
+        top.setPosition(0, DESIGN_H / 2 - 110);
+
+        // 头像框背景（木牌状）
+        const avatarBg = new Node('AvatarBg');
+        avatarBg.parent = top;
+        avatarBg.layer = Layers.Enum.UI_2D;
+        avatarBg.addComponent(UITransform).setContentSize(150, 150);
+        avatarBg.setPosition(-440, 30);
+        const ag = avatarBg.addComponent(Graphics);
+        ag.fillColor = new Color(255, 230, 200);
+        ag.circle(0, 0, 68);
+        ag.fill();
+        ag.lineWidth = 9;
+        ag.strokeColor = WOOD_DARK;
+        ag.circle(0, 0, 68);
+        ag.stroke();
+        // 默认头像占位
+        ag.fillColor = new Color(255, 200, 150);
+        ag.circle(0, 0, 50);
+        ag.fill();
+        this.makeLabel(avatarBg, 'Face', '…', 0, 0, 40, TEXT_BROWN, 80, 80);
+
+        // 昵称条木牌
+        const namePlate = new Node('NamePlate');
+        namePlate.parent = top;
+        namePlate.layer = Layers.Enum.UI_2D;
+        namePlate.addComponent(UITransform).setContentSize(260, 85);
+        namePlate.setPosition(-260, 30);
+        const np = namePlate.addComponent(Graphics);
+        this.drawRoundedRect(np, 260, 85, 22, WOOD_LIGHT, WOOD_DARK, 6);
+        this.makeLabel(namePlate, 'Name', '小兔兔', -20, 18, 32, TEXT_BROWN, 220, 50);
+        this.makeLabel(namePlate, 'Lv', 'Lv.23', -20, -20, 22, new Color(120, 70, 30), 220, 40);
+
+        // 体力条
+        const stamina = new Node('Stamina');
+        stamina.parent = top;
+        stamina.layer = Layers.Enum.UI_2D;
+        stamina.addComponent(UITransform).setContentSize(280, 85);
+        stamina.setPosition(290, 38);
+        const sg = stamina.addComponent(Graphics);
+        this.drawRoundedRect(sg, 280, 85, 28, new Color(255, 140, 160), new Color(180, 70, 90), 5);
+        // 红心
+        sg.fillColor = new Color(255, 60, 80);
+        this.drawHeart(sg, -95, 0, 20);
+        // 数字
+        this.makeLabel(stamina, 'StaminaNum', '10', 25, 0, 38, TEXT_WHITE, 90, 66);
+        // + 按钮
+        const plus = new Node('PlusBtn');
+        plus.parent = stamina;
+        plus.layer = Layers.Enum.UI_2D;
+        plus.addComponent(UITransform).setContentSize(54, 54);
+        plus.setPosition(100, 0);
+        const pg = plus.addComponent(Graphics);
+        pg.fillColor = new Color(80, 200, 100);
+        pg.circle(0, 0, 22);
+        pg.fill();
+        pg.lineWidth = 4;
+        pg.strokeColor = new Color(50, 140, 70);
+        pg.circle(0, 0, 22);
+        pg.stroke();
+        this.makeLabel(plus, 'Plus', '+', 0, 2, 32, TEXT_WHITE, 50, 50);
+    }
+
+    private drawHeart(g: Graphics, cx: number, cy: number, r: number) {
+        g.moveTo(cx, cy + r * 0.5);
+        g.bezierCurveTo(cx - r * 1.2, cy + r * 1.1, cx - r * 1.4, cy - r * 0.3, cx, cy - r * 0.9);
+        g.bezierCurveTo(cx + r * 1.4, cy - r * 0.3, cx + r * 1.2, cy + r * 1.1, cx, cy + r * 0.5);
+        g.close();
+        g.fill();
+    }
+
+    // ========== 模式切换 ==========
+    private buildModeSwitch() {
+        const panel = new Node('ModeSwitch');
+        panel.parent = this.node;
+        panel.layer = Layers.Enum.UI_2D;
+        panel.addComponent(UITransform).setContentSize(420, 130);
+        panel.setPosition(-310, 695);
+
+        // 普通
+        const normal = new Node('NormalBtn');
+        normal.parent = panel;
+        normal.layer = Layers.Enum.UI_2D;
+        normal.addComponent(UITransform).setContentSize(180, 70);
+        normal.setPosition(-110, 0);
+        const ng = normal.addComponent(Graphics);
+        this.drawRoundedRect(ng, 180, 70, 24, new Color(255, 200, 70), new Color(220, 140, 40), 5);
+        // 爪印
+        ng.fillColor = TEXT_WHITE;
+        ng.circle(-45, 0, 8); ng.fill();
+        ng.circle(-38, 8, 5); ng.fill();
+        ng.circle(-30, 9, 5); ng.fill();
+        ng.circle(-22, 5, 5); ng.fill();
+        ng.ellipse(-34, -8, 10, 6); ng.fill();
+        this.makeLabel(normal, 'NormalTxt', '普通', 10, 0, 28, TEXT_BROWN, 120, 60);
+
+        // 困难
+        const hard = new Node('HardBtn');
+        hard.parent = panel;
+        hard.layer = Layers.Enum.UI_2D;
+        hard.addComponent(UITransform).setContentSize(180, 70);
+        hard.setPosition(90, 0);
+        const hg = hard.addComponent(Graphics);
+        this.drawRoundedRect(hg, 180, 70, 24, new Color(180, 180, 180), new Color(130, 130, 130), 5);
+        // 锁
+        hg.fillColor = new Color(80, 80, 80);
+        hg.roundRect(-42, -10, 26, 22, 4); hg.fill();
+        hg.fillColor = new Color(120, 120, 120);
+        hg.arc(-29, -10, 7, Math.PI, 0, true); hg.lineWidth = 4; hg.stroke();
+        this.makeLabel(hard, 'HardTxt', '困难', 10, 0, 28, new Color(80, 80, 80), 120, 60);
+    }
+
+    // ========== 底部导航 ==========
+    private buildNavbar() {
+        const nav = new Node('Navbar');
+        nav.parent = this.node;
+        nav.layer = Layers.Enum.UI_2D;
+        nav.addComponent(UITransform).setContentSize(DESIGN_W, 150);
+        nav.setPosition(0, -795);
+
+        // 木条底
+        const bar = new Node('NavBarBg');
+        bar.parent = nav;
+        bar.layer = Layers.Enum.UI_2D;
+        bar.addComponent(UITransform).setContentSize(DESIGN_W, 140);
+        bar.setPosition(0, 0);
+        const bg = bar.addComponent(Graphics);
+        bg.fillColor = WOOD_LIGHT;
+        bg.roundRect(-DESIGN_W / 2, -70, DESIGN_W, 140, 0); bg.fill();
+        bg.lineWidth = 6;
+        bg.strokeColor = WOOD_DARK;
+        bg.roundRect(-DESIGN_W / 2, -70, DESIGN_W, 140, 0); bg.stroke();
+
+        const labels = ['首页', '排行', '图鉴', '设置'];
+        const icons = ['⌂', '▣', '☰', '⚙'];
+        const startX = -330;
+        const gap = 220;
+        for (let i = 0; i < 4; i++) {
+            const btn = new Node(`Nav_${labels[i]}`);
+            btn.parent = nav;
+            btn.layer = Layers.Enum.UI_2D;
+            btn.addComponent(UITransform).setContentSize(180, 130);
+            btn.setPosition(startX + i * gap, 0);
+            // 高亮底（仅首页）
+            if (i === 0) {
+                const g = btn.addComponent(Graphics);
+                g.fillColor = new Color(255, 220, 120);
+                this.drawRoundedRect(g, 170, 120, 22, new Color(255, 220, 120), new Color(220, 170, 60), 4);
+            }
+            this.makeLabel(btn, 'Icon', icons[i], 0, 18, 36, i === 0 ? new Color(180, 90, 20) : TEXT_BROWN, 180, 50);
+            this.makeLabel(btn, 'Text', labels[i], 0, -30, 24, i === 0 ? new Color(180, 90, 20) : TEXT_BROWN, 180, 40);
+        }
+    }
+
+    // ========== 地图 ==========
+    private buildMap() {
+        const visible = this.visibleSize;
+        const viewH = Math.min(visible.height - 520, 820); // 给顶栏和底部导航留空间
+        const viewY = (DESIGN_H / 2 - 360 - viewH / 2) - DESIGN_H / 2;
+
+        const scrollNode = new Node('ScrollView');
+        scrollNode.parent = this.node;
+        scrollNode.layer = Layers.Enum.UI_2D;
+        const su = scrollNode.addComponent(UITransform);
+        su.setContentSize(DESIGN_W, viewH);
+        scrollNode.setPosition(0, viewY + DESIGN_H / 2);
+
+        const maskNode = new Node('Mask');
+        maskNode.parent = scrollNode;
+        maskNode.layer = Layers.Enum.UI_2D;
+        maskNode.addComponent(UITransform).setContentSize(DESIGN_W, viewH);
+        maskNode.addComponent(Mask);
+
+        const scroll = scrollNode.addComponent(ScrollView);
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.inertia = true;
+        scroll.brake = 0.5;
+        scroll.elastic = true;
+
+        this.content = new Node('Content');
+        this.content.parent = maskNode;
+        this.content.layer = Layers.Enum.UI_2D;
+        const cu = this.content.addComponent(UITransform);
+        cu.setContentSize(DESIGN_W, MAP_H);
+        this.content.setPosition(0, MAP_H / 2 - viewH / 2);
+
+        scroll.content = this.content;
+
+        this.createMapBackground();
+        this.createVinePath();
+        this.createDecorations();
+        this.createLevelNodes();
+
+        // 滚动到当前关卡
+        this.scheduleOnce(() => {
+            const idx = Math.min(Math.max(CURRENT_LEVEL - 1, 0), this.levels.length - 1);
+            const targetY = this.levels[idx].y;
+            const maxOffset = MAP_H - viewH;
+            const offset = Math.max(0, Math.min(maxOffset, targetY - viewH / 2));
+            this.content.setPosition(0, MAP_H / 2 - viewH / 2 - offset);
+        }, 0.1);
+    }
+
+    /** 地图背景：蓝天 → 草地，带远山风车和动物占位 */
+    private createMapBackground() {
+        const bg = new Node('MapBg');
+        bg.parent = this.content;
+        bg.layer = Layers.Enum.UI_2D;
+        bg.addComponent(UITransform).setContentSize(DESIGN_W, MAP_H);
+        bg.setPosition(0, 0);
+        const g = bg.addComponent(Graphics);
+
+        // 天空渐变
+        const segs = [
+            { y: MAP_H / 2, c: SKY_TOP },
+            { y: MAP_H / 4, c: SKY_MID },
+            { y: 0, c: SKY_BOTTOM },
+            { y: -MAP_H / 8, c: new Color(200, 245, 210) },
+            { y: -MAP_H / 2, c: GRASS_LIGHT },
+        ];
+        const stepH = MAP_H / (segs.length - 1);
+        for (let i = 0; i < segs.length - 1; i++) {
+            const c1 = segs[i].c;
+            const c2 = segs[i + 1].c;
+            const yTop = MAP_H / 2 - i * stepH;
+            const steps = 30;
+            for (let s = 0; s < steps; s++) {
+                const t = s / steps;
+                const r = Math.round(c1.r + (c2.r - c1.r) * t);
+                const gg = Math.round(c1.g + (c2.g - c1.g) * t);
+                const b = Math.round(c1.b + (c2.b - c1.b) * t);
+                g.fillColor = new Color(r, gg, b, 255);
+                const y = yTop - s * stepH / steps;
+                g.rect(-DESIGN_W / 2, y - stepH / steps - 1, DESIGN_W, stepH / steps + 2);
+                g.fill();
+            }
+        }
+
+        // 远景山丘
+        g.fillColor = new Color(160, 210, 160, 200);
+        this.drawHill(g, -DESIGN_W / 2 - 50, MAP_H / 2 - 400, 700, 200);
+        g.fillColor = new Color(120, 190, 140, 220);
+        this.drawHill(g, 100, MAP_H / 2 - 360, 900, 260);
+
+        // 草地起伏
+        g.fillColor = GRASS_DARK;
+        this.drawHill(g, -DESIGN_W / 2 - 30, MAP_H / 2 - 900, 800, 160);
+        g.fillColor = GRASS_LIGHT;
+        this.drawHill(g, -100, MAP_H / 2 - 950, 1200, 200);
+
+        // 风车（右侧）
+        this.drawWindmill(g, 360, MAP_H / 2 - 620, 120);
+        // 小房子
+        this.drawHouse(g, -320, MAP_H / 2 - 680, 100);
+
+        // 底部装饰：兔子/小狗占位（用简单色块示意，等美术替换）
+        this.drawAnimalPlaceholder(g, -260, -MAP_H / 2 + 220, 160, 'rabbit');
+        this.drawAnimalPlaceholder(g, 280, -MAP_H / 2 + 200, 140, 'dog');
+        this.drawAnimalPlaceholder(g, -80, -MAP_H / 2 + 360, 90, 'chick');
+    }
+
+    private drawHill(g: Graphics, x: number, y: number, w: number, h: number) {
+        g.moveTo(x, y);
+        g.bezierCurveTo(x + w * 0.3, y + h, x + w * 0.7, y + h, x + w, y);
+        g.lineTo(x + w, y - 200);
+        g.lineTo(x, y - 200);
+        g.close();
+        g.fill();
+    }
+
+    private drawWindmill(g: Graphics, cx: number, cy: number, h: number) {
+        // 塔身
+        g.fillColor = new Color(240, 230, 210);
+        g.moveTo(cx - 20, cy);
+        g.lineTo(cx + 20, cy);
+        g.lineTo(cx + 35, cy - h);
+        g.lineTo(cx - 35, cy - h);
+        g.close();
+        g.fill();
+        // 屋顶
+        g.fillColor = new Color(180, 80, 70);
+        g.moveTo(cx - 45, cy - h + 20);
+        g.lineTo(cx, cy - h - 50);
+        g.lineTo(cx + 45, cy - h + 20);
+        g.close();
+        g.fill();
+        // 叶片
+        g.lineWidth = 6;
+        g.strokeColor = new Color(140, 90, 60);
+        for (let i = 0; i < 4; i++) {
+            const a = (i * Math.PI) / 2;
+            const x = cx + Math.cos(a) * 60;
+            const y = cy - h + Math.sin(a) * 60;
+            g.moveTo(cx, cy - h);
+            g.lineTo(x, y);
+            g.stroke();
+            g.fillColor = new Color(255, 255, 255, 200);
+            g.rect(x - 8, y - 25, 16, 50);
+            g.fill();
+        }
+    }
+
+    private drawHouse(g: Graphics, cx: number, cy: number, s: number) {
+        g.fillColor = new Color(255, 240, 210);
+        g.rect(cx - s / 2, cy - s, s, s);
+        g.fill();
+        g.fillColor = new Color(200, 100, 90);
+        g.moveTo(cx - s / 2 - 10, cy - s);
+        g.lineTo(cx, cy - s - 40);
+        g.lineTo(cx + s / 2 + 10, cy - s);
+        g.close();
+        g.fill();
+        g.fillColor = new Color(120, 80, 60);
+        g.rect(cx - 18, cy - s + 10, 36, 45);
+        g.fill();
+    }
+
+    private drawAnimalPlaceholder(g: Graphics, cx: number, cy: number, s: number, type: string) {
+        // 仅做位置/比例占位，实际替换为美术图
+        g.fillColor = new Color(255, 255, 255, 90);
+        g.ellipse(cx, cy, s, s * 0.85);
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeColor = new Color(255, 255, 255, 120);
+        g.ellipse(cx, cy, s, s * 0.85);
+        g.stroke();
+        const txt = type === 'rabbit' ? '🐰' : type === 'dog' ? '🐶' : '🐤';
+        // emoji 在 Cocos Label 可能不显示，这里仅做占位文字
+        const n = new Node(type);
+        n.parent = g.node;
+        n.layer = g.node.layer;
+        n.addComponent(UITransform).setContentSize(s, s);
+        n.setPosition(cx, cy);
+        const l = n.addComponent(Label);
+        l.string = txt;
+        l.fontSize = Math.floor(s * 0.5);
+        l.color = new Color(255, 255, 255, 120);
+        l.horizontalAlign = HorizontalTextAlignment.CENTER;
+        l.verticalAlign = VerticalTextAlignment.CENTER;
+    }
+
+    /** 藤蔓路径 */
+    private createVinePath() {
+        const path = new Node('Vine');
+        path.parent = this.content;
+        path.layer = Layers.Enum.UI_2D;
+        path.addComponent(UITransform).setContentSize(DESIGN_W, MAP_H);
+        path.setPosition(0, 0);
+
+        const g = path.addComponent(Graphics);
+        g.lineCap = Graphics.LineCap.ROUND;
+        g.lineJoin = Graphics.LineJoin.ROUND;
+
+        const pts = this.levels.map(l => ({ x: l.x - DESIGN_W / 2, y: l.y - MAP_H / 2 }));
+
+        // 主藤蔓
+        g.lineWidth = 28;
+        g.strokeColor = VINE_DARK;
+        this.drawSmoothPath(g, pts);
+
+        g.lineWidth = 16;
+        g.strokeColor = VINE_LIGHT;
+        this.drawSmoothPath(g, pts);
+
+        // 叶子
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            const mx = (p1.x + p2.x) / 2;
+            const my = (p1.y + p2.y) / 2;
+            const side = i % 2 === 0 ? 1 : -1;
+            g.fillColor = new Color(100, 180, 70);
+            g.ellipse(mx + side * 30, my, 22, 10);
+            g.fill();
+            g.fillColor = new Color(130, 210, 90);
+            g.ellipse(mx + side * 30, my, 14, 6);
+            g.fill();
+        }
+    }
+
+    private drawSmoothPath(g: Graphics, pts: { x: number; y: number }[]) {
+        if (pts.length < 2) return;
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length - 1; i++) {
+            const xc = (pts[i].x + pts[i + 1].x) / 2;
+            const yc = (pts[i].y + pts[i + 1].y) / 2;
+            g.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+        }
+        g.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+        g.stroke();
+    }
+
+    /** 装饰：小花 */
+    private createDecorations() {
+        const deco = new Node('Decorations');
+        deco.parent = this.content;
+        deco.layer = Layers.Enum.UI_2D;
+        deco.addComponent(UITransform).setContentSize(DESIGN_W, MAP_H);
+        deco.setPosition(0, 0);
+        const g = deco.addComponent(Graphics);
+
+        const flowerColors = [
+            new Color(255, 220, 230),
+            new Color(255, 240, 180),
+            new Color(220, 230, 255),
+            new Color(255, 200, 220),
+        ];
+        for (let i = 0; i < 40; i++) {
+            const x = (Math.random() - 0.5) * (DESIGN_W - 100);
+            const y = (Math.random() - 0.5) * (MAP_H - 400);
+            const c = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+            this.drawFlower(g, x, y, 6 + Math.random() * 8, c);
+        }
+    }
+
+    private drawFlower(g: Graphics, x: number, y: number, r: number, c: Color) {
+        g.fillColor = c;
+        for (let i = 0; i < 5; i++) {
+            const a = (i * Math.PI * 2) / 5;
+            g.circle(x + Math.cos(a) * r, y + Math.sin(a) * r, r * 0.45);
+            g.fill();
+        }
+        g.fillColor = new Color(255, 230, 100);
+        g.circle(x, y, r * 0.35);
+        g.fill();
+    }
+
+    private createLevelNodes() {
+        for (let i = 0; i < this.levels.length; i++) {
+            const lv = this.levels[i];
+            const node = new Node(`Level_${lv.level}`);
+            node.parent = this.content;
+            node.layer = Layers.Enum.UI_2D;
+            const uit = node.addComponent(UITransform);
+            uit.setContentSize(120, 120);
+            node.setPosition(lv.x - DESIGN_W / 2, lv.y - MAP_H / 2);
+
+            const ln = node.addComponent(LevelNode);
+            ln.init(lv.level, lv.level === CURRENT_LEVEL);
+        }
+    }
+
+    private buildUI() {
+        this.buildTopbar();
+        this.buildModeSwitch();
+        this.buildNavbar();
+    }
+}

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>萌宠拼拼乐 · 世界1 选关地图预览（真素材版）</title>
+<style>
+  :root { color-scheme: dark; }
+  @font-face { font-family:'HarmonyOS Sans SC'; src:url('/assets/resources/font/HarmonyOS_Sans_SC_Medium.ttf'); font-weight:500; font-display:swap; }
+  @font-face { font-family:'HarmonyOS Sans SC'; src:url('/assets/resources/font/HarmonyOS_Sans_SC_Bold.ttf'); font-weight:700; font-display:swap; }
+  body { margin:0; background:#1b1d22; color:#ddd; font:14px/1.6 "Microsoft YaHei","PingFang SC",sans-serif; display:flex; height:100vh; }
+  #panel { width:300px; padding:16px; box-sizing:border-box; border-right:1px solid #333; overflow:auto; flex:none; }
+  #stage { flex:1; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:10px; background:#7aa9ca; }
+  canvas { background:#7aa9ca; display:block; height:100%; width:auto; max-width:100%; }
+  h1 { font-size:15px; margin:0 0 4px; }
+  .sub { font-size:12px; color:#7a8290; margin:0 0 14px; }
+  .row { margin-bottom:12px; }
+  label { display:block; font-size:12px; color:#9aa; margin-bottom:4px; }
+  input[type=range] { width:100%; }
+  button { width:100%; padding:7px; margin-bottom:6px; background:#2c3140; color:#ddd; border:1px solid #4a5266; border-radius:6px; cursor:pointer; font-size:13px; }
+  button:hover { background:#3a4152; }
+  button.on { background:#3f6ea8; border-color:#5b90cc; }
+  .btns { display:flex; gap:6px; }
+  .btns button { margin-bottom:0; }
+  #info { font:12px/1.7 ui-monospace,Consolas,monospace; color:#8fb; white-space:pre; background:#20232b; padding:8px; border-radius:6px; }
+  .note { font-size:12px; color:#6f7684; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>世界1 · 选关地图预览</h1>
+  <p class="sub">真素材版，与 MapBootstrap.ts / LevelNode.ts 同坐标</p>
+
+  <div class="row">
+    <label>地图滚动 offset <span id="offVal"></span></label>
+    <input id="offset" type="range" min="0" max="1405" value="0">
+  </div>
+  <div class="row">
+    <button id="toCurrent">滚到当前关（第 6 关）</button>
+    <div class="btns">
+      <button id="toTop">顶部</button>
+      <button id="toBottom">底部</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>难度（互斥两态）</label>
+    <div class="btns">
+      <button id="d0" class="on">普通</button>
+      <button id="d1">困难</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>底部页签（互斥四选一）</label>
+    <div class="btns">
+      <button id="t0" class="on">首页</button>
+      <button id="t1">排行</button>
+      <button id="t2">图鉴</button>
+      <button id="t3">设置</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="btns">
+      <button id="toggleFull">全图 / 屏幕</button>
+      <button id="toggleHit" class="on">热区</button>
+    </div>
+  </div>
+
+  <div class="row"><div id="info"></div></div>
+  <p class="note">滚轮可滚动地图；未选中的页签/难度是压暗效果（Sprite 只能乘色变暗，故“高亮”= 保持原色）。</p>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<script>
+/* ============================================================
+ * 1. cc 引擎 API 的极简 shim
+ * ========================================================== */
+class Color { constructor(r,g,b,a=255){ this.r=r; this.g=g; this.b=b; this.a=(a===undefined?255:a); } }
+class Vec3 { constructor(x=0,y=0,z=0){ this.x=x;this.y=y;this.z=z; } }
+class Size { constructor(w=0,h=0){ this.w=w; this.h=h; } }
+const Layers = { Enum: { UI_2D: 1<<25 } };
+const ResolutionPolicy = { FIXED_WIDTH: 1 };
+const HorizontalTextAlignment = { CENTER: 1 };
+const VerticalTextAlignment = { CENTER: 1 };
+const view = { setDesignResolutionSize(){}, getVisibleSize(){ return new Size(DESIGN_W, DESIGN_H); } };
+
+class UITransform { setContentSize(w,h){ this.w=w; this.h=h; } }
+class UIOpacity { constructor(){ this.opacity=255; } }
+class ScrollView {}
+class Mask {}
+class SpriteFrame {}
+class Component { constructor(){ this.node=null; } }
+class Sprite {
+  constructor(){ this.path=''; this.color=new Color(255,255,255); this.sizeMode=1; this.spriteFrame=null; }
+  static SizeMode = { CUSTOM: 1, RAW: 0, TRIMMED: 2 };
+}
+
+class Label {
+  constructor(){
+    this.string=''; this.fontSize=24; this.lineHeight=0; this.color=new Color(255,255,255);
+    this.horizontalAlign=HorizontalTextAlignment.CENTER;
+    this.verticalAlign=VerticalTextAlignment.CENTER;
+    this.enableBold=false;
+  }
+}
+
+/** 贴图资源表（键 = resources.load 的路径） */
+const IMG = {};
+const ART = {
+  'ui/home_topbar_left':       '/assets/resources/ui/home_topbar_left.png',
+  'ui/home_topbar_right':      '/assets/resources/ui/home_topbar_right.png',
+  'ui/home_avatar':            '/assets/resources/ui/home_avatar.png',
+  'ui/home_difficulty_yellow': '/assets/resources/ui/home_difficulty_yellow.png',
+  'ui/home_difficulty_gray':   '/assets/resources/ui/home_difficulty_gray.png',
+  'ui/home_tabbar_bg':         '/assets/resources/ui/home_tabbar_bg.png',
+  'ui/home_tab_home':          '/assets/resources/ui/home_tab_home.png',
+  'ui/home_tab_rank':          '/assets/resources/ui/home_tab_rank.png',
+  'ui/home_tab_collection':    '/assets/resources/ui/home_tab_collection.png',
+  'ui/home_tab_settings':      '/assets/resources/ui/home_tab_settings.png',
+  'map/w1_bg_top':             '/assets/resources/map/w1_bg_top.png',
+  'map/w1_bg_bottom':          '/assets/resources/map/w1_bg_bottom.png',
+  'map/vine':                  '/assets/resources/map/vine.png',
+  'map/level_balloon_1':       '/assets/resources/map/level_balloon_1.png',
+  'map/level_balloon_2':       '/assets/resources/map/level_balloon_2.png',
+  'map/level_balloon_3':       '/assets/resources/map/level_balloon_3.png',
+  'map/level_balloon_4':       '/assets/resources/map/level_balloon_4.png',
+  'map/level_balloon_5':       '/assets/resources/map/level_balloon_5.png',
+  'map/level_balloon_6':       '/assets/resources/map/level_balloon_6.png',
+  'map/level_balloon_7':       '/assets/resources/map/level_balloon_7.png',
+  'map/level_balloon_8':       '/assets/resources/map/level_balloon_8.png',
+  'map/level_balloon_9':       '/assets/resources/map/level_balloon_9.png',
+  'map/level_balloon_10':      '/assets/resources/map/level_balloon_10.png',
+};
+
+class Graphics {
+  constructor(){
+    this.cmds=[];
+    this.fillColor=new Color(255,255,255);
+    this.strokeColor=new Color(0,0,0);
+    this.lineWidth=1; this.lineCap=0; this.lineJoin=0;
+    this.color=new Color(255,255,255);
+  }
+  moveTo(x,y){ this.cmds.push({t:'moveTo',x,y}); }
+  lineTo(x,y){ this.cmds.push({t:'lineTo',x,y}); }
+  bezierCurveTo(a,b,c,d,e,f){ this.cmds.push({t:'bezier',a,b,c,d,e,f}); }
+  close(){ this.cmds.push({t:'close'}); }
+  rect(x,y,w,h){ this.cmds.push({t:'rect',x,y,w,h}); }
+  roundRect(x,y,w,h,r){ this.cmds.push({t:'rrect',x,y,w,h,r}); }
+  circle(x,y,r){ this.cmds.push({t:'circle',x,y,r}); }
+  ellipse(x,y,rx,ry){ this.cmds.push({t:'ellipse',x,y,rx,ry}); }
+  arc(x,y,r,a1,a2,ccw){ this.cmds.push({t:'arc',x,y,r,a1,a2,ccw:!!ccw}); }
+  fill(){ this.cmds.push({t:'fill',c:new Color(this.fillColor.r,this.fillColor.g,this.fillColor.b,this.fillColor.a)}); }
+  stroke(){ this.cmds.push({t:'stroke',c:new Color(this.strokeColor.r,this.strokeColor.g,this.strokeColor.b,this.strokeColor.a),w:this.lineWidth}); }
+
+  draw(ctx){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath();
+    for (const c of this.cmds) {
+      switch (c.t) {
+        case 'moveTo': ctx.moveTo(c.x,-c.y); break;
+        case 'lineTo': ctx.lineTo(c.x,-c.y); break;
+        case 'bezier': ctx.bezierCurveTo(c.a,-c.b,c.c,-c.d,c.e,-c.f); break;
+        case 'close': ctx.closePath(); break;
+        case 'rect':  ctx.rect(c.x,-(c.y+c.h),c.w,c.h); break;
+        case 'rrect': ctx.roundRect(c.x,-(c.y+c.h),c.w,c.h,c.r); break;
+        case 'circle':ctx.arc(c.x,-c.y,c.r,0,Math.PI*2); break;
+        case 'ellipse':ctx.ellipse(c.x,-c.y,c.rx,c.ry,0,0,Math.PI*2); break;
+        case 'arc':   ctx.arc(c.x,-c.y,c.r,-c.a1,-c.a2,!c.ccw); break;
+        case 'fill':  ctx.fillStyle=rgba(mul(c.c,this.color)); ctx.fill(); break;
+        case 'stroke':ctx.lineWidth=c.w; ctx.strokeStyle=rgba(mul(c.c,this.color)); ctx.stroke(); break;
+      }
+    }
+  }
+}
+
+class Node {
+  static EventType = { TOUCH_END: 'touch-end' };
+  constructor(name){ this.name=name; this.children=[]; this.x=0; this.y=0; this.scaleX=1; this.scaleY=1; this.comps=[]; this.layer=0; this._parent=null; this.isValid=true; }
+  set parent(p){ p.children.push(this); this._parent=p; }
+  get parent(){ return this._parent; }
+  setPosition(x,y){ this.x=x; this.y=y; }
+  setScale(x,y){ this.scaleX=x; this.scaleY=y; }
+  addComponent(C){ const c=new C(); c.node=this; this.comps.push(c); return c; }
+  on(){ /* 预览不接点击 */ }
+}
+
+function rgba(c){ return 'rgba('+c.r+','+c.g+','+c.b+','+(c.a/255).toFixed(3)+')'; }
+function mul(c,t){ return new Color(Math.round(c.r*t.r/255),Math.round(c.g*t.g/255),Math.round(c.b*t.b/255),c.a); }
+function tween(){ const o={ to(){return o;}, union(){return o;}, repeatForever(){return o;}, start(){return o;} }; return o; }
+
+/* ============================================================
+ * 2. LevelNode.ts
+ * ========================================================== */
+class LevelNode extends Component {
+  init(level, isCurrent, locked=false){
+    this.levelNum=level; this.isCurrent=isCurrent;
+    this.drawDecor();
+    if (locked) this.drawMaskAndLock();
+    else if (isCurrent) this.playGlowAnimation();
+  }
+  drawDecor(){
+    const r=118;
+    if (this.isCurrent){
+      const glowNode=new Node('Glow');
+      glowNode.parent=this.node; glowNode.layer=this.node.layer;
+      glowNode.addComponent(UITransform);
+      const gg=glowNode.addComponent(Graphics);
+      const rings=[8,16,26], alphas=[200,130,70];
+      for (let i=0;i<rings.length;i++){
+        gg.lineWidth=4;
+        gg.strokeColor=new Color(255,200,60,alphas[i]);
+        gg.circle(0,0,r+rings[i]); gg.stroke();
+      }
+      this.glowNode=glowNode;
+    }
+    const g=this.node.addComponent(Graphics);
+    this.g=g;
+    g.fillColor=new Color(0,0,0,0);
+    g.circle(0,0,r); g.fill();
+  }
+  drawMaskAndLock(){
+    const r=105;
+    const g=this.node.addComponent(Graphics);
+    g.fillColor=new Color(55,55,65,150);
+    g.circle(0,0,r); g.fill();
+    this.drawLock();
+  }
+  drawLock(){
+    const g=this.node.addComponent(Graphics);
+    const s=28;
+    g.fillColor=new Color(250,245,235,255);
+    g.roundRect(-s/2,-s/2-4,s,s*0.78,5); g.fill();
+    g.lineWidth=7; g.strokeColor=new Color(250,245,235,255);
+    g.arc(0,-s/2-4,s*0.34,Math.PI,0,true); g.stroke();
+  }
+  playGlowAnimation(){
+    tween(this.node).to(0.9,{scale:new Vec3(1.10,1.10,1)}).to(0.9,{scale:new Vec3(1,1,1)}).union().repeatForever().start();
+    if (this.glowNode){ const op=this.glowNode.addComponent(UIOpacity); tween(op).to(0.9,{opacity:120}).to(0.9,{opacity:255}).union().repeatForever().start(); }
+  }
+}
+
+/* ============================================================
+ * 3. MapBootstrap.ts
+ * ========================================================== */
+const DESIGN_W = 1080;
+const DESIGN_H = 1920;
+const MAP_H = 2880;
+const LEVEL_COUNT = 10;
+const CURRENT_LEVEL = 6;
+const UNLOCKED_MAX = 6;
+
+const W1_LEVEL_XY = [
+  [622,2682],[628,2334],[558,2006],[668,1742],[616,1424],
+  [696,1112],[634,816],[702,526],[640,246],[714,60],
+];
+
+const UI_POS = {
+  topbarLeft:  { w:683,  h:274, x:-258, y:820 },
+  avatar:      { w:180,  h:180, x:-200, y:10 },
+  nickname:    { w:280,  h:55,  x:50,   y:20 },
+  level:       { w:200,  h:40,  x:50,   y:-25 },
+  topbarRight: { w:692,  h:163, x:288,  y:852 },
+  staminaNum:  { w:120,  h:60,  x:30,   y:10 },
+  countdown:   { w:180,  h:24,  x:30,   y:-35 },
+  plusHit:     { w:90,   h:90,  x:220,  y:0 },
+  difficulty:  { w:880,  h:180, x:-228, y:580 },
+  diffBtnW:    400,
+  diffBtnH:    180,
+  diffHit:     { w:360,  h:160, dx:220 },
+  tabbar:      { w:1080, h:260, x:0,    y:-826 },
+  tabSliceW:   270,
+  tabIcon:     { w:200,  h:180, dx:270, dy:0 },
+  tabHit:      { w:220,  h:220, dx:270, dy:0 },
+};
+
+const BALLOON_PATHS = [
+  'map/level_balloon_1','map/level_balloon_2','map/level_balloon_3','map/level_balloon_4','map/level_balloon_5',
+  'map/level_balloon_6','map/level_balloon_7','map/level_balloon_8','map/level_balloon_9','map/level_balloon_10',
+];
+const BALLOON_W = 240;
+const BALLOON_H = 320;
+
+const VIEW_TOP = DESIGN_H/2;      // 铺满整屏
+const VIEW_BOTTOM = -DESIGN_H/2;  // 顶栏 / 底导航作为浮层压在地图之上
+
+const TINT_ON = new Color(255,255,255,255);
+const TINT_OFF = new Color(150,150,150,255);
+/* 难度：选中偏暖黄（两张都会变黄），未选中压成灰调 */
+const TINT_DIFF_ON = new Color(255,236,150,255);
+const TINT_DIFF_OFF = new Color(138,138,146,255);
+const TEXT_BROWN = new Color(90,50,25);
+const TEXT_WHITE = new Color(255,255,255);
+
+const app = {
+  node:null, content:null, levels:[], viewH:0, diffSprites:[], tabSprites:[], diffIndex:0, tabIndex:0,
+
+  onLoad(){
+    this.node=new Node('Canvas');
+    this.buildLevelPositions();
+    this.buildUI();
+    this.buildMap();
+  },
+
+  buildLevelPositions(){
+    for (let i=0;i<LEVEL_COUNT && i<W1_LEVEL_XY.length;i++){
+      this.levels.push({ level:i+1, x:W1_LEVEL_XY[i][0], y:MAP_H-W1_LEVEL_XY[i][1] });
+    }
+  },
+
+  makeLabel(parent,name,str,x,y,size,color,w=300,h=60){
+    const n=new Node(name); n.parent=parent; n.layer=parent.layer;
+    n.addComponent(UITransform).setContentSize(w,h);
+    n.setPosition(x,y);
+    const l=n.addComponent(Label);
+    l.string=str; l.fontSize=size; l.lineHeight=size+6; l.color=color;
+    l.horizontalAlign=HorizontalTextAlignment.CENTER;
+    l.verticalAlign=VerticalTextAlignment.CENTER;
+    return l;
+  },
+
+  makeSprite(parent,name,path,w,h,x,y){
+    const n=new Node(name); n.parent=parent; n.layer=Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w,h);
+    n.setPosition(x,y);
+    const sp=n.addComponent(Sprite);
+    sp.sizeMode=Sprite.SizeMode.CUSTOM;
+    sp.path=path;              // 引擎里走 resources.load，预览里直接贴图
+    return sp;
+  },
+
+  makeHit(parent,name,w,h,x,y){
+    const n=new Node(name); n.parent=parent; n.layer=Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w,h);
+    n.setPosition(x,y);
+    return n;
+  },
+
+  buildTopbar(){
+    const L=UI_POS.topbarLeft;
+    const left=new Node('TopbarLeft'); left.parent=this.node; left.layer=Layers.Enum.UI_2D;
+    left.addComponent(UITransform).setContentSize(L.w,L.h);
+    left.setPosition(L.x,L.y);
+    this.makeSprite(left,'Bg','ui/home_topbar_left',L.w,L.h,0,0);
+
+    const av=new Node('Avatar'); av.parent=left; av.layer=Layers.Enum.UI_2D;
+    av.addComponent(UITransform).setContentSize(UI_POS.avatar.w,UI_POS.avatar.h);
+    av.setPosition(UI_POS.avatar.x,UI_POS.avatar.y);
+    this.makeSprite(av,'AvatarImg','ui/home_avatar',UI_POS.avatar.w,UI_POS.avatar.h,0,0);
+
+    this.makeLabel(left,'Nickname','小兔兔',UI_POS.nickname.x,UI_POS.nickname.y,34,TEXT_BROWN,UI_POS.nickname.w,UI_POS.nickname.h);
+    this.makeLabel(left,'Level','Lv.23',UI_POS.level.x,UI_POS.level.y,26,TEXT_BROWN,UI_POS.level.w,UI_POS.level.h);
+
+    const R=UI_POS.topbarRight;
+    const right=new Node('TopbarRight'); right.parent=this.node; right.layer=Layers.Enum.UI_2D;
+    right.addComponent(UITransform).setContentSize(R.w,R.h);
+    right.setPosition(R.x,R.y);
+    this.makeSprite(right,'Bg','ui/home_topbar_right',R.w,R.h,0,0);
+
+    this.makeLabel(right,'StaminaNum','10',UI_POS.staminaNum.x,UI_POS.staminaNum.y,34,TEXT_WHITE,UI_POS.staminaNum.w,UI_POS.staminaNum.h);
+    this.makeLabel(right,'Countdown','20:00 后 +1',UI_POS.countdown.x,UI_POS.countdown.y,18,TEXT_WHITE,UI_POS.countdown.w,UI_POS.countdown.h);
+    this.makeHit(right,'PlusHit',UI_POS.plusHit.w,UI_POS.plusHit.h,UI_POS.plusHit.x,UI_POS.plusHit.y);
+  },
+
+  buildModePanel(){
+    const D=UI_POS.difficulty;
+    const panel=new Node('ModeSwitch'); panel.parent=this.node; panel.layer=Layers.Enum.UI_2D;
+    panel.addComponent(UITransform).setContentSize(D.w,D.h);
+    panel.setPosition(D.x,D.y);
+
+    const bw=D.diffBtnW, bh=D.diffBtnH, gap=80;
+    this.normalYellow=this.makeSprite(panel,'NY','ui/home_difficulty_yellow',bw,bh,-bw/2-gap/2,0);
+    this.normalGray  =this.makeSprite(panel,'NG','ui/home_difficulty_gray',  bw,bh,-bw/2-gap/2,0);
+    this.hardYellow  =this.makeSprite(panel,'HY','ui/home_difficulty_yellow',bw,bh, bw/2+gap/2,0);
+    this.hardGray    =this.makeSprite(panel,'HG','ui/home_difficulty_gray',  bw,bh, bw/2+gap/2,0);
+    this.makeLabel(panel,'NormalLabel','普通',-bw/2-gap/2,0,44,TEXT_BROWN,200,70);
+    this.makeLabel(panel,'HardLabel','困难',bw/2+gap/2,0,44,TEXT_BROWN,200,70);
+
+    const hit=UI_POS.diffHit;
+    this.makeHit(panel,'NormalHit',hit.w,hit.h,-hit.dx,0);
+    this.makeHit(panel,'HardHit',hit.w,hit.h,hit.dx,0);
+    this.applyDifficulty();
+  },
+
+  setDifficulty(i){ this.diffIndex = i===1?1:0; this.applyDifficulty(); },
+  applyDifficulty(){
+    const on0 = this.diffIndex===0;
+    this.normalYellow.color = new Color(255,255,255, on0?255:0);
+    this.normalGray.color   = new Color(255,255,255, on0?0:255);
+    this.hardYellow.color   = new Color(255,255,255, on0?0:255);
+    this.hardGray.color     = new Color(255,255,255, on0?255:0);
+  },
+
+  buildNavbar(){
+    const T=UI_POS.tabbar;
+    const nav=new Node('Navbar'); nav.parent=this.node; nav.layer=Layers.Enum.UI_2D;
+    nav.addComponent(UITransform).setContentSize(T.w,T.h);
+    nav.setPosition(T.x,T.y);
+    this.makeSprite(nav,'Bg','ui/home_tabbar_bg',T.w,T.h,0,0);
+
+    const icons=['ui/home_tab_home','ui/home_tab_rank','ui/home_tab_collection','ui/home_tab_settings'];
+    const hit=UI_POS.tabHit;
+    const iconPos=UI_POS.tabIcon;
+    const startX=-T.w/2+UI_POS.tabSliceW/2;
+    this.tabSprites=[];
+    for (let i=0;i<4;i++){
+      const ix=startX+i*iconPos.dx;
+      this.tabSprites.push(this.makeSprite(nav,'Tab_'+i,icons[i],iconPos.w,iconPos.h,ix,iconPos.dy));
+      this.makeHit(nav,'TabHit_'+i,hit.w,hit.h,startX+i*hit.dx,hit.dy);
+    }
+    this.applyTab();
+  },
+
+  setTab(i){ this.tabIndex=Math.min(Math.max(i,0),3); this.applyTab(); },
+  applyTab(){
+    for (let i=0;i<this.tabSprites.length;i++){
+      const on = i===this.tabIndex;
+      this.tabSprites[i].color = on ? TINT_ON : TINT_OFF;
+      this.tabSprites[i].node.setScale(on?1.15:1, on?1.15:1);
+    }
+  },
+
+  buildMap(){
+    this.viewH=VIEW_TOP-VIEW_BOTTOM;
+    const viewY=(VIEW_TOP+VIEW_BOTTOM)/2;
+
+    const scrollNode=new Node('ScrollView'); scrollNode.parent=this.node; scrollNode.layer=Layers.Enum.UI_2D;
+    scrollNode.addComponent(UITransform).setContentSize(DESIGN_W,this.viewH);
+    scrollNode.setPosition(0,viewY);
+    this.scrollNode=scrollNode;
+
+    const maskNode=new Node('Mask'); maskNode.parent=scrollNode; maskNode.layer=Layers.Enum.UI_2D;
+    maskNode.addComponent(UITransform).setContentSize(DESIGN_W,this.viewH);
+    maskNode.addComponent(Mask);
+
+    const scroll=scrollNode.addComponent(ScrollView);
+    scroll.horizontal=false; scroll.vertical=true; scroll.inertia=true; scroll.brake=0.5; scroll.elastic=true;
+
+    this.content=new Node('Content'); this.content.parent=maskNode; this.content.layer=Layers.Enum.UI_2D;
+    this.content.addComponent(UITransform).setContentSize(DESIGN_W,MAP_H);
+    this.content.setPosition(0,MAP_H/2-this.viewH/2);
+    scroll.content=this.content;
+
+    this.createMapBackground();
+    this.createLevelNodes();
+  },
+
+  createMapBackground(){
+    const seg=MAP_H/2;
+    this.makeSprite(this.content,'BgTop','map/w1_bg_top',DESIGN_W,seg,0,MAP_H/2-seg/2);
+    this.makeSprite(this.content,'BgBottom','map/w1_bg_bottom',DESIGN_W,seg,0,-MAP_H/2+seg/2);
+    this.makeSprite(this.content,'Vine','map/vine',152,MAP_H,0,0);
+  },
+
+  createLevelNodes(){
+    for (let i=0;i<this.levels.length;i++){
+      const lv=this.levels[i];
+      const node=new Node('Level_'+lv.level);
+      node.parent=this.content; node.layer=Layers.Enum.UI_2D;
+      node.addComponent(UITransform).setContentSize(BALLOON_W,BALLOON_H);
+      node.setPosition(lv.x-DESIGN_W/2, lv.y-MAP_H/2);
+      this.makeSprite(node,'Balloon',BALLOON_PATHS[i],BALLOON_W,BALLOON_H,0,0);
+      const ln=node.addComponent(LevelNode);
+      ln.init(lv.level, lv.level===CURRENT_LEVEL, lv.level>UNLOCKED_MAX);
+    }
+  },
+
+  buildUI(){ this.buildTopbar(); this.buildModePanel(); this.buildNavbar(); }
+};
+
+/* ============================================================
+ * 4. 渲染
+ * ========================================================== */
+function drawSprite(ctx, sp){
+  const im=IMG[sp.path];
+  const uit=sp.node.comps.find(c=>c instanceof UITransform);
+  const w=uit?uit.w:0, h=uit?uit.h:0;
+  if (!im){ // 贴图没加载出来时画占位框
+    ctx.strokeStyle='rgba(255,80,80,.9)'; ctx.lineWidth=2;
+    ctx.strokeRect(-w/2,h/2,w,h); return;
+  }
+  const f=sp.color.r/255;
+  ctx.filter = f>=0.999 ? 'none' : 'grayscale('+((1-f)*0.8).toFixed(2)+') brightness('+(0.6+0.4*f).toFixed(2)+')';
+  ctx.drawImage(im,-w/2,-h/2,w,h);
+  ctx.filter='none';
+}
+
+function drawNode(ctx, node, px, py, cx0, cy0){
+  const wx=px+node.x, wy=py+node.y;
+  ctx.save();
+  ctx.translate(cx0+wx, cy0-wy);
+  ctx.scale(node.scaleX||1, node.scaleY||1);
+  for (const c of node.comps){
+    if (c instanceof Graphics) c.draw(ctx);
+    else if (c instanceof Sprite) drawSprite(ctx,c);
+    else if (c instanceof Label){
+      ctx.font=(c.enableBold?'700 ':'500 ')+c.fontSize+'px "HarmonyOS Sans SC","Microsoft YaHei",sans-serif';
+      ctx.fillStyle=rgba(c.color);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(c.string,0,0);
+    }
+  }
+  ctx.restore();
+  for (const ch of node.children) drawNode(ctx, ch, wx, wy, cx0, cy0);
+}
+
+/** 热区可视化（名字以 Hit 结尾） */
+function drawHits(ctx, node, px, py, cx0, cy0){
+  const wx=px+node.x, wy=py+node.y;
+  if (/Hit$/.test(node.name)){
+    const uit=node.comps.find(c=>c instanceof UITransform);
+    if (uit){
+      ctx.save();
+      ctx.translate(cx0+wx, cy0-wy);
+      ctx.strokeStyle='rgba(0,255,180,.95)'; ctx.lineWidth=2;
+      ctx.strokeRect(-uit.w/2,-uit.h/2,uit.w,uit.h);
+      ctx.fillStyle='rgba(0,255,180,.10)';
+      ctx.fillRect(-uit.w/2,-uit.h/2,uit.w,uit.h);
+      ctx.restore();
+    }
+  }
+  for (const ch of node.children) drawHits(ctx, ch, wx, wy, cx0, cy0);
+}
+
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+let fullMode=false, showHit=true;
+let maxOffsetValue=4285;
+let offset=0;
+
+app.onLoad();
+maxOffsetValue=MAP_H-app.viewH;
+offset=Math.max(0,Math.min(maxOffsetValue, app.levels[CURRENT_LEVEL-1].y-app.viewH/2));
+
+function render(){
+  if (fullMode){
+    cv.width=DESIGN_W; cv.height=MAP_H;
+    cv.style.width='380px'; cv.style.height='auto';
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle='#7aa9ca'; ctx.fillRect(0,0,cv.width,cv.height/2);
+    ctx.fillStyle='#b8c344'; ctx.fillRect(0,cv.height/2,cv.width,cv.height/2);
+    app.content.y=0;
+    drawNode(ctx, app.content, 0, 0, DESIGN_W/2, MAP_H/2);
+  } else {
+    cv.width=DESIGN_W; cv.height=DESIGN_H;
+    cv.style.width='auto'; cv.style.height='100%';
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle='#7aa9ca'; ctx.fillRect(0,0,cv.width,cv.height/2);
+    ctx.fillStyle='#b8c344'; ctx.fillRect(0,cv.height/2,cv.width,cv.height/2);
+
+    const vpTop=app.scrollNode.y+app.viewH/2, vpBot=app.scrollNode.y-app.viewH/2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, DESIGN_H/2-vpTop, DESIGN_W, app.viewH); ctx.clip();
+    app.content.y=MAP_H/2-app.viewH/2-offset;
+    drawNode(ctx, app.content, 0, app.scrollNode.y, DESIGN_W/2, DESIGN_H/2);
+    ctx.restore();
+
+    ctx.strokeStyle='rgba(255,0,80,.9)'; ctx.lineWidth=2;
+    ctx.strokeRect(1, DESIGN_H/2-vpTop+1, DESIGN_W-2, app.viewH-2);
+
+    for (const ch of app.node.children){
+      if (ch===app.scrollNode) continue;
+      drawNode(ctx, ch, 0, 0, DESIGN_W/2, DESIGN_H/2);
+    }
+    if (showHit) for (const ch of app.node.children) drawHits(ctx, ch, 0, 0, DESIGN_W/2, DESIGN_H/2);
+  }
+
+  document.getElementById('offVal').textContent='= '+Math.round(offset);
+  const base=app.scrollNode.y+(MAP_H/2-app.viewH/2-offset);
+  document.getElementById('info').textContent=
+    '视口 y     '+Math.round(app.scrollNode.y-app.viewH/2)+' ~ '+Math.round(app.scrollNode.y+app.viewH/2)+'\n'+
+    'viewH      '+app.viewH+'\n'+
+    'offset     '+Math.round(offset)+' / '+maxOffsetValue+'\n'+
+    '可见底图 y '+Math.round(MAP_H/2-(app.scrollNode.y+app.viewH/2-base))+' ~ '+Math.round(MAP_H/2-(app.scrollNode.y-app.viewH/2-base))+'（图片坐标）\n'+
+    'W1 10关 / 底图 1080×2880（v4 按屏宽等比缩放）\n'+
+    '难度       '+(app.diffIndex===0?'普通':'困难')+'   页签 '+['首页','排行','图鉴','设置'][app.tabIndex];
+}
+
+/* 资源加载 */
+let pending=Object.keys(ART).length;
+for (const k of Object.keys(ART)){
+  const im=new Image();
+  im.onload=()=>{ IMG[k]=im; if(--pending===0) document.fonts.ready.then(render); };
+  im.onerror=()=>{ console.warn('缺图: '+ART[k]); if(--pending===0) document.fonts.ready.then(render); };
+  im.src=ART[k];
+}
+
+/* 交互 */
+const slider=document.getElementById('offset');
+slider.max=String(maxOffsetValue); slider.value=String(offset);
+slider.addEventListener('input',()=>{ offset=+slider.value; render(); });
+document.getElementById('toCurrent').onclick=()=>{ offset=Math.max(0,Math.min(maxOffsetValue,app.levels[CURRENT_LEVEL-1].y-app.viewH/2)); slider.value=String(offset); render(); };
+document.getElementById('toTop').onclick=()=>{ offset=maxOffsetValue; slider.value=String(offset); render(); };
+document.getElementById('toBottom').onclick=()=>{ offset=0; slider.value=String(offset); render(); };
+document.getElementById('d0').onclick=(e)=>{ app.setDifficulty(0); e.target.classList.add('on'); document.getElementById('d1').classList.remove('on'); render(); };
+document.getElementById('d1').onclick=(e)=>{ app.setDifficulty(1); e.target.classList.add('on'); document.getElementById('d0').classList.remove('on'); render(); };
+for (let i=0;i<4;i++){
+  document.getElementById('t'+i).onclick=(e)=>{
+    app.setTab(i);
+    for (let j=0;j<4;j++) document.getElementById('t'+j).classList.toggle('on', j===i);
+    render();
+  };
+}
+document.getElementById('toggleFull').onclick=(e)=>{ fullMode=!fullMode; e.target.classList.toggle('on',fullMode); render(); };
+document.getElementById('toggleHit').onclick=(e)=>{ showHit=!showHit; e.target.classList.toggle('on',showHit); render(); };
+cv.addEventListener('wheel',(e)=>{
+  if (fullMode) return;
+  e.preventDefault();
+  offset=Math.max(0,Math.min(maxOffsetValue,offset+e.deltaY));
+  slider.value=String(offset); render();
+},{passive:false});
+
+render();
+</script>
+</body>
+</html>

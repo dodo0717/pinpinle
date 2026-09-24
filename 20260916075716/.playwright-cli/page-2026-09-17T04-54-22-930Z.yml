@@ -1,0 +1,114 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - generic "体力 10/10" [ref=e8]: ❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️
+        - button "＋" [ref=e9] [cursor=pointer]
+      - button "⚙️" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: 🧩
+        - generic [ref=e15]: 萌宠拼拼乐
+      - generic [ref=e16]: 普通
+    - generic [ref=e17]:
+      - generic [ref=e18]: 第 1 关
+      - generic [ref=e41]: 1/60 已解锁
+    - generic [ref=e42]:
+      - button "奶油果园 1~20" [ref=e43] [cursor=pointer]
+      - button "蜂蜜森林 21~40" [ref=e44] [cursor=pointer]
+      - button "星糖夜空 41~60" [ref=e45] [cursor=pointer]
+    - generic [ref=e47]:
+      - generic [ref=e87] [cursor=pointer]:
+        - generic [ref=e88]: "1"
+        - generic [ref=e89]: 3×4
+      - generic [ref=e90] [cursor=pointer]:
+        - generic [ref=e91]: "2"
+        - generic [ref=e92]: 3×4
+        - generic: 🔒
+      - generic [ref=e93] [cursor=pointer]:
+        - generic [ref=e94]: "3"
+        - generic [ref=e95]: 3×4
+        - generic: 🔒
+      - generic [ref=e96] [cursor=pointer]:
+        - generic [ref=e97]: "4"
+        - generic [ref=e98]: 3×4
+        - generic: 🔒
+      - generic [ref=e99] [cursor=pointer]:
+        - generic [ref=e100]: "5"
+        - generic [ref=e101]: 3×4
+        - generic: 🔒
+      - generic [ref=e102] [cursor=pointer]:
+        - generic [ref=e103]: "6"
+        - generic [ref=e104]: 3×4
+        - generic: 🔒
+      - generic [ref=e105] [cursor=pointer]:
+        - generic [ref=e106]: "7"
+        - generic [ref=e107]: 3×4
+        - generic: 🔒
+      - generic [ref=e108] [cursor=pointer]:
+        - generic [ref=e109]: "8"
+        - generic [ref=e110]: 3×4
+        - generic: 🔒
+      - generic [ref=e111] [cursor=pointer]:
+        - generic [ref=e112]: "9"
+        - generic [ref=e113]: 3×4
+        - generic: 🔒
+      - generic [ref=e114] [cursor=pointer]:
+        - generic [ref=e115]: "10"
+        - generic [ref=e116]: 3×4
+        - generic: 🔒
+      - generic [ref=e117] [cursor=pointer]:
+        - generic [ref=e118]: "11"
+        - generic [ref=e119]: 3×4
+        - generic: 🔒
+      - generic [ref=e120] [cursor=pointer]:
+        - generic [ref=e121]: "12"
+        - generic [ref=e122]: 3×4
+        - generic: 🔒
+      - generic [ref=e123] [cursor=pointer]:
+        - generic [ref=e124]: "13"
+        - generic [ref=e125]: 3×4
+        - generic: 🔒
+      - generic [ref=e126] [cursor=pointer]:
+        - generic [ref=e127]: "14"
+        - generic [ref=e128]: 3×4
+        - generic: 🔒
+      - generic [ref=e129] [cursor=pointer]:
+        - generic [ref=e130]: "15"
+        - generic [ref=e131]: 3×4
+        - generic: 🔒
+      - generic [ref=e132] [cursor=pointer]:
+        - generic [ref=e133]: "16"
+        - generic [ref=e134]: 4×4
+        - generic: 🔒
+      - generic [ref=e135] [cursor=pointer]:
+        - generic [ref=e136]: "17"
+        - generic [ref=e137]: 4×4
+        - generic: 🔒
+      - generic [ref=e138] [cursor=pointer]:
+        - generic [ref=e139]: "18"
+        - generic [ref=e140]: 4×4
+        - generic: 🔒
+      - generic [ref=e141] [cursor=pointer]:
+        - generic [ref=e142]: "19"
+        - generic [ref=e143]: 4×4
+        - generic: 🔒
+      - generic [ref=e144] [cursor=pointer]:
+        - generic [ref=e145]: "20"
+        - generic [ref=e146]: 4×4
+        - generic: 🔒
+    - generic [ref=e147]: 上下滑动地图 · 点关卡进入（消耗 1 体力，已通关的可以再挑战）
+  - navigation [ref=e148]:
+    - button "🏠 首页" [ref=e149] [cursor=pointer]:
+      - generic [ref=e150]: 🏠
+      - generic [ref=e151]: 首页
+    - button "🏆 排行榜" [ref=e152] [cursor=pointer]:
+      - generic [ref=e153]: 🏆
+      - generic [ref=e154]: 排行榜
+    - button "📚 图鉴" [ref=e155] [cursor=pointer]:
+      - generic [ref=e156]: 📚
+      - generic [ref=e157]: 图鉴
+    - button "⚙️ 设置" [ref=e158] [cursor=pointer]:
+      - generic [ref=e159]: ⚙️
+      - generic [ref=e160]: 设置
+  - generic: 已接入 36 张真图，开放 60 关（每关图池从素材池随机抽取）

@@ -1,0 +1,120 @@
+import { _decorator, Component, Graphics, UITransform, Color, tween, Vec3, UIOpacity, Label, Node } from 'cc';
+const { ccclass } = _decorator;
+
+/** 气球颜色配置 */
+const BALLOON_COLORS: Color[][] = [
+    [new Color(255, 150, 80),  new Color(255, 110, 50),  new Color(220, 80, 30)],  // 1 橙
+    [new Color(255, 130, 160), new Color(255, 90, 130),  new Color(210, 60, 100)], // 2 粉
+    [new Color(90, 180, 255),  new Color(50, 150, 240),  new Color(30, 110, 200)],   // 3 蓝
+    [new Color(130, 210, 110), new Color(90, 180, 80),  new Color(60, 140, 55)],    // 4 绿
+    [new Color(255, 160, 70),  new Color(240, 120, 45),  new Color(200, 90, 30)],  // 5 橙
+    [new Color(180, 130, 240), new Color(150, 100, 220), new Color(110, 70, 180)],  // 6 紫
+    [new Color(255, 220, 90),  new Color(255, 190, 60),  new Color(220, 155, 40)],  // 7 黄
+    [new Color(255, 140, 180), new Color(255, 100, 150), new Color(210, 70, 120)], // 8 粉
+    [new Color(100, 190, 255), new Color(60, 160, 240),  new Color(35, 120, 205)],  // 9 蓝
+    [new Color(255, 90, 110),  new Color(240, 60, 85),   new Color(200, 40, 60)],   // 10 红
+];
+
+/**
+ * 关卡节点 —— 彩色气球，当前关卡呼吸发光
+ */
+@ccclass('LevelNode')
+export class LevelNode extends Component {
+    private isCurrent = false;
+    private levelNum = 0;
+    private glowNode: Node | null = null;
+
+    init(level: number, isCurrent: boolean) {
+        this.levelNum = level;
+        this.isCurrent = isCurrent;
+        this.drawBalloon();
+        if (isCurrent) {
+            this.playGlowAnimation();
+        }
+    }
+
+    private getColors(): Color[] {
+        const idx = Math.max(0, Math.min(this.levelNum - 1, BALLOON_COLORS.length - 1));
+        return BALLOON_COLORS[idx];
+    }
+
+    private drawBalloon() {
+        const r = 48;
+        const colors = this.getColors();
+
+        if (this.isCurrent) {
+            this.glowNode = new Node('Glow');
+            this.glowNode.parent = this.node;
+            this.glowNode.layer = this.node.layer;
+            this.glowNode.addComponent(UITransform);
+            const gg = this.glowNode.addComponent(Graphics);
+            for (let i = 6; i >= 1; i--) {
+                const a = Math.floor(30 * i);
+                gg.fillColor = new Color(255, 220, 120, a);
+                gg.circle(0, 0, r + 8 + i * 5);
+                gg.fill();
+            }
+        }
+
+        const g = this.node.addComponent(Graphics);
+        g.fillColor = colors[0];
+        g.circle(0, 0, r);
+        g.fill();
+
+        g.fillColor = colors[1];
+        g.circle(0, -6, r * 0.82);
+        g.fill();
+
+        g.fillColor = colors[2];
+        g.circle(0, -12, r * 0.58);
+        g.fill();
+
+        g.fillColor = new Color(255, 255, 255, 160);
+        g.ellipse(-14, 18, 12, 8);
+        g.fill();
+
+        g.fillColor = new Color(255, 255, 255, 80);
+        g.ellipse(10, -20, 8, 5);
+        g.fill();
+
+        // 气球底部小三角
+        g.fillColor = colors[2];
+        g.moveTo(0, -r + 2);
+        g.lineTo(-6, -r - 10);
+        g.lineTo(6, -r - 10);
+        g.close();
+        g.fill();
+
+        const labelNode = new Node('Num');
+        labelNode.parent = this.node;
+        labelNode.layer = this.node.layer;
+        const uit = labelNode.addComponent(UITransform);
+        uit.setContentSize(80, 50);
+        labelNode.setPosition(0, -2);
+        const label = labelNode.addComponent(Label);
+        label.string = `${this.levelNum}`;
+        label.fontSize = 38;
+        label.lineHeight = 44;
+        label.color = new Color(255, 255, 255, 250);
+        label.enableBold = true;
+    }
+
+    private playGlowAnimation() {
+        tween(this.node)
+            .to(0.9, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'sineInOut' })
+            .to(0.9, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })
+            .union()
+            .repeatForever()
+            .start();
+
+        if (this.glowNode) {
+            const op = this.glowNode.addComponent(UIOpacity);
+            tween(op)
+                .to(0.9, { opacity: 120 })
+                .to(0.9, { opacity: 255 })
+                .union()
+                .repeatForever()
+                .start();
+        }
+    }
+}

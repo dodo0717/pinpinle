@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>素材加载诊断</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 14px 40px;
+    background: #14161a; color: #e6e8eb;
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  h1 { font-size: 17px; margin: 0 0 10px; }
+  #summary {
+    margin: 0 0 16px; padding: 12px 14px; border-radius: 10px;
+    background: #1e2228; border: 1px solid #2c323a; font-size: 13px;
+  }
+  #summary.ok  { border-color: #2f6b3f; background: #16241a; }
+  #summary.bad { border-color: #8b3a3a; background: #241616; }
+  #summary .device { display: block; margin-top: 6px; font-size: 12px; color: #9aa4b2; }
+  .animal-block { margin-bottom: 16px; }
+  .animal-block h2 {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 14px; margin: 0 0 6px; font-weight: 600;
+  }
+  .animal-block .count { font-size: 12px; font-weight: 400; color: #9aa4b2; }
+  .animal-block.full .count { color: #6fcf8f; }
+  .animal-block.partial .count { color: #ff9a9a; }
+  .grid { display: grid; gap: 6px; grid-template-columns: repeat(3, 1fr); }
+  @media (min-width: 560px) { .grid { grid-template-columns: repeat(6, 1fr); } }
+  .card {
+    padding: 4px; border-radius: 8px; text-align: center;
+    background: #1e2228; border: 1px solid #2c323a;
+  }
+  .card.ok  { border-color: #2f6b3f; }
+  .card.bad { border-color: #8b3a3a; background: #2a1717; }
+  .thumb {
+    display: block; width: 100%; height: 76px; object-fit: contain;
+    border-radius: 5px; background: #0f1114; margin-bottom: 4px;
+  }
+  .card.bad .thumb { display: none; }
+  .card .id   { font-size: 12px; font-weight: 600; }
+  .card .mood { font-size: 11px; color: #9aa4b2; }
+  .card .stat { font-size: 10px; color: #8d97a5; margin-top: 1px; }
+  .card.bad .stat { color: #ff9a9a; font-weight: 600; }
+  button {
+    margin-top: 4px; padding: 10px 18px; border-radius: 8px; cursor: pointer;
+    background: #2a313a; color: #e6e8eb; border: 1px solid #3a424d; font-size: 14px;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { margin-top: 14px; font-size: 12px; color: #8d97a5; }
+</style>
+</head>
+<body>
+
+<h1>素材加载诊断</h1>
+<p id="summary">正在逐张加载 36 张素材…</p>
+<div id="animals"></div>
+<button id="retry">重新测试</button>
+<p class="note">
+  本页只做只读加载测试，不改动游戏。判定标准与游戏内一致：图片 onload 成功且解码出有效尺寸。
+  加载方式也与游戏相同（一次性全部发起），用来复现手机上的真实情形。
+</p>
+
+<script type="module">
+// 素材台账：每只动物的 6 个情绪图 ID
+// ⚠️ 情绪顺序必须与 src/core/ledger.ts 的 MOODS 保持一致：
+//     开心 / 难过 / 生气 / 害羞 / 惊讶 / 得意
+//     （位置 3、4、5 分别是 害羞、惊讶、得意）
+//     本页曾把这三项误写成「惊讶 / 得意 / 害羞」，导致标签与图案看起来"错位"，
+//     那是本页的显示错误，素材文件本身没有问题。
+const ANIMALS = [
+  { name: '猫',   ids: [0, 1, 2, 3, 4, 5] },
+  { name: '虎',   ids: [6, 11, 12, 13, 14, 15] },
+  { name: '兔',   ids: [7, 16, 17, 18, 19, 20] },
+  { name: '仓鼠', ids: [8, 21, 22, 23, 24, 25] },
+  { name: '狗',   ids: [9, 26, 27, 28, 29, 30] },
+  { name: '熊',   ids: [10, 31, 32, 33, 34, 35] },
+];
+const MOODS = ['开心', '难过', '生气', '害羞', '惊讶', '得意'];
+const ALL_IDS = ANIMALS.flatMap((a) => a.ids);
+
+const summaryEl = document.getElementById('summary');
+const rootEl = document.getElementById('animals');
+const retryBtn = document.getElementById('retry');
+
+/** 当前正在测试的设备，用来判断结果代表哪台机器 */
+const ua = navigator.userAgent;
+const device = /iPhone|iPad|iPod/.test(ua) ? 'iPhone / iPad'
+  : /Android/.test(ua) ? 'Android 手机'
+  : /Windows/.test(ua) ? 'Windows 电脑'
+  : /Macintosh/.test(ua) ? 'Mac 电脑'
+  : '未知设备';
+const deviceLine =
+  `测试设备：${device}　视口宽度：${Math.round(innerWidth)} px　` +
+  `DPR：${window.devicePixelRatio || 1}`;
+
+/** 加载中的 Image 强引用，避免未完成的加载被 GC 取消（游戏内同样处理） */
+const hold = [];
+/** id -> 卡片相关的 DOM 引用 */
+const entries = new Map();
+
+for (const animal of ANIMALS) {
+  const sec = document.createElement('section');
+  sec.className = 'animal-block';
+
+  const title = document.createElement('h2');
+  const countEl = document.createElement('span');
+  countEl.className = 'count';
+  countEl.textContent = '加载中…';
+  title.textContent = animal.name;
+  title.appendChild(countEl);
+  sec.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  for (let i = 0; i < 6; i++) {
+    const id = animal.ids[i];
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const img = document.createElement('img');
+    img.className = 'thumb';
+    img.alt = '';
+    img.decoding = 'async';
+
+    const idEl = document.createElement('div');
+    idEl.className = 'id';
+    idEl.textContent = `#${id}`;
+
+    const moodEl = document.createElement('div');
+    moodEl.className = 'mood';
+    moodEl.textContent = MOODS[i];
+
+    const statEl = document.createElement('div');
+    statEl.className = 'stat';
+    statEl.textContent = '…';
+
+    card.append(img, idEl, moodEl, statEl);
+    grid.appendChild(card);
+    entries.set(id, { card, img, stat: statEl, count: countEl, sec });
+  }
+  sec.appendChild(grid);
+  rootEl.appendChild(sec);
+}
+
+/**
+ * 用卡片里已有的 img 元素发起加载：
+ * 同一个元素既做检测，也直接充当缩略图，避免重复请求。
+ */
+function attach(id) {
+  const { img } = entries.get(id);
+  return new Promise((resolve) => {
+    const t = performance.now();
+    img.onload = () => resolve({ id, ok: img.naturalWidth > 0, ms: performance.now() - t });
+    img.onerror = () => resolve({ id, ok: false, ms: performance.now() - t });
+    // 带随机 query：绕开浏览器/代理对失败响应的缓存，保证每次都是真实请求
+    img.src = `../art/stickers/sticker_${id}.png?diag=${Date.now()}-${id}`;
+  });
+}
+
+async function run() {
+  retryBtn.disabled = true;
+  summaryEl.className = '';
+  summaryEl.textContent = '正在逐张加载 36 张素材…';
+  for (const e of entries.values()) {
+    e.card.className = 'card';
+    e.stat.textContent = '…';
+    e.img.removeAttribute('src');
+    e.count.textContent = '加载中…';
+    e.sec.className = 'animal-block';
+  }
+
+  const t0 = performance.now();
+  const results = await Promise.all(ALL_IDS.map(attach));
+  const totalMs = performance.now() - t0;
+  const byId = new Map(results.map((r) => [r.id, r]));
+
+  for (const [id, e] of entries) {
+    const r = byId.get(id);
+    e.card.className = 'card ' + (r.ok ? 'ok' : 'bad');
+    e.stat.textContent = r.ok ? `${Math.round(r.ms)}ms` : '失败';
+  }
+  for (const animal of ANIMALS) {
+    const got = animal.ids.filter((id) => byId.get(id).ok).length;
+    const e = entries.get(animal.ids[0]);
+    e.count.textContent = `${got} / 6 成功`;
+    e.sec.className = 'animal-block ' + (got === 6 ? 'full' : 'partial');
+  }
+
+  const okCount = results.filter((r) => r.ok).length;
+  const failed = results.filter((r) => !r.ok).map((r) => r.id);
+  const slowest = results.reduce((a, b) => (b.ms > a.ms ? b : a), results[0]);
+
+  if (okCount === ALL_IDS.length) {
+    summaryEl.className = 'ok';
+    summaryEl.innerHTML =
+      `<strong>36 / 36 全部加载成功</strong>（总耗时 ${Math.round(totalMs)} ms，` +
+      `最慢单张 #${slowest.id} ${Math.round(slowest.ms)} ms）<br>` +
+      `素材一张不缺，本次网络这一层没有问题。` +
+      `<span class="device">${deviceLine}</span>`;
+  } else {
+    summaryEl.className = 'bad';
+    summaryEl.innerHTML =
+      `<strong>只拿到 ${okCount} / 36 张</strong>（总耗时 ${Math.round(totalMs)} ms）<br>` +
+      `失败 ID：${failed.join('、')}<br>` +
+      `失败张数：36 − ${okCount} = ${36 - okCount} 张` +
+      `<span class="device">${deviceLine}</span>`;
+  }
+  retryBtn.disabled = false;
+}
+
+retryBtn.addEventListener('click', run);
+await run();
+</script>
+</body>
+</html>

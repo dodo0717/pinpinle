@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>萌宠拼拼乐 · 灰盒原型</title>
+<style>
+  :root {
+    --cream: #fff7ec;
+    --cream-2: #fdeed8;
+    --card: #fffdf8;
+    --honey: #e0a94a;
+    --honey-soft: #f6d9a0;
+    --ink: #4a3b2a;
+    --ink-soft: #9c8768;
+    /* 缝隙宽度：4px 在手机上几乎不可见，已按「肉眼一眼能分辨」调到 12px */
+    --gap: 12px;
+    /* 碎片白色描边宽度，也就是「边界感」本身。4px 收缩感过强，收窄一半 */
+    --edge: 2px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #2b2419;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--ink);
+    /* 移动端「边缘手势」分两套，这里关掉**浏览器**那一套（系统那一套关不掉，见 §1.6.9）：
+       - 横滑返回：Chrome 安卓把「横向 overscroll」解释成后退，拖碎片时手指一到边缘就触发；
+       - 下拉刷新：把 overscroll 解释成刷新，同样是拖动中招。
+       ⚠️ 这两条都必须写在 **html/body（根滚动容器）** 上：写在 #viewport 这类后代元素上
+       对根滚动容器不起作用，Chrome 照旧会抢走手势。 */
+    overscroll-behavior: none;
+    /* 全局禁止选中：拖动那套「选区 → 原生拖放 → pointercancel」的坑（见 #board 的注释）
+       要从**源头**堵 —— 只要页面上任何地方（比如 HUD 的文字）能被拖出一段选区，
+       它就可能横跨到棋盘上，下次在选区内按下就成了原生拖放，拖动当场被收掉。 */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* 画布用「绝对定位 + JS 算偏移」居中，而不是 flex/grid 居中：
+     transform: scale() 不改变布局尺寸，1080×1920 的盒子放进更矮的视口时，
+     居中溢出会让画布几乎整个落到视口外（内置预览面板窄高时表现为黑屏）。 */
+  #viewport {
+    position: fixed; inset: 0; overflow: hidden;
+    /* touch-action: none = 这块区域里不存在「平移/缩放」这类浏览器手势，
+       双指缩放、橡皮筋、滚动链一并交给游戏自己处理。
+       ⚠️ 它管不了系统手势（安卓侧边返回 / iOS 侧滑返回），那条只能靠留安全边绕开。 */
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+
+  /* 竖屏 1080×1920，按窗口等比缩放（对应文档二 §11 的 9:16 安全区）。
+     ⚠️ 缩放后画布会被 JS 摆到「视口扣掉安全边」的区域正中（`fitStage()`，§1.6.9）——
+     也就是画布**不再贴屏幕边**：那条窄边是系统手势区，不是游戏区。 */
+  #stage {
+    position: absolute; top: 0; left: 0;
+    width: 1080px; height: 1920px;
+    background: radial-gradient(120% 80% at 50% 0%, #fffdf6 0%, var(--cream) 45%, var(--cream-2) 100%);
+    transform-origin: top left;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  /* ---------- L03 HUD ---------- */
+  #hud {
+    padding: 72px 56px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  }
+  .hud-item {
+    background: var(--card);
+    border-radius: 100px;
+    padding: 18px 34px;
+    font-size: 40px; font-weight: 700;
+    box-shadow: 0 6px 18px rgba(74, 59, 42, .08);
+    display: flex; align-items: center; gap: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  #hud-timer { color: var(--honey); }
+  #hud-timer.warn { color: #e0653f; }
+  #hud-timer.danger { color: #d43b2c; animation: pulse .8s infinite; }
+  #hud-hearts { letter-spacing: 2px; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  /* ---------- L08 棋盘 ---------- */
+  /* padding-x 由 JS 按画布缩放比自适应（见 main.ts 的 boardPadX()）：
+     它不是纯装饰，而是 §1.6.9 的手势安全留白 —— 收得太狠会把最外一列碎片
+     顶进系统侧滑返回区。默认值 56px 只是 JS 未接手时的兜底。 */
+  #board-wrap {
+    flex: 1; display: grid; place-items: center;
+    padding: 12px var(--pad-x, 56px);
+    min-height: 0;
+  }
+  /* 底框：干净的暖奶油低对比卡片，底色贴近碎片白边，
+     缝隙只靠极浅描边区分，避免米黄底色抢戏。 */
+  #board {
+    display: grid;
+    background: var(--card);
+    border: 1px solid rgba(224, 169, 74, .20);
+    border-radius: 44px;
+    /* 12px（原 18px）：这也是 §1.6.9 那条「边缘 → 最外一列」距离的一部分，
+       改这个值必须同步 main.ts 的 BOARD_PAD，boardPadX() 按它反解左右留白。 */
+    padding: 12px;
+    box-shadow: 0 16px 40px rgba(74, 59, 42, .10);
+    touch-action: none;
+    /* 拖动整片时不能顺带选中文字（§1.6）。
+       否则：这次拖出选区 → 下次在选区内按下并移动，浏览器会启动**原生拖放**，
+       立刻发 pointercancel 把拖动收掉 —— 表现是「第一次拖还行，之后怎么拖都不动」。
+       真机长按同理（会弹复制气泡）。callout 是 iOS 的长按菜单，一并关掉。 */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .cell { position: relative; }
+
+  /* L10 碎片 —— 边界由 border 画出来，而不是靠阴影去「暗示」。
+     未融合的四边 = 2px 纯白描边（贴纸感）；
+     已融合的那一侧 = border-width 归零 + 向外扩 GAP/2 填掉裂缝，
+     也就是「那条白边连同裂缝一起没了」。差别是实打实少了一条白线。
+     四个方向的缩进/边宽/圆角全部由 JS 写进下面的 CSS 变量。 */
+  .piece {
+    position: absolute;
+    top: var(--pt, 2px); right: var(--pr, 2px);
+    bottom: var(--pb, 2px); left: var(--pl, 2px);
+    border-style: solid;
+    border-color: var(--edge-color, #fff);
+    border-width: var(--bt, 2px) var(--br, 2px) var(--bb, 2px) var(--bl, 2px);
+    border-radius: var(--r-tl, 14px) var(--r-tr, 14px) var(--r-br, 14px) var(--r-bl, 14px);
+    background-repeat: no-repeat;
+    /* origin 必须是 padding-box：否则白边会被背景图盖住 */
+    background-origin: padding-box;
+    /* 纹理取样几何由 JS 逐块写入（web/ui/geometry.ts 算出，见那里的长注释）。
+       ⚠️ 不要再改回 `background-size: 200% 200%`：百分比跟着**元素尺寸**走，
+       而融合时元素向外扩了半个缝隙 → 每块放大倍率不同，接缝处原图坐标对不上，
+       §11.6.3「逐像素一致」会挂。这两个值只是 JS 未跑时的兜底。 */
+    background-size: var(--bg-size, 200% 200%);
+    background-position: var(--bg-pos, 0 0);
+    box-shadow: 0 3px 8px rgba(74, 59, 42, .22);
+    display: grid; place-items: center;
+    transition: top .13s ease, left .13s ease, right .13s ease, bottom .13s ease,
+                border-width .13s ease, border-radius .13s ease,
+                border-color .13s ease, box-shadow .13s ease;
+  }
+  .piece .pos { font-size: 26px; font-weight: 800; color: rgba(255, 255, 255, .95); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .piece .iid { position: absolute; left: 6px; bottom: 4px; font-size: 15px; color: rgba(255,255,255,.8); }
+
+  /* 融合组（≥2 块）：对外的那几条边改描金色，整组像一个被金框圈住的连通块，
+     和周围「白边独立块」在余光里就能区分开。 */
+  .cell.merged .piece {
+    --edge-color: var(--honey);
+    /* 阴影刻意做浅：融合组内两块是紧贴的，阴影会投到邻居身上，
+       太强会在组内部叠出一条亮带，反而破坏「拼成一整块」的感觉 */
+    box-shadow: 0 1px 4px rgba(74, 59, 42, .14);
+  }
+
+  /* 点选交换已于 2026-09-12 移除（§1.6.5）：**拖动是唯一的操作**，不再有「选中态」，
+     也就没有 `.cell.selected` 这套高亮了。 */
+
+  /* ---------- 整片拖动（§1.6）：按住整片里的任意一块，整片跟着手指走 ----------
+     位移是**连续**的：--drag-x / --drag-y 由 JS 写成画布像素（可以是小数），
+     拖动途中不吸附 —— 手到哪整片到哪。吸附（落定）只发生在松手那一刻，
+     途中按格取整会让整片一格一格跳着走，读起来像「拖到一半自己掉下去了」。
+     刻意**不缩放**：融合组内两块是紧贴的，缩放会把那条接缝重新拉开，
+     正好毁掉「它们已经拼成一整块」的观感；「拿起来了」靠投影和描边表达。
+     ⚠️ 变量名不能复用挂掉落动画的 --dy：残留的拖动位移会被掉落动画读走。 */
+  .cell.dragging { z-index: 7; }
+  .cell.dragging .piece {
+    z-index: 7;
+    /* ⚠️ 这里绝不能有 transform 过渡：这是每一次 pointermove 都在写的跟手位移，
+       过渡会让整片「追着手指慢慢飘」，手感立刻变糊 */
+    will-change: transform;
+    transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+    box-shadow: 0 10px 20px rgba(74, 59, 42, .28);
+  }
+
+  /* ---------- 非法移动的反馈（M7 §6.3：轻微震动 + 碎片回弹，禁止大红叉）----------
+     整片朝反方向推一下再弹回，读作「这一整片去不了那边」；
+     --rx/--ry 由 JS 按回弹方向写入。整块棋盘只抖 2~3px，幅度刻意小。 */
+  .cell.reject .piece {
+    z-index: 5;
+    animation: reject .3s cubic-bezier(.35, 0, .3, 1.5) both;
+  }
+  @keyframes reject {
+    0%   { transform: translate(0, 0); }
+    32%  { transform: translate(var(--rx, 0px), var(--ry, 0px)); }
+    100% { transform: translate(0, 0); }
+  }
+  #board.reject-board { animation: boardShake .3s; }
+  @keyframes boardShake {
+    0%, 100% { transform: translate(0, 0); }
+    25%      { transform: translate(-3px, 1px); }
+    75%      { transform: translate(3px, -1px); }
+  }
+
+  /* ---------- 消除 5 阶段（M7 §6.3 / §11.6.2）----------
+     ⚠️ 四段时长必须与 main.ts 的 RECOGNIZE_MS / FIT_MS / CONFIRM_MS / VANISH_MS 一致，
+        否则动画会被中途打断（表现为「闪一下就没了」）。
+
+     ① 识别 .06s：整组抬起 + 套一圈金环 —— 先让玩家看清「要消的是这 4 块」
+     ② 拼合 .05s：落回原位，读作「缝隙合上了」
+     ③ 确认 .04s：整体一顿（缩一下再回来），读作「就是现在」
+     ④ 消除 .35s：吸气鼓起 + 炸金光 + 缩成一点消失（与文档 0.35s 一致）
+     ⑤ 得分飘字 .5s：见 .score-float，与 ④ 和随后的掉落**并行**，不额外占时间 */
+  .cell.recog .piece {
+    z-index: 8;
+    animation: recog .06s ease-out both;
+  }
+  @keyframes recog {
+    0%   { transform: translateY(0) scale(1); }
+    100% { transform: translateY(-4px) scale(1.05);
+           box-shadow: 0 0 0 5px rgba(224, 169, 74, .85), 0 10px 22px rgba(224, 169, 74, .45); }
+  }
+  .cell.fit .piece {
+    z-index: 8;
+    animation: fit .05s ease-in both;
+  }
+  @keyframes fit {
+    0%   { transform: translateY(-4px) scale(1.05); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  .cell.confirm .piece {
+    z-index: 8;
+    animation: confirm .04s ease-in-out both;
+  }
+  @keyframes confirm {
+    0%   { transform: scale(1); }
+    60%  { transform: scale(1.07); }
+    100% { transform: scale(1); }
+  }
+  .cell.vanish .piece {
+    z-index: 8;
+    animation: vanish .35s cubic-bezier(.5, 0, .75, 0) forwards;
+  }
+  @keyframes vanish {
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.2); filter: brightness(1.6) saturate(1.5);
+           box-shadow: 0 0 26px 10px rgba(224, 169, 74, .9); }
+    100% { transform: scale(.1) rotate(8deg); opacity: 0; }
+  }
+
+  /* ⑤ 得分飘字：从消除处飞向 HUD 分数，落点由 JS 写进 --fx / --fy（画布坐标）。
+     必须真的落在分数上 —— 「这 1 分加到哪儿了」就是这条动画的全部意义。 */
+  .score-float {
+    position: absolute; left: 50%; top: 50%; z-index: 12;
+    pointer-events: none;
+    font-size: 60px; font-weight: 800; color: var(--honey);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 0 #fff, 0 4px 10px rgba(224, 169, 74, .35);
+    animation: floatScore .5s cubic-bezier(.3, .7, .4, 1) forwards;
+  }
+  @keyframes floatScore {
+    0%   { transform: translate(-50%, -50%) scale(.6); opacity: 0; }
+    16%  { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(.5);
+           opacity: 0; }
+  }
+  /* 飘字落到分数上的那一刻，HUD 分数轻弹一下（JS 在同一时间点加/去这个类） */
+  #hud-score.bump { animation: bump .26s ease-out; }
+  @keyframes bump {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.14); }
+    100% { transform: scale(1); }
+  }
+
+  /* 新手引导第 2 步（§14）：把「可以拼成一张图」的那几块圈出来。
+     用呼吸金环而不是箭头 —— 不遮挡、不需要玩家去读第二段文字。 */
+  .cell.hint .piece {
+    z-index: 6;
+    animation: hintPulse 1s ease-in-out infinite;
+  }
+  @keyframes hintPulse {
+    0%, 100% { box-shadow: 0 0 0 5px rgba(224, 169, 74, .9), 0 0 18px 4px rgba(224, 169, 74, .35); }
+    50%      { box-shadow: 0 0 0 9px rgba(224, 169, 74, .35), 0 0 26px 9px rgba(224, 169, 74, .6); }
+  }
+
+  /* 掉落：从「它原来待的那一行」自由落体到新位置，落地压扁一下再弹回。
+     --dy 由 JS 按行差 ×（格宽 + 缝隙）算出来，动画起点就是原位置。 */
+  .cell.fall .piece {
+    animation: fall .26s cubic-bezier(.45, .05, .55, 1.35) both;
+    animation-delay: var(--delay, 0ms);
+  }
+  @keyframes fall {
+    0%   { transform: translateY(var(--dy, 0px)) scaleY(1.05); }
+    72%  { transform: translateY(0) scaleY(.93); }
+    100% { transform: translateY(0) scaleY(1); }
+  }
+
+  /* 补位：新碎片从棋盘上沿之外落进来（带淡入，区别于已有碎片的下落） */
+  .cell.spawn .piece {
+    animation: spawn .26s cubic-bezier(.3, .05, .55, 1.3) both;
+    animation-delay: var(--delay, 0ms);
+  }
+  @keyframes spawn {
+    0%   { transform: translateY(var(--dy, -200px)) scale(.9); opacity: 0; }
+    55%  { opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  /* ---------- 开发工具条 ---------- */
+  #devbar {
+    padding: 20px 56px 56px;
+    display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+  }
+  #devbar button {
+    font: inherit; font-size: 28px; font-weight: 600;
+    padding: 16px 30px; border-radius: 100px;
+    border: 2px solid rgba(224,169,74,.5);
+    background: var(--card); color: var(--ink);
+    cursor: pointer;
+  }
+  #devbar button:active { transform: scale(.96); background: var(--honey-soft); }
+  /* 素材探测期间整体置灰：让「数据还没就绪」在界面上一眼可见 */
+  #devbar button:disabled { opacity: .45; cursor: default; }
+  #devbar button:disabled:active { transform: none; background: var(--card); }
+  /* 困难模式高亮：一眼看出当前不是普通规则 */
+  #devbar button.on {
+    background: var(--honey-soft);
+    border-color: rgba(224,169,74,.95);
+    box-shadow: inset 0 0 0 2px rgba(224,169,74,.45);
+  }
+  #dev-status {
+    width: 100%; text-align: center; font-size: 26px; color: var(--ink-soft);
+    padding-top: 6px; font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- L14 弹窗 / L17 Toast ---------- */
+  #dialog {
+    position: absolute; inset: 0; z-index: 90;
+    background: rgba(74, 59, 42, .42);
+    display: grid; place-items: center;
+  }
+  #dialog[hidden] { display: none; }
+  .dialog-card {
+    width: 720px; background: var(--card); border-radius: 48px;
+    padding: 56px 48px; text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,.28);
+  }
+  .dialog-card h2 { margin: 0 0 12px; font-size: 56px; }
+  .dialog-card .stars { font-size: 72px; letter-spacing: 8px; color: var(--honey); }
+  /* pre-line：结算/续命弹窗的正文是多行拼出来的（星级、星线、解锁提示各一行）。
+     没有它 \n 会被折叠成空格，四行挤成一行。 */
+  .dialog-card p { font-size: 32px; color: var(--ink-soft); margin: 18px 0 32px; white-space: pre-line; }
+
+  #toast {
+    position: absolute; left: 50%; bottom: 380px; transform: translateX(-50%);
+    z-index: 120; pointer-events: none;
+    background: rgba(74, 59, 42, .9); color: #fff;
+    font-size: 30px; line-height: 1.5; padding: 20px 34px; border-radius: 24px;
+    max-width: 860px; white-space: pre-wrap;
+    opacity: 0; transition: opacity .2s ease;
+  }
+  #toast.show { opacity: 1; }
+
+  /* 全局错误兜底：任何脚本报错直接显示，避免"黑屏无法定位" */
+  #errbar {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 999;
+    background: #b93a2b; color: #fff;
+    font: 13px/1.6 Consolas, "Courier New", monospace;
+    padding: 10px 14px; white-space: pre-wrap;
+    max-height: 45vh; overflow: auto;
+    /* 唯一要留着可选中的地方：排错时得能把报错文字复制走。
+       （html/body 已全局 `user-select: none` 给拖动让路） */
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  #errbar[hidden] { display: none; }
+</style>
+<!-- 页签图标先拿已有素材占位（否则浏览器默认请求 /favicon.ico → 404） -->
+<link rel="icon" type="image/png" href="/art/stickers/sticker_0.png" />
+<link rel="stylesheet" href="/web/ui.css" />
+</head>
+<body>
+<div id="errbar" hidden></div>
+<div id="viewport">
+  <div id="stage">
+    <!-- 玩法屏：HUD / 棋盘 / 开发工具条。其余界面（主界面、图鉴、排行榜、设置）由 JS 构建 -->
+    <section id="screen-game" class="screen">
+      <header id="hud">
+        <button id="hud-exit" class="hud-exit" type="button">← 主界面</button>
+        <div class="hud-item" id="hud-hearts">❤️ 10/10</div>
+        <div class="hud-item" id="hud-timer">03:00</div>
+        <div class="hud-item" id="hud-score">🧩 <span id="hud-score-num">0</span></div>
+      </header>
+      <div id="board-wrap"><div id="board"></div></div>
+
+      <footer id="devbar">
+        <button data-act="prev">◀ 上一关</button>
+        <button data-act="level">第 1 关 · 3×4</button>
+        <button data-act="next">下一关 ▶</button>
+        <button data-act="mode">普通模式</button>
+        <button data-act="auto">自动消一组</button>
+        <button data-act="restart">重开</button>
+        <button data-act="stamina">体力 +1</button>
+        <button data-act="check">算法自检</button>
+        <div id="dev-status">—</div>
+      </footer>
+    </section>
+
+    <div id="toast"></div>
+    <div id="dialog" hidden></div>
+  </div>
+</div>
+<script type="module" src="/web/main.ts"></script>
+</body>
+</html>

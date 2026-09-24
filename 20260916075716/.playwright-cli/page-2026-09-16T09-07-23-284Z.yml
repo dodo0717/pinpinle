@@ -1,0 +1,23 @@
+- generic [ref=e3]:
+  - generic [ref=e46]:
+    - generic [ref=e47]:
+      - button "← 主界面" [ref=e48] [cursor=pointer]
+      - generic [ref=e49]: ❤️❤️❤️❤️🤍
+      - generic [ref=e50]: 03:00
+      - generic [ref=e51]:
+        - text: 🧩
+        - generic [ref=e52]: "0"
+    - generic [ref=e79]:
+      - button "◀ 上一关" [ref=e80] [cursor=pointer]
+      - button "第 1 关 · 3×4 · ☆☆☆" [ref=e81] [cursor=pointer]
+      - button "下一关 ▶" [ref=e82] [cursor=pointer]
+      - button "普通模式" [ref=e83] [cursor=pointer]
+      - button "自动消一组" [ref=e84] [cursor=pointer]
+      - button "重开" [ref=e85] [cursor=pointer]
+      - button "体力 +1" [ref=e86] [cursor=pointer]
+      - button "算法自检" [ref=e87] [cursor=pointer]
+      - generic [ref=e88]: 池子 池5:1 / 池1:1 / 池2:2 / 池3:1 / 池4:1 · 消除 0 组 · 多组同消违规 0 次 · 图池 6 张 6只/ma1→6只/ma1
+  - generic [ref=e89]:
+    - generic [ref=e90]: 按住拖动碎片移动位置（横竖斜都行），拼好的一整片会一起走
+    - button "知道了" [ref=e91] [cursor=pointer]
+  - generic: 普通 · 第 1 关 · 3×4 · 6 张图 · 6 只动物 普通模式：整片想挪多远都行；点「自动消一组」可看 融合 → 消除 → 下压 → 补位

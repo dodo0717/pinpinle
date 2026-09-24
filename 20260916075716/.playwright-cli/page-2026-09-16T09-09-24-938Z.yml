@@ -1,0 +1,29 @@
+- generic [ref=f2e3]:
+  - generic [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - generic [ref=f2e6]:
+        - generic [ref=f2e7]:
+          - generic "体力 4/5（每 20 分钟恢复 1 颗）" [ref=f2e8]: ❤️❤️❤️❤️🤍
+          - button "＋" [ref=f2e9] [cursor=pointer]
+        - generic [ref=f2e10]: 下颗体力 17:57
+      - generic [ref=f2e11]:
+        - button "🏆" [ref=f2e12] [cursor=pointer]
+        - button "⚙️" [ref=f2e13] [cursor=pointer]
+    - generic [ref=f2e14]:
+      - generic [ref=f2e15]: 🧩
+      - generic [ref=f2e16]: 萌宠拼拼乐
+    - generic [ref=f2e17]:
+      - button "▶ 开始游戏" [ref=f2e18] [cursor=pointer]
+      - button "🗺 关卡地图" [ref=f2e19] [cursor=pointer]
+      - button "📚 表情包图鉴" [ref=f2e20] [cursor=pointer]
+      - button "🏆 排行榜" [ref=f2e21] [cursor=pointer]
+    - generic [ref=f2e22]:
+      - generic [ref=f2e23]: 第 1 关
+      - generic [ref=f2e46]: 1/60 已解锁
+  - generic: 已接入 36 张真图，开放 60 关（每关图池从素材池随机抽取）
+  - generic [ref=f2e48]:
+    - heading "⏸ 继续上次的挑战？" [level=2] [ref=f2e49]
+    - paragraph [ref=f2e50]: 普通 · 第 1 关 剩余时间 03:00（离开期间倒计时照走，不顺延）
+    - generic [ref=f2e51]:
+      - button "放弃并重开" [ref=f2e52] [cursor=pointer]
+      - button "继续" [ref=f2e53] [cursor=pointer]

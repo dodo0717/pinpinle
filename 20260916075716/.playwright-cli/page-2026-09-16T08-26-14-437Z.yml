@@ -1,0 +1,91 @@
+- generic [ref=f1e3]:
+  - generic [ref=f1e46]:
+    - generic [ref=f1e47]:
+      - generic [ref=f1e48]: 🗺 关卡地图 · 奶油果园 · 普通
+      - button "← 主界面" [ref=f1e49] [cursor=pointer]
+    - generic [ref=f1e50]:
+      - button "奶油果园 1~20" [ref=f1e51] [cursor=pointer]
+      - button "蜂蜜森林 21~40" [ref=f1e52] [cursor=pointer]
+      - button "星糖夜空 41~60" [ref=f1e53] [cursor=pointer]
+    - generic [ref=f1e55]:
+      - generic [ref=f1e76] [cursor=pointer]:
+        - generic [ref=f1e77]: "1"
+        - generic [ref=f1e78]: 3×4
+      - generic [ref=f1e79] [cursor=pointer]:
+        - generic [ref=f1e80]: "2"
+        - generic [ref=f1e81]: 3×4
+        - generic [ref=f1e82]: 🔒
+      - generic [ref=f1e83] [cursor=pointer]:
+        - generic [ref=f1e84]: "3"
+        - generic [ref=f1e85]: 3×4
+        - generic [ref=f1e86]: 🔒
+      - generic [ref=f1e87] [cursor=pointer]:
+        - generic [ref=f1e88]: "4"
+        - generic [ref=f1e89]: 3×4
+        - generic [ref=f1e90]: 🔒
+      - generic [ref=f1e91] [cursor=pointer]:
+        - generic [ref=f1e92]: "5"
+        - generic [ref=f1e93]: 3×4
+        - generic [ref=f1e94]: 🔒
+      - generic [ref=f1e95] [cursor=pointer]:
+        - generic [ref=f1e96]: "6"
+        - generic [ref=f1e97]: 3×4
+        - generic [ref=f1e98]: 🔒
+      - generic [ref=f1e99] [cursor=pointer]:
+        - generic [ref=f1e100]: "7"
+        - generic [ref=f1e101]: 3×4
+        - generic [ref=f1e102]: 🔒
+      - generic [ref=f1e103] [cursor=pointer]:
+        - generic [ref=f1e104]: "8"
+        - generic [ref=f1e105]: 3×4
+        - generic [ref=f1e106]: 🔒
+      - generic [ref=f1e107] [cursor=pointer]:
+        - generic [ref=f1e108]: "9"
+        - generic [ref=f1e109]: 3×4
+        - generic [ref=f1e110]: 🔒
+      - generic [ref=f1e111] [cursor=pointer]:
+        - generic [ref=f1e112]: "10"
+        - generic [ref=f1e113]: 3×4
+        - generic [ref=f1e114]: 🔒
+      - generic [ref=f1e115] [cursor=pointer]:
+        - generic [ref=f1e116]: "11"
+        - generic [ref=f1e117]: 3×4
+        - generic [ref=f1e118]: 🔒
+      - generic [ref=f1e119] [cursor=pointer]:
+        - generic [ref=f1e120]: "12"
+        - generic [ref=f1e121]: 3×4
+        - generic [ref=f1e122]: 🔒
+      - generic [ref=f1e123] [cursor=pointer]:
+        - generic [ref=f1e124]: "13"
+        - generic [ref=f1e125]: 3×4
+        - generic [ref=f1e126]: 🔒
+      - generic [ref=f1e127] [cursor=pointer]:
+        - generic [ref=f1e128]: "14"
+        - generic [ref=f1e129]: 3×4
+        - generic [ref=f1e130]: 🔒
+      - generic [ref=f1e131] [cursor=pointer]:
+        - generic [ref=f1e132]: "15"
+        - generic [ref=f1e133]: 3×4
+        - generic [ref=f1e134]: 🔒
+      - generic [ref=f1e135] [cursor=pointer]:
+        - generic [ref=f1e136]: "16"
+        - generic [ref=f1e137]: 4×4
+        - generic [ref=f1e138]: 🔒
+      - generic [ref=f1e139] [cursor=pointer]:
+        - generic [ref=f1e140]: "17"
+        - generic [ref=f1e141]: 4×4
+        - generic [ref=f1e142]: 🔒
+      - generic [ref=f1e143] [cursor=pointer]:
+        - generic [ref=f1e144]: "18"
+        - generic [ref=f1e145]: 4×4
+        - generic [ref=f1e146]: 🔒
+      - generic [ref=f1e147] [cursor=pointer]:
+        - generic [ref=f1e148]: "19"
+        - generic [ref=f1e149]: 4×4
+        - generic [ref=f1e150]: 🔒
+      - generic [ref=f1e151] [cursor=pointer]:
+        - generic [ref=f1e152]: "20"
+        - generic [ref=f1e153]: 4×4
+        - generic [ref=f1e154]: 🔒
+    - generic [ref=f1e155]: 上下滑动地图 · 点关卡进入（消耗 1 体力，已通关的可以再挑战）
+  - generic: 已接入 36 张真图，开放 60 关（每关图池从素材池随机抽取）
