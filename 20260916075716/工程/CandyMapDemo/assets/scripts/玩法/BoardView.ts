@@ -1,5 +1,7 @@
 import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, Rect, Texture2D, resources, Vec3, tween, Color, UIOpacity, Graphics, Label, HorizontalTextAlignment } from 'cc';
 const { ccclass } = _decorator;
+import type { MergeDisplay } from '../核心/merge';
+import { pieceGeometry, QUADRANT_PX, type PieceGeometryInput } from './geometry';
 
 /** 得分飘字时长（秒）—— 原版 FLOAT_MS = 500，与消除并行 */
 const FLOAT_SEC = 0.5;
@@ -44,6 +46,14 @@ interface CellRef {
   /** 本格在网格中的行列，用于坐标换算 */
   row: number;
   col: number;
+  /** 融合取样几何（null = 未融合，按整图象限取样） */
+  geom: PieceGeometryInput | null;
+  /**
+   * 外扩后的基准位置 —— 所有动画（拖动 / 掉落 / 回弹 / 融合三阶段）都得以它为原点。
+   * 用 `posOf()` 当基准的话，融合块一动就跳回「没外扩」的位置，缝又露出来了。
+   */
+  baseX: number;
+  baseY: number;
 }
 
 /**
@@ -92,12 +102,18 @@ export class BoardView extends Component {
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
         const op = root.addComponent(UIOpacity);
         const ring = this.buildRing(root, cellSize);
-        this.cells.push({ root, sp, ring, op, row: r, col: c });
+        const p = new Vec3(originX + c * step, originY - r * step, 0);
+        this.cells.push({ root, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
       }
     }
   }
 
-  /** 金环：融合三阶段点亮它，玩家才知道「这 4 块是一个整体」 */
+  /**
+   * 金环：融合三阶段点亮它，玩家才知道「这几块是一个整体」。
+   *
+   * 描边**在点亮时才画**（`drawRing`）：组是随盘面变化的，预画一个方框的话，
+   * 2 块融合就会显示成两个各自独立的框 —— 那正好是「看起来没融合」的样子。
+   */
   private buildRing(parent: Node, size: number): Graphics {
     const n = new Node('Ring');
     n.parent = parent;
@@ -106,10 +122,50 @@ export class BoardView extends Component {
     const g = n.addComponent(Graphics);
     g.lineWidth = 5;
     g.strokeColor = new Color(255, 214, 92, 255);
-    g.roundRect(-size / 2, -size / 2, size, size, 12);
-    g.stroke();
     n.active = false;
     return g;
+  }
+
+  /**
+   * 按当前融合状态重画描边：**只画没融合的那几条边**。
+   *
+   * 组内相邻的两块之间不画 → 整组看上去是一个外框，而不是几块各自加框。
+   */
+  private drawRing(ref: CellRef): void {
+    const g = ref.ring;
+    g.clear();
+    const m = ref.geom;
+    const ext = GAP / 2;
+    // 外扩后的半宽 / 半高：描边要贴着「融合后」的块边，而不是原始格子边
+    const hw = (this.cellSize + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0)) / 2;
+    const hh = (this.cellSize + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0)) / 2;
+    const r = 12;
+    const up = !m?.mergeUp;
+    const down = !m?.mergeDown;
+    const left = !m?.mergeLeft;
+    const right = !m?.mergeRight;
+
+    if (up) this.line(g, -hw + (left ? r : 0), hh, hw - (right ? r : 0), hh);
+    if (down) this.line(g, -hw + (left ? r : 0), -hh, hw - (right ? r : 0), -hh);
+    if (left) this.line(g, -hw, hh - (up ? r : 0), -hw, -hh + (down ? r : 0));
+    if (right) this.line(g, hw, hh - (up ? r : 0), hw, -hh + (down ? r : 0));
+
+    // 圆角只在两条相邻边都存在时补（融合侧没有边，也就不该有角）
+    if (up && left) this.corner(g, -hw + r, hh, -hw, hh, -hw, hh - r);
+    if (up && right) this.corner(g, hw - r, hh, hw, hh, hw, hh - r);
+    if (down && left) this.corner(g, -hw + r, -hh, -hw, -hh, -hw, -hh + r);
+    if (down && right) this.corner(g, hw - r, -hh, hw, -hh, hw, -hh + r);
+    g.stroke();
+  }
+
+  private line(g: Graphics, x1: number, y1: number, x2: number, y2: number): void {
+    g.moveTo(x1, y1);
+    g.lineTo(x2, y2);
+  }
+
+  private corner(g: Graphics, x1: number, y1: number, cx: number, cy: number, x2: number, y2: number): void {
+    g.moveTo(x1, y1);
+    g.quadraticCurveTo(cx, cy, x2, y2);
   }
 
   get step(): number { return this.cellSize + GAP; }
@@ -149,10 +205,38 @@ export class BoardView extends Component {
     if (!ref) return;
     if (pieceId === null) { ref.sp.spriteFrame = null; return; }
     const imageId = Math.floor(pieceId / 4);
-    const pos = pieceId % 4;
     const tex = this.texCache.get(imageId);
     if (!tex) { this.loadTexture(imageId); return; }
-    ref.sp.spriteFrame = this.quadFrame(tex, pos);
+    ref.sp.spriteFrame = this.frameFor(ref, imageId, pieceId);
+  }
+
+  /**
+   * 本块该取源图的哪一块 —— 融合「无缝」的关键。
+   *
+   * - 未融合：取自己那个象限（与旧行为逐像素等价）。
+   * - 已融合：整组用**同一个**「屏幕 px → 源 px」比例取样，
+   *   相邻两块的像素边界正好落在同一个源像素上，接缝真正消失（§11.6.3）。
+   */
+  private frameFor(ref: CellRef, imageId: number, pieceId: number): SpriteFrame {
+    const sf = new SpriteFrame();
+    sf.texture = this.texCache.get(imageId)!;
+    sf.packable = false;
+    const g = ref.geom;
+    if (!g) {
+      const pos = pieceId % 4;
+      sf.rect = new Rect((pos % 2) * QUAD, Math.floor(pos / 2) * QUAD, QUAD, QUAD);
+      return sf;
+    }
+    const geo = pieceGeometry(g);
+    const sx = (g.groupCols * QUADRANT_PX) / geo.groupInkW;
+    const sy = (g.groupRows * QUADRANT_PX) / geo.groupInkH;
+    sf.rect = new Rect(
+      g.quadCol * QUADRANT_PX + geo.inkLeft * sx,
+      g.quadRow * QUADRANT_PX + geo.inkTop * sy,
+      geo.inkW * sx,
+      geo.inkH * sy,
+    );
+    return sf;
   }
 
   private loadTexture(imageId: number): void {
@@ -199,22 +283,38 @@ export class BoardView extends Component {
     }
   }
 
-  private quadFrame(tex: Texture2D, pos: number): SpriteFrame {
-    const sf = new SpriteFrame();
-    sf.texture = tex;
-    const col = pos % 2;
-    const row = Math.floor(pos / 2);
-    sf.rect = new Rect(col * QUAD, row * QUAD, QUAD, QUAD);
-    sf.packable = false;
-    return sf;
-  }
-
-  /** 融合视觉：整片向缝隙方向各外扩 GAP/2，连成一块（对应 DOM 版的 --pt/--pb/--pl/--pr） */
-  applyMerge(displays: readonly { cellIndex: number; mergeUp: boolean; mergeDown: boolean; mergeLeft: boolean; mergeRight: boolean }[]): void {
+  /**
+   * 融合视觉（§6.3 / §11.6.3）：组内每块向融合侧各外扩 GAP/2，缝被吃满 → 连成一整块。
+   *
+   * ⚠️ 外扩只负责「把缝补上」。真正决定「看得出是一张图」的是**纹理取样**：
+   * 必须按整组的统一比例取样（见 `geometry.ts`）。只外扩、各按自己的元素尺寸取样的话，
+   * 每块被拉伸的倍率不同，接缝两侧的源像素对不上 —— 缝没了，错位线还在。
+   *
+   * 组大小 ≥2 就走这条路：两张碎块只要同图 + 相邻 + 相对位置正确即成组（核心/merge.ts）。
+   */
+  applyMerge(displays: readonly MergeDisplay[]): void {
     for (const ref of this.cells) this.resetGeom(ref);
     for (const d of displays) {
       const ref = this.cells[d.cellIndex];
-      if (ref) this.expand(ref, d.mergeUp, d.mergeDown, d.mergeLeft, d.mergeRight);
+      if (!ref) continue;
+      ref.geom = {
+        cellSize: this.cellSize,
+        gap: GAP,
+        edge: 0,   // Cocos 版没有白描边，块本身就是贴图
+        groupCols: d.groupCols,
+        groupRows: d.groupRows,
+        colInGroup: d.colInGroup,
+        rowInGroup: d.rowInGroup,
+        quadCol: d.quadCol,
+        quadRow: d.quadRow,
+        mergeLeft: d.mergeLeft,
+        mergeRight: d.mergeRight,
+        mergeUp: d.mergeUp,
+        mergeDown: d.mergeDown,
+      };
+      this.expand(ref, d.mergeUp, d.mergeDown, d.mergeLeft, d.mergeRight);
+      // 几何变了，纹理子矩形必须跟着重算：贴图多半已就绪，不会走异步加载回调
+      this.paintFace(d.cellIndex, this.faces[d.cellIndex] ?? null);
     }
   }
 
@@ -222,9 +322,13 @@ export class BoardView extends Component {
     const t = ref.root.getComponent(UITransform)!;
     t.setContentSize(this.cellSize, this.cellSize);
     const p = this.posOf(ref.row, ref.col);
+    ref.geom = null;
+    ref.baseX = p.x;
+    ref.baseY = p.y;
     ref.root.setPosition(p);
   }
 
+  /** 外扩量固定 gap/2：相邻两块各扩一半正好吃满缝，多扩会在缝上重叠出一道错位 */
   private expand(ref: CellRef, up: boolean, down: boolean, left: boolean, right: boolean): void {
     const h = GAP / 2;
     const w = this.cellSize + (left ? h : 0) + (right ? h : 0);
@@ -234,7 +338,9 @@ export class BoardView extends Component {
     const p = this.posOf(ref.row, ref.col);
     const dx = (right ? h / 2 : 0) - (left ? h / 2 : 0);
     const dy = (up ? h / 2 : 0) - (down ? h / 2 : 0);
-    ref.root.setPosition(p.x + dx, p.y + dy, 0);
+    ref.baseX = p.x + dx;
+    ref.baseY = p.y + dy;
+    ref.root.setPosition(ref.baseX, ref.baseY, 0);
   }
 
   /**
@@ -248,11 +354,11 @@ export class BoardView extends Component {
     for (const i of indices) {
       const ref = this.cells[i];
       if (!ref) continue;
-      const base = this.posOf(ref.row, ref.col);
+      if (phase !== 'off') this.drawRing(ref);   // 组会变，描边必须现画
       ref.ring.node.active = phase !== 'off';
       tween(ref.root)
         .to(phase === 'off' ? ANIM.confirm : ANIM[phase], {
-          position: new Vec3(base.x, base.y + p.dy, 0),
+          position: new Vec3(ref.baseX, ref.baseY + p.dy, 0),
           scale: new Vec3(p.scale, p.scale, 1),
         })
         .start();
@@ -267,8 +373,7 @@ export class BoardView extends Component {
     n.parent = this.node;
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(160, 60);
-    const p = this.posOf(ref.row, ref.col);
-    n.setPosition(p.x, p.y, 0);
+    n.setPosition(ref.baseX, ref.baseY, 0);
     const l = n.addComponent(Label);
     l.string = text;
     l.fontSize = 34;
@@ -277,7 +382,7 @@ export class BoardView extends Component {
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     const op = n.addComponent(UIOpacity);
 
-    tween(n).to(FLOAT_SEC, { position: new Vec3(p.x, p.y + 140, 0) }).start();
+    tween(n).to(FLOAT_SEC, { position: new Vec3(ref.baseX, ref.baseY + 140, 0) }).start();
     tween(op).to(FLOAT_SEC, { opacity: 0 }).call(() => n.destroy()).start();
   }
 
@@ -299,8 +404,8 @@ export class BoardView extends Component {
   playDropIn(): void {
     for (let i = 0; i < this.cells.length; i++) {
       const ref = this.cells[i]!;
-      const target = this.posOf(ref.row, ref.col);
-      ref.root.setPosition(target.x, target.y + 400, 0);
+      const target = new Vec3(ref.baseX, ref.baseY, 0);
+      ref.root.setPosition(ref.baseX, ref.baseY + 400, 0);
       ref.op.opacity = 0;
       tween(ref.root).delay(i * 0.018).to(ANIM.spawn, { position: target }).start();
       tween(ref.op).delay(i * 0.018).to(ANIM.spawn * 0.55, { opacity: 255 }).start();
@@ -319,8 +424,8 @@ export class BoardView extends Component {
     for (const [i, n] of drops) {
       const ref = this.cells[i];
       if (!ref || n <= 0) continue;
-      const target = this.posOf(ref.row, ref.col);
-      ref.root.setPosition(target.x, target.y + n * s, 0);
+      const target = new Vec3(ref.baseX, ref.baseY, 0);
+      ref.root.setPosition(ref.baseX, ref.baseY + n * s, 0);
       ref.op.opacity = 255;
       tween(ref.root)
         .delay(ref.col * ANIM.stagger)
@@ -332,8 +437,8 @@ export class BoardView extends Component {
     for (const [i, row] of spawns) {
       const ref = this.cells[i];
       if (!ref) continue;
-      const target = this.posOf(ref.row, ref.col);
-      ref.root.setPosition(target.x, target.y + (row + 1) * s + 30, 0);
+      const target = new Vec3(ref.baseX, ref.baseY, 0);
+      ref.root.setPosition(ref.baseX, ref.baseY + (row + 1) * s + 30, 0);
       ref.op.opacity = 0;
       tween(ref.root).delay(ref.col * ANIM.stagger).to(ANIM.spawn, { position: target }).start();
       tween(ref.op).delay(ref.col * ANIM.stagger).to(ANIM.spawn * 0.55, { opacity: 255 }).start();
@@ -350,12 +455,12 @@ export class BoardView extends Component {
     for (const i of indices) {
       const ref = this.cells[i];
       if (!ref) continue;
-      const p = this.posOf(ref.row, ref.col);
       const kx = Math.sign(dx) * 12;
       const ky = Math.sign(dy) * 12;
+      const home = new Vec3(ref.baseX, ref.baseY, 0);
       tween(ref.root)
-        .to(ANIM.reject / 3, { position: new Vec3(p.x + kx, p.y + ky, 0) })
-        .to(ANIM.reject / 3, { position: p })
+        .to(ANIM.reject / 3, { position: new Vec3(ref.baseX + kx, ref.baseY + ky, 0) })
+        .to(ANIM.reject / 3, { position: home })
         .start();
     }
   }
@@ -375,8 +480,7 @@ export class BoardView extends Component {
     for (const i of indices) {
       const ref = this.cells[i];
       if (!ref) continue;
-      const p = this.posOf(ref.row, ref.col);
-      ref.root.setPosition(p.x + dx, p.y + dy, 0);
+      ref.root.setPosition(ref.baseX + dx, ref.baseY + dy, 0);
       ref.root.setSiblingIndex(this.cells.length - 1);
     }
   }
@@ -384,7 +488,7 @@ export class BoardView extends Component {
   /** 取消拖动：整片归位 */
   clearDrag(): void {
     for (const ref of this.cells) {
-      tween(ref.root).to(ANIM.swap, { position: this.posOf(ref.row, ref.col) }).start();
+      tween(ref.root).to(ANIM.swap, { position: new Vec3(ref.baseX, ref.baseY, 0) }).start();
     }
   }
 
