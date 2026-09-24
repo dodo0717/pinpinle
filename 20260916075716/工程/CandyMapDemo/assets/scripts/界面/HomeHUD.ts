@@ -2,7 +2,10 @@ import {
     _decorator, Component, Node, view, Sprite, Label, Graphics,
     Color, Layers, UITransform, resources, JsonAsset,
 } from 'cc';
-import { UIBuilder, UILayoutDoc } from './UIBuilder';
+import { UIBuilder } from './UIBuilder';
+// `UILayoutDoc` 只是类型：浏览器直跑时会被擦掉，必须走 `import type`，
+// 否则运行时报 "does not provide an export named 'UILayoutDoc'"，整页黑屏
+import type { UILayoutDoc } from './UIBuilder';
 
 const { ccclass } = _decorator;
 

@@ -1,19 +1,29 @@
 import { _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers, Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite, SpriteFrame, resources, Font } from 'cc';
 import { LevelNode } from './LevelNode';
-import { HomeHUD } from './界面/HomeHUD';
-import { GameBootstrap } from './玩法/GameBootstrap';
-import { GameDialog } from './玩法/GameDialog';
-import { ToastLayer } from './玩法/toast';
-import { GS } from './玩法/state';
-import { HOME, ADS, COLLECTION, BOARD, SETTINGS } from './玩法/text';
-import { unlockedImageIds, COLLECTION_TOTAL } from './玩法/meta';
-import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode } from './核心/index';
+// 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
+import { HomeHUD } from '../界面/HomeHUD';
+import { GameBootstrap } from '../玩法/GameBootstrap';
+import { GameDialog } from '../玩法/GameDialog';
+import { ToastLayer } from '../玩法/toast';
+import { GS } from '../玩法/state';
+import { HOME, ADS, COLLECTION, BOARD, SETTINGS } from '../玩法/text';
+import { unlockedImageIds, COLLECTION_TOTAL } from '../玩法/meta';
+import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode } from '../核心/index';
 const { ccclass } = _decorator;
 
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
 const MAP_H = 2880;            // v4 定稿 1440×3840 按 1080 屏宽等比缩放后的高度（2 屏）
 const LEVEL_COUNT = 10;        // W1 当前 10 关；后续若要扩 20 关，再补一段同规格底图即可
+
+/**
+ * 地图上下留白 —— 顶栏 / 底导航是浮在地图之上的，如果没有留白：
+ * 滚到底时 L1 落在底栏热区里（点气球 = 点排行榜）、滚到顶时 L10 被顶栏压住。
+ * 留白让首尾关卡都能滚进「顶栏底边 ~ 底栏顶边」这条安全区。
+ */
+const PAD_TOP = 560;
+const PAD_BOTTOM = 340;
+const CONTENT_H = MAP_H + PAD_TOP + PAD_BOTTOM;
 
 /**
  * 世界1（奶油果园）关卡坐标 —— 基于 v4 定稿图 1440×3840，按 1080×2880 换算
@@ -123,6 +133,7 @@ export class MapBootstrap extends Component {
         this.buildLevelPositions();
         this.buildUI();
         this.buildMap();
+        this.raiseOverlays();
         // 场景里挂本组件的节点实际叫 Bootstrap，而 GameBootstrap 返回时按 'Map' 查找，
         // 两边名字对不上会造成「进得去、回不来」，这里统一成 Map
         this.node.name = 'Map';
@@ -476,29 +487,54 @@ export class MapBootstrap extends Component {
         this.content = new Node('Content');
         this.content.parent = maskNode;
         this.content.layer = Layers.Enum.UI_2D;
-        this.content.addComponent(UITransform).setContentSize(DESIGN_W, MAP_H);
-        this.content.setPosition(0, MAP_H / 2 - this.viewH / 2);
+        this.content.addComponent(UITransform).setContentSize(DESIGN_W, CONTENT_H);
+        this.content.setPosition(0, CONTENT_H / 2 - this.viewH / 2);
         scroll.content = this.content;
 
         this.createMapBackground();
         this.createLevelNodes();
 
         // 滚动到当前关卡（= 已解锁到的那一关）
-        this.scheduleOnce(() => {
-            const idx = Math.min(Math.max(GS.progress.unlocked - 1, 0), this.levels.length - 1);
-            const offset = Math.max(0, Math.min(MAP_H - this.viewH, this.levels[idx].y - this.viewH / 2));
-            this.content.setPosition(0, MAP_H / 2 - this.viewH / 2 - offset);
-        }, 0.1);
+        this.scheduleOnce(() => this.scrollToLevel(GS.progress.unlocked), 0.1);
+    }
+
+    /** 地图坐标（从底往上量的 y）→ content 局部 y（原点在 content 中心） */
+    private localY(yFromBottom: number): number {
+        return yFromBottom - CONTENT_H / 2 + PAD_BOTTOM;
+    }
+
+    /** 把某关滚到视口正中：offset = 关卡 y − 半屏高 + 底部留白 */
+    private scrollToLevel(level: number): void {
+        if (!this.content?.isValid || this.levels.length === 0) return;
+        const idx = Math.min(Math.max(level - 1, 0), this.levels.length - 1);
+        const max = Math.max(0, CONTENT_H - this.viewH);
+        const offset = Math.max(0, Math.min(max, this.levels[idx].y - this.viewH / 2 + PAD_BOTTOM));
+        this.content.setPosition(0, (CONTENT_H / 2 - this.viewH / 2) - offset);
+    }
+
+    /**
+     * 把浮层提到地图之上 —— 地图是 onLoad 里最后建的节点，默认排在最上层，
+     * 会把顶栏 / 底导航 / 「开始」按钮整个盖住（看得见代码、看不见画面）。
+     * 真引擎里的 Mask 只负责裁剪溢出，管不了层级，所以这里显式排一次：
+     * 底图 → 地图 → HUD → 开始按钮 → 弹窗 → Toast。
+     */
+    private raiseOverlays() {
+        const order = ['Backdrop', 'ScrollView', 'HUD', 'PlayButton', 'Dialog', 'Toast'];
+        for (const name of order) {
+            const n = this.node.getChildByName(name);
+            if (n?.isValid) n.setSiblingIndex(this.node.children.length - 1);
+        }
     }
 
     /** 底图：1080×2880 切 2 段 1080×1440，从上到下拼 */
     private createMapBackground() {
         const seg = MAP_H / 2;
-        this.makeSprite(this.content, 'BgTop', 'map/w1_bg_top', DESIGN_W, seg, 0, MAP_H / 2 - seg / 2);
-        this.makeSprite(this.content, 'BgBottom', 'map/w1_bg_bottom', DESIGN_W, seg, 0, -MAP_H / 2 + seg / 2);
+        const top = this.localY(MAP_H);         // 地图顶边的局部 y
+        this.makeSprite(this.content, 'BgTop', 'map/w1_bg_top', DESIGN_W, seg, 0, top - seg / 2);
+        this.makeSprite(this.content, 'BgBottom', 'map/w1_bg_bottom', DESIGN_W, seg, 0, this.localY(0) + seg / 2);
 
         // 新素材藤蔓浮层，盖住原底图藤蔓
-        this.makeSprite(this.content, 'Vine', 'map/vine', 152, MAP_H, 0, 0);
+        this.makeSprite(this.content, 'Vine', 'map/vine', 152, MAP_H, 0, this.localY(MAP_H / 2));
     }
 
     /**
@@ -516,7 +552,7 @@ export class MapBootstrap extends Component {
             node.parent = this.content;
             node.layer = Layers.Enum.UI_2D;
             node.addComponent(UITransform).setContentSize(BALLOON_W, BALLOON_H);
-            node.setPosition(lv.x - DESIGN_W / 2, lv.y - MAP_H / 2);
+            node.setPosition(lv.x - DESIGN_W / 2, this.localY(lv.y));
 
             // 真实气球切片（含数字），直接覆盖原底图气球，数字即点击区
             this.makeSprite(node, 'Balloon', BALLOON_PATHS[i], BALLOON_W, BALLOON_H, 0, 0);

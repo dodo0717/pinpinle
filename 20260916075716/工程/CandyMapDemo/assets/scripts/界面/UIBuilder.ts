@@ -37,8 +37,15 @@ const cache = new Map<string, SpriteFrame>();
 export class UIBuilder {
     private slots = new Map<string, Node>();
     private nodes = new Map<string, Node>();
+    private vw: number;
+    private vh: number;
 
-    constructor(private vw: number, private vh: number) { }
+    // 不写 `constructor(private vw: number, ...)`：TS 参数属性在浏览器直跑的
+    // 类型擦除（Node 的 stripTypeScriptTypes）里不受支持，会让整个模块加载失败
+    constructor(vw: number, vh: number) {
+        this.vw = vw;
+        this.vh = vh;
+    }
 
     /** 预加载本页用到的所有图片，避免首帧闪白 */
     static preload(doc: UILayoutDoc): Promise<void> {

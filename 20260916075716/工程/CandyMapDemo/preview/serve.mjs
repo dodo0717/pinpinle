@@ -61,7 +61,16 @@ http
     try {
       if (p.endsWith('.ts')) {
         const raw = await readFile(file, 'utf8');
-        const js = rewriteImports(stripDecorators(stripTypeScriptTypes(raw)));
+        let js;
+        try {
+          js = rewriteImports(stripDecorators(stripTypeScriptTypes(raw)));
+        } catch (e) {
+          // 类型擦除只支持「可擦除」的 TS：enum / namespace / 参数属性都会走到这里。
+          // 直接丢 404 会让浏览器只报一句 "Failed to load resource"，根本查不出是哪个语法
+          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('TS 转译失败 ' + p + '\n' + (e && e.message));
+          return;
+        }
         res.writeHead(200, { 'Content-Type': MIME['.ts'], 'Cache-Control': 'no-store' });
         res.end(js);
         return;

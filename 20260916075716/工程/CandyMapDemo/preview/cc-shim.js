@@ -71,8 +71,24 @@ export class SpriteFrame {
   constructor() { this.texture = null; this.rect = null; this.packable = false; }
 }
 
+/**
+ * 布局 / 配置类资源（HomeHUD 用它读 layout/home_hud.json）。
+ * 真引擎里是 `cc.JsonAsset`，预览里只要把 JSON 原样带出来即可。
+ */
+export class JsonAsset {
+  constructor(json) { this.json = json; }
+}
+
 /** 资源表：把 Cocos 的 `resources.load('ui/xxx/texture')` 映射成本站图片路径 */
 const RES_BASE = '/assets/resources/';
+/** 素材库里 png / jpg 混放（stickers 有一半是 jpg），逐个后缀试过去 */
+const IMG_EXT = ['.png', '.jpg', '.jpeg', '.webp'];
+
+function loadImageAny(base) {
+  let chain = Promise.reject(new Error('init'));
+  for (const ext of IMG_EXT) chain = chain.catch(() => loadImage(base + ext));
+  return chain;
+}
 
 export const resources = {
   load(path, type, cb) {
@@ -80,13 +96,29 @@ export const resources = {
     // 不回的话会去请求 `audio/xxx.png`，刷一屏 404，还会把真正的缺图警告淹掉。
     // 这里用 `type.name` 而不是 `type === AudioClip`，因为 AudioClip 定义在文件末尾，
     // class 不提升，直接引用会踩 TDZ。
-    if (type && type.name === 'AudioClip') {
+    const name = type && type.name;
+    if (name === 'AudioClip') {
       cb && cb(new Error('preview: audio not supported'), null);
       return;
     }
-    const url = RES_BASE + String(path).replace(/\/texture$/, '') + '.png';
-    loadImage(url).then(
-      (img) => cb && cb(null, new Texture2D(img)),
+    const base = RES_BASE + String(path).replace(/\/(texture|spriteFrame)$/, '');
+
+    if (name === 'JsonAsset') {
+      fetch(base + '.json')
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error('404 ' + base + '.json'))))
+        .then((j) => cb && cb(null, new JsonAsset(j)), (e) => cb && cb(e, null));
+      return;
+    }
+
+    loadImageAny(base).then(
+      (img) => {
+        const tex = new Texture2D(img);
+        // 源码侧两种用法：BoardView 直接要 Texture2D；地图 / HUD 要 SpriteFrame 挂到 Sprite 上
+        if (name === 'Texture2D') { cb && cb(null, tex); return; }
+        const sf = new SpriteFrame();
+        sf.texture = tex;
+        cb && cb(null, sf);
+      },
       (err) => cb && cb(err, null),
     );
   },
@@ -439,7 +471,7 @@ function drawLabel(ctx, node, lb) {
   ctx.save();
   ctx.scale(1, -1); // 文字不受 y 翻转影响
   ctx.fillStyle = lb.color.toString();
-  ctx.font = `${lb.enableBold ? '700 ' : ''}${lb.fontSize}px ${lb.fontFamily}`;
+  ctx.font = `${lb.enableBold ? '700 ' : ''}${lb.fontSize}px ${(lb.font && lb.font.family) || lb.fontFamily}`;
   ctx.textBaseline = 'middle';
   const lines = String(lb.string).split('\n');
   const lh = lb.lineHeight || lb.fontSize + 6;
@@ -533,6 +565,10 @@ export class Renderer {
     const loop = (now) => {
       const dt = Math.min(0.05, (now - this._last) / 1000);
       this._last = now;
+      // 每帧补一次生命周期：节点经常是在别的组件 onLoad 里动态创建的
+      // （Game 节点就是 MapBootstrap.onLoad 建的），只在启动时 mount 一次的话，
+      // 这些节点的 onLoad / start 永远不会被调用 —— 表现是「进了关但棋盘不存在」
+      this.mount();
       stepTweens(dt);
       this._update(this.root, dt);
       this._draw();
@@ -678,6 +714,8 @@ export class Font extends Component {
 export class Mask extends Component {
   constructor() { super(); this.type = 0; this.inverted = false; }
 }
+/** MapBootstrap 会写 `mask.type = Mask.Type.RECT` —— 缺了就是运行时 TypeError */
+Mask.Type = { RECT: 0, ELLIPSE: 1, GRAPHICS_STENCIL: 2, GRAPHICS_RECT: 3, IMAGE_STENCIL: 4 };
 export class ScrollView extends Component {
   constructor() {
     super();
