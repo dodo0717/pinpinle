@@ -37,7 +37,19 @@ const PHASE = {
 } as const;
 
 interface CellRef {
+  /**
+   * 容器层 —— 只承载动画（拖动 / 掉落 / 回弹 / 融合三阶段）。
+   * 位置恒为格心，不随融合外扩改变。
+   *
+   * ⚠️ 分两层是为了修「去边界滞后一步」：外扩改的是 baseX/baseY，
+   * 而回位 tween（clearDrag）在手指抬起那一刻就把目标位置算死了 ——
+   * 目标一旦是外扩前的旧值，tween 落点就会把融合块拽回旧中心，缝又露出一半，
+   * 直到下一次 applyMerge 直接 setPosition 才补上。动的（root）与变的（face）分开后，
+   * 动画目标永远有效，applyMerge 什么时候调用都不会打架。
+   */
   root: Node;
+  /** 块体层 —— 贴图 + 外扩后的尺寸与偏移，是融合视觉的全部载体 */
+  face: Node;
   sp: Sprite;
   /** 融合金环（①②③ 阶段点亮） */
   ring: Graphics;
@@ -48,10 +60,7 @@ interface CellRef {
   col: number;
   /** 融合取样几何（null = 未融合，按整图象限取样） */
   geom: PieceGeometryInput | null;
-  /**
-   * 外扩后的基准位置 —— 所有动画（拖动 / 掉落 / 回弹 / 融合三阶段）都得以它为原点。
-   * 用 `posOf()` 当基准的话，融合块一动就跳回「没外扩」的位置，缝又露出来了。
-   */
+  /** 格心（本地坐标）—— 所有动画的原点，build 时定好后不再变 */
   baseX: number;
   baseY: number;
 }
@@ -98,12 +107,16 @@ export class BoardView extends Component {
         root.layer = Layers.Enum.UI_2D;
         root.addComponent(UITransform).setContentSize(cellSize, cellSize);
         root.setPosition(originX + c * step, originY - r * step);
-        const sp = root.addComponent(Sprite);
+        const face = new Node('Face');
+        face.parent = root;
+        face.layer = Layers.Enum.UI_2D;
+        face.addComponent(UITransform).setContentSize(cellSize, cellSize);
+        const sp = face.addComponent(Sprite);
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
-        const op = root.addComponent(UIOpacity);
-        const ring = this.buildRing(root, cellSize);
+        const op = face.addComponent(UIOpacity);
+        const ring = this.buildRing(face, cellSize);
         const p = new Vec3(originX + c * step, originY - r * step, 0);
-        this.cells.push({ root, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
+        this.cells.push({ root, face, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
       }
     }
   }
@@ -318,29 +331,30 @@ export class BoardView extends Component {
     }
   }
 
+  /** 取消外扩：尺寸回格宽、偏移归零（不动 root，免得打断正在跑的动画） */
   private resetGeom(ref: CellRef): void {
-    const t = ref.root.getComponent(UITransform)!;
+    const t = ref.face.getComponent(UITransform)!;
     t.setContentSize(this.cellSize, this.cellSize);
-    const p = this.posOf(ref.row, ref.col);
+    ref.face.setPosition(0, 0, 0);
     ref.geom = null;
-    ref.baseX = p.x;
-    ref.baseY = p.y;
-    ref.root.setPosition(p);
   }
 
-  /** 外扩量固定 gap/2：相邻两块各扩一半正好吃满缝，多扩会在缝上重叠出一道错位 */
+  /**
+   * 外扩量固定 gap/2：相邻两块各扩一半正好吃满缝，多扩会在缝上重叠出一道错位。
+   *
+   * 只改 face（尺寸 + 相对偏移），root 与 baseX/baseY 一律不动 ——
+   * 这样正在跑的回位/掉落 tween 的目标永远是对的，融合生效不用等下一次重绘。
+   */
   private expand(ref: CellRef, up: boolean, down: boolean, left: boolean, right: boolean): void {
     const h = GAP / 2;
     const w = this.cellSize + (left ? h : 0) + (right ? h : 0);
     const hh = this.cellSize + (up ? h : 0) + (down ? h : 0);
-    const t = ref.root.getComponent(UITransform)!;
+    const t = ref.face.getComponent(UITransform)!;
     t.setContentSize(w, hh);
-    const p = this.posOf(ref.row, ref.col);
+    // 向融合侧各挪 gap/4：块变大的同时中心跟着走，缝才真正被吃满
     const dx = (right ? h / 2 : 0) - (left ? h / 2 : 0);
     const dy = (up ? h / 2 : 0) - (down ? h / 2 : 0);
-    ref.baseX = p.x + dx;
-    ref.baseY = p.y + dy;
-    ref.root.setPosition(ref.baseX, ref.baseY, 0);
+    ref.face.setPosition(dx, dy, 0);
   }
 
   /**

@@ -773,11 +773,30 @@ export class GameBootstrap extends Component {
     GS.setSession(null);
     GS.flush();
     this.finished = true;
-    const map = this.node.parent?.getChildByName('Map');
+    const map = this.findMapNode();
     if (map) {
       map.active = true;
       this.node.active = false;
+      return;
     }
+    // 找不到主页时不能「静默什么都不做」——玩家点完没反应会以为按钮坏了。
+    // 本局已经停掉（计时停、体力已退），这里如实说明跳转没发生。
+    this.toast.show('已退出本局（当前场景没有主页节点，无法跳转）', 2000);
+  }
+
+  /**
+   * 找主页节点。只在亲兄弟里找是不够的：对局节点可能被包在容器里，
+   * 那样 `parent.getChildByName('Map')` 恒为 null，表现就是「点了返回没反应」。
+   * 往上多找几层，找到就停。
+   */
+  private findMapNode(): Node | null {
+    let p = this.node.parent;
+    for (let i = 0; i < 4 && p; i++) {
+      const m = p.getChildByName('Map');
+      if (m) return m;
+      p = p.parent;
+    }
+    return null;
   }
 
   /* ================================================================ HUD */
@@ -825,12 +844,14 @@ export class GameBootstrap extends Component {
     this.hudTime = this.hudText(bar, 46, 0, 0, 260, new Color(255, 255, 255));
     this.hudScore = this.hudText(bar, 34, 300, 0, 240, new Color(255, 255, 255));
 
-    // 返回主页
-    const back = this.hudButton('BtnBack', -460, 0, 120, 96, new Color(255, 255, 255, 60), '返回', 28);
+    // 返回主页 —— 必须挂在 bar 上（bar 在棋盘上方的安全区）。
+    // 挂 this.node 的话坐标原点是画面中心，(-460, 0) 会直接压在棋盘左中部，
+    // 既挡视线又吞掉那一带的拖动。
+    const back = this.hudButton(bar, 'BtnBack', -460, 0, 120, 88, new Color(255, 255, 255, 90), '返回', 28);
     back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
 
-    // 提示
-    const hint = this.hudButton('BtnHint', 0, -740, 240, 96, new Color(126, 200, 120, 255), '提示', 32);
+    // 提示 —— 棋盘下沿是 BOARD_BOTTOM(-640)，-740 在其下方，属于安全区
+    const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, new Color(126, 200, 120, 255), '提示', 32);
     hint.on(Node.EventType.TOUCH_END, () => this.showHint(), this);
   }
 
@@ -847,9 +868,9 @@ export class GameBootstrap extends Component {
     return l;
   }
 
-  private hudButton(name: string, x: number, y: number, w: number, h: number, color: Color, text: string, size: number): Node {
+  private hudButton(parent: Node, name: string, x: number, y: number, w: number, h: number, color: Color, text: string, size: number): Node {
     const n = new Node(name);
-    n.parent = this.node;
+    n.parent = parent;
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(w, h);
     n.setPosition(x, y);
