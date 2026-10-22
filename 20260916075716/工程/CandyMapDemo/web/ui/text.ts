@@ -8,7 +8,7 @@
  * 每条都标注了出处；凡文档没给的，标 `占位` 并由策划替换。
  */
 
-import { TOTAL_LEVELS } from '../../assets/scripts/core/index.ts';
+import { TOTAL_LEVELS } from '../../assets/scripts/核心/index.ts';
 
 /** 版本号（§11.4「关于游戏」） */
 export const VERSION = 'v1.0';
@@ -35,7 +35,7 @@ export const HOME = {
   staminaCountdown: (mmss: string): string => `下颗体力 ${mmss}`,
   progress: (level: number, stars: string): string =>
     stars ? `第 ${level} 关  ${stars}` : `第 ${level} 关`,
-  /** 「世界名 · 本世界第几关/总关」，如 `奶油果园 · 1/20` */
+  /** 「世界名 · 本世界第几关/总关」，如 `小镇 · 1/12`（5 世界 × 12 关 = 60） */
   worldProgress: (world: string, local: number, total: number): string =>
     `${world} · ${local}/${total}`,
   /** 顶栏昵称：还没有账号系统，先用占位（接账号时从这里换） */
@@ -50,34 +50,49 @@ export const HOME = {
 /* ---------------------------------------------------------------- 图鉴（§11.3） */
 
 export const COLLECTION = {
-  title: '📚 图鉴',
+  title: '图鉴', // 白字棕描边由 .col-title 处理，不带 emoji（同排行榜标题口径）
   collected: (got: number, total: number): string => `已收集：${got} / ${total}`,
   lockedCell: '???',
+  /** 未解锁卡的点击提示（§10.3 新规则：每 10 颗星解锁一张） */
+  lockedToast: '每获得 10 颗星解锁一张',
   download: '下载',
   share: '分享',
-  /** 图鉴文案是占位（config.ts 的 IMAGE_TEXT_PLACEHOLDER），界面这里再明示一次，避免被当成正式文案 */
-  captionNote: '（文案为占位，待策划替换）',
 } as const;
 
 /* ---------------------------------------------------------------- 排行榜（§9.3） */
 
 export const LEADERBOARD = {
-  title: '🏆 排行榜',
+  title: '排行榜',
+  tabTotal: '总分榜',
+  tabLevel: '关卡榜',
+  colRank: '排名',
+  colName: '昵称',
+  colSimple: '简单',
+  colHard: '困难',
+  colTotal: '总分',
+  levelSelect: (level: number): string => `第 ${level} 关 ▼`,
   header: (level: number, tier: string): string => `第 ${level} 关  ·  ${tier}`,
-  myRank: (rank: number): string => `我的排名：第 ${rank} 名`,
-  myRankNone: '我的排名：暂未上榜',
-  myPersonalBest: (score: number): string => `我的个人最高分：${score} 分`,
-  /** 《通关及排名》：上榜门槛 = 3★，所以「上榜最高分」与「个人最高分」可能不同 */
-  myBoardBest: (score: number): string => `上榜最高分：${score} 分`,
-  /** 榜单规模说明（含并列） */
-  boardSize: (total: number, shown: number): string =>
-    `本关共 ${total} 位玩家 · 榜单取前 100 名（含并列，实收 ${shown} 条）`,
+  /**
+   * 我的成绩单（2026-10-22 升级：从「挤在步进器旁的 28px 小字」改为 Tab 下方独立成绩条，
+   * 新增「累计星数」）。标签与数值分开排版：标签小字、数值大号金色描边字。
+   */
+  mineRankLabel: '我的排名',
+  mineScoreLabel: '累计总分',
+  mineLevelScoreLabel: '本关最高分',
+  mineStarsLabel: '累计星数',
+  /**
+   * 数值**只放短内容**（纯数字 / 未上榜），单位语义在标签里 —— 这样数值才能放到 88px
+   * 还不挤（「第 101 名」「118 分」这种带单位的写法在 76px 时就把三格顶满了）。
+   */
+  rankValue: (rank: number): string => (rank > 0 ? `${rank}` : '未上榜'),
+  scoreValue: (score: number): string => `${score}`,
+  /** 累计星数带星标，与图鉴「每 10 星解锁一张」同源口径 */
+  starsValue: (stars: number): string => `⭐${stars}`,
   /** 《通关及排名》§7：每页 20 名 */
   page: (page: number, pages: number): string => `第 ${page} / ${pages} 页`,
   prevPage: '◀ 上一页',
   nextPage: '下一页 ▶',
   empty: '暂无记录，快来挑战吧！',
-  footer: '💡 上榜门槛：3 星。1★ / 2★ 与续命局不计入',
   challenge: '▶ 挑战本关（消耗1体力）',
   challengeLocked: '通关前一关后解锁',
   challengeUnclear: '通关后解锁',
@@ -87,27 +102,19 @@ export const LEADERBOARD = {
   challengeNoStamina: '体力不足，请点击主界面+看广告或返回主页',
   prev: '◀ 上一关',
   next: '下一关 ▶',
-  /** 排行榜成绩是本地模拟数据（无后端），必须明示，别被当成真实榜单 */
-  mockNote: '开发期说明：榜单为本地模拟的 100 名玩家（无后端），我的成绩取自本机记录',
   scoreUnit: (score: number): string => `${score} 分`,
 } as const;
 
 /* ---------------------------------------------------------------- 设置（§11.4） */
 
 export const SETTINGS = {
-  title: '⚙️ 设置',
+  title: '设置', // 白字棕描边由 .set-title 处理，不带 emoji（同排行榜/图鉴标题口径）
   sound: '音效',
-  bgm: '背景音乐',
+  bgm: '音乐', // 设计图叫「音乐」
   on: '开',
   off: '关',
   about: '关于游戏',
-  version: (v: string): string => `版本号：${v}`,
-  /**
-   * ⚠️ M7 起开关**真的生效**了，但声音本身还是 WebAudio 现合成的占位音
-   * （`art/` 里没有音频素材）。必须在界面上说清楚，否则测试者会把「音色很电子」
-   * 当成音效做坏了 —— 正式素材接入后这句要一起改掉。
-   */
-  audioNote: '当前为合成占位音（暂无音频素材）：开关即时生效，正式音效接入后替换音色',
+  version: (v: string): string => `版本 ${v}`, // 设计图格式：卡下方小字「版本 1.0.0」
 } as const;
 
 /* ---------------------------------------------------------------- 结算（§12.1 ~ §12.3） */
@@ -196,11 +203,10 @@ export const HONOR = {
 } as const;
 
 export const FAIL = {
-  title: '没关系。',
+  title: '差一点就成功了',
   score: (score: number): string => `得分：${score}`,
   line: (value: number): string => `1星线：${value}  ❌`,
   gap: (gap: number): string => `(还差 ${gap} 组)`,
-  tip: '💡 休息一下再试试？',
   btnRetry: '重试',
   btnAdStamina: '📺 看广告 +1体力',
   btnHome: '返回主页',
@@ -213,7 +219,6 @@ export const REVIVE = {
   ask: '要再试一次吗？',
   btnAd: '📺 看广告 +1分钟',
   btnGiveUp: '❌ 放弃',
-  note: '💡 续命通关统一1星\n不计入排行榜',
   /** §7.5 / §13.4 广告没看完 → 提示「放弃挑战？」是/否 */
   adSkippedAsk: '放弃挑战？',
   adFailed: '广告加载失败，请稍后再试',
@@ -224,16 +229,12 @@ export const REVIVE = {
 export const ADS = {
   staminaTitle: '📺 加体力广告',
   reviveTitle: '📺 续命广告',
-  /** 开发期模拟：真实 SDK 在 M5 里接，原型用按钮走完所有分支 */
-  mockBody: '开发期模拟：真实广告由广告 SDK 播放，这里用按钮直接走完各分支。',
   watched: '模拟：看完广告',
   skipped: '模拟：中途退出',
   failed: '模拟：加载失败',
   staminaFull: '体力已满',
   dailyUsed: '今日广告次数已用完',
   failedToast: '广告加载失败，请稍后再试',
-  /** 广告播放期间倒计时暂停（§13.5） */
-  playing: '广告播放期间，倒计时与游戏完全暂停',
   gotStamina: (available: number, max: number): string => `看完广告，体力 +1（当前 ${available}/${max}）`,
   reviveGranted: '续命 +60 秒，继续本局（统一记 1 星，不上排行榜）',
 } as const;
@@ -277,7 +278,7 @@ export const SAVE = {
   resumeTitle: '⏸ 继续上次的挑战？',
   resumeLines: (modeLabel: string, level: number, mmss: string): string[] => [
     `${modeLabel} · 第 ${level} 关`,
-    `剩余时间 ${mmss}（离开期间倒计时照走，不顺延）`,
+    `剩余时间 ${mmss}`,
   ],
   resumeYes: '继续',
   resumeNo: '放弃并重开',
@@ -321,6 +322,9 @@ export function tierOfLevel(level: number): string {
 export const MAP = {
   title: '🗺 关卡地图',
   locked: (prev: number): string => `先通关第 ${prev} 关`,
+  /** 困难模式门槛：同一关必须先在简单模式拿到 3 星，才允许挑战困难 */
+  nightmareLocked: '三星通关后开启困难模式',
+  nightmareHint: '三星通关后开启困难模式',
   level: (level: number): string => `第 ${level} 关`,
   best: (stars: string): string => `最好成绩 ${stars}`,
   start: '▶ 开始',

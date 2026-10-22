@@ -10,10 +10,9 @@ import {
   LEVEL_REWARD_CONFIG,
   REWARD_LEVELS,
   STAMINA_MAX,
-  levelStatus,
   type ProgressData,
   type Stamina,
-} from '../../assets/scripts/core/index.ts';
+} from '../../assets/scripts/核心/index.ts';
 import { fmtMMSS } from './dom.ts';
 
 /** 加体力广告每日上限（§13.3：所有加体力入口共用 5 次） */
@@ -136,24 +135,41 @@ export function recordAdStamina(state: MetaState): void {
 /** 图鉴总数 = 36（图 ID 0~35） */
 export const COLLECTION_TOTAL = REWARD_LEVELS;
 
+/**
+ * 解锁一张图所需的星数（§10.3 新规则，2026-10-22 改）：
+ * **每获得 10 颗星解锁一张图鉴图片**，按图号顺序（0、1、2 …）依次解锁。
+ *
+ * 口径：36 张 × 10 = 360 星 = 60 关 × 2 套模式 × 3 星 —— 满星通完两套模式正好收满 36 张，
+ * 所以星数取**两套进度之和**（收集是账号级的，切模式不该让图鉴变来变去）。
+ */
+export const STARS_PER_IMAGE = 10;
+
 /** 第 N 关的图鉴奖励图 ID；第 37~60 关无奖励（§10.2） */
 export function rewardImageOfLevel(level: number): number | undefined {
   return LEVEL_REWARD_CONFIG[level];
 }
 
+/** 一份进度里已获得的星数（各关星级之和；没打过的关卡记 0） */
+export function totalStars(progress: ProgressData): number {
+  let sum = 0;
+  for (const key of Object.keys(progress.levels)) {
+    const rec = progress.levels[Number(key)];
+    if (rec) sum += Number(rec.stars) || 0;
+  }
+  return sum;
+}
+
 /**
  * 已解锁的图 ID。
  *
- * 解锁条件 =「该关已通关」（§10.3：首次通关即解锁；重复通关不重复发放）。
+ * 解锁条件 = **每 10 颗星一张**（§10.3 新规则），按图号从小到大解锁前 N 张。
  * 用进度**派生**而不是单独存一张「已解锁表」—— 两者一旦分叉就会出现
- * 「进度说通关了、图鉴说没解锁」这种无法自证的状态。
+ * 「进度说有 N 星、图鉴说没解锁」这种无法自证的状态。
+ *
+ * 参数可以传一份进度，也可以把两套模式（简单 / 困难）一起传进来合并计星。
  */
-export function unlockedImageIds(progress: ProgressData): number[] {
-  const ids: number[] = [];
-  for (let level = 1; level <= REWARD_LEVELS; level++) {
-    if (levelStatus(progress, level) !== 'cleared') continue;
-    const id = rewardImageOfLevel(level);
-    if (id !== undefined) ids.push(id);
-  }
-  return ids.sort((a, b) => a - b);
+export function unlockedImageIds(...progresses: ProgressData[]): number[] {
+  const stars = progresses.reduce((sum, p) => sum + totalStars(p), 0);
+  const count = Math.min(COLLECTION_TOTAL, Math.floor(stars / STARS_PER_IMAGE));
+  return Array.from({ length: count }, (_, i) => i);
 }

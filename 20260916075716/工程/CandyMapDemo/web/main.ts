@@ -1,9 +1,9 @@
 /**
  * 灰盒原型控制器（M3 玩法 + M4 结算 + M5 元系统界面）。
  *
- * 直接复用 `assets/scripts/core` 的算法层与规则层（同一份源码，不做任何算法复制）：
+ * 直接复用 `assets/scripts/核心` 的算法层与规则层（同一份源码，不做任何算法复制）：
  *   - `PuzzleEngine` 负责「交换 → 消除 → 下压 → 补位 → 校验」；
- *   - `assets/scripts/core/progress.ts` 负责「判星 / 解锁 / 记录 / 入场计费」；
+ *   - `assets/scripts/核心/progress.ts` 负责「判星 / 解锁 / 记录 / 入场计费」；
  *   - 本文件只负责**渲染、输入、界面调度**。
  *
  * 界面拆在 `web/ui/` 下，各自成模块（不反向依赖本文件，避免循环导入）：
@@ -59,7 +59,7 @@ import {
   type ProgressData,
   type SaveData,
   type SaveLimits,
-} from '../assets/scripts/core/index.ts';
+} from '../assets/scripts/核心/index.ts';
 
 import { STICKER_DIR, fmtMMSS, starText, toast } from './ui/dom.ts';
 import { closeDialog, openDialog, confirmDialog, type DialogButton } from './ui/dialog.ts';
@@ -75,11 +75,14 @@ import {
   staminaCountdown,
   tickMeta,
   unlockedImageIds,
+  totalStars,
   AD_STAMINA_DAILY_MAX,
   COLLECTION_TOTAL,
   type MetaState,
 } from './ui/meta.ts';
 import { createCollectionScreen, createPreviewScreen } from './ui/collection.ts';
+import { createLevelPreview, type LevelPreview, type LevelMode } from './ui/levelPreview.ts';
+import { createResultPopup } from './ui/result.ts';
 import { challengeState, createLeaderboardScreen, type LeaderboardView } from './ui/leaderboard.ts';
 import { createSettingsScreen } from './ui/settings.ts';
 import { createMapScreen, type MapNode, type MapView } from './ui/map.ts';
@@ -91,7 +94,7 @@ import { SaveManager } from './ui/saveManager.ts';
 import { createAudio } from './ui/audio.ts';
 import { mergeExtent, pieceGeometry } from './ui/geometry.ts';
 import { removeSave, storageKind } from './ui/storage.ts';
-import { ADS, FAIL, HOME, HONOR, LEADERBOARD, REVIVE, SAVE, SETTLEMENT } from './ui/text.ts';
+import { ADS, FAIL, HOME, HONOR, LEADERBOARD, MAP, REVIVE, SAVE, SETTLEMENT } from './ui/text.ts';
 
 /** 探测范围 = 素材总量（附录A 的 36 张，ID 0~35）；没到货的图会自动退化成色块 */
 const PROBE_MAX = MAX_ART_ID + 1;
@@ -107,21 +110,35 @@ const EDGE = 2;
  * 上限留到 96：屏幕很宽时 reconciliation 需要比原来的 56 更宽的留白才安全
  * （见 `boardPadX()`），此时宁可牺牲一点点格子尺寸，也不能让最外一列够到手势区。
  */
-const PAD_X_MIN = 16;
-const PAD_X_MAX = 96;
+/**
+ * `#board-wrap` 左右留白的自适应区间（画布 px）。
+ *
+ * 直接压到 0：用户认定「金边就是边界、棋盘就该填到金边」，不接受金边内侧再留
+ * 手势安全边（§1.6.9）。于是棋盘横向铺满金边内沿（`padX=0`），碎片贴边。
+ * ⚠️ 代价：§1.6.9 手势安全边现在只剩卡片 border(10)+margin(8)=18px，
+ * 真机拖最外一列往外走、手指极易滑出屏幕被系统返回手势截走、退回桌面。已按用户意志放弃该安全。
+ */
+const PAD_X_MIN = 0;
+const PAD_X_MAX = 0;
 /**
  * 安全余量（画布 px）。`boardPadX()` 解出的是「距离刚好等于一格步距」的理论值，
  * 这里再垫几 px 抵掉取整误差和「手指没按在正中心」的偏差 —— 这条边一旦不够，
- * 代价是整局游戏被系统手势截走（§1.6.9），不值得为几个像素去赌。
+ * 代价是整局游戏被系统手势截走（§1.6.9），不值得为几个像素去赌。收到 3 以腾出宽度。
  */
-const PAD_X_SLACK = 6;
+const PAD_X_SLACK = 3;
 /**
- * `#board` 的内边距 / 边框宽度（画布 px）—— **必须与 index.html 的 `#board` 一致**，
- * 因为它们同样占在「屏幕边缘 → 最外一列碎片中心」这条距离上（§1.6.9）。
- * 改 CSS 里的值时这俩常量要跟着改，`boardPadX()` 是按它们反解留白的。
+ * `#board` 的内边距 / 边框宽度（画布 px）—— **必须与 index.html 的 `#board` 一致**。
+ * 用户要求碎片贴金边，故内边距设 0：碎片直接顶到金边内沿（仅留 1px 边框）。
+ * 改 CSS 里的值时这俩常量要跟着改。
  */
-const BOARD_PAD = 12;
+const BOARD_PAD = 0;
 const BOARD_BORDER = 1;
+/**
+ * 棋盘目标占屏比（设计分辨率 1080×1920）。设到 0.98 = 横向铺满可用区（卡片内框 −
+ * 手势留白），即「大胆放大」：横向尽量贴近 90%+ 屏宽。纵向受网格列数锁死（4 列网格在
+ * 9:16 屏里高度到不了 80% 屏高，物理上限），只能随 rows 走高并居中留白。
+ */
+const BOARD_FILL = 0.98;
 
 /**
  * 结算动画各段时长（ms）—— **消除 5 阶段**（§6.3 / §11.6.2）：
@@ -170,10 +187,13 @@ const stageEl = document.getElementById('stage') as HTMLDivElement;
 const wrapEl = document.getElementById('board-wrap') as HTMLDivElement;
 const boardEl = document.getElementById('board') as HTMLDivElement;
 const timerEl = document.getElementById('hud-timer') as HTMLDivElement;
-const scoreEl = document.getElementById('hud-score-num') as HTMLElement;
 /** 分数 HUD 的外框：得分飘字的落点 + 落到时轻弹一下的目标 */
 const scoreHudEl = document.getElementById('hud-score') as HTMLDivElement;
-const heartsEl = document.getElementById('hud-hearts') as HTMLDivElement;
+const scoreTensEl = document.getElementById('score-tens') as HTMLDivElement;
+const scoreUnitsEl = document.getElementById('score-units') as HTMLDivElement;
+const goalEl = document.getElementById('hud-goal') as HTMLDivElement;
+const goalNumEl = document.getElementById('hud-goal-num') as HTMLElement;
+const timerNumEl = document.getElementById('hud-timer-num') as HTMLElement;
 const statusEl = document.getElementById('dev-status') as HTMLElement;
 const levelBtn = document.querySelector('[data-act="level"]') as HTMLButtonElement;
 const modeBtn = document.querySelector('[data-act="mode"]') as HTMLButtonElement;
@@ -198,7 +218,7 @@ const analytics = createAnalytics();
 /**
  * 当前玩法模式。
  * 两种模式**共用同一批关卡**（网格、图池完全相同），只有移动规则与星线不同：
- *   普通 → 整片想挪多远都行；噩梦 → 整片一次只能挪一格。
+ *   简单 → 整片想挪多远都行；困难 → 整片一次只能挪一格。
  */
 let mode: GameMode = 'normal';
 
@@ -206,7 +226,7 @@ let mode: GameMode = 'normal';
  * 可玩关卡。
  *
  * ⚠️ 2026-09-10 修订：图池不再硬编码，改为素材探测完成后由 `buildRenderLevels()`
- * 从**实际到货素材**里随机抽出（见 assets/scripts/core/poolGen.ts）。
+ * 从**实际到货素材**里随机抽出（见 assets/scripts/核心/poolGen.ts）。
  * 所以这里初始为空 —— 模块顶层还不知道哪些图已到货。
  */
 let playable: LevelConfig[] = [];
@@ -481,6 +501,9 @@ const leaderboardScreen = createLeaderboardScreen({
   },
   onChallenge: challengeLevel,
   view: leaderboardView,
+  myTotals: () => ({ simple: totalScoreOf('normal'), hard: totalScoreOf('nightmare') }),
+  // 累计星数 = 两套模式之和（与图鉴「每 10 星解锁一张」同一口径，别各算各的）
+  myStars: () => totalStars(progressByMode.normal) + totalStars(progressByMode.nightmare),
 });
 
 const settingsScreen = createSettingsScreen({
@@ -504,8 +527,38 @@ const settingsScreen = createSettingsScreen({
  * 选关不另开一条路：直接复用 `loadLevel()` —— 体力预扣/转正、断点、存档、切屏
  * 全在那一条路径上，首页只负责把「点了哪一关」转交出去（与排行榜「挑战本关」同口径）。
  */
+const levelPreview: LevelPreview = createLevelPreview({
+  starLines: (i, m) => STAR_LINES_BY_MODE[m]?.[playable[i]?.level ?? i + 1],
+  onMode: (m) => applyMode(m),
+  onClose: () => levelPreview.close(),
+  canNightmare: (i) => nightmareUnlocked(playable[i]?.level ?? i + 1),
+  onPlay: (i, m) => {
+    // 进关前的最后一道闸：困难模式没达门槛（简单模式三星）就不让进
+    if (m === 'nightmare' && !nightmareUnlocked(playable[i]?.level ?? i + 1)) {
+      toast(MAP.nightmareLocked, 2600);
+      return;
+    }
+    applyMode(m);
+    levelPreview.close();
+    loadLevel(i);
+  },
+});
+
+/** 结算弹窗（胜利/失败）：复用 PLAY 吊牌骨架，居中 + 820 宽一致 */
+const resultPopup = createResultPopup();
+
+/** 轻量切模式：只改全局模式并重算关卡 / 地图，不触发 setMode 的「回主页 + 清局 + toast」副作用 */
+function applyMode(next: LevelMode): void {
+  if (next === mode) return;
+  mode = next;
+  buildRenderLevels();
+  refreshModeButton();
+  refreshHome();
+  save.flush();
+}
+
 const homeScreen = createMapScreen({
-  // 难度切换（普通 / 困难）：两套进度各自独立，切完由 setMode 重建关卡配置并回首页
+  // 难度切换（简单 / 困难）：两套进度各自独立，切完由 setMode 重建关卡配置并回首页
   onMode: (next) => setMode(next),
   onAddStamina: watchStaminaAd,
   onPick: (level) => {
@@ -514,7 +567,7 @@ const homeScreen = createMapScreen({
       toast(LEADERBOARD.challengeUnavailable(level), 2600);
       return;
     }
-    loadLevel(index);
+    levelPreview.open(index, level, mode);
   },
 });
 
@@ -551,11 +604,19 @@ let currentScreen: ScreenName = 'home';
  * 它们**不再是「另一屏」** —— 打开时地图照旧在底下（`#screen-home` 保持 active），
  * 所以关掉浮层只是把它收起来，地图不重建、滚动位置也不会跳。
  */
-const SHEET_SCREENS: readonly ScreenName[] = ['collection', 'preview', 'leaderboard', 'settings'];
+/**
+ * ⚠️ 2026-10-22：排行榜、**图鉴**、**设置**都改成**整屏**（不再是浮层卡片），必须从这张表里移除 ——
+ * 否则 `showScreen(...)` 会打开 `#scrim`（z=64，铺满全屏且吃点击），
+ * 结果是页面上**所有控件都点不动**（点一下还会被 scrim 送回主页）。
+ * 大图预览（preview）仍是浮层：scrim 点击 = 回图鉴。
+ */
+const SHEET_SCREENS: readonly ScreenName[] = ['preview'];
 
 const anchor = document.getElementById('toast');
 stageEl.insertBefore(collectionScreen.el, anchor);
 stageEl.insertBefore(previewScreen.el, document.getElementById('toast'));
+stageEl.insertBefore(levelPreview.el, document.getElementById('toast'));
+stageEl.insertBefore(resultPopup.el, document.getElementById('toast'));
 stageEl.insertBefore(leaderboardScreen.el, document.getElementById('toast'));
 stageEl.insertBefore(settingsScreen.el, document.getElementById('toast'));
 stageEl.insertBefore(homeScreen.el, document.getElementById('toast'));
@@ -610,8 +671,20 @@ function refreshHome(): void {
 }
 
 function refreshCollection(): void {
-  const unlocked = new Set(unlockedImageIds(progressByMode[mode]));
+  // 图鉴解锁 = 每 10 颗星一张，星数取**两套模式之和**（收集是账号级的，切模式不该变）
+  const unlocked = new Set(unlockedImageIds(progressByMode.normal, progressByMode.nightmare));
   collectionScreen.render(unlocked, COLLECTION_TOTAL);
+}
+
+/**
+ * 困难模式的解锁门槛：**同一关必须先在简单模式拿到 3 星**，才允许挑战它的困难模式。
+ *
+ * 两套进度是各自独立的（`progressByMode`），所以这里要**跨模式**去查简单档的星级；
+ * 困难档自己那条「通关解锁下一关」的链子照旧（`levelStatus`），两条是「与」的关系。
+ */
+const NIGHTMARE_MIN_NORMAL_STARS = 3;
+function nightmareUnlocked(level: number): boolean {
+  return recordOf(progressByMode.normal, level).stars >= NIGHTMARE_MIN_NORMAL_STARS;
 }
 
 /**
@@ -631,12 +704,15 @@ function mapView(): MapView {
   for (let level = 1; level <= TOTAL_LEVELS; level++) {
     const grid = GRID_BY_LEVEL[level];
     const record = recordOf(progress, level);
+    // 困难模式门槛：同一关必须先在简单模式拿到 3 星（两套进度独立，要跨模式查简单档）
+    const blocked = mode === 'nightmare' && !nightmareUnlocked(level);
     nodes.push({
       level,
-      status: levelStatus(progress, level),
+      status: blocked ? 'locked' : levelStatus(progress, level),
       stars: record.stars,
       best: record.personalBest,
       grid: grid ? `${grid[0]}×${grid[1]}` : '',
+      lockNote: blocked ? MAP.nightmareLocked : undefined,
     });
   }
   return {
@@ -737,7 +813,9 @@ const STAGE_BASE_HEIGHT = 1920;
  * 而出屏那一下正是系统手势的判定窗口，「拖到一半被踢回桌面」就是这么来的。
  * 让出 28px 后，最外侧碎片中心到屏边的距离 ≥ 一格步距，往外拖一格手指仍在屏内。
  */
-const EDGE_SAFE_X = 28;
+/** 屏幕边缘手势安全距离（屏 px）。原 28，收到 16 让棋盘更贴金边；
+ * 再小会提高真机侧滑返回截走拖动的风险（§1.6.9）。 */
+const EDGE_SAFE_X = 16;
 const EDGE_SAFE_Y = 12;
 
 /**
@@ -814,7 +892,7 @@ window.addEventListener('unhandledrejection', (e) => reportError('promise', e.re
  *      在移动端内存吃紧时可能被 GC 取消。
  * 重试后仍失败的记进 missingStickers，由状态提示点名，而不是静默降级。
  */
-async function probeStickers(): Promise<void> {
+async function probeStickers(onDone?: (finished: number, total: number) => Promise<void> | void): Promise<void> {
   /** 浏览器同域并发连接上限（HTTP/1.1 常见为 6） */
   const CONCURRENCY = 6;
   /** 单张最多尝试次数 */
@@ -830,6 +908,8 @@ async function probeStickers(): Promise<void> {
   /** 加载中的 Image 强引用，防止未完成的加载被 GC 提前取消 */
   const inflight = new Set<HTMLImageElement>();
   const queue = Array.from({ length: PROBE_MAX }, (_, id) => id);
+  /** 已探测完的张数（成败都算）—— 加载页进度条的刻度 */
+  let finished = 0;
 
   const loadOne = (id: number, attempt: number): Promise<boolean> =>
     new Promise<boolean>((done) => {
@@ -878,6 +958,8 @@ async function probeStickers(): Promise<void> {
       }
       if (loaded) available.add(id);
       else missingStickers.push(id);
+      finished += 1;
+      await onDone?.(finished, PROBE_MAX);
     }
   };
 
@@ -893,8 +975,8 @@ function colorOf(imageId: number): string {
  * 按「实际到货素材」构建可玩关卡。
  *
  * 每关的图池构成由 60 关设计表**逐关给定**（动物只数 + 同动物不同情绪分布，见
- * assets/scripts/core/config.ts 的 LEVEL_POOL_SPEC）；生成器只负责把「设计表要求的那几只动物、
- * 那几个情绪」从到货素材里确定性地抽出来（见 assets/scripts/core/poolGen.ts）：
+ * assets/scripts/核心/config.ts 的 LEVEL_POOL_SPEC）；生成器只负责把「设计表要求的那几只动物、
+ * 那几个情绪」从到货素材里确定性地抽出来（见 assets/scripts/核心/poolGen.ts）：
  *   - 同一关每次进入都是同一套图池（种子固定），方便验收与复现；
  *   - 同一网格下各关图池保证两两不同，不会再出现「同一关重复出现」；
  *   - 图数超过到货数量的关卡（如 5×4 需 10 张）记入 skipped，暂不开放；
@@ -944,11 +1026,11 @@ function progressLevelIndex(): number {
 
 /* ------------------------------------------------------------------ 玩法模式 */
 
-/** 当前模式的移动规则提示语（普通 / 困难，§1.6） */
+/** 当前模式的移动规则提示语（简单 / 困难，§1.6） */
 function ruleHint(): string {
   return mode === 'nightmare'
     ? '困难模式：整片一次只能挪一格'
-    : '普通模式：整片想挪多远都行';
+    : '简单模式：整片想挪多远都行';
 }
 
 /** 把模式按钮的文字与高亮状态同步到当前模式 */
@@ -980,7 +1062,7 @@ function setMode(next: GameMode): void {
   save.flush();
   toast(
     `已切换到${MODE_LABEL[mode]}模式\n${ruleHint()}\n` +
-      `普通与困难的关卡进度各自独立 —— 星线沿用设计表同一组数值，困难更难拿满星`,
+      `简单与困难的关卡进度各自独立 —— 星线沿用设计表同一组数值，困难更难拿满星`,
     3200,
   );
 }
@@ -1034,16 +1116,15 @@ function enterWithStamina(): boolean {
 /** 排行榜「▶ 挑战本关」：打指定关卡（只消耗体力，不改变进度） */
 function challengeLevel(level: number): void {
   if (!requireReady()) return;
-  if (meta.stamina.available <= 0) {
-    toast(LEADERBOARD.challengeNoStamina, 2600);
-    return;
-  }
   const index = indexOfLevel(level);
   if (index < 0) {
     toast(`第 ${level} 关暂未开放（所需素材张数不足）`, 2600);
     return;
   }
-  loadLevel(index);
+  // 先回主页（收起排行榜浮层 + scrim），再弹 PLAY 页（吊牌），
+  // 让玩家先选「简单 / 困难」模式再开始，而不是直接进关
+  showScreen('home');
+  levelPreview.open(index, level, mode);
 }
 
 function loadLevel(index: number, seed: number = Date.now()): void {
@@ -1252,11 +1333,19 @@ function layoutBoard(): void {
   wrapEl.style.setProperty('--pad-x', `${boardPadX(cols, stageScale())}px`);
   const wrapBox = contentBox(wrapEl);
   const chrome = chromeOf(boardEl);
-  const availW = Math.max(200, wrapBox.w - chrome.w);
-  const availH = Math.max(200, wrapBox.h - chrome.h);
+
+  // 目标占屏比：按关卡实际 rows/cols 自适应，整体约占屏幕 BOARD_FILL，居中留白。
+  // 既不让最外一列顶到手势区（wrap 已算过安全留白），也不让高关卡把棋盘撑爆卡片。
+  const SW = stageEl.clientWidth || 1080;
+  const SH = stageEl.clientHeight || 1920;
+  const byW = (BOARD_FILL * SW - GAP * (cols - 1)) / cols;
+  const byH = (BOARD_FILL * SH - GAP * (rows - 1)) / rows;
+  // 同时不超过包裹层可用空间，避免溢出卡片
+  const maxW = Math.max(0, (wrapBox.w - chrome.w - GAP * (cols - 1)) / cols);
+  const maxH = Math.max(0, (wrapBox.h - chrome.h - GAP * (rows - 1)) / rows);
   cellSize = Math.max(
     36,
-    Math.floor(Math.min((availW - GAP * (cols - 1)) / cols, (availH - GAP * (rows - 1)) / rows)),
+    Math.floor(Math.min(byW, byH, maxW, maxH)),
   );
 
   boardEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
@@ -1723,29 +1812,58 @@ function showGuide(step: GuideStep): void {
 
 /* ------------------------------------------------------------------ HUD / 状态 */
 
+/** 旧玩法屏 HUD 的「❤️ 体力」紧凑显示已随设计图移除；保留空函数以兼容历史调用点。 */
+function updateHearts(): void {}
+
 /**
- * 体力单独一个渲染函数。
+ * 显示「目标 X 分」：读当前关卡 1 星线。
  *
- * 它在**入场阶段**（`engine` 还没建出来）就要被调用，所以不能塞进 `updateHud()` ——
- * 那里会读 `engine.score`，在那一刻会炸。
+ * 它在**入场阶段**（`engine` 还没建出来）就可能被调用，所以只依赖 currentConfig / starLineOf，
+ * 不读 engine.score。
  */
-function updateHearts(): void {
-  // 上限改成 10 颗后，玩法屏 HUD 那一行（返回 / 体力 / 倒计时 / 分数）放不下 10 颗心，
-  // 所以这里用紧凑的「❤️ 8/10」；首页是整行显示，那里仍然画满 10 颗心（见 map.ts）。
-  heartsEl.textContent = `❤️ ${meta.stamina.available}/${STAMINA_MAX}`;
-  heartsEl.title = meta.stamina.pending > 0 ? `预扣中 ${meta.stamina.pending} 颗（尚未结算）` : '';
+function updateGoal(): void {
+  const cfg = currentConfig();
+  if (!cfg) return;
+  const { star1 } = starLineOf(cfg.level);
+  goalNumEl.textContent = String(star1);
 }
 
 function updateHud(): void {
   const mm = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const ss = String(timeLeft % 60).padStart(2, '0');
-  timerEl.textContent = `${mm}:${ss}`;
+  timerNumEl.textContent = `${mm}:${ss}`;
   timerEl.classList.toggle('warn', timeLeft <= 60 && timeLeft > 10);
   timerEl.classList.toggle('danger', timeLeft <= 10);
-  scoreEl.textContent = String(engine.score);
-  updateHearts();
+  const disp = ((engine.score % 100) + 100) % 100;
+  setDigit(scoreTensEl, Math.floor(disp / 10) % 10);
+  setDigit(scoreUnitsEl, disp % 10);
+  updateGoal();
   // HUD 是「局内状态变了」的统一出口：音效的启停搭在这里，就不会漏掉某个改状态的路径
   syncAudio();
+}
+
+/**
+ * 翻牌式两位数计分：把每位数字做成「翻牌」动画（rotateX）。
+ * - 个位每次加分都翻；十位只在进位时（9→0 联动）才翻 —— 由「只给真正变化的位赋值」自然实现。
+ * - 显示 `score % 100`（机械计数器式回滚）：永远两位数，≥100 时像里程表一样归零重计。
+ */
+function setDigit(el: HTMLElement, val: number): void {
+  const v = String(val);
+  const face = el.querySelector('.face') as HTMLElement;
+  if (el.dataset.val === undefined) { el.dataset.val = v; face.textContent = v; return; }
+  if (el.dataset.val === v) return;
+  el.dataset.val = v;
+  if (el.classList.contains('flip')) return; // 动画中：待执行的 timeout 会套用最新值
+  el.classList.add('flip');                   // 翻出（旧数字转走）
+  window.setTimeout(() => {
+    face.textContent = el.dataset.val as string; // 换成新数字
+    face.style.transition = 'none';
+    face.style.transform = 'rotateX(90deg)';
+    void face.offsetWidth;                       // 强制 reflow
+    face.style.transition = '';
+    face.style.transform = '';
+    el.classList.remove('flip');                 // 翻入（新数字转回）
+  }, 260);
 }
 
 function updateStatus(): void {
@@ -1924,7 +2042,7 @@ function dragLimits(indices: readonly number[]): {
  * 拖动方向口径 —— 跟手（`dragFollow`）与落定（`dragIntent`）**必须共用这一个函数**，
  * 否则会出现「看着落在 A、松手却落到 B」。
  *
- *   - 普通模式：**两轴都算** —— 可以斜着拖，整片斜着走。刚性平移对任意方向都成立
+ *   - 简单模式：**两轴都算** —— 可以斜着拖，整片斜着走。刚性平移对任意方向都成立
  *     （`planGroupMove` 只要求「组内每块平移后都在盘内」，不看方向）；
  *   - 噩梦模式：**只认主导轴** ——「一次一格」是它的规则（曼哈顿距离恰好 1），
  *     斜拖必须收敛到一个轴上；不收敛的话手指一斜就成了 (1,1) =
@@ -2149,7 +2267,7 @@ function starLineOf(level: number): { star1: number; star2: number; star3: numbe
  * 参数是刻意不设的（原来有一个 `timedOut`）：只要留着一个表达「怎么结束的」入参，
  * 迟早有人会往里塞第二个取值。规则依据见 `LevelOutcome` 的说明与 §15.6 第 11 条。
  *
- * 判星、解锁、记录全部交给 `assets/scripts/core/progress.ts` 的纯函数 —— 界面只负责
+ * 判星、解锁、记录全部交给 `assets/scripts/核心/progress.ts` 的纯函数 —— 界面只负责
  * 「问一句规则，然后照着显示」。这样 M4 的规则能单测，也能原样搬到 Cocos。
  * 玩家玩满 180 秒，打出多少分就按多少分判星，**分数不设上限**。
  */
@@ -2192,12 +2310,52 @@ function onLevelEnd(): void {
   // 通关音：与结算弹窗同时响（失败音在 showFailDialog 里，两者不会同时出现）
   audio.play('win');
 
-  // 先落盘、再弹窗：荣誉档位要读**更新之后**的 boardBest
+  // 先落盘、再弹窗：荣誉档位与本关最高分都要读**更新之后**的数值
   // （《通关及排名》§2 的「先更新玩家本关历史最高分，再统计」就落在这个先后顺序上）
   progressByMode[mode] = commitSettlement(progress, outcome, settlement, TOTAL_LEVELS);
   showGuide('clear');
   refreshCollection();
   showHonorDialog(outcome, settlement.stars);
+}
+
+/**
+ * 结算记分口径（2026-10 改）：
+ * **本关分数 = 该模式下「本关历史最高分」，不是本局分、更不是累计分。**
+ *
+ * 两套模式的进度本来就分开存（`progressByMode`），所以「简单分数」与「困难分数」
+ * 互不相干；`personalBest` 在核心 `progress.ts` 里就是 `Math.max` 取的历史最高。
+ * 结算弹窗显示这一条，标签按当前模式标成「简单分数 / 困难分数」。
+ */
+function levelBestScore(level: number): number {
+  return recordOf(progressByMode[mode], level).personalBest;
+}
+
+/** 结算分数的标签：按模式叫「简单分数」/「困难分数」 */
+function scoreLabelOf(): string {
+  return `${MODE_LABEL[mode]}分数`;
+}
+
+/**
+ * 「下一关」→ 回主页 + 弹该关的 PLAY 弹窗（关卡详情页）。
+ *
+ * 默认模式的规则（需求）：
+ *   1. 该关**困难没开启**（简单模式没三星）→ 默认**简单**；
+ *   2. 该关困难已开启 → 默认**玩家上次选的模式**（`mode` 是全局且落盘的，它就是上次选择；
+ *      之前点过困难就是困难、点过简单就是简单）。
+ */
+function openNextLevelPreview(): void {
+  const nextIdx = levelIndex + 1;
+  const next = playable[nextIdx];
+  if (!next) {
+    toast(HONOR.lastLevelToast, 2600);
+    exitToHome();
+    return;
+  }
+  // 困难已开启才沿用上次选择，否则一律落回简单
+  const prefer: GameMode = mode === 'nightmare' && nightmareUnlocked(next.level) ? 'nightmare' : 'normal';
+  exitToHome();
+  applyMode(prefer); // 让主页地图与弹窗用同一套口径（同模式时是空操作）
+  levelPreview.open(nextIdx, next.level, prefer);
 }
 
 /**
@@ -2221,7 +2379,7 @@ function onLevelEnd(): void {
 function showHonorDialog(outcome: LevelOutcome, stars: number): void {
   const level = outcome.level;
   // 排名基准分用**已经更新过**的 boardBest，这样「弹窗里的名次」和「排行榜里我的名次」
-  // 永远是同一个数（详见 assets/scripts/core/honor.ts 的 honorForLevel）。
+  // 永远是同一个数（详见 assets/scripts/核心/honor.ts 的 honorForLevel）。
   const honor: HonorOutcome = honorForLevel({
     level,
     line: starLineOf(level),
@@ -2241,14 +2399,16 @@ function showHonorDialog(outcome: LevelOutcome, stars: number): void {
         : HONOR.pass.desc(stars);
   const sub = tier === 'god' ? HONOR.god.sub(honor.stats.rank) : tier === 'king' ? HONOR.king.sub : HONOR.pass.sub;
 
-  // 「下一关」：不是最后一关就加载下一关；已是最后一关则换成「返回主页」并提示
+  // 「下一关」：不是最后一关就**回主页 + 弹这张关卡的 PLAY 弹窗**（不再直接进关）；
+  // 已是最后一关则换成「返回主页」并提示。体力校验交给 PLAY 里点 Play 那一刻统一做。
   const hasNext = levelIndex >= 0 && levelIndex + 1 < playable.length;
   const nextButton: DialogButton = hasNext
     ? {
-        ...costButton(HONOR.btnNext, HONOR.noStamina, () => {
+        label: HONOR.btnNext,
+        onClick: () => {
           analytics.honorAction('next');
-          loadLevel(levelIndex + 1);
-        }),
+          openNextLevelPreview();
+        },
         primary: true,
       }
     : {
@@ -2276,7 +2436,7 @@ function showHonorDialog(outcome: LevelOutcome, stars: number): void {
           analytics.honorAction('leaderboard');
           // 关掉弹窗再去排行榜（弹窗盖在所有屏之上，不关会挡住榜单），
           // 并把「返回结算」记下来 —— 从排行榜返回时原样把这张弹窗画回来
-          closeDialog();
+          resultPopup.hide();
           reopenDialog = null;
           backToSettlement = () => showHonorDialog(outcome, stars);
           showScreen('leaderboard');
@@ -2290,15 +2450,18 @@ function showHonorDialog(outcome: LevelOutcome, stars: number): void {
 
   // 本窗没有「看广告」按钮，不需要重绘回调；显式清掉，免得留下上一张弹窗的幽灵回调
   reopenDialog = null;
-  openDialog({
-    title,
+  resultPopup.show({
+    mode: 'win',
     // 超神/王者用图标；优秀用三颗星（按实际星级点亮）
-    hero: tier === 'pass' ? { tier, stars } : { tier, icon: HONOR[tier].icon },
-    desc,
-    score: outcome.score,
-    scoreLabel: HONOR.scoreLabel,
-    sub,
+    icon: tier === 'pass' ? undefined : HONOR[tier].icon,
+    stars: tier === 'pass' ? stars : undefined,
+    title,
+    sub: desc,
+    scoreLabel: scoreLabelOf(),
+    score: levelBestScore(level),
+    hint: sub,
     rows,
+    onHome: exitToHome,
   });
 
   // 曝光先只开一条待合并记录；玩家点按钮时由 honorAction 补上「点了哪个」与停留时长，
@@ -2313,17 +2476,23 @@ function showHonorDialog(outcome: LevelOutcome, stars: number): void {
   });
 }
 
-/** 续命弹窗（§12.3） */
+/** 续命弹窗（§12.3）：与失败/胜利结算同款吊牌，居中 + 820 宽一致 */
 function showReviveDialog(outcome: LevelOutcome): void {
   const gap = Math.max(1, outcome.star1 - outcome.score);
   const build = (): void => {
-    openDialog({
-      title: REVIVE.title,
-      lines: [REVIVE.gap(gap), REVIVE.ask, REVIVE.note],
+    resultPopup.show({
+      mode: 'lose',
+      icon: '⏰',
+      title: '时间到',
+      sub: REVIVE.ask,
+      scoreLabel: scoreLabelOf(),
+      score: levelBestScore(outcome.level),
+      hint: REVIVE.gap(gap),
       rows: [
         [{ label: REVIVE.btnAd, primary: true, onClick: () => void watchReviveAd() }],
         [{ label: REVIVE.btnGiveUp, onClick: giveUp }],
       ],
+      onHome: exitToHome,
     });
   };
   reopenDialog = build;
@@ -2368,6 +2537,7 @@ async function watchReviveAd(): Promise<void> {
 function revive(): void {
   if (!pendingOutcome) return;
   closeDialog();
+  resultPopup.hide();
   reopenDialog = null;
   revived = true;
   revivedUsed = true;
@@ -2388,6 +2558,8 @@ function revive(): void {
 
 /** 放弃续命 → 失败结算（§12.2） */
 function giveUp(): void {
+  // 先关掉「没看完广告」的确认框（#dialog，z90 会盖住结算吊牌）
+  closeDialog();
   const outcome = pendingOutcome;
   pendingOutcome = null;
   if (outcome) showFailDialog(outcome);
@@ -2396,27 +2568,33 @@ function giveUp(): void {
 /** 失败结算（§12.2） */
 function showFailDialog(outcome: LevelOutcome): void {
   const gap = Math.max(1, outcome.star1 - outcome.score);
-  const lines = [FAIL.score(outcome.score), FAIL.line(outcome.star1), FAIL.gap(gap), FAIL.tip];
-  if (revivedUsed) lines.push(`💡 ${FAIL.reviveUsed}`);
-  // 离线超时：玩家没看到过程就失败了，弹窗里得把原因写出来（toast 4 秒就没了，
-  // 而这张弹窗会一直留在屏幕上等他回来）
-  if (offlineSettle) lines.push(`💡 ${SAVE.offlineTimeout}`);
-
   // 失败音与弹窗同时响。放在这里（而不是 onLevelEnd）：看广告复活失败结算会重开弹窗，
   // 那时不该再响一次 —— 而 `build()` 会被赋给 reopenDialog 复用，所以必须在它外面。
   audio.play('fail');
 
+  const detail: string[] = [FAIL.gap(gap)];
+  if (revivedUsed) detail.push(`💡 ${FAIL.reviveUsed}`);
+  // 离线超时：玩家没看到过程就失败了，弹窗里得把原因写出来（toast 4 秒就没了，
+  // 而这张弹窗会一直留在屏幕上等他回来）
+  if (offlineSettle) detail.push(`💡 ${SAVE.offlineTimeout}`);
+
   const build = (): void => {
-    openDialog({
+    resultPopup.show({
+      mode: 'lose',
+      icon: '💡',
       title: FAIL.title,
-      lines,
+      scoreLabel: scoreLabelOf(),
+      score: levelBestScore(outcome.level),
+      note: detail.join('   '),
+      // 绿色主按钮 = 再战本关（与设计图一致）；看广告加体力、返回主页作为次级按钮保留
       rows: [
-        [{ label: FAIL.btnAdStamina, primary: true, onClick: () => void watchStaminaAd() }],
+        [{ ...costButton(FAIL.btnRetry, SETTLEMENT.noStamina, restartLevel), primary: true }],
         [
-          costButton(FAIL.btnRetry, SETTLEMENT.noStamina, restartLevel),
+          { label: FAIL.btnAdStamina, onClick: () => void watchStaminaAd() },
           { label: FAIL.btnHome, onClick: exitToHome },
         ],
       ],
+      onHome: exitToHome,
     });
   };
   reopenDialog = build;
@@ -2428,7 +2606,7 @@ function showFailDialog(outcome: LevelOutcome): void {
 /**
  * 组装某关的百名榜数据。
  *
- * ⚠️ 开发期约定（正式版由服务端提供，替换 `assets/scripts/core/honor.ts` 里的模拟数据源即可）：
+ * ⚠️ 开发期约定（正式版由服务端提供，替换 `assets/scripts/核心/honor.ts` 里的模拟数据源即可）：
  *   1. 榜单主体是**本地确定性模拟的 100 名玩家**（全部 ≥3★），界面上明确标注了这一点；
  *   2. 「我的成绩」来自本机记录：只有**上榜成绩**（≥3★ 且未续命）才插进榜里，
  *      1★ / 2★ / 续命局一律不显示名次（与 core 的上榜门槛同口径）；
@@ -2438,6 +2616,10 @@ function leaderboardView(level: number): LeaderboardView {
   const progress = progressByMode[mode];
   const rec = recordOf(progress, level);
   const status = levelStatus(progress, level);
+  // 两套模式各自的本关最高分（简单 / 困难分开记，没玩过就是 0）——
+  // 榜单的「简单/困难」两列只能取这两个真值，不能由单个分数按比例拆
+  const simpleBest = recordOf(progressByMode.normal, level).personalBest;
+  const hardBest = recordOf(progressByMode.nightmare, level).personalBest;
   const board = boardSnapshot(level, starLineOf(level), rec.boardBest);
 
   return {
@@ -2447,10 +2629,28 @@ function leaderboardView(level: number): LeaderboardView {
     myRank: board.myRank,
     boardBest: board.myBoardBest,
     personalBest: rec.personalBest,
+    myScores: { simple: simpleBest, hard: hardBest },
+    mode,
     // 挑战按钮的状态机在 `ui/leaderboard.ts`：1★/2★/3★ 通关一律可挑战；
     // 已通关但素材不足（被跳过）的关卡也进不去，那里会给出对应文案
     challenge: challengeState(level, status, indexOfLevel(level) >= 0),
   };
+}
+
+/**
+ * 某模式下「所有关卡本关最高分之和」= 该模式的累计分（总分榜用）。
+ *
+ * 累加的是 `personalBest`（每关取历史最高），所以重复挑战只会刷新单关最高分，
+ * 不会重复累加；没玩过的模式自然得 0 —— 不去虚构另一模式的分。
+ */
+function totalScoreOf(m: GameMode): number {
+  let sum = 0;
+  for (const key of Object.keys(progressByMode[m].levels)) {
+    const level = Number(key);
+    if (!Number.isFinite(level)) continue;
+    sum += recordOf(progressByMode[m], level).personalBest;
+  }
+  return sum;
 }
 
 /* ------------------------------------------------------------------ 开发工具 */
@@ -2833,15 +3033,36 @@ async function main(): Promise<void> {
   showScreen('home');
   refreshHome();
   refreshCollection();
-  toast('正在加载素材（36 张），完成后从主界面开始…', 4000);
+
+  // 加载页进度（#loading 是 index.html 静态 DOM，JS 没跑起来时就有画面）：
+  // 素材探测是真实进度来源（36 张 → 3~88%），图池生成 93%，就绪 100% 后淡出移除。
+  const loadingEl = document.getElementById('loading');
+  const loadingFill = loadingEl?.querySelector<HTMLElement>('.loading-fill') ?? null;
+  const loadingNum = loadingEl?.querySelector<HTMLElement>('.loading-num') ?? null;
+  const loadingStart = Date.now();
+  let loadingP = 0;
+  const setProgress = (p: number): void => {
+    loadingP = Math.max(loadingP, Math.min(100, Math.round(p)));
+    if (loadingFill) loadingFill.style.width = `${loadingP}%`;
+    if (loadingNum) loadingNum.textContent = `${loadingP}%`;
+  };
+  setProgress(3);
 
   try {
-    await probeStickers();
+    await probeStickers((done, total) => setProgress(3 + (done / total) * 85));
   } catch (err) {
     // 探测本身出错也不能把界面卡在「未就绪」—— 下面仍会用色块灰盒把第 1 关开出来
     reportError('probe', err);
   }
+  setProgress(93);
   buildRenderLevels();
+  setProgress(100);
+  // 最短展示 1.2s（本地缓存下探测很快，别让进度条一闪而过），然后淡出并从 DOM 移除
+  await new Promise((r) => setTimeout(r, Math.max(0, 1200 - (Date.now() - loadingStart))));
+  if (loadingEl) {
+    loadingEl.classList.add('done');
+    setTimeout(() => loadingEl.remove(), 600);
+  }
   ready = true;
   setDevbarEnabled(true);
   levelBtn.textContent = '未开局（从主界面开始）';
@@ -2913,31 +3134,31 @@ async function main(): Promise<void> {
     updateHud();
   }, 1000);
 
+  // 正常启动**不再播报**「已接入 N 张真图 / 开放 N 关」—— 素材加载进度由加载页的进度条
+  // 交代，这条是开发期说明，玩家侧不该出现。
+  // 但异常不能静默：缺素材、关卡暂不开放、图池偏离设计表仍然要报出来，否则等于糊过去。
+  const startupIssues: string[] = [];
   if (available.size === 0) {
-    toast('未检测到 art/stickers/sticker_*.png —— 当前为色块灰盒形态。\n把图放进 art/stickers/ 并命名 sticker_0.png 起，刷新即自动接入真图。', 6000);
-  } else {
-    const lines = [
-      `已接入 ${available.size} 张真图，开放 ${playable.length} 关（每关图池从素材池随机抽取）`,
-    ];
-    if (missingStickers.length > 0) {
-      lines.push(
-        `⚠️ 另有 ${missingStickers.length} 张素材重试 3 次仍未加载成功（ID: ${missingStickers.join('、')}），` +
-          `本次按色块灰盒处理 —— 依赖它们的关卡会被算成「图池偏离设计表」，` +
-          `那不是设计表的问题：刷新重试即可，反复失败请检查网络或素材体积`,
-      );
-    }
-    if (skipped.length > 0) {
-      lines.push(`第 ${skipped.join('、')} 关所需图数超过到货张数，已暂不开放 —— 补齐素材后刷新即自动开放`);
-    }
-    if (poolMismatch.length > 0) {
-      lines.push(
-        `⚠️ 第 ${poolMismatch.join('、')} 关因素材分布不足，图池构成偏离设计表：` +
-          `本关难度与设计不一致，暂请只看观感，别当正式难度验收`,
-      );
-    }
-    if (poolIssues.length > 0) lines.push(`⚠️ ${poolIssues.join('；')}`);
-    toast(lines.join('\n'), skipped.length || poolMismatch.length ? 7000 : 2600);
+    startupIssues.push('未检测到 art/stickers/sticker_*.png —— 当前为色块灰盒形态。\n把图放进 art/stickers/ 并命名 sticker_0.png 起，刷新即自动接入真图。');
   }
+  if (missingStickers.length > 0) {
+    startupIssues.push(
+      `⚠️ 另有 ${missingStickers.length} 张素材重试 3 次仍未加载成功（ID: ${missingStickers.join('、')}），` +
+        `本次按色块灰盒处理 —— 依赖它们的关卡会被算成「图池偏离设计表」，` +
+        `那不是设计表的问题：刷新重试即可，反复失败请检查网络或素材体积`,
+    );
+  }
+  if (skipped.length > 0) {
+    startupIssues.push(`第 ${skipped.join('、')} 关所需图数超过到货张数，已暂不开放 —— 补齐素材后刷新即自动开放`);
+  }
+  if (poolMismatch.length > 0) {
+    startupIssues.push(
+      `⚠️ 第 ${poolMismatch.join('、')} 关因素材分布不足，图池构成偏离设计表：` +
+        `本关难度与设计不一致，暂请只看观感，别当正式难度验收`,
+    );
+  }
+  if (poolIssues.length > 0) startupIssues.push(`⚠️ ${poolIssues.join('；')}`);
+  if (startupIssues.length > 0) toast(startupIssues.join('\n'), 7000);
 }
 
 void main();

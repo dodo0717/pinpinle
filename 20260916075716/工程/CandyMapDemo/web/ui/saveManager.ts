@@ -14,7 +14,7 @@
  * 它们都发生在动画之外，且丢一次就可能是「体力白扣/白送」。
  */
 
-import { SAVE_DEBOUNCE_MS, serializeSave, type SaveData } from '../../assets/scripts/core/index.ts';
+import { SAVE_DEBOUNCE_MS, serializeSave, type SaveData } from '../../assets/scripts/核心/index.ts';
 import { readSave, storageKind, writeSave, type StorageKind } from './storage.ts';
 
 export interface SaveManagerOptions {

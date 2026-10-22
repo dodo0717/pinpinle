@@ -28,7 +28,6 @@ export function runAd(kind: AdKind): Promise<AdResult> {
 
     openDialog({
       title: kind === 'stamina' ? ADS.staminaTitle : ADS.reviveTitle,
-      lines: [ADS.mockBody, ADS.playing],
       rows: [
         [{ label: ADS.watched, primary: true, onClick: () => answer('watched') }],
         [

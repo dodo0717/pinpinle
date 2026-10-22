@@ -27,8 +27,8 @@ function nightmareConfigOf(rows: number, cols: number) {
   return cfg;
 }
 
-describe('engine —— 移动规则（普通模式任意距离 / 噩梦模式只能 1 格）', () => {
-  it('普通模式 ruleAllows 恒为 true：跨全盘、对角线都允许', () => {
+describe('engine —— 移动规则（简单模式任意距离 / 困难模式只能 1 格）', () => {
+  it('简单模式 ruleAllows 恒为 true：跨全盘、对角线都允许', () => {
     const engine = new PuzzleEngine(configOf(4, 4), new Rng(3));
     assert.ok(engine.ruleAllows(0, 15), '左上↔右下应允许');
     assert.ok(engine.ruleAllows(5, 6), '跨行不相邻应允许');
@@ -59,7 +59,7 @@ describe('engine —— 移动规则（普通模式任意距离 / 噩梦模式�
     assert.strictEqual(engine.move(0, 1).accepted, true);
   });
 
-  it('相邻规则的最少交换数是不低于普通模式的非负整数（下界性质）', () => {
+  it('相邻规则的最少交换数是不低于简单模式的非负整数（下界性质）', () => {
     for (const [rows, cols] of GRIDS) {
       const normal = new PuzzleEngine(configOf(rows, cols), new Rng(9));
       const nightmare = new PuzzleEngine(nightmareConfigOf(rows, cols), new Rng(9));

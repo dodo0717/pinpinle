@@ -98,28 +98,78 @@
 .progress-cell.on { background: var(--honey); }
 .home-count { margin-top: 16px; font-size: 30px; color: var(--ink-soft); text-align: right; }
 
-/* ---------- 图鉴 ---------- */
-.collection-count {
-  padding: 0 56px 20px; font-size: 34px; font-weight: 700; color: var(--ink-soft);
+/* ---------- 图鉴（2026-10-22 按《UI及角色/图鉴》设计图整版重做） ----------
+   整屏蓝天 + 棕色返回圆钮 + 大标题 + 「已收集 x/y」 + 金框大卡内 3 列贴纸卡。
+   与排行榜同款金框（frame 复用 leaderboard/，图鉴自带 segment_001 内芯不透明故弃用）。
+   尺寸单位 = 1080 设计坐标系（同排行榜，见 .lb-* 段顶部的换算说明）。 */
+.screen.collection {
+  z-index: 12; /* 盖过主页地图（z=10）；scrim 64 / 大图预览 sheet 65 / 页签栏 70 在其上 */
+  background: linear-gradient(180deg, #3f83d8 0%, #6fa9ea 42%, #a9d0f5 100%);
 }
-.collection-grid {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 0 56px 72px;
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+.screen.collection.active { animation: lbIn .28s ease both; }
+
+.col-top { display: flex; align-items: center; padding: 38px 44px 10px; }
+.col-back {
+  width: 150px; height: 150px; padding: 0; border: 0; cursor: pointer;
+  background: url('/web/art/collection/back.png') center / 100% 100% no-repeat;
+  transition: transform .12s ease;
 }
-.collection-grid .cell {
-  background: var(--card); border-radius: 28px; padding: 16px;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  border: 2px solid rgba(224,169,74,.28); cursor: pointer; position: relative;
+.col-back:active { transform: scale(.92); }
+.col-title {
+  flex: 1; margin-right: 150px; text-align: center;
+  font-size: 96px; font-weight: 900; color: #fff; letter-spacing: 6px;
+  text-shadow: 0 8px 0 rgba(90,45,10,.55), 6px 0 0 rgba(90,45,10,.35), -6px 0 0 rgba(90,45,10,.35);
 }
-.collection-grid .cell:active { transform: scale(.97); }
-.cell-img { width: 100%; aspect-ratio: 1 / 1; border-radius: 20px; object-fit: cover; }
-.cell-label { font-size: 26px; font-weight: 700; color: var(--ink-soft); }
-.collection-grid .cell.locked .cell-img { filter: grayscale(1) opacity(.35); }
-.cell-lock {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%);
-  font-size: 60px;
+.col-count {
+  padding: 6px 0 14px; text-align: center;
+  font-size: 58px; font-weight: 900; color: #d9ec7d;
+  text-shadow: 0 4px 0 rgba(90,45,10,.5);
 }
+
+/* 金框大卡：内部透出蓝天，网格在框内滚动 */
+.col-card {
+  position: relative; flex: 1; min-height: 0;
+  margin: 8px 16px 158px; padding: 22px 14px 16px;
+  display: flex; flex-direction: column;
+  border-radius: 118px;
+  background: linear-gradient(180deg, #5ea0e9 0%, #8dbcf0 55%, #c3e2fb 100%);
+  box-shadow: 0 26px 70px rgba(20, 55, 120, .35);
+}
+.col-card::before {
+  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none;
+  background: url('/web/art/leaderboard/frame.png') 0 0 / 100% 100% no-repeat;
+}
+/* 间距尽可能小（横向纵向都压到最小）：省下的每一 px 都变成卡的尺寸 */
+.col-grid {
+  position: relative; flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 2px 4px 10px;
+}
+.col-grid::-webkit-scrollbar { width: 16px; }
+.col-grid::-webkit-scrollbar-track { background: rgba(90, 110, 150, .35); border-radius: 8px; }
+.col-grid::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #ffe27a, #f5b800); border-radius: 8px; }
+
+/* 贴纸卡：底图三色轮换（已解锁）/ 灰锁卡（未解锁）。
+   卡底切图实测 298×389（locked 297×390，结构一致），像素采样出的**内框**位置：
+     横向 6% → 92%（宽 86%）｜纵向 5% → 94%（80% 那条亮线只是装饰分隔，下方同色渐变延伸到 ~94%，
+     94-97% 是底部内阴影，99% 才是金框底边 —— 删掉文字标签后这些全是可用的贴纸区）。
+   内框是竖长的（≈0.86W × 0.89H，比例 ~0.74），正方形贴纸填满它必须用 **cover**（见 .col-img）：
+   等比放大到内框高、左右各裁 ~13% —— 零留白、图不变形；卡保持切图原生比例（金边不变形）。 */
+.col-cell {
+  position: relative; aspect-ratio: 271 / 355; cursor: pointer;
+  background: center / 100% 100% no-repeat;
+}
+.col-cell:active { transform: scale(.97); }
+/* 贴纸图 = 内框实测位置（left 6% / top 5% / 86% × 89%），cover 等比放大填满整框：
+   零留白（图一直贴到内框底边，不再露出下方空渐变）、图不变形、卡不变形，仅左右各裁 ~13%。
+   ⚠️ 必须写死 width/height：用 inset + width:auto 时 <img> 会按固有尺寸(512)溢出卡外 */
+.col-img {
+  position: absolute; left: 6%; top: 5%;
+  width: 86%; height: 89%;
+  border-radius: 6%;
+  object-fit: cover;
+}
+.col-cell.locked { cursor: pointer; }
 
 /* ---------- 大图预览 ---------- */
 .preview-figure {
@@ -133,101 +183,288 @@
 .preview-meta { padding: 30px 56px 0; text-align: center; }
 .preview-name { font-size: 44px; font-weight: 800; }
 .preview-caption { margin-top: 14px; font-size: 36px; color: var(--ink-soft); }
-.preview-note { margin-top: 8px; font-size: 26px; color: #c08a52; }
 .preview-actions {
   margin-top: auto; padding: 0 56px 20px;
   display: flex; gap: 24px;
 }
 .preview-actions .menu-btn { flex: 1; }
-.preview-source {
-  padding: 0 56px 56px; text-align: center; font-size: 24px; color: var(--ink-soft);
+
+/* [hidden] 修复：只要元素有 display 规则（如 .lb-header 的 flex），hidden 属性就会失效 */
+[hidden] { display: none !important; }
+
+/* ---------- 排行榜（2026-10-22 按《UI及角色/排行榜》设计图整版重做） ----------
+   整屏蓝天 + 金色圆角大卡（frame.png 当框）；卡内：胶囊双 Tab → 金银铜奖杯领奖台
+   → 表头条 → 榜单行（1-4 名盾牌徽章 / 金圈头像 / 简单绿·困难橙·总分黄）。
+   切图都在 web/art/leaderboard/，命名与 segment 序号的映射见 README §8。
+
+   ⚠️ **尺寸单位（易踩坑）**：本 app 的设计宽是 **1080**（`.screen` 实测 cssW=1080px，
+   按 0.345 缩放贴到 405 视口），设计稿是 609 宽 → **所有数值 = 设计稿 px × 1.773**。
+   曾按 405 宽写过一版，结果所有控件只有应有的 1/3 大（返回钮 19px、Tab 44×16），已全部换算。 */
+.screen.leaderboard {
+  z-index: 12; /* 盖过主页地图（z=10）；页签栏 70、弹窗 90 仍在其上 */
+  background: linear-gradient(180deg, #3f83d8 0%, #6fa9ea 42%, #a9d0f5 100%);
+}
+.screen.leaderboard.active { animation: lbIn .28s ease both; }
+@keyframes lbIn { from { opacity: 0; } to { opacity: 1; } }
+
+.lb-top { display: flex; align-items: center; padding: 38px 44px 16px; }
+.lb-back {
+  width: 150px; height: 150px; padding: 0; border: 0; cursor: pointer;
+  background: center / 100% 100% no-repeat;
+  transition: transform .12s ease;
+}
+.lb-back:active { transform: scale(.92); }
+.lb-title {
+  flex: 1; margin-right: 150px; text-align: center;
+  font-size: 96px; font-weight: 900; color: #fff; letter-spacing: 6px;
+  text-shadow: 0 8px 0 rgba(90,45,10,.55), 6px 0 0 rgba(90,45,10,.35), -6px 0 0 rgba(90,45,10,.35);
 }
 
-/* ---------- 排行榜 ---------- */
-/* 「◀ 第 N 关 · 段位 ▶」：把关卡切换塞进一行，纵向空间全留给 20 行榜单 */
-.lb-header {
-  padding: 0 56px 18px;
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+/* 金框大卡：框是切图（圆角画在图里），内部透出蓝天。
+   底部 158px = 让开常驻页签栏（与 .screen.sheet 的 inset bottom 同口径） */
+.lb-card {
+  position: relative; flex: 1; min-height: 0;
+  margin: 22px 27px 158px; padding: 40px 54px 50px;
+  display: flex; flex-direction: column;
+  border-radius: 118px;
+  background: linear-gradient(180deg, #4e97e8 0%, #7fb4ee 55%, #b8dcfb 100%);
+  box-shadow: 0 26px 70px rgba(20, 55, 120, .35);
 }
-.lb-header-text { flex: 1; text-align: center; font-size: 40px; font-weight: 800; }
+.lb-card::before {
+  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none;
+  background: url('/web/art/leaderboard/frame.png') 0 0 / 100% 100% no-repeat;
+}
+
+/* 胶囊双 Tab：选中橙 / 未选深灰（切图当底） */
+.lb-tabs { position: relative; display: flex; justify-content: center; gap: 43px; padding: 27px 0 6px; flex: 0 0 auto; }
+.lb-tab {
+  width: 340px; height: 122px; padding: 0; border: 0; cursor: pointer;
+  font: inherit; font-size: 64px; font-weight: 800; color: #fff;
+  background: url('/web/art/leaderboard/tab-off.png') center / 100% 100% no-repeat;
+  text-shadow: 0 6px 0 rgba(60,30,0,.35);
+  transition: transform .12s ease;
+}
+.lb-tab.on { background-image: url('/web/art/leaderboard/tab-on.png'); }
+.lb-tab:active { transform: scale(.95); }
+
+/* 关卡步进器（◀ 第 N 关 · 档位 ▶）+ 我的排名信息块：原功能，换肤必须保留 */
+.lb-meta { display: flex; align-items: center; justify-content: space-between; gap: 27px; height: 74px; margin-top: 11px; flex: 0 0 auto; }
+.lb-meta > :only-child { margin: 0 auto; }
+.lb-header { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
 .lb-step {
-  font: inherit; font-size: 40px; font-weight: 800; line-height: 1; color: var(--ink);
-  width: 88px; height: 88px; border-radius: 24px;
-  background: var(--card); border: 2px solid rgba(224,169,74,.45); cursor: pointer;
+  width: 70px; height: 70px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  font: inherit; font-size: 40px; font-weight: 800; color: #fff8e6;
+  background: rgba(40, 70, 120, .5); text-shadow: 0 3px 0 rgba(40,25,0,.4);
 }
-.lb-step:active { transform: scale(.94); }
-.lb-step.dim { opacity: .35; }
+.lb-step:active { transform: scale(.92); }
+.lb-step.dim { opacity: .38; }
+.lb-level-select {
+  height: 70px; padding: 0 21px; border: 0; cursor: pointer;
+  font: inherit; font-size: 40px; font-weight: 800; color: #fff8e6;
+  background: rgba(40, 70, 120, .5); border-radius: 35px;
+  appearance: none; text-align: center; text-align-last: center; white-space: nowrap;
+}
+.lb-level-select option { color: #4a2f14; background: #fff; }
+.lb-tier { font-size: 32px; font-weight: 800; color: #ffd98a; white-space: nowrap; }
+/* 我的成绩单（2026-10-22 升级为独立成绩条：Tab 下方独占一行，三格等分） */
+.lb-mine-card {
+  flex: 0 0 auto; margin: 12px 10px 4px; padding: 10px 18px;
+  border-radius: 44px;
+  background: linear-gradient(180deg, rgba(30,56,102,.86), rgba(18,34,68,.92));
+  box-shadow: inset 0 0 0 4px rgba(255,201,94,.9), 0 6px 0 rgba(10,22,42,.35);
+}
+.lb-mine-cells { display: flex; align-items: stretch; }
+.lb-mine-cell {
+  flex: 1; position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 0 8px;
+}
+/* 格间竖分隔线（不占布局，避免 nth-child 算错） */
+.lb-mine-cell + .lb-mine-cell::before {
+  content: ''; position: absolute; left: 0; top: 12%; bottom: 12%; width: 3px;
+  border-radius: 2px; background: rgba(255,201,94,.35);
+}
+.lb-mine-k {
+  font-size: 30px; font-weight: 700; line-height: 1.1; color: #cfe0f5;
+  white-space: nowrap; text-shadow: 0 2px 0 rgba(20,30,50,.5);
+}
+/* 数值是整个成绩单的重点：大号 + 描边 + 投影，站在一屏里不会被当成小字 */
+.lb-mine-v {
+  font-size: 88px; font-weight: 900; line-height: 1.12; color: #fff8e6;
+  white-space: nowrap;
+  text-shadow: 0 4px 0 rgba(120,60,0,.55), 0 8px 14px rgba(0,0,0,.35);
+}
+.lb-mine-cell.c-rank .lb-mine-v { color: #ffe9b0; }
+.lb-mine-cell.c-score .lb-mine-v { color: #ffd54a; }
+.lb-mine-cell.c-star .lb-mine-v { color: #ffe066; }
 
-.lb-mine {
-  padding: 0 56px 18px; font-size: 32px; color: var(--honey); font-weight: 700;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.lb-my-best { color: var(--ink-soft); }
-.lb-list {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 0 56px; display: flex; flex-direction: column; gap: 14px;
-}
-.lb-row {
-  display: flex; align-items: center; gap: 24px;
-  background: var(--card); border-radius: 24px; padding: 22px 30px;
-  font-size: 34px; border: 2px solid rgba(224,169,74,.20);
-}
-.lb-row.mine {
-  border-color: var(--honey); background: #fff4dc;
-  box-shadow: inset 0 0 0 2px rgba(224,169,74,.5);
-}
-.lb-rank { width: 84px; text-align: center; font-weight: 800; color: var(--honey); }
-.lb-name { flex: 1; font-weight: 700; }
-.lb-score { font-weight: 800; font-variant-numeric: tabular-nums; }
-.lb-empty {
-  padding: 120px 0; text-align: center; font-size: 36px; color: var(--ink-soft);
-}
-/* 每页 20 名 → 翻页条（只有一页时整条隐藏，见 leaderboard.ts） */
-.lb-pager {
-  padding: 24px 56px 0;
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-}
+/* 分页器（《通关及排名》§七：每页 20 名） */
+.lb-pager { display: flex; align-items: center; justify-content: center; gap: 32px; padding: 6px 0 2px; flex: 0 0 auto; }
 .lb-page-btn {
-  font: inherit; font-size: 30px; font-weight: 700; color: var(--ink-soft);
-  background: var(--card); border: 2px solid rgba(224,169,74,.45);
-  border-radius: 100px; padding: 16px 30px; cursor: pointer; white-space: nowrap;
+  height: 66px; padding: 0 32px; border: 0; border-radius: 33px; cursor: pointer;
+  font: inherit; font-size: 38px; font-weight: 800; color: #fff8e6;
+  background: rgba(40, 70, 120, .5);
 }
-.lb-page-btn:active { transform: scale(.96); }
-.lb-page-btn.dim { opacity: .35; }
-.lb-page-label { font-size: 30px; font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.lb-page-btn:active { transform: scale(.95); }
+.lb-page-btn.dim { opacity: .38; }
+.lb-page-label { font-size: 43px; font-weight: 800; color: #fff8e6; min-width: 245px; text-align: center; }
 
-/* 「挑战本关」通栏按钮：直接挂在 .leaderboard 下，需要自己撑开边距 */
-.leaderboard > .menu-btn {
-  margin: 28px 56px 0;
-  font-size: 38px; padding: 28px 40px;
+/* 领奖台：银(左) / 金(中, 抬高) / 铜(右)，丝带星星飘在后面 */
+.lb-podium {
+  position: relative; height: 274px; margin-top: 12px; flex: 0 0 auto;
+  display: flex; align-items: flex-end; justify-content: center; gap: 6px;
 }
-.lb-note {
-  padding: 20px 56px 0; font-size: 26px; color: var(--ink-soft); text-align: center;
+.lb-deco { position: absolute; pointer-events: none; opacity: .95; }
+.lb-deco.d-rg  { width: 107px; left: 21px;  top: 48px; }
+.lb-deco.d-rr  { width: 80px;  right: 37px; top: 80px; transform: rotate(18deg); }
+.lb-deco.d-rgo { width: 91px;  right: 155px; top: 6px; transform: rotate(-14deg); }
+.lb-deco.d-s1  { width: 59px;  left: 139px; top: 171px; }
+.lb-deco.d-s2  { width: 43px;  left: 256px; top: 21px; }
+.lb-deco.d-s3  { width: 48px;  right: 256px; top: 176px; }
+.lb-podium-item { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.lb-podium-item.silver, .lb-podium-item.bronze { width: 32%; }
+.lb-podium-item.gold { width: 38%; z-index: 2; }
+.lb-cup { display: block; }
+.lb-podium-item.gold   .lb-cup { width: 170px; margin-bottom: -13px; }
+.lb-podium-item.silver .lb-cup { width: 118px; margin-bottom: -5px; }
+.lb-podium-item.bronze .lb-cup { width: 118px; margin-bottom: -5px; }
+.lb-base {
+  width: 100%; height: 77px;
+  background: center / 100% 100% no-repeat;
+  display: flex; align-items: flex-end; justify-content: center;
 }
-.lb-note.dim { color: #b39a7c; font-size: 24px; padding-bottom: 48px; }
+.lb-podium-item.gold .lb-base { height: 105px; }
+.lb-base-num {
+  font-size: 52px; font-weight: 900; color: #ffd94e; line-height: 1;
+  margin-bottom: 14px;
+  text-shadow: 0 6px 0 rgba(120,40,0,.55), 3px 0 0 rgba(120,40,0,.4), -3px 0 0 rgba(120,40,0,.4);
+}
 
-/* ---------- 设置 ---------- */
-.settings-rows {
-  padding: 40px 56px 0; display: flex; flex-direction: column; gap: 24px;
+/* 表头条（米色圆角条 + 竖分隔线）：列宽与 .lb-row 严格一致 */
+.lb-thead, .lb-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 124px 124px 156px;
+  align-items: center; gap: 12px;
 }
-.settings-row {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--card); border-radius: 28px; padding: 32px 40px;
-  font-size: 40px; font-weight: 700;
-  border: 2px solid rgba(224,169,74,.28);
+.lb-thead {
+  margin-top: 16px; padding: 12px 40px;
+  font-size: 42px; font-weight: 800; color: #7c4a12; white-space: nowrap;
+  background: url('/web/art/leaderboard/header.png') center / 100% 100% no-repeat;
+  flex: 0 0 auto;
 }
-.toggle {
-  font: inherit; font-size: 34px; font-weight: 800; color: #fff;
-  min-width: 140px; padding: 16px 0; border-radius: 100px;
-  background: var(--honey); border: 0; cursor: pointer;
+.lb-thead .h-simple, .lb-thead .h-hard, .lb-thead .h-total { border-left: 6px solid rgba(160, 110, 50, .35); padding-left: 21px; margin-left: -11px; }
+.lb-c { text-align: center; font-variant-numeric: tabular-nums; }
+.lb-c-rank { text-align: center; }
+.lb-c-name { padding-left: 16px; }
+
+/* 榜单行：米色条（「我」= 黄条），可滚动 */
+.lb-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-top: 27px; padding-bottom: 16px; }
+.lb-list { display: flex; flex-direction: column; gap: 14px; }
+.lb-row {
+  height: 96px; padding: 0 34px; font-size: 48px; flex: 0 0 auto;
+  background: url('/web/art/leaderboard/row.png') center / 100% 100% no-repeat;
 }
-.toggle.off { background: #d9cbb6; }
-.settings-about { padding: 60px 56px 0; text-align: center; }
-.settings-about-title { font-size: 34px; font-weight: 800; }
-.settings-about-line { margin-top: 12px; font-size: 30px; color: var(--ink-soft); }
-.settings-note {
-  margin-top: auto; padding: 0 56px 72px;
-  font-size: 26px; color: #c08a52; text-align: center;
+.lb-row.mine { background-image: url('/web/art/leaderboard/row-mine.png'); }
+.lb-medal { width: 84px; height: 94px; object-fit: contain; justify-self: center; }
+.lb-rank-num {
+  justify-self: center; width: 80px; height: 80px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 46px; font-weight: 800; color: #fff;
+  background: linear-gradient(180deg, #8fa8c8, #5f7694);
+  text-shadow: 0 3px 0 rgba(30,50,80,.5);
+}
+.lb-name { display: flex; align-items: center; gap: 14px; font-weight: 700; color: #5f3a12; overflow: hidden; }
+.lb-name .av {
+  width: 84px; height: 84px; border-radius: 50%; flex: 0 0 auto;
+  background: #fff center / cover no-repeat;
+}
+.lb-name .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-row.mine .nm { font-weight: 900; }
+.lb-c.simple { color: #2ea44f; font-weight: 900; text-shadow: 0 3px 0 rgba(255,255,255,.6); }
+.lb-c.hard   { color: #f08a24; font-weight: 900; text-shadow: 0 3px 0 rgba(255,255,255,.6); }
+.lb-c.total  { color: #f5b800; font-weight: 900; font-size: 54px; text-shadow: 0 5px 0 rgba(150,90,0,.35); }
+.lb-empty { padding: 160px 0; text-align: center; font-size: 52px; color: #eef6ff; }
+
+/* 「挑战本关」通栏按钮（仅关卡榜显示）：橙色胶囊切图当底 */
+.lb-challenge {
+  margin: 8px 37px 0; height: 104px; padding: 0 48px; border: 0; cursor: pointer;
+  font: inherit; font-size: 48px; font-weight: 800; color: #fff;
+  background: url('/web/art/leaderboard/tab-on.png') center / 100% 100% no-repeat;
+  text-shadow: 0 6px 0 rgba(120,40,0,.4);
+  flex: 0 0 auto;
+}
+.lb-challenge:active { transform: scale(.98); }
+.lb-challenge.dim { opacity: .62; filter: saturate(.4); }
+
+
+/* ---------- 设置（2026-10-22 按《UI及角色/设置》设计图整版重做） ----------
+   整屏蓝天 + 棕返回钮 + 白字描边标题 + 金框棕木卡（行：图标+文字+切图开关）+ 卡下版本号。
+   设计图还有「振动 / 退出登录」两行，与本项目无关（无后端无登录）不实现；
+   切图没给空行底板（segment_002 是带退出箭头的整条），行条用 CSS 模拟棕木。
+   尺寸单位 = 1080 设计坐标系（同排行榜/图鉴）。 */
+.screen.settings {
+  z-index: 12;
+  background: linear-gradient(180deg, #3f83d8 0%, #6fa9ea 42%, #a9d0f5 100%);
+}
+.screen.settings.active { animation: lbIn .28s ease both; }
+
+.set-top { display: flex; align-items: center; padding: 38px 44px 10px; }
+.set-back {
+  width: 150px; height: 150px; padding: 0; border: 0; cursor: pointer;
+  background: url('/web/art/settings/back.png') center / 100% 100% no-repeat;
+  transition: transform .12s ease;
+}
+.set-back:active { transform: scale(.92); }
+.set-title {
+  flex: 1; margin-right: 150px; text-align: center;
+  font-size: 96px; font-weight: 900; color: #fff; letter-spacing: 6px;
+  text-shadow: 0 8px 0 rgba(90,45,10,.55), 6px 0 0 rgba(90,45,10,.35), -6px 0 0 rgba(90,45,10,.35);
+}
+
+/* 金框棕木卡：外框复用 leaderboard/frame.png（内芯透明），内板是深棕木纹渐变 */
+.set-card {
+  position: relative; flex: 1; min-height: 0;
+  margin: 24px 60px 20px; padding: 46px 44px 40px;
+  display: flex; flex-direction: column;
+  border-radius: 118px;
+  background:
+    repeating-linear-gradient(93deg, rgba(0,0,0,.05) 0 3px, rgba(255,255,255,.02) 3px 9px),
+    linear-gradient(180deg, #6a4632 0%, #5c3a27 55%, #4f3122 100%);
+  box-shadow: 0 26px 70px rgba(20, 55, 120, .35);
+}
+.set-card::before {
+  content: ''; position: absolute; inset: 0; z-index: 9; pointer-events: none;
+  background: url('/web/art/leaderboard/frame.png') 0 0 / 100% 100% no-repeat;
+}
+
+.set-rows {
+  position: relative; z-index: 10;
+  display: flex; flex-direction: column; gap: 34px;
+}
+.set-row {
+  display: flex; align-items: center; gap: 28px;
+  height: 152px; padding: 0 40px;
+  border-radius: 34px;
+  background:
+    repeating-linear-gradient(88deg, rgba(0,0,0,.06) 0 3px, rgba(255,255,255,.02) 3px 8px),
+    linear-gradient(180deg, #7a5138 0%, #66422c 100%);
+  box-shadow: inset 0 3px 0 rgba(255,255,255,.14), inset 0 -4px 0 rgba(0,0,0,.22), 0 6px 14px rgba(30,15,5,.25);
+}
+.set-icon { width: 96px; height: 96px; object-fit: contain; flex: 0 0 auto; }
+.set-label {
+  flex: 1; font-size: 60px; font-weight: 800; color: #ffe9c4; letter-spacing: 4px;
+  text-shadow: 0 4px 0 rgba(40,20,5,.45);
+}
+.set-toggle {
+  width: 150px; height: 78px; padding: 0; border: 0; cursor: pointer; flex: 0 0 auto;
+  background: center / 100% 100% no-repeat;
+  transition: transform .12s ease;
+}
+.set-toggle:active { transform: scale(.94); }
+
+.set-version {
+  flex: 0 0 auto; padding: 14px 0 130px; text-align: center;
+  font-size: 40px; font-weight: 700; color: #44507a;
+  text-shadow: 0 2px 0 rgba(255,255,255,.35);
 }
 
 /* ---------- 弹窗按钮（覆盖 index.html 里的 .dialog-card button 基础样式） ---------- */
@@ -248,6 +485,18 @@
   color: #fff; background: var(--honey); box-shadow: none;
 }
 .dialog-card .dialog-btn.dim { opacity: .42; }
+
+/* 弹窗右上角 ❌ 关闭键（与 lp-close / sheet-close 同款视觉） */
+.dialog-close {
+  position: absolute; top: 18px; right: 22px; z-index: 2;
+  width: 64px; height: 64px; border-radius: 50%;
+  font: inherit; font-size: 34px; font-weight: 800; line-height: 1;
+  color: #fff; background: #b06a3a; border: 0; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,.25);
+}
+.dialog-close:active { transform: scale(.92); }
+
+
 
 /* ---------- 荣誉结算弹窗（《通关及排名》§五） ---------- */
 /*
@@ -343,17 +592,17 @@
   background: var(--honey-soft); border: 0; border-radius: 100px;
   padding: 16px 32px; cursor: pointer; white-space: nowrap;
 }
-
-/* ---------- 玩法屏顶部的「返回主界面」 ---------- */
-/* HUD 多了「← 主界面」之后是 4 个元素，1080 宽下必须收窄字号，否则会挤成两行 */
-#hud { gap: 18px; }
-.hud-item { font-size: 36px; padding: 16px 28px; }
-#screen-game .hud-exit {
-  font: inherit; font-size: 30px; font-weight: 700; color: var(--ink-soft);
-  background: var(--card); border: 2px solid rgba(224,169,74,.35);
-  border-radius: 100px; padding: 14px 26px; cursor: pointer;
+/* 引导浮层右上角 ❌ 关闭键 */
+.guide-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 56px; height: 56px; border-radius: 50%;
+  font: inherit; font-size: 30px; font-weight: 800; line-height: 1;
+  color: #fff; background: #b06a3a; border: 0; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,.25);
 }
-#screen-game .hud-exit:active { transform: scale(.96); }
+.guide-close:active { transform: scale(.92); }
+
+
 
 /* ---------- 关卡地图（测试件：翻滚式选关） ----------
    滚动是 JS 自实现的（见 map.ts 的注释）：`touch-action:none` 让浏览器只当观众，
@@ -364,6 +613,8 @@
 .map.world-0 { --map-sky: linear-gradient(180deg, #bfe6ff 0%, #e8f7ff 38%, #fff3d6 72%, #ffe1a8 100%); }
 .map.world-1 { --map-sky: linear-gradient(180deg, #cfe9d2 0%, #eaf8e4 40%, #fff2cf 74%, #ffdca0 100%); }
 .map.world-2 { --map-sky: linear-gradient(180deg, #d7d9ff 0%, #eae9ff 38%, #ffe6c9 74%, #ffd7a0 100%); }
+.map.world-3 { --map-sky: linear-gradient(180deg, #aee7f5 0%, #d9f6fb 38%, #ffefc9 72%, #ffe0a6 100%); }
+.map.world-4 { --map-sky: linear-gradient(180deg, #cdeec9 0%, #e9f9e2 40%, #fff3d0 74%, #ffddb0 100%); }
 
 /* 顶栏：返回 · 世界名 · 模式角标 */
 .map-top {
@@ -375,7 +626,7 @@
   font-size: 40px; font-weight: 800; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* 模式角标（普通 / 困难）：两套进度各自独立，首页上必须明说 */
+/* 模式角标（简单 / 困难）：两套进度各自独立，首页上必须明说 */
 .map-mode {
   font-size: 28px; font-weight: 800; color: #fff;
   background: var(--honey); border-radius: 100px; padding: 12px 26px;
@@ -443,81 +694,159 @@
 .map-path .seg { fill: none; stroke: rgba(255,255,255,.92); stroke-width: 20; stroke-linecap: round; stroke-dasharray: 22 28; }
 .map-path .seg.lit { stroke: var(--honey); stroke-dasharray: none; }
 
-/* 节点：糖果传奇那种「戳一下会陷进去」的圆牌 —— 厚底边 + 内高光，纯 CSS 假装 3D。
-   用 margin 负偏移居中，把 transform 留给「翻滚」的 rotate。 */
+/* 节点：果冻珠切图（2026-10-22 按《UI及角色/首页/关卡节点》三张切图，CSS 珠弃用）——
+   node-todo（蓝白待完成）｜node-star1（粉 1~2 星，图内带 1 星）｜node-star3（金珠+皇冠+3 星，全画在图里）。
+   数字由 CSS 生成（金渐变立体字，参考用户截图）。
+   ⚠️ 三张切图珠直径不同（像素采样：todo 188 / star1 148 / star3 124，圆心 y=95/74/94），
+   按「珠直径一致」归一：元素尺寸 = var(--nd) × 系数（todo 1.0638 / star1 1.3514 / star3 1.6129），
+   圆心比例 --ncy（47.5% / 37% / 47%），定位补偿 --noff（把珠圆心对准路面定位点）。
+   改切图或 --nd 时这两个系数必须重新采样。 */
 .map .node {
-  position: absolute; width: 156px; height: 156px; margin: -78px 0 0 -78px;
-  border-radius: 50%; border: 8px solid #fff;
-  background: radial-gradient(circle at 50% 28%, #fffdf6 0%, #ffe6bd 58%, #f7cf85 100%);
-  box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20),
-              inset 0 -6px 0 rgba(255,255,255,.55);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; cursor: pointer;
+  --nd: 172px;            /* 珠显示直径（current 时放大，has-art 时接透视 --pw） */
+  --ncy: 47.5%;           /* 珠圆心在元素盒内的 y 比例 */
+  --noff: calc(var(--nd) * 0.0266); /* 定位补偿：has-art translate 用 */
+  position: absolute;
+  width: calc(var(--nd) * 1.0638); height: calc(var(--nd) * 1.0638);
+  margin: calc(var(--nd) * -0.5053) 0 0 calc(var(--nd) * -0.5319);
+  border: 0;
+  /* 切图交给 .node-art 承载（提亮滤镜只作用在它身上，不会连带把数字/锁/宠物一起过曝） */
+  --art: url('/web/art/map/node/node-todo.png');
+  cursor: pointer;
   /* 圆柱滚动：--focus = cos θ（缩放）、--fy = 弧线位移，由 JS 每帧算（map.ts applyFocus） */
   transform: translateY(var(--fy, 0px)) scale(var(--focus, 1)) rotate(var(--roll, 0deg));
   /* 不再用过渡：每帧都在写 transform，加了过渡反而会「缩放跟不上滚动」 */
   transition: none;
-}
-/* 核对用（?debug=stone）：画出程序算出的椭圆轮廓，跟美术画的石台比对 */
-.map.debug-stone .node { outline: 2px dashed #ff2d55; background: rgba(255,45,85,.14); }
-/* 状态色盖在石台素材之上，不能挡住数字 —— 数字层提到上面 */
-.map.has-art .node::after { content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 0; pointer-events: none; }
-.map.has-art .node > * { position: relative; z-index: 1; }
-.map.has-art .node-num { transform: scaleY(1.3); text-shadow: 0 3px 0 rgba(255,255,255,.9), 0 6px 10px rgba(60,40,20,.25); }
-.map .node-num { font-size: 52px; font-weight: 800; color: #8a5a1e; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,.85); }
-.map .node-stars { font-size: 26px; color: #c98a12; letter-spacing: 1px; }
-.map .node-meta { font-size: 24px; font-weight: 700; color: #a97f45; }
-.map .node-lock {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 60px; pointer-events: none;
-  filter: drop-shadow(0 3px 6px rgba(0,0,0,.22));
+  /* ⚠️ 珠**绝对不要加 drop-shadow**（改版四）：它按 alpha 通道算，切图缩放后那圈
+     1px 抗锯齿半透明边会被整圈染成暗边 = 用户看到的「毛边黑边」。
+     阴影改用 ::before 的纯 CSS 椭圆（不碰 alpha，干净）。 */
+  /* 果冻层只与珠自己的切图/底色作用，不去跟地图底图混合 */
+  isolation: isolate;
+
+  /* 三态珠色（改版五，对齐豆包参考图）：珠体是**浓郁的不透明渐变**，
+     素材图只当纹理（multiply 叠上来），颜色不再依赖素材原图的浅淡底色。默认 = 蓝白珠 */
+  --gel-top: #f0faff;
+  --gel-mid: #a6d7fa;
+  --gel-bot: #4a8fd4;
+  --gel-lower: #c2e5ff;
+  --glow: rgba(150, 210, 255, .55);
+  --glow2: rgba(150, 210, 255, .26);
 }
 
-/* 有底图时关卡融进石台：牌不再自己画圆盘，只留文字与状态 */
+/* 珠的原图切图层：**mix-blend-mode: multiply 当纹理用** —— 素材的白色珠体透出
+   下面 gel 层的浓郁渐变，星冠/气泡/描边等深色细节保留。
+   （此前直接提亮素材：素材底色太浅，怎么提都到不了参考图的浓度。） */
+.map .node-art {
+  position: absolute; inset: 0;
+  background: var(--art) 0 0 / 100% 100% no-repeat;
+  mix-blend-mode: multiply;
+}
+/* 珠下接触阴影（AO）：压扁的椭圆贴在珠底，是「坐在路面上」的关键 —— 没有它珠就是飘的。
+   这是**唯一**允许的珠阴影：纯 CSS 渐变椭圆，不读切图 alpha，所以不会在珠缘描出黑边。
+   两层：外层大范围淡影（环境）+ 内层小范围深影（接触点）。 */
+.map .node::before {
+  content: ''; position: absolute; left: 50%;
+  /* ⚠️ 尺寸/位置要卡住：暗斑中心必须落在珠底（cy + 0.56nd）之外，**不能爬上珠身** ——
+     之前放大到 1.5×0.6nd 时暗影覆盖了珠下部约 40%，看着就是一圈脏边。 */
+  top: calc(var(--ncy) + var(--nd) * 0.56);
+  width: calc(var(--nd) * 0.95); height: calc(var(--nd) * 0.24);
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(42% 46% at 50% 48%, rgba(18, 8, 34, .24), rgba(18, 8, 34, 0) 72%),
+    radial-gradient(66% 60% at 50% 46%, rgba(18, 8, 34, .10), rgba(18, 8, 34, 0) 74%);
+  pointer-events: none;
+}
+.map .node.n-s1 {
+  width: calc(var(--nd) * 1.3514); height: calc(var(--nd) * 1.3514);
+  margin: calc(var(--nd) * -0.5) 0 0 calc(var(--nd) * -0.6757);
+  --ncy: 37%; --noff: calc(var(--nd) * 0.1757);
+  --art: url('/web/art/map/node/node-star1.png');
+  /* 1~2 星：糖果粉（对齐参考图：顶白粉 → 中洋红 → 底深玫红，底部透橙粉光） */
+  --gel-top: #ffeef8;
+  --gel-mid: #f99ad2;
+  --gel-bot: #cf3d90;
+  --gel-lower: #ffbcE2;
+  --glow: rgba(255, 130, 205, .55);
+  --glow2: rgba(255, 130, 205, .26);
+}
+.map .node.n-s3 {
+  width: calc(var(--nd) * 1.6129); height: calc(var(--nd) * 1.6129);
+  margin: calc(var(--nd) * -0.7581) 0 0 calc(var(--nd) * -0.8065);
+  --ncy: 47%; --noff: calc(var(--nd) * 0.0484);
+  --art: url('/web/art/map/node/node-star3.png');
+  /* 3 星：黄金果冻（顶亮黄 → 中橙金 → 底深橙，底部透亮，外发光金色） */
+  --gel-top: #fff8d6;
+  --gel-mid: #ffc63e;
+  --gel-bot: #ee7c00;
+  --gel-lower: #ffd27a;
+  --glow: rgba(255, 180, 60, .6);
+  --glow2: rgba(255, 180, 60, .3);
+}
+/* 果冻珠体（2026-10-22 改版五，对齐豆包参考图）：
+   珠体 = **不透明的浓郁渐变**（顶亮 → 中饱和 → 底深）+ 左上大白高光 + 底部透光（背光果冻感）
+   + **同色系外发光**（这是「突出于背景」的主力：光晕跟 gel 的圆形走，不读切图 alpha，无毛边）。
+   ⚠️ 之前翻车的「染色发脏」是因为往**浅色素材**上叠**半透明**色；现在是完全不透明的
+   自绘珠体打底、素材 multiply 当纹理 —— 色相饱满且不灰。 */
+.map .node-gel {
+  position: absolute; left: 50%; top: var(--ncy);
+  width: var(--nd); height: var(--nd);
+  transform: translate(-50%, -50%);
+  border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(26% 18% at 27% 18%, #ffffff, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(44% 34% at 33% 25%, rgba(255, 255, 255, .92), rgba(255, 255, 255, 0) 64%),
+    radial-gradient(64% 52% at 50% 96%, var(--gel-lower), rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, var(--gel-top) 5%, var(--gel-mid) 46%, var(--gel-bot) 94%);
+  /* 外发光两层：贴身一层较实、外扩一层大而淡 —— 参考图的珠就是「发光的果冻」 */
+  box-shadow:
+    0 0 calc(var(--nd) * 0.16) calc(var(--nd) * 0.045) var(--glow),
+    0 0 calc(var(--nd) * 0.36) calc(var(--nd) * 0.11) var(--glow2);
+}
+
+/* 核对用（?debug=stone）：画出程序算出的轮廓 */
+.map.debug-stone .node { outline: 2px dashed #ff2d55; background-color: rgba(255,45,85,.14); }
+
+/* 关卡数字：金色立体字（参考用户截图：金渐变 + 深棕描边 + 底部厚投影），钉在珠圆心 */
+.map .node-num {
+  position: absolute; left: 50%; top: var(--ncy);
+  transform: translate(-50%, -50%);
+  font-size: calc(var(--nd) * 0.40); font-weight: 900; line-height: 1;
+  background: linear-gradient(180deg, #fff6d0 0%, #ffd75e 46%, #eda12c 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 2px #9a5a10;
+  filter: drop-shadow(0 3px 0 #c87f18) drop-shadow(0 6px 6px rgba(90, 50, 0, .40));
+  pointer-events: none;
+}
+.map .node-lock {
+  position: absolute; left: 50%; top: var(--ncy);
+  transform: translate(-50%, -50%);
+  font-size: calc(var(--nd) * 0.42); pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,.22));
+}
+/* 未解锁：整颗珠褪成灰 —— 灰化加在**珠体层**上（multiply 的素材纹理会跟着底色一起灰），
+   不要再单独灰化 art（multiply 模式下没有意义） */
+.map .node.locked .node-gel { filter: grayscale(.82) brightness(.9); }
+
+/* 当前可打（已解锁未通关）：珠外呼吸光圈（::after 画圆，不动 transform —— 翻滚角要留给滚动） */
+.map .node.unlocked::after {
+  content: ''; position: absolute; left: 50%; top: var(--ncy);
+  width: calc(var(--nd) + 10px); height: calc(var(--nd) + 10px);
+  transform: translate(-50%, -50%); border-radius: 50%;
+  animation: nodePulse 1.1s ease-in-out infinite; pointer-events: none;
+}
+@keyframes nodePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, .60); }
+  50%      { box-shadow: 0 0 0 24px rgba(255, 215, 0, 0); }
+}
+/* 默认定位到的那一关：珠放大一圈（--nd 一处改，尺寸/光圈/数字全跟着变），一眼能找到 */
+.map .node.current { --nd: 206px; z-index: 3; }
+.map .node.current.unlocked::after { animation: none; box-shadow: 0 0 0 8px rgba(255,215,0,.45), 0 0 30px 12px rgba(255,215,0,.85); }
+
+/* 有底图时：珠径接程序算的透视宽度 --pw（近大远小），珠是圆的不再压椭圆 */
 .map.has-art .node {
-  width: var(--pw, 190px); height: var(--ph, 118px); margin: 0;
-  border: 0; box-shadow: none;
-  background: url("/art/map/stone.png") center / 100% 100% no-repeat;
-  transform: translate(-50%, -50%) translateY(var(--fy, 0px))
+  --nd: var(--pw, 190px); margin: 0;
+  transform: translate(-50%, calc(-50% + var(--noff, 0px))) translateY(var(--fy, 0px))
     scale(var(--focus, 1)) rotate(var(--prot, 0deg)) rotate(var(--roll, 0deg));
 }
-.map.has-art .node.current { width: calc(var(--pw, 190px) * 1.12); height: calc(var(--ph, 118px) * 1.12); }
-.map.has-art .node.cleared::after { background: radial-gradient(circle, rgba(255,214,120,.5) 0%, rgba(255,196,80,.22) 64%, rgba(255,196,80,0) 80%); }
-.map.has-art .node.cleared { box-shadow: inset 0 0 0 6px rgba(255,255,255,.5); }
-/* 已通关：金色实心 */
-.map .node.cleared {
-  background: radial-gradient(circle at 50% 28%, #fff8e2 0%, #ffd98a 58%, #f0b95c 100%);
-  border-color: #fff;
-}
-.map.has-art .node.locked::after { background: radial-gradient(circle, rgba(226,220,208,.7) 0%, rgba(202,194,180,.5) 72%, rgba(202,194,180,0) 88%); }
-.map.has-art .node.locked .node-num { color: rgba(74,59,42,.4); }
-/* 未解锁：灰掉 + 挂锁 */
-.map .node.locked {
-  background: #e9e2d6; border-color: #f6f1e8;
-  box-shadow: 0 8px 0 rgba(140,120,95,.3), 0 12px 20px rgba(74,59,42,.10);
-}
-.map .node.locked .node-num { color: rgba(74,59,42,.30); }
-.map .node.locked .node-meta { color: rgba(74,59,42,.24); }
-/* 当前可打（已解锁未通关）：白牌 + 呼吸光圈
-   （只动 box-shadow，不动 transform —— 翻滚角要留给滚动） */
-/* 石台素材优先级拉满：状态规则用的是 background 简写，会把素材图清掉 */
-.map.has-art .node.cleared, .map.has-art .node.locked, .map.has-art .node.unlocked {
-  background-image: url("/art/map/stone.png"); background-size: 100% 100%;
-  background-repeat: no-repeat; background-position: center;
-}
-.map.has-art .node.unlocked { animation: none; box-shadow: inset 0 0 0 7px rgba(255,255,255,.9); }
-.map .node.unlocked {
-  background: radial-gradient(circle at 50% 28%, #fff 0%, #fff8ea 60%, #ffeecb 100%);
-  border-color: var(--honey);
-  animation: mapNodePulse 1.1s ease-in-out infinite;
-}
-@keyframes mapNodePulse {
-  0%, 100% { box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20), 0 0 0 0 rgba(224,169,74,.55); }
-  50%      { box-shadow: 0 10px 0 rgba(198,140,50,.5), 0 16px 26px rgba(74,59,42,.20), 0 0 0 26px rgba(224,169,74,0); }
-}
-/* 默认定位到的那一关：再放大一圈，一眼能找到 */
-.map .node.current { width: 188px; height: 188px; margin: -94px 0 0 -94px; border-width: 10px; z-index: 3; }
-.map .node.current .node-num { font-size: 64px; }
 
 /* 切地图：整张地图绕 X 轴翻滚。
    `--anchor` = 定位后的 translateY，进场动画的起止都加上它 —— 否则动画结束一移除类，
@@ -568,7 +897,7 @@
    那套「居中卡片 + 进度区贴底」的排版不再适用 —— 地图要占满剩余高度。
    这里只改排版，不动配色。 */
 /* 首页 = 地图：顶栏改成「头像 + 昵称 ｜ ❤️ N/M」，下面依次是
-   「世界名 · 进度」与「普通 / 困难」两行，地图占满剩余高度。
+   「世界名 · 进度」与「简单 / 困难」两行，地图占满剩余高度。
    这里只改排版，不动配色。 */
 .home.map .home-top { padding: 40px 56px 0; align-items: center; }
 
@@ -576,24 +905,34 @@
 .home-avatar {
   width: 84px; height: 84px; border-radius: 50%; flex: none;
   display: grid; place-items: center; font-size: 44px; line-height: 1;
-  background: var(--card); border: 3px solid rgba(224,169,74,.45);
-  box-shadow: 0 6px 14px rgba(74,59,42,.10);
+  background: #FFF8E7; border: 4px solid #F5C542;
+  box-shadow: 0 3px 0 rgba(0,0,0,.18);
 }
 .home-nick {
-  font-size: 32px; font-weight: 800; color: var(--ink);
+  font-size: 32px; font-weight: 800; color: #fff;
+  background: #6B4A2F; padding: 8px 22px; border-radius: 100px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 3px 0 rgba(0,0,0,.18);
 }
 
-/* 体力整块是一个按钮：点它 = 加体力（顶栏只留这一个元素，不再单独摆「＋」） */
+/* 体力整块是一个按钮：棕色胶囊，红心 + 数字 + 绿色加号（点它 = 加体力） */
 .home.map .home-stamina {
-  display: flex; align-items: center; gap: 12px; margin-left: auto;
-  font: inherit; padding: 10px 28px; cursor: pointer;
-  background: var(--card); border: 2px solid rgba(224,169,74,.45);
-  border-radius: 100px; box-shadow: 0 6px 14px rgba(74,59,42,.10);
+  display: flex; align-items: center; gap: 10px; margin-left: auto;
+  font: inherit; padding: 8px 12px 8px 22px; cursor: pointer;
+  background: #6B4A2F; border: 0; color: #fff;
+  border-radius: 100px; box-shadow: 0 3px 0 rgba(0,0,0,.28);
 }
 .home.map .home-stamina:active { transform: scale(.96); }
-.home.map .hearts-text { font-size: 34px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
-.home.map .home-recover { font-size: 22px; color: #a97f45; font-variant-numeric: tabular-nums; }
+.home.map .hearts-text { font-size: 32px; letter-spacing: 1px; font-variant-numeric: tabular-nums; color: #fff; }
+.home.map .home-recover { font-size: 22px; color: #FFE9C7; font-variant-numeric: tabular-nums; }
+/* 绿色加号：设计图里的「加体力」入口 */
+.home.map .home-plus {
+  width: 52px; height: 52px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; font-size: 34px; line-height: 1;
+  color: #fff; background: #4CD964; border: 0; cursor: pointer;
+  box-shadow: 0 2px 0 rgba(0,0,0,.22);
+}
+.home.map .home-plus:active { transform: scale(.92); }
 
 /* 世界名 · 本世界进度（两侧小箭头切三张地图） */
 .map-title-row { padding: 12px 56px 0; display: flex; align-items: center; gap: 16px; }
@@ -605,27 +944,25 @@
 }
 .map-world-nav:active { transform: scale(.94); }
 
-/* 难度切换：普通 / 困难 */
+/* 难度切换：简单 / 困难 */
 .map-modes { padding: 14px 56px 0; display: flex; justify-content: center; gap: 20px; }
 .map-mode-btn {
-  font: inherit; font-size: 28px; font-weight: 800; color: #a97f45;
-  background: rgba(255,255,255,.86); border: 3px solid #fff;
+  font: inherit; font-size: 28px; font-weight: 800; color: #fff;
+  background: #5A5A5A; border: 3px solid #D9A227;
   border-radius: 100px; padding: 14px 44px; cursor: pointer;
-  box-shadow: 0 6px 0 rgba(198,140,50,.25);
+  box-shadow: 0 6px 0 rgba(0,0,0,.22);
 }
 .map-mode-btn:active { transform: scale(.96); }
-.map-mode-btn.on { color: #fff; background: var(--honey); box-shadow: 0 6px 0 rgba(180,120,40,.45); }
+.map-mode-btn.on { color: #fff; background: #FF6B35; border-color: #D9A227; box-shadow: 0 6px 0 rgba(180,80,20,.45); }
 
-/* 当前关上的宠物、每张地图末关的奖杯（都挂在节点牌上，程序画） */
+/* 当前关上的宠物、每张地图末关的奖杯：以珠圆心（left50%/--ncy）为锚钉在珠缘外 */
 .map .node-pet, .map .node-trophy {
-  position: absolute; font-size: 52px; line-height: 1; pointer-events: none;
+  position: absolute; left: 50%; top: var(--ncy);
+  font-size: calc(var(--nd) * 0.34); line-height: 1; pointer-events: none;
   filter: drop-shadow(0 3px 5px rgba(0,0,0,.22));
 }
-.map .node-pet { right: -16px; bottom: -12px; }
-.map .node-trophy { right: -18px; top: -24px; }
-
-/* 已通关节点上的历史最高分（可以直接再挑战，所以分数要看得见） */
-.map .node-best { font-size: 20px; font-weight: 800; color: #8a5a1e; line-height: 1; }
+.map .node-pet { transform: translate(calc(var(--nd) * 0.34), calc(var(--nd) * 0.18)); }
+.map .node-trophy { transform: translate(calc(var(--nd) * 0.36), calc(var(--nd) * -0.50)); }
 
 /* ---------- 底部页签栏（糖果传奇式全局导航） ----------
    它是**浮层**：压在所有屏与功能浮层（z=65/66）之上、弹窗（z=90）之下，
@@ -635,11 +972,12 @@
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 70;
   display: flex; align-items: stretch; gap: 10px;
   padding: 12px 28px 14px;
-  background: linear-gradient(180deg, rgba(255,247,236,0) 0%, rgba(255,247,236,.94) 40%, #fff7ec 100%);
+  background: #2E2E40;
+  border-top: 3px solid #D9A227;
 }
 .tabbar[hidden] { display: none; }
 .tabbar .tab {
-  flex: 1; font: inherit; color: var(--ink-soft);
+  flex: 1; font: inherit; color: #9A9AAE;
   background: transparent; border: 0; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   padding: 8px 0 6px; border-radius: 26px;
@@ -648,11 +986,126 @@
 .tabbar .tab-icon { font-size: 44px; line-height: 1; filter: grayscale(.4) opacity(.7); }
 .tabbar .tab-label { font-size: 24px; font-weight: 800; }
 .tabbar .tab.on {
-  background: var(--card);
-  box-shadow: inset 0 0 0 3px rgba(224,169,74,.55), 0 6px 14px rgba(74,59,42,.10);
+  color: #F5C542;
+  background: rgba(245,197,66,.16);
+  box-shadow: inset 0 0 0 2px rgba(245,197,66,.55);
 }
 .tabbar .tab.on .tab-icon { filter: none; }
-.tabbar .tab.on .tab-label { color: var(--honey); }
+.tabbar .tab.on .tab-label { color: #F5C542; }
+
+/* ---------- 关卡详情 / 开始弹窗（PLAY UI：屏幕上方吊下来的牌子） ---------- */
+.level-preview {
+  position: absolute; inset: 0; z-index: 90;
+  display: none;
+  background: rgba(20,12,4,.34);
+}
+.level-preview.on { display: block; }
+
+/* 麻绳 + 牌子整体从屏幕上方落下；整列占满舞台高度，牌子在中间居中 */
+.lp-drop {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  width: 820px; max-width: 92%; text-align: center;
+  height: 100%; display: flex; flex-direction: column;
+  transform-origin: top center;
+}
+.level-preview.on .lp-drop { animation: lp-drop .55s cubic-bezier(.18,.9,.32,1.25) both; }
+@keyframes lp-drop {
+  0%   { transform: translate(-50%, -170%); opacity: 0; }
+  60%  { transform: translate(-50%, 6%);    opacity: 1; }
+  100% { transform: translate(-50%, 0);     opacity: 1; }
+}
+/* 麻绳：从屏幕顶垂下来，flex:1 撑满牌子上方的空间（高度随居中自动，不计入牌子尺寸） */
+.lp-rope {
+  flex: 1 1 auto; min-height: 0; width: 12px; margin: 0 auto;
+  background: linear-gradient(90deg, #7a4f29, #c98a4f 45%, #7a4f29);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
+}
+/* 底部占位：与绳子各 flex:1，把牌子在整屏里垂直居中 */
+.lp-spacer { flex: 1 1 auto; min-height: 0; }
+.lp-card {
+  flex: 0 0 auto;
+  position: relative; margin: -8px auto 0; width: 100%;
+  background: linear-gradient(180deg, #FFF8E7 0%, #fdeccb 100%);
+  border: 6px solid #F5C542; border-radius: 38px;
+  padding: 72px 56px 82px;
+  box-shadow: 0 26px 64px rgba(60,40,10,.45);
+}
+.lp-close {
+  position: absolute; top: 16px; right: 20px;
+  width: 60px; height: 60px; border-radius: 50%;
+  font: inherit; font-size: 34px; font-weight: 800; color: #fff;
+  background: #b06a3a; border: 0; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,.25);
+}
+.lp-close:active { transform: scale(.92); }
+.lp-level {
+  font-size: 96px; font-weight: 800; line-height: 1;
+  color: #6B4A2F; -webkit-text-stroke: 3px #F5C542;
+  text-shadow: 0 4px 0 rgba(0,0,0,.12);
+}
+.lp-modes { display: flex; gap: 24px; justify-content: center; margin: 42px 0 28px; }
+.lp-mode {
+  font: inherit; font-size: 40px; font-weight: 800; color: #fff;
+  background: #5A5A5A; border: 3px solid #D9A227;
+  border-radius: 100px; padding: 18px 60px; cursor: pointer;
+  box-shadow: 0 6px 0 rgba(0,0,0,.22);
+}
+.lp-mode:active { transform: scale(.96); }
+.lp-mode.on { background: #FF6B35; border-color: #D9A227; box-shadow: 0 6px 0 rgba(180,80,20,.45); }
+/* 困难模式未达门槛（本关简单模式没三星）：置灰 + 挂锁，点不动 */
+.lp-mode.locked {
+  background: #4A4A4A; border-color: #8a8a8a; color: #d8d8d8;
+  box-shadow: none; cursor: default; opacity: .85;
+}
+.lp-mode.locked:active { transform: none; }
+.lp-stars { margin: 12px 0 46px; font-size: 52px; font-weight: 700; color: #6B4A2F; }
+.lp-stars .lp-star b { color: #E8A100; font-size: 60px; }
+.lp-stars .lp-sep { margin: 0 34px; color: #C9A86a; }
+.lp-play {
+  font: inherit; font-size: 62px; font-weight: 800; letter-spacing: 2px; color: #fff;
+  background: linear-gradient(180deg, #6BE36B, #37B84A);
+  border: 0; border-radius: 100px; padding: 28px 120px; cursor: pointer;
+  box-shadow: 0 8px 0 rgba(20,120,40,.5);
+}
+.lp-play:active { transform: scale(.97); }
+
+/* ---------- 结算弹窗（胜利/失败）：复用 PLAY 的吊牌骨架，居中 + 820 宽 一致 ---------- */
+/* z-index 89：低于通用弹窗 #dialog(90)，这样「看广告/续命」能盖在结算之上 */
+.result-preview { position: absolute; inset: 0; z-index: 89; display: none; background: rgba(20,12,4,.34); }
+.result-preview.on { display: block; }
+.result-preview.on .lp-drop { animation: lp-drop .55s cubic-bezier(.18,.9,.32,1.25) both; }
+
+.rs-icon { margin: 0 auto 16px; }
+.rs-icon .hero-icon { font-size: 150px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(180,120,30,.5)); }
+.rs-icon .hero-stars { font-size: 72px; }
+.rs-title {
+  font-size: 84px; font-weight: 800; line-height: 1.12;
+  color: #6B4A2F; -webkit-text-stroke: 3px #F5C542;
+  text-shadow: 0 4px 0 rgba(0,0,0,.12); margin: 4px 0 12px;
+}
+.rs-sub { font-size: 38px; font-weight: 700; color: #6B4A2F; margin: 0 0 16px; }
+.rs-score-card {
+  background: linear-gradient(180deg, #FFFDF6, #FBEFD2);
+  border: 3px solid #EAD08A; border-radius: 28px;
+  padding: 26px 24px 30px; margin: 8px auto 22px;
+}
+.rs-score-label { font-size: 36px; font-weight: 700; color: #8a6a44; }
+.rs-score-value {
+  font-size: 116px; font-weight: 800; color: #E8A100; line-height: 1;
+  text-shadow: 0 4px 0 rgba(120,80,10,.25); margin: 4px 0;
+}
+.rs-hint { font-size: 34px; font-weight: 700; color: #6B4A2F; }
+.rs-note { font-size: 30px; color: #9a7a55; margin: 4px 0 16px; }
+.rs-btn-row { display: flex; gap: 24px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+.rs-btn {
+  font: inherit; font-size: 40px; font-weight: 800; color: #fff;
+  background: #5A5A5A; border: 3px solid #D9A227; border-radius: 100px;
+  padding: 20px 56px; cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,.22);
+}
+.rs-btn.primary { background: linear-gradient(180deg, #6BE36B, #37B84A); border-color: #2f9e42; box-shadow: 0 6px 0 rgba(20,120,40,.5); }
+.rs-btn.dim { opacity: .5; }
+.rs-btn:active { transform: scale(.97); }
 
 /* 页签栏是浮层 → 给整屏（非玩法、非功能浮层）留出等高的下内边距，底部内容不会被压住。
    功能浮层自己用 inset 让出页签的位置（见下 `.screen.sheet`），不吃这条 padding。 */
@@ -696,3 +1149,167 @@
   box-shadow: 0 6px 14px rgba(74, 59, 42, .12);
 }
 .sheet-close:active { transform: scale(.94); }
+
+/* ==================== 首页正式版皮肤（设计稿《首页》，2026-10） ==================== */
+/*
+ * 素材：web/art/home/（设计稿切片，透明底）+ web/art/map-v2/（三页卷轴底图）。
+ * 坐标口径：设计稿 900×1600 → 舞台 1080×1920（×1.2），位置按设计稿比例摆放。
+ */
+
+/* ---- 顶栏：左 = 返回圆钮 + 木牌（头像/昵称），右 = 深色体力胶囊 ---- */
+.home.map .home-top {
+  padding: 28px 36px 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+}
+.home-left { display: flex; align-items: center; }
+/* 返回圆钮：纯装饰（首页没有可返回的方向），压在木牌左端上 */
+.home-back {
+  width: 122px; height: 124px; flex: 0 0 auto;
+  background: url('/web/art/home/back.png') center / contain no-repeat;
+  margin-right: -46px; position: relative; z-index: 1;
+  pointer-events: none;
+}
+/* 木牌：头像 + 昵称嵌进去（文案继续走 render() 的 profile 口径） */
+.home.map .home-user {
+  background: url('/web/art/home/banner.png') center / 100% 100% no-repeat;
+  height: 118px; padding: 0 150px 0 92px;
+  display: flex; align-items: center; gap: 18px;
+}
+.home-avatar { font-size: 56px; line-height: 1; }
+.home-nick {
+  font-size: 40px; font-weight: 800; color: #ffe9c7;
+  text-shadow: 0 3px 0 rgba(40,20,5,.35);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
+}
+
+/* ---- 右上：体力胶囊（深色底板 + 红心 + 大号数字 + 绿色加号） ---- */
+.home.map .home-stamina {
+  flex-direction: row; align-items: center; gap: 14px;
+  width: 300px; height: 108px; padding: 0 14px 0 20px;
+  background: url('/web/art/home/pill.png') center / 100% 100% no-repeat;
+  border: 0; box-shadow: none; border-radius: 0;
+  position: relative;
+}
+.home.map .home-stamina:active { transform: scale(.96); }
+.home-heart {
+  width: 78px; height: 70px; flex: 0 0 auto;
+  background: url('/web/art/home/heart.png') center / contain no-repeat;
+}
+.hearts-text {
+  flex: 1; text-align: left;
+  font-size: 52px; font-weight: 800; color: #fff; line-height: 1;
+  text-shadow: 0 3px 0 rgba(40,20,5,.4);
+  font-variant-numeric: tabular-nums;
+}
+/* 恢复倒计时：胶囊下缘小字 */
+.home.map .home-recover {
+  position: absolute; left: 0; right: 74px; bottom: -40px;
+  font-size: 22px; color: #fff; text-shadow: 0 2px 4px rgba(40,20,5,.6);
+}
+.home.map .home-plus {
+  width: 84px; height: 86px; flex: 0 0 auto;
+  background: url('/web/art/home/plus.png') center / contain no-repeat;
+  font-size: 0;
+  filter: drop-shadow(0 4px 6px rgba(40,20,5,.35));
+}
+.home.map .home-plus:active { transform: scale(.92); }
+
+/* ---- 场景全屏：卷轴铺满整屏，顶栏与所有浮层控件都浮在场景上（设计稿口径） ---- */
+.home.map .map-scroll { position: absolute; inset: 0; flex: none; }
+.home.map .home-top { position: relative; z-index: 5; }
+
+/* ---- 左右换地图的大箭头：浮在屏幕两侧、页签栏上方，放大 + 呼吸辉光 ---- */
+.home.map .map-world-nav {
+  position: absolute; bottom: 220px; z-index: 6;
+  width: 118px; height: 118px; border-radius: 50%; padding: 0;
+  font: inherit; font-size: 78px; font-weight: 800; line-height: 1;
+  color: #fff; text-shadow: 0 3px 0 rgba(120,60,0,.45);
+  background: radial-gradient(circle at 50% 34%, #ffe49b 0%, #f7b13f 52%, #d97b12 100%);
+  border: 5px solid #fff3d6;
+  box-shadow: 0 8px 0 rgba(140,70,10,.5), 0 0 26px rgba(255,206,110,.8);
+  cursor: pointer;
+  animation: nav-breathe 1.9s ease-in-out infinite;
+  transition: transform .12s ease;
+}
+.home.map .map-world-nav.nav-left  { left: 22px; }
+.home.map .map-world-nav.nav-right { right: 22px; }
+.home.map .map-world-nav:active { transform: scale(.9); }
+.home.map .map-world-nav:disabled {
+  opacity: .3; animation: none; box-shadow: 0 4px 0 rgba(140,70,10,.35); cursor: default;
+}
+@keyframes nav-breathe {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(255,206,110,.5)); }
+  50%      { filter: drop-shadow(0 0 22px rgba(255,214,130,.95)); }
+}
+
+/* ---- 底部页签栏：正式版（深棕圆角面板 + 切图图标 + 选中金色底） ---- */
+.tabbar {
+  left: 24px; right: 24px; bottom: 20px;
+  border-radius: 44px;
+  background: linear-gradient(180deg, #6b4426 0%, #4a2d18 100%);
+  border: 5px solid #3a2312;
+  box-shadow: 0 18px 40px rgba(20,10,0,.5);
+  padding: 14px 26px;
+}
+.tabbar .tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: transparent; border: 0; box-shadow: none; padding: 8px 0 6px;
+  border-radius: 26px;
+}
+.tabbar .tab-icon {
+  width: 84px; height: 78px;
+  background: center / contain no-repeat;
+  font-size: 0;
+  filter: grayscale(.55) brightness(.82);
+}
+.tabbar .tab-label { font-size: 26px; font-weight: 800; color: #e8d9c3; }
+.tabbar .tab.on { background: linear-gradient(180deg, #ffd977 0%, #f5b73d 100%); box-shadow: 0 6px 0 rgba(160,90,10,.55); }
+.tabbar .tab.on .tab-icon { filter: none; }
+.tabbar .tab.on .tab-label { color: #6d3d0a; text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+
+/* ---- 上下翻页箭头：放大 + 呼吸辉光（和左右换地图箭头同一套视觉） ---- */
+.map-pager-btn {
+  width: 98px; height: 98px; border-radius: 50%; padding: 0;
+  font: inherit; font-size: 46px; font-weight: 800; line-height: 1;
+  color: #fff; text-shadow: 0 3px 0 rgba(120,60,0,.45);
+  background: radial-gradient(circle at 50% 34%, #ffe49b 0%, #f7b13f 52%, #d97b12 100%);
+  border: 5px solid #fff3d6;
+  box-shadow: 0 8px 0 rgba(140,70,10,.5), 0 0 22px rgba(255,206,110,.78);
+  cursor: pointer;
+  animation: nav-breathe 1.9s ease-in-out infinite;
+}
+.map-pager-btn:active { transform: scale(.9); }
+.map-pager-btn:disabled {
+  opacity: .28; animation: none; box-shadow: 0 4px 0 rgba(140,70,10,.3); cursor: default;
+}
+
+/* ---------- 加载页（2026-10-22 按《UI及角色/加载页》） ----------
+   整页背景图 + 底部切图进度条（bar-bg 槽 + bar-fill 橙填充）+ 条内百分比数字。
+   DOM 是 index.html 里的静态 #loading（JS 没跑起来时也要有画面）；
+   进度由 main.ts 驱动：素材探测（36 张）0→88%，图池生成 94%，就绪 100% 后淡出移除。 */
+#loading {
+  position: absolute; inset: 0; z-index: 200;
+  background: url('/web/art/loading/bg.jpg') center / cover no-repeat;
+  transition: opacity .5s ease;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+.loading-bar {
+  position: absolute; left: 50%; bottom: 170px; transform: translateX(-50%);
+  width: 920px; height: 148px; /* 槽图 1080×174 等比缩放 */
+  background: url('/web/art/loading/bar-bg.png') center / 100% 100% no-repeat;
+}
+/* 填充裁剪区 = 槽的内芯（深棕部分，按 1080 坐标采样 inset：左右 3.3% / 上下 15%） */
+.loading-clip {
+  position: absolute; left: 30px; right: 30px; top: 22px; bottom: 22px;
+  overflow: hidden; border-radius: 999px;
+}
+.loading-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+  background: url('/web/art/loading/bar-fill.png') center / 100% 100% no-repeat;
+  transition: width .25s ease;
+}
+.loading-num {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 2; font-size: 46px; font-weight: 900; line-height: 1; color: #fff;
+  text-shadow: 0 3px 0 rgba(140, 70, 20, .65), 0 6px 10px rgba(90, 40, 0, .35);
+}

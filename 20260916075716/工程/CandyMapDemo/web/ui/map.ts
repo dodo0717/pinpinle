@@ -23,15 +23,20 @@
  * 由 main.ts 从 core 派生后传进来，与 collection.ts / leaderboard.ts 同一分层。
  */
 
-import { MODE_LABEL, type LevelStatus } from '../../assets/scripts/core/index.ts';
+import { MODE_LABEL, type LevelStatus } from '../../assets/scripts/核心/index.ts';
 import { HOME, MAP } from './text.ts';
-import { buttonEl, el, starText, toast } from './dom.ts';
+import { buttonEl, el, toast } from './dom.ts';
 import { closeDialog, openDialog } from './dialog.ts';
 
 /** 单张地图上的一个关卡节点（状态来自 core，界面不自己判） */
 export interface MapNode {
   level: number;
   status: LevelStatus;
+  /**
+   * 额外的锁原因（如「困难模式要简单模式三星」）。
+   * 有值时点节点的提示用这句，而不是默认的 `MAP.locked`（先通关第 N 关）。
+   */
+  lockNote?: string;
   /** 历史最高星级（0 = 未通关） */
   stars: number;
   /** 历史最高分（0 = 没打过） */
@@ -44,9 +49,9 @@ export interface MapNode {
 export type MapMode = 'normal' | 'nightmare';
 
 export interface MapView {
-  /** 当前模式 —— 首页上直接给「普通 / 困难」两个按钮切（两套进度各自独立） */
+  /** 当前模式 —— 首页上直接给「简单 / 困难」两个按钮切（两套进度各自独立） */
   mode: MapMode;
-  /** 当前模式文案（普通 / 困难），与 `mode` 同源，别各写一套 */
+  /** 当前模式文案（简单 / 困难），与 `mode` 同源，别各写一套 */
   modeLabel: string;
   /** 当前正在解锁的关卡 = 默认定位目标 = 进度区显示的那一关 */
   currentLevel: number;
@@ -63,7 +68,7 @@ export interface MapView {
 }
 
 export interface MapHandlers {
-  /** 切玩法模式（普通 / 困难）：两套进度各自独立，切了要换一套关卡状态 */
+  /** 切玩法模式（简单 / 困难）：两套进度各自独立，切了要换一套关卡状态 */
   onMode: (mode: MapMode) => void;
   /** 点了某个可玩关卡（已通关的也能再挑战一次） */
   onPick: (level: number) => void;
@@ -85,17 +90,15 @@ export interface MapScreen {
 const STAGE_W = 1536;
 /**
  * 相邻关卡的纵向间距。
- * 与 PAD_TOP / PAD_BOTTOM 一起凑成轨道总高 = 3 × 1920 = 5760：
- * 竖屏每段正好 1080 × 1920（9:16），美术按「三段」出底图，边界还刚好落在
- * 两关之间的空隙上（上 6 关 / 中 8 关 / 下 6 关），不会把关卡牌切成两半。
- * 改这三个值之前先确认：5760 = PAD_TOP + 19 × NODE_STEP + PAD_BOTTOM。
+ * 与 PAD_TOP / PAD_BOTTOM 一起凑成轨道总高 = 2 × SEG_H = 5462：
+ * 正式版《底图》每世界一整张 1080 × 3840 = 两屏 9:16，铺满整条轨道（两页）。
+ * 改这三个值之前先确认：5462 = PAD_TOP + 11 × NODE_STEP + PAD_BOTTOM（每世界 12 关）。
+ * ⚠️ 上下留白与 ROAD_X 路中线表是配套标定的（节点 y 定了才能对准路面），改一个就要重标另一个。
  */
-const NODE_STEP = 341;
+const NODE_STEP = 385;
 /** 轨道的上下留白：第 1 关不能贴着屏幕底，最后一关上方也要有落脚处 */
-const PAD_TOP = 860;
-const PAD_BOTTOM = 853;
-/** 左右摆动幅度（蜿蜒路径的幅度） */
-const SWING = 356;
+const PAD_TOP = 755;
+const PAD_BOTTOM = 472;
 
 /** 拖动速度上限（px/帧），防止一甩甩到底 */
 const MAX_FLING = 95;
@@ -109,22 +112,43 @@ const MAX_ROLL = 13;
 /** 越界拖动的橡皮筋阻尼（0.32 = 只走三分之一行程） */
 const RUBBER = 0.32;
 
-/** 三张地图（糖果传奇式「世界」）。名字是占位文案，等主美给正式主题名 */
+/**
+ * 五张地图（糖果传奇式「世界」），每世界 12 关、共 60 关。
+ * `art` = 该世界的底图文件名（web/art/map-v2/{art}.png，1080×3840 两屏一张）。
+ */
 const WORLDS = [
-  { name: '奶油果园', from: 1, to: 20 },
-  { name: '蜂蜜森林', from: 21, to: 40 },
-  { name: '星糖夜空', from: 41, to: 60 },
+  { name: '小镇', from: 1, to: 12, art: 'xiaozhen' },
+  { name: '果园', from: 13, to: 24, art: 'guoyuan' },
+  { name: '雪地', from: 25, to: 36, art: 'xuedi' },
+  { name: '沙滩', from: 37, to: 48, art: 'shatan' },
+  { name: '花园', from: 49, to: 60, art: 'huayuan' },
 ] as const;
 
 /** 关卡号 → 地图下标（越界兜底到首/末张，避免素材缺关时崩掉） */
 function worldIndexOf(level: number): number {
-  const idx = Math.floor((Math.max(1, level) - 1) / 20);
+  const idx = Math.floor((Math.max(1, level) - 1) / 12);
   return Math.max(0, Math.min(WORLDS.length - 1, idx));
 }
 
-/** 节点横坐标：正弦摆动，每张地图错开相位，三张地图才不会看起来是同一张 */
+/**
+ * 每张底图的小路中线：归一化 x（0 = 图最左，1 = 最右），
+ * **从上到下 12 个点，与该世界的 12 个关卡一一对应**（第 1 个点 = 第 12 关，
+ * 最下面那个点 = 第 1 关）。节点就压在这些点上 —— 「读图放路中间」。
+ * 数值按底图人工标定；换底图时改这张表即可，不用动布局公式。
+ */
+const ROAD_X: Record<string, readonly number[]> = {
+  xiaozhen: [0.48, 0.45, 0.42, 0.45, 0.5, 0.55, 0.52, 0.48, 0.52, 0.58, 0.56, 0.53],
+  guoyuan: [0.5, 0.46, 0.42, 0.46, 0.52, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.46],
+  xuedi: [0.5, 0.47, 0.45, 0.5, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.47, 0.5],
+  shatan: [0.52, 0.48, 0.44, 0.42, 0.48, 0.55, 0.58, 0.52, 0.46, 0.48, 0.53, 0.55],
+  huayuan: [0.5, 0.47, 0.5, 0.54, 0.5, 0.46, 0.5, 0.55, 0.5, 0.47, 0.52, 0.5],
+};
+
+/** 节点横坐标：查该世界底图的小路中线表（local 0 = 第 1 关 = 表里最下面的点） */
 function nodeX(local: number, world: number): number {
-  return STAGE_W / 2 + Math.sin((local + 1) * 0.85 + world * 1.9) * SWING;
+  const road = ROAD_X[WORLDS[world]!.art] ?? ROAD_X.xiaozhen!;
+  const frac = road[road.length - 1 - local] ?? 0.5;
+  return frac * STAGE_W;
 }
 
 /** 节点纵坐标：`local` 0 是第 1 关 —— y 越大越靠下，所以第 1 关在最底部，往上推进 */
@@ -154,19 +178,19 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /* ------------------------------------------------------------------ 美术底图 */
 
-/** 美术底图目录（九张 1080×1920，三段拼成 1080×5760 的整条地图） */
-const MAP_ART_DIR = '/art/map';
-/** 单段底图高度：顶 2731 + 中 2731 + 底 2730，拼起来正好 = track 的 8192 */
+/**
+ * 美术底图：每个世界一整张 1080 × 3840 = 两屏 9:16（xiaozhen/guoyuan/xuedi/shatan/huayuan），
+ * 等比铺到轨道上（轨道 1536 宽 → 高 5462）正好是两页。
+ */
+const MAP_ART_DIR = '/web/art/map-v2';
+/** 单页底图高度：两段 2731 + 2731，拼起来正好 = track 的 5462 */
 const SEG_H = 2731;
-/** segment offsets: cumulative top of top / mid / bottom (2731 + 2731 + 2730 = 8192) */
-const SEG_TOPS = [0, 2731, 5462];
-const SEG_HEIGHTS = [2731, 2731, 2730];
-/** 底图分段名，按 track 从上到下：段3顶部 → 段2中部 → 段1底部（见 map-slices/底图规格与坐标.md） */
-const SEG_NAMES = ['top', 'mid', 'bottom'] as const;
-/** 一页 = 一段底图 = 一屏：整屏翻页的最小单位（也是吸附的步长） */
+/** 一页 = 一屏：整屏翻页的最小单位（也是吸附的步长） */
 const PAGE_H = SEG_H;
-/** 一条轨道的页数 = 段数 = 3 */
-const PAGE_COUNT = SEG_NAMES.length;
+/** 一条轨道的页数 = 2（底图就是两屏） */
+const PAGE_COUNT = 2;
+/** 页名（仅用于翻页圆点的 title） */
+const SEG_NAMES = ['top', 'bottom'] as const;
 
 /* ------------------------------------------------- 石台透视（与美术约定，改这里就够） */
 
@@ -240,48 +264,47 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
   const root = el('section', cls.join(' '));
   root.id = 'screen-home';
 
-  /* ---- 顶栏：左 = 头像 + 昵称，右 = 体力 ❤ N/M ---- */
+  /* ---- 顶栏：左 = 返回圆钮（装饰）+ 木牌（头像 + 昵称），右 = 体力胶囊 ❤ N ＋ ---- */
   const top = el('div', 'home-top');
+
+  // 正式版（设计稿《首页》）：左上是一组「返回圆钮 + 木牌」，木牌里放头像与昵称
+  const homeLeft = el('div', 'home-left');
+  const backBtn = el('span', 'home-back');
+  backBtn.setAttribute('aria-hidden', 'true');
+  homeLeft.appendChild(backBtn);
 
   const userBox = el('div', 'home-user');
   const avatarEl = el('span', 'home-avatar', HOME.avatar);
   const nickEl = el('span', 'home-nick', HOME.nickname);
   userBox.appendChild(avatarEl);
   userBox.appendChild(nickEl);
-  top.appendChild(userBox);
+  homeLeft.appendChild(userBox);
+  top.appendChild(homeLeft);
 
   // 体力整块是一个按钮：点它 = 加体力（原来的「＋」并进来了，顶栏只留一个元素）
   const staminaBox = el('button', 'home-stamina');
   staminaBox.type = 'button';
   staminaBox.title = HOME.addStaminaTip;
+  // 正式版：红心是切图，数字单独一个大号白字
+  staminaBox.appendChild(el('span', 'home-heart'));
   const heartsText = el('span', 'hearts-text');
   staminaBox.appendChild(heartsText);
   const recoverEl = el('span', 'home-recover');
   staminaBox.appendChild(recoverEl);
+  // 设计图里的绿色「＋」：加体力入口（点整块体力胶囊都触发加体力）
+  staminaBox.appendChild(el('span', 'home-plus'));
   staminaBox.addEventListener('click', () => handlers.onAddStamina());
   top.appendChild(staminaBox);
   root.appendChild(top);
 
-  /* ---- 世界名 · 本世界进度（两侧小箭头切三张地图） ---- */
-  const titleRow = el('div', 'map-title-row');
-  // `flipTo` 是函数声明，定义在本函数后面也能用；越界它在内部自己挡掉
-  titleRow.appendChild(buttonEl('‹', 'map-world-nav', () => flipTo(world - 1)));
-  const titleText = el('span', 'map-title');
-  titleRow.appendChild(titleText);
-  titleRow.appendChild(buttonEl('›', 'map-world-nav', () => flipTo(world + 1)));
-  root.appendChild(titleRow);
-
-  /* ---- 难度切换：普通 / 困难（两套进度各自独立，必须能当场切） ---- */
-  const modes = el('div', 'map-modes');
-  const modeBtns = ([
-    { key: 'normal', label: MODE_LABEL.normal },
-    { key: 'nightmare', label: MODE_LABEL.nightmare },
-  ] as const).map((m) => {
-    const btn = buttonEl(m.label, 'map-mode-btn', () => handlers.onMode(m.key));
-    modes.appendChild(btn);
-    return { key: m.key as MapMode, btn };
-  });
-  root.appendChild(modes);
+  /* ---- 世界切换：左右两侧各一颗大箭头（不挂标题行，设计上要显眼） ---- */
+  // `flipTo` 内部会做越界钳制；这里额外在两端禁用按钮，避免点出边界
+  const navPrev = buttonEl('‹', 'map-world-nav nav-left', () => flipTo(world - 1));
+  const navNext = buttonEl('›', 'map-world-nav nav-right', () => flipTo(world + 1));
+  navPrev.title = '上一张地图';
+  navNext.title = '下一张地图';
+  root.appendChild(navPrev);
+  root.appendChild(navNext);
 
   /* ---- 卷轴 ---- */
   const scroll = el('div', 'map-scroll');
@@ -557,34 +580,24 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
   function selectNode(node: MapNode): void {
     if (flipping) return;
     if (node.status === 'locked') {
-      toast(MAP.locked(Math.max(1, node.level - 1)), 1800);
+      toast(node.lockNote ?? MAP.locked(Math.max(1, node.level - 1)), 1800);
       return;
     }
     handlers.onPick(node.level);
   }
 
   /**
-   * 顶栏与标题行（世界名 · 进度 / 难度高亮 / 主题色）。
-   * 这一行就是美术结构里的第 2 行：`奶油果园 · 1/20`。
+   * 顶栏与主题色（原「世界名 · 进度」标题行与难度按钮已按设计去掉，这里只留主题色与箭头置灰）。
    */
   function paintChrome(): void {
-    const item = WORLDS[world]!;
-    const list = worldNodes(world);
-    const idx = list.findIndex((n) => n.level === (view?.currentLevel ?? 1));
-    // 当前关不在这张地图上（玩家手动翻到了别的世界）→ 显示这张地图自己的进度
-    const local = clamp(
-      idx >= 0 ? idx + 1 : list.filter((n) => n.status === 'cleared').length + 1,
-      1,
-      Math.max(1, list.length),
-    );
-    titleText.textContent = HOME.worldProgress(item.name, local, Math.max(1, list.length));
-
-    for (const m of modeBtns) m.btn.classList.toggle('on', m.key === (view?.mode ?? 'normal'));
     nickEl.textContent = view?.profile.nickname ?? HOME.nickname;
     avatarEl.textContent = view?.profile.avatar ?? HOME.avatar;
-    // 世界主题色：三张地图各一套天空渐变（见 ui.css 的 .map.world-N）
-    root.classList.remove('world-0', 'world-1', 'world-2');
+    // 世界主题色：五张地图各一套天空渐变（见 ui.css 的 .map.world-N）
+    root.classList.remove('world-0', 'world-1', 'world-2', 'world-3', 'world-4');
     root.classList.add(`world-${world}`);
+    // 世界切页箭头到头置灰
+    navPrev.disabled = world <= 0;
+    navNext.disabled = world >= WORLDS.length - 1;
   }
 
   function buildWorld(w: number): void {
@@ -594,17 +607,15 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
     track.replaceChildren();
     nodeEls.length = 0;
 
-    /* 美术底图：三段从上到下铺满整条轨道（顶段 y=0 / 中段 1920 / 底段 3840）。
-       节点坐标与底图共用同一套坐标系（见 map-slices/底图规格与坐标.md），所以关卡牌
-       正好落在底图画好的糖果石台上。缺图时这层是透明的，自动退回 CSS 天空渐变。 */
+    /* 美术底图：该世界一整张（1080×3840 = 两屏），从头铺到尾盖满整条轨道。
+       节点坐标与底图共用同一套坐标系（横坐标查 ROAD_X 路中线表），缺图时
+       这层是透明的，自动退回 CSS 天空渐变。 */
     const bg = el('div', 'map-bg');
-    SEG_NAMES.forEach((seg, i) => {
-      const layer = el('div', 'map-bg-seg');
-      layer.style.top = `${SEG_TOPS[i]}px`;
-      layer.style.height = `${SEG_HEIGHTS[i]}px`;
-      layer.style.backgroundImage = `url("${MAP_ART_DIR}/map-w${w + 1}-${seg}.png")`;
-      bg.appendChild(layer);
-    });
+    const layer = el('div', 'map-bg-seg');
+    layer.style.top = '0px';
+    layer.style.height = `${h}px`;
+    layer.style.backgroundImage = `url("${MAP_ART_DIR}/${WORLDS[w]!.art}.png")`;
+    bg.appendChild(layer);
     track.appendChild(bg);
 
     const pos = list.map((_, i) => ({ x: nodeX(i, w), y: nodeY(i, list.length) }));
@@ -632,8 +643,10 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
     const currentLevel = view?.currentLevel ?? 1;
     list.forEach((node, i) => {
+      // 果冻珠切图三态：蓝白 todo = 待完成/锁定；粉 star1 = 1~2 星；金 star3（冠+星在图里）= 3 星
       const cls = ['node', node.status];
       if (node.level === currentLevel) cls.push('current');
+      if (node.status === 'cleared') cls.push(node.stars >= 3 ? 'n-s3' : 'n-s1');
       const nodeEl = el('div', cls.join(' '));
       nodeEl.style.left = `${pos[i]!.x}px`;
       nodeEl.style.top = `${pos[i]!.y}px`;
@@ -644,15 +657,13 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
       nodeEl.style.setProperty('--ph', `${shape.h.toFixed(1)}px`);
       nodeEl.style.setProperty('--prot', `${shape.rot.toFixed(2)}deg`);
 
-      nodeEl.appendChild(el('span', 'node-num', String(node.level)));
-      // 已通关：星级 + 历史最高分（可以直接再挑战，所以分数要看得见）；
-      // 没打过：显示网格尺寸，让玩家知道这一关多大
-      if (node.status === 'cleared') {
-        nodeEl.appendChild(el('span', 'node-stars', starText(node.stars)));
-        if (node.best > 0) nodeEl.appendChild(el('span', 'node-best', `最高 ${node.best}`));
-      } else {
-        nodeEl.appendChild(el('span', 'node-meta', node.grid));
-      }
+      // ① 原图切图层（提纯提亮的 filter 只加在这层，不波及数字/锁/宠物）
+      // ② 果冻质感层（白色高光 + 中性暗角 + 珠外光环），样式在 ui.css .map .node-gel。
+      // 两层都必须插在数字/锁/宠物之前：它们是后来者，DOM 顺序保证叠在上层。
+      nodeEl.appendChild(el('span', 'node-art'));
+      nodeEl.appendChild(el('span', 'node-gel'));
+      // 珠面上只放关卡数字（星星/皇冠都画在切图里）；锁珠不显示数字（🔒 挂珠心，别让数字从锁后露边）
+      if (node.status !== 'locked') nodeEl.appendChild(el('span', 'node-num', String(node.level)));
       if (node.status === 'locked') nodeEl.appendChild(el('span', 'node-lock', '🔒'));
       // 当前该打的那一关：宠物站在牌上（美术主界面结构里路径上的那只狗）
       if (node.level === currentLevel) nodeEl.appendChild(el('span', 'node-pet', '🐶'));
@@ -717,15 +728,17 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
   /** 切地图：整张地图绕 X 轴翻滚出场，再从另一侧翻滚进场 */
   function flipTo(next: number): void {
-    if (next === world || flipping || !view) return;
+    const last = WORLDS.length - 1;
+    const target = clamp(next, 0, last);
+    if (target === world || flipping || !view) return;
     flipping = true;
-    const up = next > world;
+    const up = target > world;
     const out = up ? 'flip-out-up' : 'flip-out-down';
     const into = up ? 'flip-in-up' : 'flip-in-down';
 
     const onOut = (): void => {
       track.removeEventListener('animationend', onOut);
-      world = next;
+      world = target;
       buildWorld(world);
       paintChrome();
       // 先量高度再定位：新地图的高度和上一张不一定一样
@@ -747,7 +760,7 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
   /** 体力只刷这两处：整屏重绘会打断滚动 */
   function tickStamina(available: number, countdown: string | null): void {
     // 顶栏只有一行位置，画满 10 颗心太挤 —— 用紧凑的「❤️ 8/10」（与玩法屏 HUD 同口径）
-    heartsText.textContent = `❤️ ${available}/${staminaMax}`;
+    heartsText.textContent = String(available);
     heartsText.title = `体力 ${available}/${staminaMax}`;
     recoverEl.textContent = countdown ? HOME.staminaCountdown(countdown) : '';
     recoverEl.hidden = countdown === null;

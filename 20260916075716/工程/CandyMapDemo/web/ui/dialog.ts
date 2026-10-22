@@ -21,7 +21,7 @@ export interface DialogButton {
   onClick?: () => void;
 }
 
-/** 荣誉档位（与 `assets/scripts/core/honor.ts` 的 `HonorTier` 对齐，这里只用来上样式） */
+/** 荣誉档位（与 `assets/scripts/核心/honor.ts` 的 `HonorTier` 对齐，这里只用来上样式） */
 export type DialogTier = 'god' | 'king' | 'pass';
 
 /**
@@ -59,6 +59,8 @@ export interface DialogOptions {
 }
 
 let dialogEl: HTMLDivElement | null = null;
+/** 当前弹窗的关闭回调（续命/广告用它把「关掉」映射成「跳过」）；普通/荣誉弹窗多为空 */
+let currentOnClose: (() => void) | null = null;
 
 function root(): HTMLDivElement {
   if (!dialogEl) dialogEl = document.getElementById('dialog') as HTMLDivElement;
@@ -124,6 +126,16 @@ export function openDialog(options: DialogOptions): void {
   const card = el('div', 'dialog-card');
   if (options.hero) card.classList.add('dialog-honor', `honor-${options.hero.tier}`);
 
+  // 右上角 ❌ 关闭键：点它 = 关掉当前弹窗。续命/广告弹窗的 onClose 会把「关闭」映射成「跳过」，
+  // 确认弹窗则在 confirmDialog 里把「关闭」映射成「取消」；普通/荣誉弹窗无 onClose 时仅关闭。
+  currentOnClose = options.onClose ?? null;
+  const closeBtn = buttonEl('✕', 'dialog-close', () => {
+    currentOnClose?.();
+    closeDialog();
+  });
+  closeBtn.title = '关闭';
+  card.appendChild(closeBtn);
+
   // 顺序按《通关及排名》§五：图标 → 标题 → 副文案 → 本关得分 → 辅助文案 → 按钮区
   if (options.hero) card.appendChild(heroEl(options.hero));
   if (options.title) card.appendChild(el('h2', undefined, options.title));
@@ -180,6 +192,8 @@ export function confirmDialog(options: {
   openDialog({
     title: options.title,
     lines: options.lines,
+    // 点 ❌ 关闭 = 取消（等同选「否」），避免把「放弃确认」变成没反应
+    onClose: () => options.onAnswer(false),
     rows: [
       [
         { label: options.noLabel, onClick: () => options.onAnswer(false) },

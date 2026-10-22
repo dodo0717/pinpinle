@@ -64,24 +64,86 @@
     touch-action: none;
   }
 
-  /* ---------- L03 HUD ---------- */
-  #hud {
-    padding: 72px 56px 24px;
-    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  /* ---------- L03 玩法屏卡片 + HUD ---------- */
+  .game-card {
+    margin: 8px;
+    align-self: center;
+    flex: 1; min-height: 0; width: calc(100% - 16px);
+    display: flex; flex-direction: column;
+    border-radius: 52px;
+    border: 10px solid #D9A227;
+    background: #0058B0;
+    box-shadow: 0 18px 50px rgba(0,0,0,.35), inset 0 0 0 2px rgba(255,255,255,.08);
+    /* 内边距取消：让碎片/棋盘直接顶到金边内沿，只剩 boardPadX 的手势安全留白。 */
+    padding: 0;
   }
-  .hud-item {
-    background: var(--card);
-    border-radius: 100px;
-    padding: 18px 34px;
-    font-size: 40px; font-weight: 700;
-    box-shadow: 0 6px 18px rgba(74, 59, 42, .08);
-    display: flex; align-items: center; gap: 12px;
-    font-variant-numeric: tabular-nums;
+  /* ---------- L03 顶部赛场计分条（占屏 ≈12.5%） ---------- */
+  .game-topbar {
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr;
+    align-items: center; gap: 18px;
+    height: 240px;                      /* ≈12.5% 屏高：赛场计分条 */
+    margin: 0 0 10px;
+    padding: 0 16px;
+    background: linear-gradient(180deg, #5cb0ef 0%, #3d8fd8 100%); /* 天空蓝：区别于卡片 #0058B0 底色蓝，做出深浅差 */
+    border: 2px solid rgba(255,210,74,.7);                          /* 金边，赛场计分质感 */
+    border-radius: 26px;
+    box-shadow: inset 0 2px 10px rgba(255,255,255,.4), 0 6px 18px rgba(0,60,120,.35);
   }
-  #hud-timer { color: var(--honey); }
-  #hud-timer.warn { color: #e0653f; }
-  #hud-timer.danger { color: #d43b2c; animation: pulse .8s infinite; }
-  #hud-hearts { letter-spacing: 2px; }
+  .hud-exit {
+    width: 84px; height: 84px; flex: none;
+    font: inherit; font-size: 44px; font-weight: 800; color: #FFE9B0;
+    background: #6B4A2F; border: 0; border-radius: 18px;
+    cursor: pointer; display: grid; place-items: center;
+    box-shadow: 0 4px 0 #4A3321, inset 0 0 0 2px rgba(255,255,255,.08);
+  }
+  .hud-exit:active { transform: translateY(2px); box-shadow: 0 2px 0 #4A3321, inset 0 0 0 2px rgba(255,255,255,.08); }
+  /* 目标线：旗帜图标 + 数字（少用文字） */
+  .hud-goal { justify-self: center; display: flex; align-items: center; gap: 12px; color: #FFF8E7; }
+  .hud-goal .goal-flag { width: 60px; height: 72px; display: block; filter: drop-shadow(0 3px 3px rgba(0,40,90,.4)); }
+  .hud-goal .goal-num {
+    font: 800 66px/1 'Bahnschrift','DIN Alternate',system-ui,sans-serif;
+    color: #FFD24A; font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 0 #000, 0 0 16px rgba(255,210,74,.35);
+  }
+  /* 得分：翻牌式两位数计分面板（赛场计分质感，非圆形徽章） */
+  .hud-score {
+    justify-self: center; display: flex; gap: 12px; align-items: center;
+    padding: 14px 22px;
+    background: linear-gradient(180deg, #0c2e57 0%, #07203f 100%); /* 深蓝凹陷面板（非黑），金数字在其上发亮 */
+    border: 3px solid rgba(255,255,255,.25); border-radius: 16px;
+    box-shadow: inset 0 4px 14px rgba(0,0,0,.45), 0 0 0 2px rgba(255,210,74,.18);
+  }
+  .flap {
+    position: relative; width: 92px; height: 128px;
+    background: linear-gradient(180deg, #163a64 0%, #163a64 49%, #0a2444 51%, #0a2444 100%); /* 深蓝翻牌，非黑 */
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.4), 0 3px 0 rgba(0,0,0,.4);
+    display: grid; place-items: center;
+    perspective: 700px;
+  }
+  .flap::after {                        /* 中缝：翻牌质感 */
+    content: ''; position: absolute; left: 0; right: 0; top: 50%;
+    height: 3px; margin-top: -1.5px; background: rgba(0,0,0,.55);
+  }
+  .flap .face {
+    font: 800 90px/1 'Bahnschrift','DIN Alternate',system-ui,sans-serif;
+    color: #FFD24A; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 12px rgba(255,210,74,.45);
+    transform-origin: center; backface-visibility: hidden;
+    transition: transform .26s ease-in;
+  }
+  .flap.flip .face { transform: rotateX(-90deg); }
+  /* 倒计时：时钟图标 + 数字 */
+  .hud-timer { justify-self: end; display: flex; align-items: center; gap: 12px; color: #FFF8E7; }
+  .hud-timer .timer-clock { font-size: 54px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+  .hud-timer .timer-num {
+    font: 800 60px/1 'Bahnschrift','DIN Alternate',system-ui,sans-serif;
+    color: #FFE9B0; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #000;
+  }
+  #hud-timer.warn .timer-num { color: #ffcc66; }
+  #hud-timer.danger .timer-num { color: #ff8080; }
+  #hud-timer.danger { animation: pulse .8s infinite; }
   @keyframes pulse { 50% { opacity: .45; } }
 
   /* ---------- L08 棋盘 ---------- */
@@ -90,20 +152,17 @@
      顶进系统侧滑返回区。默认值 56px 只是 JS 未接手时的兜底。 */
   #board-wrap {
     flex: 1; display: grid; place-items: center;
-    padding: 12px var(--pad-x, 56px);
+    padding: 0 var(--pad-x, 56px);
     min-height: 0;
   }
-  /* 底框：干净的暖奶油低对比卡片，底色贴近碎片白边，
-     缝隙只靠极浅描边区分，避免米黄底色抢戏。 */
+  /* 主玩法棋盘：背景透出卡片蓝底，边界只用极低对比的浅蓝白边，与底色融合；
+     padding 0 ↔ main.ts 的 BOARD_PAD=0：用户要求碎片贴金边、不要内部留白。 */
   #board {
     display: grid;
-    background: var(--card);
-    border: 1px solid rgba(224, 169, 74, .20);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, .12);
     border-radius: 44px;
-    /* 12px（原 18px）：这也是 §1.6.9 那条「边缘 → 最外一列」距离的一部分，
-       改这个值必须同步 main.ts 的 BOARD_PAD，boardPadX() 按它反解左右留白。 */
-    padding: 12px;
-    box-shadow: 0 16px 40px rgba(74, 59, 42, .10);
+    padding: 0;
     touch-action: none;
     /* 拖动整片时不能顺带选中文字（§1.6）。
        否则：这次拖出选区 → 下次在选区内按下并移动，浏览器会启动**原生拖放**，
@@ -113,6 +172,9 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
+
+  /* 开发工具条：原型保留，按需求不在玩法屏展示 */
+  #devbar { display: none !important; }
 
   .cell { position: relative; }
 
@@ -315,7 +377,7 @@
   /* 素材探测期间整体置灰：让「数据还没就绪」在界面上一眼可见 */
   #devbar button:disabled { opacity: .45; cursor: default; }
   #devbar button:disabled:active { transform: none; background: var(--card); }
-  /* 困难模式高亮：一眼看出当前不是普通规则 */
+  /* 困难模式高亮：一眼看出当前不是简单规则 */
   #devbar button.on {
     background: var(--honey-soft);
     border-color: rgba(224,169,74,.95);
@@ -334,6 +396,7 @@
   }
   #dialog[hidden] { display: none; }
   .dialog-card {
+    position: relative;
     width: 720px; background: var(--card); border-radius: 48px;
     padding: 56px 48px; text-align: center;
     box-shadow: 0 30px 80px rgba(0,0,0,.28);
@@ -369,28 +432,51 @@
   #errbar[hidden] { display: none; }
 </style>
 <!-- 页签图标先拿已有素材占位（否则浏览器默认请求 /favicon.ico → 404） -->
-<link rel="icon" type="image/png" href="/art/stickers/sticker_0.png" />
+<link rel="icon" type="image/png" href="/assets/resources/stickers/sticker_0.png" />
 <link rel="stylesheet" href="/web/ui.css" />
 </head>
 <body>
 <div id="errbar" hidden></div>
 <div id="viewport">
   <div id="stage">
-    <!-- 玩法屏：HUD / 棋盘 / 开发工具条。其余界面（主界面、图鉴、排行榜、设置）由 JS 构建 -->
+    <!-- 加载页：JS 还没跑起来时就要有画面，所以是静态 DOM（main.ts 控制进度与移除）。
+         背景 = 《UI及角色/加载页》整页图；进度条 = bar-bg 槽 + bar-fill 填充，见 ui.css .loading-* -->
+    <div id="loading">
+      <div class="loading-bar">
+        <div class="loading-clip"><div class="loading-fill"></div></div>
+        <div class="loading-num">0%</div>
+      </div>
+    </div>
+    <!-- 玩法屏：新 UI 底框（卡片 + 顶部 HUD）/ 主玩法棋盘。其余界面由 JS 构建 -->
     <section id="screen-game" class="screen">
-      <header id="hud">
-        <button id="hud-exit" class="hud-exit" type="button">← 主界面</button>
-        <div class="hud-item" id="hud-hearts">❤️ 10/10</div>
-        <div class="hud-item" id="hud-timer">03:00</div>
-        <div class="hud-item" id="hud-score">🧩 <span id="hud-score-num">0</span></div>
-      </header>
-      <div id="board-wrap"><div id="board"></div></div>
+      <div class="game-card">
+        <div class="game-topbar">
+          <button id="hud-exit" class="hud-exit" type="button" aria-label="返回主界面">←</button>
+          <div class="hud-goal" id="hud-goal">
+            <svg class="goal-flag" viewBox="0 0 60 72" aria-hidden="true">
+              <rect x="10" y="8" width="6" height="58" rx="3" fill="#f1f4f9"/>
+              <circle cx="13" cy="8" r="7" fill="#FFD24A" stroke="#caa12f" stroke-width="1.5"/>
+              <path d="M16 14 L50 30 L16 46 Z" fill="#ff5b4a" stroke="#d83b2c" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M16 14 L34 23 L16 32 Z" fill="rgba(255,255,255,.28)"/>
+            </svg><span class="goal-num" id="hud-goal-num">0</span>
+          </div>
+          <div class="hud-score" id="hud-score">
+            <div class="flap" id="score-tens"><span class="face">0</span></div>
+            <div class="flap" id="score-units"><span class="face">0</span></div>
+          </div>
+          <div class="hud-timer" id="hud-timer">
+            <span class="timer-clock">🕒</span><span class="timer-num" id="hud-timer-num">03:00</span>
+          </div>
+        </div>
+        <div id="board-wrap"><div id="board"></div></div>
+      </div>
 
-      <footer id="devbar">
+      <!-- 开发工具条：原型期保留，按需求不在玩法屏展示（隐藏，保留调试/验证接线不删） -->
+      <footer id="devbar" hidden>
         <button data-act="prev">◀ 上一关</button>
         <button data-act="level">第 1 关 · 3×4</button>
         <button data-act="next">下一关 ▶</button>
-        <button data-act="mode">普通模式</button>
+        <button data-act="mode">简单模式</button>
         <button data-act="auto">自动消一组</button>
         <button data-act="restart">重开</button>
         <button data-act="stamina">体力 +1</button>

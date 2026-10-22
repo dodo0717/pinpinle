@@ -19,7 +19,7 @@
  * 写进 localStorage，方便在 DevTools 里验收聚合结果长什么样。
  */
 
-import type { HonorTier } from '../../assets/scripts/core/index.ts';
+import type { HonorTier } from '../../assets/scripts/核心/index.ts';
 
 /** 玩家在荣誉弹窗里点了哪个按钮 */
 export type HonorAction = 'leaderboard' | 'next' | 'retry' | 'home' | 'close';

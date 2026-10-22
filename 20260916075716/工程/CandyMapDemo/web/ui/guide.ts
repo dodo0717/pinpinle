@@ -44,7 +44,10 @@ export function createGuide(): Guide {
   root.hidden = true;
   const text = el('div', 'guide-text');
   const btn = buttonEl('知道了', 'guide-btn', () => hide());
+  const closeBtn = buttonEl('✕', 'guide-close', () => hide());
+  closeBtn.title = '关闭';
   root.appendChild(text);
+  root.appendChild(closeBtn);
   root.appendChild(btn);
 
   const shown = new Set<GuideStep>();

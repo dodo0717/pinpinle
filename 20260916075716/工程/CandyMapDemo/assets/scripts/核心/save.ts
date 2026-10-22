@@ -392,7 +392,7 @@ export function parseSave(raw: unknown, fallback: SaveData, limits: SaveLimits, 
 
   const mode = obj.mode === 'nightmare' ? 'nightmare' : obj.mode === 'normal' ? 'normal' : null;
   if (mode === null) {
-    issues.push(`模式非法（${String(obj.mode)}），已按普通模式处理`);
+    issues.push(`模式非法（${String(obj.mode)}），已按简单模式处理`);
   }
 
   const rawProgress = isObj(obj.progress) ? obj.progress : {};

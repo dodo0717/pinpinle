@@ -259,7 +259,7 @@ export const LEVEL_REWARD_CONFIG: Record<number, number> = Object.fromEntries(
 
 /**
  * 移动规则（§6.1 / §1.6）—— 限制的是**整片平移的位移向量**。
- *   'any'      —— 任意距离都能挪（**普通模式**，放开相邻限制后的默认规则）
+ *   'any'      —— 任意距离都能挪（**简单模式**，放开相邻限制后的默认规则）
  *   'adjacent' —— 只能挪 1 格（上下左右）（**噩梦模式**，最早的原始规则）
  *
  * 两条规则都保留，由「模式」选择用哪一条，而不是删掉其中一条。
@@ -279,9 +279,14 @@ export const SWAP_RULE_BY_MODE: Record<GameMode, SwapRule> = {
   nightmare: 'adjacent',
 };
 
-/** 模式展示名（UI 与文档统一口径） */
+/**
+ * 模式展示名（UI 与文档统一口径）。
+ *
+ * ⚠️ 2026-10 命名统一：**「普通」一律改叫「简单」**，全项目不再出现「普通」二字。
+ * 内部 key 仍是 `normal`（存档字段名，改动会毁档），只是展示名改了。
+ */
 export const MODE_LABEL: Record<GameMode, string> = {
-  normal: '普通',
+  normal: '简单',
   nightmare: '困难',
 };
 

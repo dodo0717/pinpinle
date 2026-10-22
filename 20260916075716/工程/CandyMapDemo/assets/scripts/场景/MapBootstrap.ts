@@ -343,8 +343,8 @@ export class MapBootstrap extends Component {
         this.refreshTopbar();
     }
 
-    // ========== 难度切换（互斥两态：普通/困难） ==========
-    /** 用户要求"底图互换"：选中项显示黄底，未选中项显示灰底，文字固定为普通/困难 */
+    // ========== 难度切换（互斥两态：简单/困难） ==========
+    /** 用户要求"底图互换"：选中项显示黄底，未选中项显示灰底，文字固定为简单/困难 */
     private buildModePanel() {
         const D = UI_POS.difficulty;
         const panel = new Node('ModeSwitch');
@@ -357,7 +357,7 @@ export class MapBootstrap extends Component {
         const bh = D.diffBtnH;
         const gap = 80;
 
-        // 普通按钮
+        // 简单按钮
         const normal = new Node('Normal');
         normal.parent = panel;
         normal.layer = Layers.Enum.UI_2D;
@@ -365,7 +365,7 @@ export class MapBootstrap extends Component {
         normal.setPosition(-bw / 2 - gap / 2, 0);
         this.diffNormalYellow = this.makeSprite(normal, 'Yellow', 'ui/难度/home_difficulty_yellow', bw, bh, 0, 0);
         this.diffNormalGray = this.makeSprite(normal, 'Gray', 'ui/难度/home_difficulty_gray', bw, bh, 0, 0);
-        this.makeLabel(normal, 'Label', '普通', 0, 0, 44, TEXT_BROWN, 200, 70);
+        this.makeLabel(normal, 'Label', '简单', 0, 0, 44, TEXT_BROWN, 200, 70);
 
         // 困难按钮
         const hard = new Node('Hard');

@@ -6,7 +6,7 @@
  */
 
 /** 碎片图目录（与 main.ts 保持一致，只此一处定义） */
-export const STICKER_DIR = '/art/stickers';
+export const STICKER_DIR = '/assets/resources/stickers';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,

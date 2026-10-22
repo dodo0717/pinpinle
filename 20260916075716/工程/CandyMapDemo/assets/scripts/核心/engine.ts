@@ -203,7 +203,7 @@ export class PuzzleEngine {
    * 被压到的碎片与整片让出的格子对位互换 —— 完整规则见 `move.ts` 顶部注释。
    *
    * 位移规则由 `config.swapRule` 决定：
-   *   `'any'`      —— 任意距离都能挪（普通模式）
+   *   `'any'`      —— 任意距离都能挪（简单模式）
    *   `'adjacent'` —— 整片每次只能挪 1 格（噩梦模式）
    * 不合规则 / 越界 / 空位时不改动棋盘，返回 `accepted = false` + `rejectReason`。
    *

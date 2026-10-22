@@ -8,10 +8,11 @@
 import { STAMINA_MAX } from '../核心/index';
 import { AD_STAMINA_DAILY_MAX } from './meta';
 
-export const MODE_LABEL = { normal: '普通', nightmare: '困难' } as const;
+/** 2026-10 命名统一：「普通」一律改叫「简单」，全项目不再出现「普通」二字 */
+export const MODE_LABEL = { normal: '简单', nightmare: '困难' } as const;
 
 export const HOME = {
-  modeNormal: '普通模式',
+  modeNormal: '简单模式',
   modeNightmare: '困难模式',
   staminaFull: '体力已满',
   staminaShort: '体力不够啦',

@@ -200,7 +200,7 @@ describe('60 关设计表落地（网格 / 图池构成 / 只数 / 备注）', (
 });
 
 describe('玩法模式（普通 / 噩梦）', () => {
-  it('普通模式用任意交换，噩梦模式用相邻交换，都重刷 60 关', () => {
+  it('简单模式用任意交换，困难模式用相邻交换，都重刷 60 关', () => {
     const normal = buildLevelConfigs('normal');
     const nightmare = buildLevelConfigs('nightmare');
     assert.strictEqual(normal.length, TOTAL_LEVELS);

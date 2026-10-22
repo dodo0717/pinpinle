@@ -29,6 +29,7 @@ import {
   LEVEL_REWARD_CONFIG,
   REWARD_LEVELS,
   STAMINA_MAX,
+  TOTAL_LEVELS,
   boardSnapshot,
   mockBoardNames,
   mockBoardScores,
@@ -46,6 +47,8 @@ import {
   staminaCountdown,
   tickMeta,
   unlockedImageIds,
+  rewardImageOfLevel,
+  COLLECTION_TOTAL,
 } from '../web/ui/meta.ts';
 import { challengeState } from '../web/ui/leaderboard.ts';
 import { tierOfLevel } from '../web/ui/text.ts';
@@ -167,12 +170,18 @@ function progressWithCleared(levels: number[]): ReturnType<typeof createProgress
   return progress;
 }
 
-test('图鉴解锁 = 已通关关卡，且只到 36 张', () => {
-  const progress = progressWithCleared([1, 2, 3]);
-  const ids = unlockedImageIds(progress);
-  assert.deepEqual(ids, [1, 2, 3].map((level) => LEVEL_REWARD_CONFIG[level]));
+test('图鉴解锁 = 每 10 颗星一张（按图号顺序解锁前 N 张）', () => {
+  // 0 星 → 0 张
+  assert.deepEqual(unlockedImageIds(createProgress('normal')), []);
+  // 3 关 × 3 星 = 9 星 —— 差 1 星，仍不解锁
+  assert.deepEqual(unlockedImageIds(progressWithCleared([1, 2, 3])), []);
+  // 4 关 = 12 星 → 1 张（图 0）
+  assert.deepEqual(unlockedImageIds(progressWithCleared([1, 2, 3, 4])), [0]);
+  // 7 关 = 21 星 → 2 张（图 0、1）
+  assert.deepEqual(unlockedImageIds(progressWithCleared([1, 2, 3, 4, 5, 6, 7])), [0, 1]);
 
   // 升序、无重复
+  const ids = unlockedImageIds(progressWithCleared([1, 2, 3, 4, 5, 6, 7]));
   assert.deepEqual([...ids].sort((a, b) => a - b), ids);
 });
 
@@ -180,9 +189,23 @@ test('没通关就没有解锁的图', () => {
   assert.deepEqual(unlockedImageIds(createProgress('normal')), []);
 });
 
+test('两套模式的星数合并计算（切模式不影响图鉴）', () => {
+  const normal = progressWithCleared([1, 2, 3, 4]); // 12 星
+  const nightmare = progressWithCleared([1, 2, 3]); // 9 星
+  assert.deepEqual(unlockedImageIds(normal, nightmare), [0, 1]); // 21 星 → 2 张
+  assert.deepEqual(unlockedImageIds(normal), [0]); // 只算一份时仍是 12 星
+});
+
+test('解锁张数上限 = 36 张（两模式 60 关满星 = 360 星）', () => {
+  const all = Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1);
+  const ids = unlockedImageIds(progressWithCleared(all), progressWithCleared(all));
+  assert.equal(ids.length, COLLECTION_TOTAL);
+  assert.equal(ids[ids.length - 1], COLLECTION_TOTAL - 1);
+});
+
 test('第 37 关之后不再有图鉴奖励（§10.2 只配到第 36 关）', () => {
   assert.equal(LEVEL_REWARD_CONFIG[REWARD_LEVELS + 3], undefined);
-  assert.equal(unlockedImageIds(progressWithCleared([37, 40])).length, 0);
+  assert.equal(rewardImageOfLevel(REWARD_LEVELS + 3), undefined);
 });
 
 /* ------------------------------------------------------------------ 百名榜模拟数据（《通关及排名》§2） */

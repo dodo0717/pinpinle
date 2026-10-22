@@ -28,12 +28,12 @@ export interface TabBar {
   setVisible: (visible: boolean) => void;
 }
 
-/** 顺序即布局顺序：首页在最左 */
-const TABS: { name: TabName; icon: string; label: string }[] = [
-  { name: 'home', icon: '🏠', label: TABBAR.home },
-  { name: 'leaderboard', icon: '🏆', label: TABBAR.leaderboard },
-  { name: 'collection', icon: '📚', label: TABBAR.collection },
-  { name: 'settings', icon: '⚙️', label: TABBAR.settings },
+/** 顺序即布局顺序：首页在最左。正式版图标用切图（与设计稿《首页》底栏一致） */
+const TABS: { name: TabName; icon: string; img: string; label: string }[] = [
+  { name: 'home', icon: '🏠', img: '/web/art/home/tab-home.png', label: TABBAR.home },
+  { name: 'leaderboard', icon: '🏆', img: '/web/art/home/tab-rank.png', label: TABBAR.leaderboard },
+  { name: 'collection', icon: '📚', img: '/web/art/home/tab-book.png', label: TABBAR.collection },
+  { name: 'settings', icon: '⚙️', img: '/web/art/home/tab-gear.png', label: TABBAR.settings },
 ];
 
 export function createTabBar(handlers: TabBarHandlers): TabBar {
@@ -44,7 +44,10 @@ export function createTabBar(handlers: TabBarHandlers): TabBar {
   for (const t of TABS) {
     const btn = el('button', 'tab');
     btn.type = 'button';
-    btn.appendChild(el('span', 'tab-icon', t.icon));
+    // 正式版：图标是切图（emoji 仅作无图时的兜底文案，CSS 会把字号收掉）
+    const icon = el('span', 'tab-icon', t.icon);
+    icon.style.backgroundImage = `url("${t.img}")`;
+    btn.appendChild(icon);
     btn.appendChild(el('span', 'tab-label', t.label));
     btn.addEventListener('click', () => {
       if (t.name === 'home') handlers.onHome();
