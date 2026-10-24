@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>萌宠拼拼乐 · 对局界面原型（三方案）</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #1E1826;
+  min-height: 100vh; padding: 48px 24px 60px;
+  display: flex; flex-direction: column; align-items: center; gap: 36px;
+  color: #EFE9F5;
+}
+header { text-align: center; max-width: 640px; }
+header h1 { font-size: 26px; font-weight: 900; letter-spacing: 1px; }
+header p { font-size: 13px; opacity: .65; margin-top: 10px; line-height: 1.8; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 300px)); gap: 22px; justify-content: center; }
+a.card {
+  text-decoration: none; color: inherit; border-radius: 22px; overflow: hidden;
+  display: flex; flex-direction: column;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  transition: transform .18s cubic-bezier(.3,1.4,.5,1), border-color .18s;
+}
+a.card:hover { transform: translateY(-6px); border-color: rgba(255,255,255,.35); }
+.swatch { height: 120px; position: relative; display: flex; align-items: flex-end; padding: 14px; }
+.swatch .name { font-size: 15px; font-weight: 900; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.swatch .chips { position: absolute; top: 12px; right: 12px; display: flex; gap: 5px; }
+.swatch .chips i { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); }
+.card .body { padding: 14px 16px 18px; }
+.card .body p { font-size: 12px; line-height: 1.8; opacity: .75; margin-top: 7px; }
+.card .flow { font-size: 11px; opacity: .5; margin-top: 10px; line-height: 1.7; }
+.card .open { margin-top: 13px; font-size: 13px; font-weight: 800; }
+.a .swatch { background: linear-gradient(135deg, #9B6DD6, #6C3FA8); }
+.b .swatch { background: linear-gradient(135deg, #EAF6FF, #BBDFF4); }
+.b .swatch .name { color: #22303F; text-shadow: none; }
+.c .swatch { background: #FBF4E4; box-shadow: inset 0 0 0 6px #fff, inset 0 0 0 8px #F4A9B8; }
+.c .swatch .name { color: #4A3B2A; text-shadow: none; }
+footer { font-size: 11px; opacity: .4; text-align: center; line-height: 1.8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>萌宠拼拼乐 · 对局界面原型</h1>
+  <p>三个方向，均覆盖对局全过程：HUD / 棋盘 / 星线与紧迫态 / 通关结算（超神·王者·优秀）/ 失败续命。<br>
+  每个原型都可点击游玩（点贴纸消除涨分），底部「演示控制」可直跳任意状态。</p>
+</header>
+<div class="cards">
+  <a class="card a" href="prototype-a-candy.html">
+    <div class="swatch">
+      <div class="chips"><i style="background:#FF6FA5"></i><i style="background:#FFC93C"></i><i style="background:#A9713B"></i></div>
+      <span class="name">A · 糖果嘉年华</span>
+    </div>
+    <div class="body">
+      <p><b>糖果传奇流派。</b>饱和糖果色 + 木牌棋盘 + 多汁按钮，一切有重量、会弹跳。适合最大众的休闲审美。</p>
+      <div class="flow">通关时刻：三星逐颗砸落 →「超神！」金光爆发 → 彩带雨</div>
+      <div class="open">打开原型 →</div>
+    </div>
+  </a>
+  <a class="card b" href="prototype-b-clean.html">
+    <div class="swatch">
+      <div class="chips"><i style="background:#F5A623"></i><i style="background:#2FBF8F"></i><i style="background:#FFFFFF"></i></div>
+      <span class="name">B · 果冻乐园</span>
+    </div>
+    <div class="body">
+      <p><b>Royal Match 流派。</b>大留白 + 悬浮胶囊卡 + 单一金 accent，克制而高级。适合走「精致休闲」定位。</p>
+      <div class="flow">通关时刻：底部面板升起 → 三星沿虚线弧依次点亮 → 徽章轻弹</div>
+      <div class="open">打开原型 →</div>
+    </div>
+  </a>
+  <a class="card c" href="prototype-c-journal.html">
+    <div class="swatch">
+      <div class="chips"><i style="background:#F4A9B8"></i><i style="background:#A9C8F4"></i><i style="background:#D64545"></i></div>
+      <span class="name">C · 贴纸手账</span>
+    </div>
+    <div class="body">
+      <p><b>本作专属流派。</b>贴纸收集就是玩法本体——界面即手账：纸张、和纸胶带、贴纸白边、印章。差异化最强。</p>
+      <div class="flow">通关时刻：战绩拍立得「收入手账」→ 超神红章「哐」地盖下</div>
+      <div class="open">打开原型 →</div>
+    </div>
+  </a>
+</div>
+<footer>2026-10-24 · 萌宠拼拼乐设计原型 · 单文件 HTML，无外部依赖<br>用 Edge/Chrome 直接双击打开，或经 preview/serve.mjs 访问 /design/</footer>
+</body>
+</html>

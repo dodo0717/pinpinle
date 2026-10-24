@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 B · 果冻乐园 —— 萌宠拼拼乐对局界面</title>
+<style>
+/* ============================================================
+   原型 B「果冻乐园」—— Royal Match 式当代高级流
+   调色：云白 / 墨蓝字 / 单一金 accent / 薄荷绿确认 / 珊瑚红警示
+   主张：克制 + 弹簧；豪赌时刻 = 通关面板升起、三星沿虚线弧依次点亮
+   ============================================================ */
+:root {
+  --sky-a: #EAF6FF;
+  --sky-b: #CDE9FB;
+  --card: #FFFFFF;
+  --ink: #22303F;
+  --ink-soft: #7C8A99;
+  --gold: #F5A623;
+  --gold-soft: #FDEBC8;
+  --mint: #2FBF8F;
+  --mint-soft: #DFF5EC;
+  --coral: #FF6B57;
+  --coral-soft: #FFE4DF;
+  --shadow: 0 10px 24px rgba(34, 48, 63, .13);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #22303F;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 18px 12px 28px;
+  color: var(--ink);
+}
+.meta { text-align: center; color: #DCE9F5; line-height: 1.7; }
+.meta h1 { font-size: 17px; font-weight: 800; }
+.meta p { font-size: 12px; opacity: .7; }
+
+.phone {
+  width: 390px; height: 780px; flex: none;
+  border-radius: 42px; padding: 10px;
+  background: linear-gradient(160deg, #33475C, #1B2734);
+  box-shadow: 0 30px 60px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.07);
+}
+.screen {
+  position: relative; width: 100%; height: 100%;
+  border-radius: 34px; overflow: hidden;
+  background: linear-gradient(178deg, var(--sky-a), var(--sky-b) 70%, #BBDFF4);
+  display: flex; flex-direction: column;
+}
+/* 果冻浮岛装饰 */
+.screen::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(120px 70px at 86% 8%, rgba(245,166,35,.14), transparent 70%),
+    radial-gradient(160px 110px at 8% 92%, rgba(47,191,143,.12), transparent 70%),
+    radial-gradient(90px 60px at 20% 24%, rgba(255,255,255,.5), transparent 70%);
+}
+
+/* ---------- HUD：悬浮胶囊 ---------- */
+.hud {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 14px 4px;
+}
+.pill {
+  background: var(--card); border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 9px 16px;
+  display: flex; align-items: baseline; gap: 7px;
+}
+.pill .cap { font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.pill .num { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#score-pill .num { color: var(--gold); }
+
+.level-chip {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  background: var(--card); border-radius: 999px; box-shadow: var(--shadow);
+  padding: 8px 18px; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; gap: 6px;
+}
+.level-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+
+/* 计时环（星在环心） */
+.timer-pill {
+  position: relative; width: 66px; height: 66px;
+  background: var(--card); border-radius: 50%; box-shadow: var(--shadow);
+}
+.timer-pill svg { position: absolute; inset: 6px; transform: rotate(-90deg); }
+.timer-pill .bg { fill: none; stroke: #EAF1F7; stroke-width: 5; }
+.timer-pill .fg { fill: none; stroke: var(--gold); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .4s linear, stroke .4s; }
+.timer-pill.urgent .fg { stroke: var(--coral); }
+.timer-pill.urgent { animation: tpulse .6s infinite alternate; }
+@keyframes tpulse { to { transform: scale(1.06); } }
+.timer-pill .core {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+  flex-direction: column;
+}
+.timer-pill .core .t { display: block; font-size: 15px; }
+.timer-pill .core .s { display: block; color: var(--gold); font-size: 11px; line-height: 1; margin-top: 1px; }
+
+/* ---------- 星线：分段进度 ---------- */
+.goal {
+  position: relative; z-index: 2; margin: 10px 16px 0;
+  background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 9px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.goal .track { flex: 1; display: flex; align-items: center; }
+.goal .seg { flex: 1; height: 8px; border-radius: 4px; background: #EFF4F8; position: relative; overflow: visible; }
+.goal .seg + .seg { margin-left: 14px; }
+.goal .seg i { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, #FFD98E, var(--gold)); transition: width .5s var(--spring); }
+.goal .seg .node {
+  position: absolute; right: -13px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #EFF4F8; border: 3px solid var(--card);
+  display: grid; place-items: center; font-size: 13px;
+  color: #C4CFDA; transition: all .3s;
+}
+.goal .seg:last-child .node { right: 0; }
+.goal .seg.done .node {
+  background: var(--gold); color: #fff;
+  box-shadow: 0 3px 8px rgba(245,166,35,.5);
+  animation: nodePop .45s var(--spring);
+}
+@keyframes nodePop { 50% { transform: translateY(-50%) scale(1.35); } }
+.goal .cap { font-size: 11px; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+
+/* ---------- 棋盘：白卡 ---------- */
+.board-wrap { position: relative; z-index: 2; flex: 1; display: grid; place-items: center; padding: 12px 16px; }
+.board {
+  width: 346px; height: 436px;
+  background: var(--card); border-radius: 26px; box-shadow: var(--shadow);
+  padding: 12px;
+  display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(7, 1fr);
+  gap: 7px;
+}
+.cell {
+  border-radius: 14px;
+  background: linear-gradient(180deg, #F4F9FD, #E7F0F7);
+  display: grid; place-items: center;
+  font-size: 27px; cursor: pointer; user-select: none;
+  transition: transform .15s var(--spring), background .15s;
+}
+.cell:hover { background: linear-gradient(180deg, #FFFFFF, #EDF5FB); transform: translateY(-2px); }
+.cell:active { transform: scale(.88); }
+.cell.pop { animation: bpop .4s var(--spring) forwards; }
+@keyframes bpop {
+  45% { transform: scale(1.22); filter: brightness(1.25); }
+  100% { transform: scale(0); opacity: 0; }
+}
+.cell.drop { animation: bdrop .35s var(--spring); }
+@keyframes bdrop { from { transform: translateY(-260%); opacity: 0; } }
+.fly-score {
+  position: absolute; z-index: 5; pointer-events: none;
+  font-size: 15px; font-weight: 800; color: var(--gold);
+  animation: bfly .75s ease-out forwards;
+}
+@keyframes bfly { to { transform: translateY(-46px); opacity: 0; } }
+.combo-word {
+  position: absolute; z-index: 6; left: 50%; top: 32%;
+  transform: translateX(-50%);
+  font-size: 21px; font-weight: 800; color: var(--ink);
+  background: var(--card); border-radius: 999px; padding: 8px 20px;
+  box-shadow: var(--shadow);
+  pointer-events: none; animation: bcombo .8s var(--spring) forwards;
+}
+@keyframes bcombo {
+  0% { transform: translateX(-50%) scale(.5); }
+  60% { transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1) translateY(-16px); opacity: 0; }
+}
+
+/* ---------- 底栏 ---------- */
+.footer {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 20px 18px; font-size: 12px; font-weight: 600; color: var(--ink-soft);
+}
+.mode-chip { background: rgba(255,255,255,.75); backdrop-filter: blur(4px); padding: 7px 14px; border-radius: 999px; }
+.energy-chip { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.75); backdrop-filter: blur(4px); padding: 7px 14px; border-radius: 999px; }
+.energy-chip b { color: var(--ink); }
+
+/* ---------- 通关面板：底部升起 ---------- */
+.overlay {
+  position: absolute; inset: 0; z-index: 10;
+  display: none; align-items: flex-end; justify-content: center;
+  background: rgba(24, 38, 52, .42); backdrop-filter: blur(4px);
+}
+.overlay.show { display: flex; animation: bfade .25s; }
+@keyframes bfade { from { opacity: 0; } }
+.sheet {
+  width: 100%;
+  background: var(--card);
+  border-radius: 32px 32px 0 0;
+  padding: 8px 26px calc(24px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  transform: translateY(100%);
+  box-shadow: 0 -18px 40px rgba(34,48,63,.28);
+}
+.overlay.show .sheet { animation: rise .55s var(--spring) forwards; }
+@keyframes rise { to { transform: translateY(0); } }
+.grab { width: 44px; height: 5px; border-radius: 3px; background: #E1E9F0; margin: 6px auto 2px; }
+
+/* 三星沿虚线弧点亮 */
+.arc-wrap { position: relative; height: 118px; margin: 4px auto 0; width: 260px; }
+.arc-wrap svg.arc { position: absolute; inset: 0; }
+.arc { fill: none; stroke: #E4EDF4; stroke-width: 3; stroke-dasharray: 2 7; stroke-linecap: round; }
+.arc.gold { stroke: var(--gold); stroke-dasharray: 390; stroke-dashoffset: 390; }
+.overlay.show .arc.gold { animation: drawarc 1s .35s ease-out forwards; }
+@keyframes drawarc { to { stroke-dashoffset: 0; } }
+.arc-star {
+  position: absolute; width: 54px; height: 54px; border-radius: 50%;
+  background: #EFF4F8; color: #C4CFDA; font-size: 26px;
+  display: grid; place-items: center;
+  transform: translate(-50%, -50%) scale(0);
+}
+.arc-star.on {
+  background: linear-gradient(180deg, #FFD98E, var(--gold)); color: #fff;
+  box-shadow: 0 6px 14px rgba(245,166,35,.45);
+  animation: starIn .5s var(--spring) forwards;
+}
+.arc-star.off { transform: translate(-50%, -50%) scale(1); }
+@keyframes starIn {
+  0% { transform: translate(-50%, -50%) scale(0); }
+  70% { transform: translate(-50%, -50%) scale(1.25); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+/* 星在弧上的位置（260×118 视区，弧从左下到右下） */
+.arc-star:nth-child(2) { left: 18%; top: 86%; }
+.arc-star:nth-child(3) { left: 50%; top: 14%; }
+.arc-star:nth-child(4) { left: 82%; top: 86%; }
+
+.honor-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 2px; }
+.honor-badge {
+  font-size: 15px; font-weight: 800; padding: 6px 16px; border-radius: 999px;
+  background: var(--gold-soft); color: #B07214;
+  opacity: 0; transform: translateY(8px);
+}
+.honor-badge.t3 { background: linear-gradient(90deg, #FFE3A6, #FFC872); color: #8A5A0E; }
+.overlay.show .honor-badge { animation: badgeIn .45s 1.35s var(--spring) forwards; }
+@keyframes badgeIn { to { opacity: 1; transform: translateY(0); } }
+
+.tally {
+  margin: 12px auto 16px; max-width: 260px; text-align: left;
+  background: #F6FAFD; border-radius: 16px; padding: 12px 16px;
+}
+.tally .row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--ink-soft); }
+.tally .row b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tally .row.total { border-top: 1px solid #E4EDF4; margin-top: 6px; padding-top: 9px; font-size: 15px; color: var(--ink); }
+.tally .row.total b { color: var(--gold); font-size: 18px; }
+.newbest { font-size: 10px; font-weight: 800; background: var(--mint); color: #fff; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+
+.btn {
+  font-family: inherit; font-size: 17px; font-weight: 800; color: #fff;
+  border: none; cursor: pointer; width: 100%;
+  padding: 15px; border-radius: 18px;
+  background: linear-gradient(180deg, #FFC872, var(--gold));
+  box-shadow: 0 8px 18px rgba(245,166,35,.4);
+  transition: transform .1s, box-shadow .1s;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 3px 8px rgba(245,166,35,.4); }
+.btn.mint { background: var(--mint); box-shadow: 0 8px 18px rgba(47,191,143,.35); }
+.btn.mint:active { box-shadow: 0 3px 8px rgba(47,191,143,.35); }
+.btn.ghost {
+  background: transparent; color: var(--ink-soft); box-shadow: none;
+  font-weight: 600; font-size: 14px; padding: 12px; margin-top: 2px;
+}
+.btn.ghost:active { background: #F0F5F9; }
+
+/* ---------- 失败 / 续命 ---------- */
+.fail-sheet { text-align: center; }
+.fail-icon {
+  width: 84px; height: 84px; margin: 6px auto 10px; border-radius: 50%;
+  background: var(--coral-soft); display: grid; place-items: center; font-size: 40px;
+}
+.fail-title { font-size: 22px; font-weight: 800; }
+.fail-sub { font-size: 13px; color: var(--ink-soft); margin: 6px 0 14px; }
+.revive-row { display: flex; align-items: center; gap: 14px; background: #F6FAFD; border-radius: 20px; padding: 14px; margin-bottom: 12px; }
+.revive-ring { position: relative; width: 72px; height: 72px; flex: none; }
+.revive-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.revive-ring .bg { fill: none; stroke: #E4EDF4; stroke-width: 6; }
+.revive-ring .fg { fill: none; stroke: var(--coral); stroke-width: 6; stroke-linecap: round; }
+.revive-ring .core {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--coral);
+}
+.revive-info { text-align: left; }
+.revive-info .t { font-size: 15px; font-weight: 800; }
+.revive-info .d { font-size: 12px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+.ad-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; background: #FFF1E0; color: #C87A1E; padding: 3px 8px; border-radius: 999px; margin-top: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001s !important; transition-duration: .001s !important; }
+}
+@media (max-height: 900px) {
+  .phone { transform: scale(.86); transform-origin: top center; margin-bottom: -110px; }
+}
+</style>
+</head>
+<body>
+<div class="meta">
+  <h1>原型 B · 果冻乐园</h1>
+  <p>Royal Match 流派：大留白 / 悬浮胶囊卡 / 圆环倒计时 —— 看面板升起、三星沿虚线弧点亮</p>
+</div>
+
+<div class="phone"><div class="screen" id="screen">
+  <div class="hud">
+    <div class="pill" id="score-pill">
+      <span class="cap">分数</span><span class="num" id="score">0</span>
+    </div>
+    <div class="level-chip"><span class="dot"></span>第 6 关 · 简单</div>
+    <div class="timer-pill" id="timerWrap">
+      <svg viewBox="0 0 54 54">
+        <circle class="bg" cx="27" cy="27" r="23"></circle>
+        <circle class="fg" id="timerFg" cx="27" cy="27" r="23"></circle>
+      </svg>
+      <div class="core"><span class="t" id="timerNum">60</span><span class="s">★</span></div>
+    </div>
+  </div>
+
+  <div class="goal">
+    <span class="cap">星线</span>
+    <div class="track">
+      <div class="seg" data-at="1500"><i></i><span class="node">★</span></div>
+      <div class="seg" data-at="3000"><i></i><span class="node">★</span></div>
+      <div class="seg" data-at="4500"><i></i><span class="node">★</span></div>
+    </div>
+    <span class="cap" id="nextGoal">1500</span>
+  </div>
+
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+
+  <div class="footer">
+    <div class="mode-chip">拼图消除</div>
+    <div class="energy-chip">体力 <b>9</b>/10</div>
+  </div>
+
+  <!-- 通关 -->
+  <div class="overlay" id="winOverlay">
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="arc-wrap">
+        <svg class="arc" viewBox="0 0 260 118">
+          <path class="arc-path" d="M 24 104 Q 130 -34 236 104" pathLength="390"></path>
+          <path class="arc gold" d="M 24 104 Q 130 -34 236 104" pathLength="390"></path>
+        </svg>
+        <span class="arc-star" id="as1">★</span>
+        <span class="arc-star" id="as2">★</span>
+        <span class="arc-star" id="as3">★</span>
+      </div>
+      <div class="honor-row"><span class="honor-badge" id="honorBadge">超神通关</span></div>
+      <div class="tally">
+        <div class="row"><span>本局得分</span><b id="winScore">0</b></div>
+        <div class="row"><span>获得星数</span><b id="winStarNum">3 ★</b></div>
+        <div class="row total"><span>累计总分</span><b>12,860<span class="newbest">新纪录</span></b></div>
+      </div>
+      <button class="btn">下一关</button>
+      <button class="btn ghost" id="closeWin">返回地图</button>
+    </div>
+  </div>
+
+  <!-- 失败 -->
+  <div class="overlay" id="failOverlay">
+    <div class="sheet fail-sheet">
+      <div class="grab"></div>
+      <div class="fail-icon">⏳</div>
+      <div class="fail-title">就差一点点</div>
+      <div class="fail-sub" id="failInfo">再得 320 分就能摘下第 1 颗星</div>
+      <div class="revive-row">
+        <div class="revive-ring">
+          <svg viewBox="0 0 72 72">
+            <circle class="bg" cx="36" cy="36" r="30"></circle>
+            <circle class="fg" id="reviveFg" cx="36" cy="36" r="30"></circle>
+          </svg>
+          <div class="core" id="reviveCnt">10</div>
+        </div>
+        <div class="revive-info">
+          <div class="t">续命 30 秒</div>
+          <div class="d">接着刚才的分数继续，<br>已拼好的进度都还在</div>
+          <span class="ad-chip">▶ 免费广告</span>
+        </div>
+      </div>
+      <button class="btn mint" id="reviveBtn">▶ 看广告，继续拼</button>
+      <button class="btn ghost" id="giveUpBtn">回地图</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="demo" id="demo">
+  <button data-act="stress">⚡ 直达紧张时刻（10s）</button>
+  <button data-act="win3">🎉 3 星通关（超神）</button>
+  <button data-act="win2">⭐ 2 星通关（王者）</button>
+  <button data-act="fail">💀 失败 → 续命</button>
+  <button data-act="reset">🔄 重开一局</button>
+</div>
+
+<style>
+.demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 430px; }
+.demo button {
+  font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
+  background: rgba(255,255,255,.1); color: #DCE9F5; padding: 7px 13px;
+}
+.demo button:hover { background: rgba(255,255,255,.22); }
+</style>
+
+<script>
+/* ---------------- 演示游戏逻辑（与 A 同骨架，B 视觉） ---------------- */
+const PETS = ['🐶','🐱','🐰','🐼','🦊','🐸','🐯','🦁'];
+const GOALS = [1500, 3000, 4500];
+const LIMIT = 60;
+
+const board = document.getElementById('board');
+const scoreEl = document.getElementById('score');
+const timerNum = document.getElementById('timerNum');
+const timerFg = document.getElementById('timerFg');
+const timerWrap = document.getElementById('timerWrap');
+const screen = document.getElementById('screen');
+const RING = 2 * Math.PI * 23;
+timerFg.style.strokeDasharray = RING;
+const reviveFg = document.getElementById('reviveFg');
+const RING2 = 2 * Math.PI * 30;
+reviveFg.style.strokeDasharray = RING2;
+
+let score = 0, timeLeft = LIMIT, tick = null, combo = 0, comboT = null, ended = false;
+const rand = n => Math.floor(Math.random() * n);
+
+function buildBoard() {
+  board.innerHTML = '';
+  for (let i = 0; i < 42; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell';
+    c.textContent = PETS[rand(PETS.length)];
+    c.addEventListener('pointerdown', () => tap(c));
+    board.appendChild(c);
+  }
+}
+function tap(c) {
+  if (ended || c.classList.contains('pop')) return;
+  c.classList.add('pop');
+  addScore(80 + rand(60), c);
+  combo++;
+  if (combo >= 5) showCombo(combo);
+  setTimeout(() => {
+    c.classList.remove('pop');
+    c.textContent = PETS[rand(PETS.length)];
+    c.classList.add('drop');
+    setTimeout(() => c.classList.remove('drop'), 340);
+  }, 380);
+}
+function addScore(n, c) {
+  score += n;
+  scoreEl.textContent = score.toLocaleString();
+  const r = c.getBoundingClientRect(), s = screen.getBoundingClientRect();
+  const f = document.createElement('div');
+  f.className = 'fly-score';
+  f.textContent = '+' + n;
+  f.style.left = (r.left - s.left + r.width / 2 - 14) + 'px';
+  f.style.top = (r.top - s.top - 4) + 'px';
+  screen.appendChild(f);
+  setTimeout(() => f.remove(), 780);
+  paintGoals();
+}
+function paintGoals() {
+  document.querySelectorAll('.seg').forEach(seg => {
+    const at = +seg.dataset.at;
+    seg.querySelector('i').style.width = Math.min(100, score / at * 100) + '%';
+    seg.classList.toggle('done', score >= at);
+  });
+  const nxt = GOALS.find(g => g > score);
+  document.getElementById('nextGoal').textContent = nxt ? nxt.toLocaleString() : 'MAX';
+}
+function showCombo(n) {
+  clearTimeout(comboT);
+  const words = { 5: '手感不错', 8: '漂亮', 12: '势不可挡', 16: '大师级' };
+  let w = '连消 x' + n;
+  for (const k in words) if (n >= +k) w = words[k];
+  const old = document.querySelector('.combo-word');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'combo-word';
+  el.textContent = w;
+  screen.appendChild(el);
+  comboT = setTimeout(() => { el.remove(); combo = 0; }, 820);
+}
+function paintTimer() {
+  timerNum.textContent = timeLeft;
+  timerFg.style.strokeDashoffset = RING * (1 - timeLeft / LIMIT);
+  timerWrap.classList.toggle('urgent', timeLeft <= 10);
+}
+function startTimer() {
+  clearInterval(tick);
+  timeLeft = LIMIT;
+  paintTimer();
+  tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
+}
+const starsOf = () => score >= GOALS[2] ? 3 : score >= GOALS[1] ? 2 : score >= GOALS[0] ? 1 : 0;
+function finish() {
+  if (ended) return;
+  ended = true;
+  clearInterval(tick);
+  starsOf() >= 1 ? showWin(starsOf()) : showFail();
+}
+function showWin(st) {
+  document.getElementById('winScore').textContent = score.toLocaleString();
+  document.getElementById('winStarNum').textContent = st + ' ★';
+  const badge = document.getElementById('honorBadge');
+  badge.textContent = ['再接再厉', '优秀通关', '王者通关', '超神通关'][st];
+  badge.className = 'honor-badge' + (st === 3 ? ' t3' : '');
+  ['as1', 'as2', 'as3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.className = 'arc-star ' + (i < st ? 'on' : 'off');
+    el.style.animationDelay = (0.45 + i * 0.35) + 's';
+  });
+  const ov = document.getElementById('winOverlay');
+  ov.classList.remove('show');
+  void ov.offsetWidth;
+  ov.classList.add('show');
+}
+document.getElementById('closeWin').addEventListener('click', resetGame);
+
+function showFail() {
+  const need = GOALS[0] - score;
+  document.getElementById('failInfo').textContent = need > 0 ? `再得 ${need} 分就能摘下第 1 颗星` : '差一点点！';
+  document.getElementById('failOverlay').classList.add('show');
+  let left = 10;
+  const paint = () => {
+    reviveFg.style.strokeDashoffset = RING2 * (1 - left / 10);
+    document.getElementById('reviveCnt').textContent = left;
+  };
+  paint();
+  clearInterval(window._rt);
+  window._rt = setInterval(() => { left--; paint(); if (left <= 0) { clearInterval(window._rt); hideFail(); resetGame(); } }, 1000);
+}
+function hideFail() { clearInterval(window._rt); document.getElementById('failOverlay').classList.remove('show'); }
+document.getElementById('reviveBtn').addEventListener('click', () => {
+  hideFail();
+  ended = false;
+  timeLeft += 30;
+  paintTimer();
+  clearInterval(tick);
+  tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
+});
+document.getElementById('giveUpBtn').addEventListener('click', () => { hideFail(); resetGame(); });
+
+function resetGame() {
+  ended = false;
+  score = 0; combo = 0;
+  scoreEl.textContent = '0';
+  document.getElementById('winOverlay').classList.remove('show');
+  hideFail();
+  buildBoard();
+  paintGoals();
+  startTimer();
+}
+
+document.getElementById('demo').addEventListener('click', e => {
+  const act = e.target.dataset.act;
+  if (!act) return;
+  if (act === 'stress') {
+    ended = false; clearInterval(tick);
+    score = Math.max(score, 900);
+    scoreEl.textContent = score.toLocaleString();
+    paintGoals();
+    timeLeft = 10; paintTimer();
+    tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
+  } else if (act === 'win3') {
+    score = GOALS[2] + 600; scoreEl.textContent = score.toLocaleString(); paintGoals(); showWin(3);
+  } else if (act === 'win2') {
+    score = GOALS[1] + 300; scoreEl.textContent = score.toLocaleString(); paintGoals(); showWin(2);
+  } else if (act === 'fail') {
+    score = Math.max(200, GOALS[0] - 320); scoreEl.textContent = score.toLocaleString(); paintGoals();
+    ended = true; clearInterval(tick); showFail();
+  } else if (act === 'reset') resetGame();
+});
+
+resetGame();
+</script>
+</body>
+</html>
