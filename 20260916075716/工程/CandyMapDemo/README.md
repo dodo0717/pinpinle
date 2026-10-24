@@ -145,6 +145,7 @@ CandyMapDemo/
   - **主域**：`玩法/wxFriend.ts`——`syncFriendRank()` 把两模式总分（与 MapPanels.totalScoreOf 同口径）+ 总星 + 进度按 wxgame 协议写入 KV，**启动与结算落盘各调一次**，失败静默；`friendRankCanvas(w,h,scale)` 取 `odc.canvas` 贴入卡内（尺寸变化时重设 + postMessage 让子域重画；`_ccReady` 标记满足 shim 贴图就绪判断）。非微信全降级：好友 Tab 显示「好友榜仅在微信内可用」。
   - **MapPanels**：Tab 从两栏 340 宽改三栏 250 宽；好友分支跳过我的成绩/表头/分页，卡内整块贴 sharedCanvas。
   - 验证：227 测试全过；浏览器实测三 Tab 渲染 + 降级提示 + 无异常（画布像素直读法）。微信侧（mock 好友数据）待开发者工具实测。minigame 重建（36 个脚本）。
+- **2026-10-24（后端决策：云同步直接用现有 candy.aidertech.cn）**：原计划在用户腾讯云新服务器（124.221.226.15）单独部署第二套 candy-game-server，当天完成上传/compose 自带 PG 改造/.env 密钥/数据库恢复清数/nginx 镜像后**用户叫停**，全部清理（容器/镜像/卷/文件/2.8G 构建缓存，smart-lock 与 Superset 未受影响）。原因核实：现有实例 `.env` 的 `WX_MINIAPP_APPID=wxd84cc8ded4b62579` 与本游戏一致，评估文档担心的「单游戏配置冲突」不存在——域名白名单、HTTPS、code2session 密钥全现成，**云同步客户端（下一步）直接指向 `https://candy.aidertech.cn/game/api/`** 即可，无需任何后端部署。注意点：该库还有糖果小镇测试期的玩家数据（同一 AppID），同一微信号两边都玩过时进度会按「取大合并」混到一起。
 
 ## 扩展方向
 
