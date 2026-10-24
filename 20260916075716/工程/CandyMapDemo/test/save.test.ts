@@ -90,15 +90,15 @@ describe('save —— 往返一致与出厂值', () => {
     assert.deepEqual(result.data, data);
   });
 
-  it('出厂值：满体力 / 第 1 关解锁 / 无断点 / 两种模式都有进度', () => {
+  it('出厂值：满体力 / 前 4 关解锁（2026-10-24 临时口径）/ 无断点 / 两种模式都有进度', () => {
     const data = fresh();
     assert.equal(data.version, SAVE_VERSION);
     assert.equal(data.meta.stamina.available, STAMINA_MAX);
     assert.equal(data.meta.stamina.pending, 0);
     assert.equal(data.meta.guideDone, false);
     assert.equal(data.session, null);
-    assert.equal(data.progress.normal.unlocked, 1);
-    assert.equal(data.progress.nightmare.unlocked, 1);
+    assert.equal(data.progress.normal.unlocked, 4);
+    assert.equal(data.progress.nightmare.unlocked, 4);
   });
 });
 

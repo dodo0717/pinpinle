@@ -2,6 +2,7 @@ import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, 
 const { ccclass } = _decorator;
 import type { MergeDisplay } from '../核心/merge';
 import { pieceGeometry, QUADRANT_PX, type PieceGeometryInput } from './geometry';
+import { currentTheme } from './theme';
 
 /** 得分飘字时长（秒）—— 原版 FLOAT_MS = 500，与消除并行 */
 const FLOAT_SEC = 0.5;
@@ -100,6 +101,9 @@ export class BoardView extends Component {
     const originX = -totalW / 2 + cellSize / 2;
     const originY = totalH / 2 - cellSize / 2;
 
+    // 主题化底板（最先画 = 垫在所有格子之下）：糖果=木桌 / 果冻=白卡 / 手账=贴纸页
+    this.buildPanel(totalW, totalH);
+
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const root = new Node(`Cell_${r}_${c}`);
@@ -122,19 +126,61 @@ export class BoardView extends Component {
   }
 
   /**
+   * 主题底板：底板在 build() 最前创建，天然在所有格子下面。
+   * candy：木桌渐变 + 深描边 + 厚投影；clean：白卡圆角 + 细描边；
+   * journal：奶白纸面 + 棕细框（手账的贴纸页）。
+   */
+  private buildPanel(totalW: number, totalH: number): void {
+    const t = currentTheme();
+    const pad = 34;
+    const w = totalW + pad * 2;
+    const h = totalH + pad * 2;
+    const n = new Node('Panel');
+    n.parent = this.node;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w, h);
+    const g = n.addComponent(Graphics);
+    // 投影 / 厚边（candy 木桌的分量感）
+    g.fillColor = new Color(0, 0, 0, 36);
+    g.roundRect(-w / 2, -h / 2 - 10, w, h, 30);
+    g.fill();
+    // 主体：上浅下深两层
+    g.fillColor = t.panelFillB;
+    g.roundRect(-w / 2, -h / 2, w, h, 28);
+    g.fill();
+    g.fillColor = t.panelFillA;
+    g.roundRect(-w / 2 + 4, -h / 2 + h * 0.36, w - 8, h * 0.64 - 4, 26);
+    g.fill();
+    // 描边
+    g.lineWidth = t.id === 'candy' ? 6 : 2;
+    g.strokeColor = t.panelBorder;
+    g.roundRect(-w / 2, -h / 2, w, h, 28);
+    g.stroke();
+    // journal：纸面加一圈细虚线内框（贴纸页的裁切线感）
+    if (t.ringSketchy) {
+      g.lineWidth = 2;
+      g.strokeColor = new Color(t.panelBorder.r, t.panelBorder.g, t.panelBorder.b, 130);
+      g.roundRect(-w / 2 + 12, -h / 2 + 12, w - 24, h - 24, 18);
+      g.stroke();
+    }
+  }
+
+  /**
    * 金环：融合三阶段点亮它，玩家才知道「这几块是一个整体」。
    *
    * 描边**在点亮时才画**（`drawRing`）：组是随盘面变化的，预画一个方框的话，
    * 2 块融合就会显示成两个各自独立的框 —— 那正好是「看起来没融合」的样子。
+   * 颜色 / 线宽随主题（candy 金 / clean 金细 / journal 印章红细线）。
    */
   private buildRing(parent: Node, size: number): Graphics {
+    const t = currentTheme();
     const n = new Node('Ring');
     n.parent = parent;
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(size, size);
     const g = n.addComponent(Graphics);
-    g.lineWidth = 5;
-    g.strokeColor = new Color(255, 214, 92, 255);
+    g.lineWidth = t.ringWidth;
+    g.strokeColor = t.ringColor;
     n.active = false;
     return g;
   }

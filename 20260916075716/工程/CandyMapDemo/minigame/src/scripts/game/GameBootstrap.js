@@ -23,6 +23,7 @@ import { GuideBar } from './guide.js';
 import { GS } from './state.js';
 import { syncFriendRank } from './wxFriend.js';
 import { cloudSync, REPORT_MODES } from './cloud.js';
+import { currentTheme, cycleTheme, onThemeChanged } from './theme.js';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text.js';
 import { unlockedImageIds } from './meta.js';
 import {
@@ -56,6 +57,12 @@ export class GameBootstrap extends Component {
           toast             = null ;
           audio            = null ;
           guide           = null ;
+  /** 主题化的对局背景（全屏渐变，重建于 applyThemeVisuals） */
+          bgG                  = null;
+  /** HUD 节点（主题化重建） */
+          hudNode              = null;
+  /** 最近一次 view.build 的参数（主题切换时按它重建棋盘） */
+          boardSpec                                                      = null;
 
           engine               = null ;
           rng      = null ;
@@ -111,6 +118,9 @@ export class GameBootstrap extends Component {
     this.audio = this.mount('Audio', GameAudio);
     this.guide = this.mount('Guide', GuideBar);
     this.buildHud();
+    this.applyThemeVisuals();
+    // 三主题切换（对局内右上角按钮触发）：背景 / HUD / 棋盘底板与融合环全部重建
+    onThemeChanged(() => this.applyThemeVisuals());
 
     // 动画播放中不落盘（§16）：此刻引擎里已是「交换后」状态，写下去等于承认这次交换
     GS.canWrite = () => !this.busy;
@@ -322,6 +332,7 @@ export class GameBootstrap extends Component {
     const availW = DESIGN_W - 64;
     const availH = BOARD_TOP - BOARD_BOTTOM - 24;
     const cell = Math.floor(Math.min((availW - GAP * (cols - 1)) / cols, (availH - GAP * (rows - 1)) / rows));
+    this.boardSpec = { rows, cols, cell };
     this.view.build(rows, cols, cell);
   }
 
@@ -892,29 +903,104 @@ export class GameBootstrap extends Component {
   }
 
           buildHud()       {
+    if (this.hudNode) this.hudNode.destroy();
+    const t = currentTheme();
     const bar = new Node('Hud');
     bar.parent = this.node;
     bar.layer = Layers.Enum.UI_2D;
     bar.addComponent(UITransform).setContentSize(DESIGN_W, 150);
     bar.setPosition(0, 885);
-    const bg = bar.addComponent(Graphics);
-    bg.fillColor = new Color(255, 176, 62, 255);
-    bg.roundRect(-DESIGN_W / 2, -75, DESIGN_W, 150, 0);
-    bg.fill();
+    this.hudNode = bar;
 
-    this.hudLevel = this.hudText(bar, 30, -330, 0, 300, new Color(255, 255, 255));
-    this.hudTime = this.hudText(bar, 46, 0, 0, 260, new Color(255, 255, 255));
-    this.hudScore = this.hudText(bar, 34, 300, 0, 240, new Color(255, 255, 255));
+    if (t.hudStyle === 'bar') {
+      // 整条横牌（糖果嘉年华的木牌 / 手账的牛皮纸）
+      const g = bar.addComponent(Graphics);
+      g.fillColor = t.hudFillB;
+      g.roundRect(-DESIGN_W / 2, -75, DESIGN_W, 150, 26);
+      g.fill();
+      g.fillColor = t.hudFillA;
+      g.roundRect(-DESIGN_W / 2, -30, DESIGN_W, 105, 26);
+      g.fill();
+    }
+    // pills 形态（果冻乐园）不画整条：三只白胶囊各自带底
+
+    const mkPill = (x        , w        )           => {
+      const n = new Node('Pill');
+      n.parent = bar;
+      n.layer = Layers.Enum.UI_2D;
+      n.addComponent(UITransform).setContentSize(w, 118);
+      n.setPosition(x, 0);
+      const g = n.addComponent(Graphics);
+      g.fillColor = t.hudFillA;
+      g.roundRect(-w / 2, -59, w, 118, 59);
+      g.fill();
+      return g;
+    };
+    const pill = t.hudStyle === 'pills';
+
+    this.hudLevel = this.hudText(bar, 30, pill ? -432 : -330, 0, 300, t.hudText);
+    this.hudTime = this.hudText(bar, 46, 0, 0, 260, t.hudAccent);
+    this.hudScore = this.hudText(bar, 34, pill ? 432 : 300, 0, 240, t.hudText);
+    for (const l of [this.hudLevel, this.hudTime, this.hudScore]) {
+      l.fontFamily = t.fontFamily;
+      if (t.textShadow) l.enableBold = true;
+    }
+    if (pill) { mkPill(-432, 250); mkPill(0, 260); mkPill(432, 250); }
 
     // 返回主页 —— 必须挂在 bar 上（bar 在棋盘上方的安全区）。
     // 挂 this.node 的话坐标原点是画面中心，(-460, 0) 会直接压在棋盘左中部，
     // 既挡视线又吞掉那一带的拖动。
-    const back = this.hudButton(bar, 'BtnBack', -460, 0, 120, 88, new Color(255, 255, 255, 90), '返回', 28);
+    const back = this.hudButton(bar, 'BtnBack', -460, 118, 120, 88, t.backFill, '返回', 28);
     back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
 
+    // 三主题切换（对局内即时换皮）
+    const sw = this.hudButton(bar, 'BtnTheme', 460, 118, 168, 88, t.switchFill, '样式·' + t.name.slice(0, 2), 26);
+    sw.on(Node.EventType.TOUCH_END, () => { cycleTheme(); }, this);
+
     // 提示 —— 棋盘下沿是 BOARD_BOTTOM(-640)，-740 在其下方，属于安全区
-    const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, new Color(126, 200, 120, 255), '提示', 32);
+    const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, t.hintFill, '提示', 32);
     hint.on(Node.EventType.TOUCH_END, () => this.showHint(), this);
+  }
+
+  /**
+   * 主题落地：全屏背景渐变 + HUD + 棋盘（底板 / 融合环配色）。
+   * 首次 onLoad 调一次，之后每次切换主题调一次 —— 只换皮，引擎与盘面数据不动。
+   */
+          applyThemeVisuals()       {
+    const t = currentTheme();
+    // ---- 背景（重建）----
+    if (this.bgG) this.bgG.node.destroy();
+    const bgNode = new Node('ThemeBg');
+    bgNode.parent = this.node;
+    bgNode.layer = Layers.Enum.UI_2D;
+    bgNode.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
+    this.bgG = bgNode.addComponent(Graphics);
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const k = i / (N - 1);
+      this.bgG.fillColor = new Color(
+        Math.round(t.bgTop.r + (t.bgBottom.r - t.bgTop.r) * k),
+        Math.round(t.bgTop.g + (t.bgBottom.g - t.bgTop.g) * k),
+        Math.round(t.bgTop.b + (t.bgBottom.b - t.bgTop.b) * k),
+      );
+      const bandH = DESIGN_H / N + 2;
+      this.bgG.rect(-DESIGN_W / 2, DESIGN_H / 2 - (i + 1) * bandH + 1, DESIGN_W, bandH);
+      this.bgG.fill();
+    }
+    bgNode.setSiblingIndex(0);   // 垫在所有层之下（棋盘 / HUD / 弹窗之上于它）
+    // ---- HUD ----
+    this.buildHud();
+    // ---- 棋盘（底板 + 融合环配色随主题重建；贴图与盘面数据重放）----
+    this.rebuildBoard();
+  }
+
+  /** 按最近一次的棋盘规格重建视图（主题切换用）；尚未开局时跳过 */
+          rebuildBoard()       {
+    if (!this.boardSpec || !this.engine) return;
+    const { rows, cols, cell } = this.boardSpec;
+    this.view.build(rows, cols, cell);
+    this.view.setCells(this.engine.board.toArray());
+    this.view.applyMerge(computeMergeDisplay(this.engine.board));
   }
 
           hudText(parent      , size        , x        , y        , w        , color       )        {

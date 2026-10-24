@@ -157,7 +157,9 @@ export function applySettlement(
 /* ------------------------------------------------------------------ 进度 */
 
 export function createProgress(mode: GameMode): ProgressData {
-  return { mode, unlocked: 1, levels: {} };
+  // 2026-10-24：初始 unlocked 1→4 —— 用户要求第 2/3/4 关默认可玩
+  // （三套对局主题在不同图池上对比效果用）。正式上线前视产品口径改回 1。
+  return { mode, unlocked: 4, levels: {} };
 }
 
 /** 查询关卡状态（§7.3.3） */

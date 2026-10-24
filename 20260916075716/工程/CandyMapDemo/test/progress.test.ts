@@ -144,23 +144,24 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
 });
 
 describe('M4 · 关卡解锁（§7.3.3）', () => {
+  // 2026-10-24 起 createProgress 出厂 unlocked=4（用户要求 2/3/4 关默认可玩，用于三主题对比）
   const fresh = (): ProgressData => createProgress('normal');
 
-  it('初始只开第 1 关', () => {
+  it('初始开前 4 关（2026-10-24 临时口径，上线前改回 1）', () => {
     const data = fresh();
     assert.strictEqual(levelStatus(data, 1), 'unlocked');
-    assert.strictEqual(levelStatus(data, 2), 'locked');
+    assert.strictEqual(levelStatus(data, 4), 'unlocked');
+    assert.strictEqual(levelStatus(data, 5), 'locked');
   });
 
   it('首次达 1★ 解锁下一关，并把本关标成已通关', () => {
     const data = fresh();
     const o = outcome({ level: 1, score: 5 });
     const next = commitSettlement(data, o, settleLevel(o, undefined)!, 60);
-    assert.strictEqual(next.unlocked, 2);
+    assert.strictEqual(next.unlocked, 4, 'unlocked 只增不减，初始 4 不会被压回');
     assert.strictEqual(levelStatus(next, 1), 'cleared');
-    assert.strictEqual(levelStatus(next, 2), 'unlocked');
-    assert.strictEqual(levelStatus(next, 3), 'locked');
-    assert.strictEqual(data.unlocked, 1, '不得就地修改入参');
+    assert.strictEqual(levelStatus(next, 5), 'locked');
+    assert.strictEqual(data.unlocked, 4, '不得就地修改入参');
   });
 
   it('重复通关不推进进度', () => {
@@ -170,7 +171,7 @@ describe('M4 · 关卡解锁（§7.3.3）', () => {
     })();
     const o2 = outcome({ level: 1, score: 6 });
     const again = commitSettlement(first, o2, settleLevel(o2, recordOf(first, 1))!, 60);
-    assert.strictEqual(again.unlocked, 2, '重复挑战不得把 unlocked 推到 3');
+    assert.strictEqual(again.unlocked, 4, '重复挑战不得把 unlocked 推到 5');
   });
 
   it('在已解锁的高关卡重复挑战低关卡，不会把 unlocked 收回去', () => {
