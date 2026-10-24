@@ -96,7 +96,12 @@ export function loadImage(url) {
   if (imgCache.has(url)) return imgCache.get(url);
   const p = new Promise((resolve, reject) => {
     const img = WX ? WX.createImage() : new Image();
-    img.onload = () => resolve(img);
+    img.onload = () => {
+      // 微信 Image 不保证有 `complete` 属性（糖果小镇踩过：判空导致贴图永不渲染），
+      // 统一自打就绪标记；浏览器两个都有，drawSprite 双保险
+      img._ccReady = true;
+      resolve(img);
+    };
     img.onerror = () => reject(new Error('图片加载失败 ' + url));
     img.src = url;
   });
@@ -495,7 +500,8 @@ function drawSprite(ctx, node, sp) {
   const h = t ? t.height : 0;
   if (!sp.spriteFrame || !sp.spriteFrame.texture) return;
   const img = sp.spriteFrame.texture.img;
-  if (!img || !img.complete) return;
+  // 就绪判断双保险：自打标记（微信）+ complete（浏览器）
+  if (!img || !(img._ccReady || img.complete)) return;
   const r = sp.spriteFrame.rect;
   ctx.save();
   ctx.scale(1, -1); // 抵消外层的 y 翻转，保证贴图正立

@@ -136,6 +136,10 @@ CandyMapDemo/
   - **顺带两个真修复**：① 加载页最短停留/淡出从「累计帧 dt」改为**墙钟**——dt 每帧钳 0.05s，帧率低时 1.2s 最短停留会被无限拉长；② `serve.mjs` 静态响应加 `Cache-Control: no-store`——无头验证曾因 HTTP 缓存一直跑旧模块白折腾半天。
   - **验证（画布像素直读，绕开截图/虚拟时间坑）**：长屏 600×1290 → 可视高 2322 ✓；页签栏 `#5a3920`、顶栏木牌 `#cfb395`、第一关珠 `#d3dae5`、**左箭头灰 `#bcb8af` / 右箭头金 `#fdd987`（置灰生效）**、加载页正常销毁。222 个测试通过。**注意**：素材 9.9MB 全在本地包，开发者工具模拟器可跑；真机预览/上传有 4MB 主包上限，下一步素材走分包或远程。
   - **微信开发者工具导入 `minigame/` 目录即可试**（模拟器里地图/进关/音效应全通——音频这次是 `InnerAudioContext` 直连，预期真有声）。
+- **2026-10-24（复用糖果小镇资产 ①：贴图就绪修复 + 地图编辑器链路试点）**：评估文档（`文档/评估-可从糖果小镇抄用的资产.md`）核实后按用户确认的顺序开工。
+  - **贴图就绪隐患**（坑清单交叉核对发现）：`drawSprite` 依赖 `img.complete`，微信 `wx.createImage()` 不保证有该属性 → 纯代码版在微信里贴图可能全不渲染。改为 `loadImage` onload 自打 `_ccReady` 标记 + 双保险判断；`naturalWidth || width` 本就有兜底。
+  - **地图编辑器链路**（终结手写坐标表）：新增 `tools/convert-map-json.ts`——读糖果小镇通用地图编辑器的 `.map.json`（关卡节点 = `props.level` 组件，中心取 `x+w/2, y+h/2`），按 `TRACK_W/widthPx` 系数换算到轨道坐标（编辑器→底图→轨道两步等比，系数与底图宽度无关），生成 `assets/scripts/场景/levelTable.ts`；`MapBootstrap.worldNodes` 改为**坐标表优先、ROAD_X 公式回退**（表空 = 行为与旧版完全一致，渐进替换）。文件名约定 = 世界美术名（`xiaozhen.map.json`→'xiaozhen'）。已用糖果小镇示例地图实测转换（12 关、无警告）；新增 `test/maptable.test.ts` 5 项（期间修了两个自坑：CLI 入口在被 import 时执行 `process.exit` 截断测试 → 加 `isMain()` 守卫；`[]` 为 truthy 导致空表渲染出 `\n\n`）。**227 测试全过**；minigame 重建（35 个脚本）。
+  - **美术工作流**（待美术执行）：双击 `C:\idea-xiao\CandyCrushSaga\universal-map-editor\release\地图编辑器.html` → 新建（9:16）→「导入原图底图」选世界底图 →「⭐ 放置关卡节点」沿路摆 12 个 →「🔢 按位置重新编号」→ Ctrl+S 导出 `xiaozhen.map.json` → 跑 `node tools/convert-map-json.ts xiaozhen.map.json` → 提交。操作细节见糖果小镇 `docs/地图编辑器-操作手册.md`。
 
 ## 扩展方向
 

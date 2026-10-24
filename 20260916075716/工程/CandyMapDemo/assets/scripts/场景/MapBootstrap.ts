@@ -10,6 +10,7 @@ import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../玩法/text';
 import { MapPanels } from '../界面/MapPanels';
+import { LEVELS_BY_ART } from './levelTable';
 import {
     levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
     type GameMode, type LevelStatus,
@@ -570,20 +571,23 @@ export class MapBootstrap extends Component {
 
     /** 当前世界的 12 个节点（状态全部由进度派生，与 web mapView() 同口径） */
     private worldNodes(w: number): MapNodeData[] {
-        const { from, to } = WORLDS[w];
+        const { from, to, art } = WORLDS[w];
         const progress = GS.progress;
         const count = to - from + 1;
+        // 坐标表（地图编辑器导出）优先；没导出过的世界回退到 ROAD_X 公式，行为与旧版一致
+        const table = LEVELS_BY_ART[art];
         const out: MapNodeData[] = [];
         for (let level = from; level <= to; level++) {
             const local = level - from;
             const blocked = GS.mode === 'nightmare' && !this.canNightmare(level);
+            const rec = table?.find((e) => e.level === level);
             out.push({
                 level,
                 status: blocked ? 'locked' : levelStatus(progress, level),
                 stars: recordOf(progress, level).stars,
                 lockNote: blocked ? MAP_TEXT.nightmareLocked : undefined,
-                x: nodeX(local, w),
-                y: nodeY(local, count),
+                x: rec ? rec.x : nodeX(local, w),
+                y: rec ? rec.y : nodeY(local, count),
             });
         }
         return out;
