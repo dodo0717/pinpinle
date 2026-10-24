@@ -21,6 +21,7 @@ import { ToastLayer, fmtMMSS } from './toast.js';
 import { GameAudio } from './audio.js';
 import { GuideBar } from './guide.js';
 import { GS } from './state.js';
+import { syncFriendRank } from './wxFriend.js';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text.js';
 import { unlockedImageIds } from './meta.js';
 import {
@@ -675,6 +676,8 @@ export class GameBootstrap extends Component {
       const after = recordOf(next, this.levelIndex);
       GS.setProgress(next);
       GS.flush();
+      // 结算落盘后把最新总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
+      syncFriendRank();
       this.audio.play('win');
       this.announceUnlocks(next);
       this.showHonorDialog(outcome, settlement, after.boardBest);

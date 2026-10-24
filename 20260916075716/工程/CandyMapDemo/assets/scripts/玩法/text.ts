@@ -43,6 +43,8 @@ export const PANEL = {
   boardTitle: '排行榜',
   tabTotal: '总分榜',
   tabLevel: '关卡榜',
+  tabFriend: '好友榜',
+  friendNA: '好友榜仅在微信内可用',
   colRank: '排名',
   colName: '昵称',
   colSimple: '简单',

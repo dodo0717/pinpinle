@@ -8,6 +8,7 @@ import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
+import { syncFriendRank } from '../玩法/wxFriend';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../玩法/text';
 import { MapPanels } from '../界面/MapPanels';
 import { LEVELS_BY_ART } from './levelTable';
@@ -257,6 +258,8 @@ export class MapBootstrap extends Component {
         this.k = this.screenH / PAGE_H;
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
+        // 启动即把本人总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
+        syncFriendRank();
         this.measureInsets();
 
         // 创建顺序 = 叠放顺序（后建的在上层）

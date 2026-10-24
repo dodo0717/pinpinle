@@ -140,6 +140,11 @@ CandyMapDemo/
   - **贴图就绪隐患**（坑清单交叉核对发现）：`drawSprite` 依赖 `img.complete`，微信 `wx.createImage()` 不保证有该属性 → 纯代码版在微信里贴图可能全不渲染。改为 `loadImage` onload 自打 `_ccReady` 标记 + 双保险判断；`naturalWidth || width` 本就有兜底。
   - **地图编辑器链路**（终结手写坐标表）：新增 `tools/convert-map-json.ts`——读糖果小镇通用地图编辑器的 `.map.json`（关卡节点 = `props.level` 组件，中心取 `x+w/2, y+h/2`），按 `TRACK_W/widthPx` 系数换算到轨道坐标（编辑器→底图→轨道两步等比，系数与底图宽度无关），生成 `assets/scripts/场景/levelTable.ts`；`MapBootstrap.worldNodes` 改为**坐标表优先、ROAD_X 公式回退**（表空 = 行为与旧版完全一致，渐进替换）。文件名约定 = 世界美术名（`xiaozhen.map.json`→'xiaozhen'）。已用糖果小镇示例地图实测转换（12 关、无警告）；新增 `test/maptable.test.ts` 5 项（期间修了两个自坑：CLI 入口在被 import 时执行 `process.exit` 截断测试 → 加 `isMain()` 守卫；`[]` 为 truthy 导致空表渲染出 `\n\n`）。**227 测试全过**；minigame 重建（35 个脚本）。
   - **美术工作流**（待美术执行）：双击 `C:\idea-xiao\CandyCrushSaga\universal-map-editor\release\地图编辑器.html` → 新建（9:16）→「导入原图底图」选世界底图 →「⭐ 放置关卡节点」沿路摆 12 个 →「🔢 按位置重新编号」→ Ctrl+S 导出 `xiaozhen.map.json` → 跑 `node tools/convert-map-json.ts xiaozhen.map.json` → 提交。操作细节见糖果小镇 `docs/地图编辑器-操作手册.md`。
+- **2026-10-24（复用糖果小镇资产 ②：好友排行 · 开放数据域）**：排行榜新增**好友榜** Tab（总分/关卡/好友三栏）。微信规矩：主域读不到好友数据，只能 `wx.setUserCloudStorage` 写本人 KV；好友数据在开放数据域里读并画到 sharedCanvas，主域整张贴上屏。
+  - **子域**：`minigame/open-data/index.js`（纯 ES5 独立脚本，不走 TS 构建，`game.json` 的 `openDataContext` 指向它）——读 `pinpin_rank` KV、排序、按排行榜面板配色（深蓝底/白字/前三金）画到 sharedCanvas，最多 20 行暂不分页。
+  - **主域**：`玩法/wxFriend.ts`——`syncFriendRank()` 把两模式总分（与 MapPanels.totalScoreOf 同口径）+ 总星 + 进度按 wxgame 协议写入 KV，**启动与结算落盘各调一次**，失败静默；`friendRankCanvas(w,h,scale)` 取 `odc.canvas` 贴入卡内（尺寸变化时重设 + postMessage 让子域重画；`_ccReady` 标记满足 shim 贴图就绪判断）。非微信全降级：好友 Tab 显示「好友榜仅在微信内可用」。
+  - **MapPanels**：Tab 从两栏 340 宽改三栏 250 宽；好友分支跳过我的成绩/表头/分页，卡内整块贴 sharedCanvas。
+  - 验证：227 测试全过；浏览器实测三 Tab 渲染 + 降级提示 + 无异常（画布像素直读法）。微信侧（mock 好友数据）待开发者工具实测。minigame 重建（36 个脚本）。
 
 ## 扩展方向
 

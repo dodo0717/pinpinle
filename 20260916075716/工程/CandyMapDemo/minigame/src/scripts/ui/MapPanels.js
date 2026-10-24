@@ -17,9 +17,10 @@
 
 import {
   Node, UITransform, Sprite, SpriteFrame, Texture2D, Label, Color, Graphics, Layers, Vec2, Rect,
-  EventTouch, HorizontalTextAlignment, VerticalTextAlignment, resources, UIOpacity,
+  EventTouch, HorizontalTextAlignment, VerticalTextAlignment, resources, UIOpacity, director,
 } from '../../runtime/cc.js';
 import { GS } from '../game/state.js';
+import { friendRankCanvas } from '../game/wxFriend.js';
 import { PANEL } from '../game/text.js';
 import { unlockedImageIds, COLLECTION_TOTAL, totalStars } from '../game/meta.js';
 import {
@@ -129,7 +130,7 @@ export class MapPanels {
           host           ;
           kind                   = null;
 
-          boardTab                    = 'total';
+          boardTab                               = 'total';
           boardLevel = TOTAL_LEVELS;
           boardPage = 0;
           colPage = 0;
@@ -349,12 +350,40 @@ export class MapPanels {
     const card = this.cardBase(cTop, cw, ch, new Color(110, 168, 236));
     const inner = cw - 108;
     const isLevel = this.boardTab === 'level';
+    const isFriend = this.boardTab === 'friend';
 
     // ---- 从上往下：Tab → (关卡步进器) → 我的成绩 ----
     let y = ch / 2 - 40 - 27;
-    this.tab(card, PANEL.tabTotal, -191.5, y - 61, !isLevel, () => this.setBoardTab('total'));
-    this.tab(card, PANEL.tabLevel, 191.5, y - 61, isLevel, () => this.setBoardTab('level'));
+    // 三栏 Tab（总分 / 关卡 / 好友）：好友榜走开放数据域，见 wxFriend.ts
+    this.tab(card, PANEL.tabTotal, -260, y - 61, !isLevel && !isFriend, () => this.setBoardTab('total'), 250);
+    this.tab(card, PANEL.tabLevel, 0, y - 61, isLevel, () => this.setBoardTab('level'), 250);
+    this.tab(card, PANEL.tabFriend, 260, y - 61, isFriend, () => this.setBoardTab('friend'), 250);
     y -= 122 + 6;
+
+    // ---- 好友榜：开放数据域的 sharedCanvas 整张贴入卡内 ----
+    // 微信规定主域读不到好友数据，只能把子域画好的画布当一张图贴上（wxFriend.ts）；
+    // 非微信环境降级为提示文字。子域最多画 20 行，暂不做分页。
+    if (isFriend) {
+      const band = this.frameBand(ch);
+      const areaTop = y - 10;
+      const areaBottom = -ch / 2 + band + 12;
+      const areaH = areaTop - areaBottom;
+      const areaW = cw - 72;
+      const scale = director._canvas && director._canvas.width > 0 ? director._canvas.width / 1080 : 1;
+      const src = friendRankCanvas(areaW, areaH, scale);
+      if (src) {
+        const node = this.node(card, 'FriendCanvas', areaW, areaH, 0, areaBottom + areaH / 2);
+        const sp = node.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        const sf = new SpriteFrame();
+        sf.texture = new Texture2D(src                               );
+        sp.spriteFrame = sf;
+      } else {
+        this.label(card, 'FriendNA', PANEL.friendNA, 44, new Color(219, 236, 255), cw - 120, 90, 0, areaBottom + areaH / 2);
+      }
+      this.cardFrame(card, cw, ch);
+      return;
+    }
     if (isLevel) {
       y -= 11;
       this.stepper(card, y - 37);
@@ -399,17 +428,17 @@ export class MapPanels {
     this.cardFrame(card, cw, ch);
   }
 
-          setBoardTab(tab                   )       {
+          setBoardTab(tab                              )       {
     if (this.boardTab === tab) return;
     this.boardTab = tab;
     this.boardPage = 0;
     this.render();
   }
 
-          tab(parent      , text        , x        , y        , on         , onTap            )       {
-    const b = this.button(parent, 'Tab_' + text, 340, 122, x, y, onTap);
-    this.sprite(b, 'Bg', `${ART}/leaderboard/${on ? 'tab-on' : 'tab-off'}`, 340, 122);
-    this.label(b, 'Text', text, 64, C_WHITE, 300, 110, 0, 4, { shadow: true });
+          tab(parent      , text        , x        , y        , on         , onTap            , w = 340)       {
+    const b = this.button(parent, 'Tab_' + text, w, 122, x, y, onTap);
+    this.sprite(b, 'Bg', `${ART}/leaderboard/${on ? 'tab-on' : 'tab-off'}`, w, 122);
+    this.label(b, 'Text', text, w >= 340 ? 64 : 54, C_WHITE, w - 40, 110, 0, 4, { shadow: true });
   }
 
   /** 关卡榜的「◀ 第 N 关 ▶」 */
