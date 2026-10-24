@@ -129,8 +129,13 @@ export class JsonAsset {
   constructor(json) { this.json = json; }
 }
 
-/** 资源表根：浏览器走 HTTP（serve.mjs 服务 assets/resources/）；小游戏走包内相对路径（构建时拷到 minigame/assets/） */
-const RES_BASE = WX ? 'assets/' : '/assets/resources/';
+/**
+ * 资源表根。浏览器走 HTTP（serve.mjs 服务 assets/resources/）；小游戏走**远程**素材
+ * `https://candy.aidertech.cn/mini-assets/pp/`（downloadFile 合法域名已配置）——
+ * 素材 12MB 塞主包会超微信 4MB 上限，2026-10-24 起远程化，包里只留代码。
+ * 图片走 wx.createImage(远程 URL)、音频走 InnerAudioContext(src 远程)，都吃这份基址。
+ */
+const RES_BASE = WX ? 'https://candy.aidertech.cn/mini-assets/pp/' : '/assets/resources/';
 /** 素材库里 png / jpg 混放（stickers 有一半是 jpg），逐个后缀试过去 */
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.webp'];
 

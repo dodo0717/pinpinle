@@ -3,33 +3,35 @@
  *
  *   node tools/build-minigame.ts
  *
- * 做四件事：
+ * 做三件事：
  * 1. `assets/scripts` 下所有 .ts → `minigame/src/scripts` 下同名 .js
  *    用 Node 22 原生 `stripTypeScriptTypes` 剥类型（与测试跑法同一条路径），
  *    装饰器手动剥（`@ccclass` / `@property`，与 preview/serve.mjs 同一套正则）；
  * 2. import 重写：`from 'cc'` → 指向 `src/runtime/cc.js`（cc-shim 的拷贝）的相对路径；
  *    相对导入补 `.js` 扩展名；中文目录段映射成 ASCII（场景→scenes 等），
  *    避免小游戏包 / git / 工具链在非 ASCII 路径上出幺蛾子；
- * 3. `preview/cc-shim.js` → `minigame/src/runtime/cc.js`（双环境运行时原样拷贝）；
- * 4. `assets/resources/**`（除 .meta）→ `minigame/assets/`。
+ * 3. `preview/cc-shim.js` → `minigame/src/runtime/cc.js`（双环境运行时原样拷贝）。
+ *
+ * 素材不进包（2026-10-24 远程化）：微信侧从 `https://candy.aidertech.cn/mini-assets/pp/`
+ * 加载，浏览器验证走 serve.mjs 的 `/assets/resources/`——两边都由运行时的 RES_BASE
+ * 决定，本脚本不再拷素材。上传新素材 = 传 `minigame 之外` 的 `assets/resources/` 内容
+ * 到服务器 `/home/game/mini-assets/pp/`。
  *
  * 入口 `game.js` / `game.json` / `project.config.json` / `browser.html` 手工维护，
  * 本脚本不覆盖。产物提交进 git（可 review、可 diff、可回滚）。
  *
  * ## 包体
- * 代码 ~几百 KB + 素材 9.9 MB：开发者工具模拟器直接可跑；真机预览/上传有 4MB
- * 主包上限 —— 下一步把素材挪分包或远程（`https://candy.aidertech.cn/mini-assets/`）。
+ * 纯代码：主包几百 KB，远低于微信 4MB 上限。
  */
 
 import { stripTypeScriptTypes } from 'node:module';
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_SCRIPTS = join(ROOT, 'assets', 'scripts');
 const SRC_SHIM = join(ROOT, 'preview', 'cc-shim.js');
-const SRC_RES = join(ROOT, 'assets', 'resources');
 const OUT = join(ROOT, 'minigame');
 const OUT_SCRIPTS = join(OUT, 'src', 'scripts');
 const OUT_RUNTIME = join(OUT, 'src', 'runtime');
@@ -96,22 +98,13 @@ walk(SRC_SCRIPTS, (p) => {
 });
 console.log(`脚本: ${count} 个 .ts → minigame/src/scripts/`);
 
-/* ------------------------------------------------ 运行时 + 素材 */
+/* ------------------------------------------------ 运行时 */
 
 mkdirSync(OUT_RUNTIME, { recursive: true });
 // 不用 cpSync：Windows 上偶发「unlink」怪错（杀软碰一下目标文件就炸），读写绕开
 writeFileSync(join(OUT_RUNTIME, 'cc.js'), readFileSync(SRC_SHIM));
 console.log('运行时: preview/cc-shim.js → minigame/src/runtime/cc.js');
 
+// 素材不进包（远程化后可能还留着旧拷贝，清掉）
 rmSync(join(OUT, 'assets'), { recursive: true, force: true });
-let files = 0, skipped = 0;
-walk(SRC_RES, (p) => {
-  if (p.endsWith('.meta')) { skipped++; return; }
-  const rel = relative(SRC_RES, p);
-  const outPath = join(OUT, 'assets', rel);
-  mkdirSync(dirname(outPath), { recursive: true });
-  cpSync(p, outPath);
-  files++;
-});
-console.log(`素材: ${files} 个文件 → minigame/assets/（跳过 ${skipped} 个 .meta）`);
-console.log('完成。微信开发者工具导入 minigame/ 目录；浏览器验证开 minigame/browser.html。');
+console.log('完成。微信开发者工具导入 minigame/ 目录（素材走远程）；浏览器验证开 minigame/browser.html。');

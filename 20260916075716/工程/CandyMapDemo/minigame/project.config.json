@@ -12,7 +12,7 @@
   "setting": {
     "urlCheck": true,
     "es6": true,
-    "enhance": true,
+    "enhance": false,
     "minified": true,
     "postcss": false,
     "compileWorklet": false,

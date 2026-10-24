@@ -151,6 +151,10 @@ CandyMapDemo/
   - **v1 只同步简单模式**：后端单模式模型 + 关卡守卫会把困难模式的偏移关号判成跳关拒收（LevelRule/ReportGuard 核实过），硬上会丢数据；`REPORT_MODES` 留了缝，后端加模式维度后一行放开。困难模式进度仍由微信 KV 好友榜（总分+总星）覆盖展示。
   - **接入点**：`MapBootstrap.onLoad` 异步 `bootCloud`（登录→flush 队列→pull 合并→有变化才重画；直接写 `GS.data.progress.normal`+markDirty+flush，绕开 setProgress 只写当前模式的问题）；`GameBootstrap` 结算落盘后按 `REPORT_MODES` 上报。`cloudSync()` 懒单例共享登录态；非微信返回 null 全 no-op。
   - 期间踩坑：`constructor(private host)` 参数属性不被 Node 剥离模式支持（MapPanels 头注释早有此规约）→ 改显式字段。新增 `test/cloud.test.ts` 9 项（合并/补推/队列/401/降级，假宿主注入）；**236 测试全过**；minigame 重建（37 个脚本）+ 浏览器验证游戏照常起。微信侧待开发者工具/真机实测（登录换 token、进度同步）。
+- **2026-10-24（微信工具 `worker path empty` 修复 + 素材远程化）**：
+  - **工具报错 `Error: worker path empty`**：挖了工具自身源码（app.asar）——带 `openDataContext` 的项目会触发一个 worker 基础库编译插件，它读 game.json 的 `workers` 字段（无则空串）直接抛错；糖果小镇没炸是因为他们 `es6: false` 走了老式子域路径。**解法：`project.config.json` 里 `enhance: false`（保留 `es6: true`，import 编译不受影响）**——用户实测生效，开放数据域（好友榜）随之恢复。
+  - **素材远程化（真机 4MB 上限的前置）**：`minigame/assets/`（105 文件 / 12MB）上传到 `https://candy.aidertech.cn/mini-assets/pp/`（downloadFile 合法域名已配置，公网抽查四类素材全 200）；shim 的 `RES_BASE` 微信分支改走该远程基址（浏览器验证仍走本地 `/assets/resources/`），`tools/build-minigame.ts` 不再拷素材并清理旧拷贝。**主包从 12MB 降到 0.51MB**（44 个文件，纯代码），远低于 4MB 上限——**真机预览/上传解锁**。代价：微信侧首帧素材走网络（加载页进度条覆盖这个等待）；服务器宕机时贴图/音频缺失但 Graphics 绘制的 UI 照常。236 测试全过 + 浏览器渲染回归通过（画布像素直读）。
+  - **素材更新流程（今后换图）**：改 `assets/resources/` 源文件 → 跑上传（tar 到服务器 `/home/game/mini-assets/pp/`，同 Cocos remote 包套路）→ 无需重新构建小游戏（路径不变）。
 
 ## 扩展方向
 
