@@ -3,7 +3,7 @@
  *
  * 原版用 WebAudio 现场合成 11 个音槽（swap / eliminate / drop / tick / rush / win /
  * fail / honor ×3），好处是零素材。Cocos 里走 `AudioSource` + `resources/audio/*`，
- * 素材缺失时**静默降级**（不能因为少了音频文件就让游戏起不来）。
+ * 素材缺失时降级但**不静默**（控制台打 `[audio]` 日志，游戏照常起）。
  *
  * 两个开关（§11.4 音效 / 背景音乐）在这里收口：界面只管 `setSound` / `setBgm`，
  * 不用在每个播放点判开关 —— 否则漏判一处就是「关了音效还有声音」。
@@ -51,6 +51,8 @@ export class GameAudio extends Component {
   private bgmOn = true;
   /** 倒计时是否在走 —— 决定 BGM 该不该响（原版 syncAudio） */
   private running = false;
+  /** BGM 首次起播打日志用（排查真机无声时确认播放路径走到没有） */
+  private bgmLogged = false;
 
   onLoad(): void {
     this.src = this.node.addComponent(AudioSource);
@@ -68,16 +70,29 @@ export class GameAudio extends Component {
   }
 
   private loadAll(): void {
+    // 缺素材不阻断（游戏照常起），但要打出来 —— 2026-10-24 排查「小程序没声音」时，
+    // 纯静默降级让人无从下手；真机 / 开发者工具控制台看 [audio] 行即可定位
+    const total = Object.keys(CLIP_PATH).length;
+    let done = 0;
     for (const key of Object.keys(CLIP_PATH) as SoundName[]) {
       resources.load(CLIP_PATH[key], AudioClip, (err, clip) => {
-        if (err || !clip) return;   // 缺素材静默：不打印、不阻断
+        if (err || !clip) {
+          console.warn(`[audio] 音效缺失 ${CLIP_PATH[key]}：${(err as Error | undefined)?.message ?? '无数据'}`);
+          return;
+        }
         this.clips.set(key, clip);
+        done += 1;
+        if (done === total) console.log(`[audio] 音效 ${done}/${total} 就绪`);
       });
     }
     resources.load(BGM_PATH, AudioClip, (err, clip) => {
-      if (err || !clip) return;
+      if (err || !clip) {
+        console.warn(`[audio] BGM 缺失 ${BGM_PATH}：${(err as Error | undefined)?.message ?? '无数据'}`);
+        return;
+      }
       this.bgmSrc.clip = clip;
       this.syncBgm();
+      console.log('[audio] BGM 就绪');
     });
   }
 
@@ -102,7 +117,11 @@ export class GameAudio extends Component {
   private syncBgm(): void {
     if (!this.bgmSrc) return;
     if (this.bgmOn && this.running && this.bgmSrc.clip) {
-      if (!this.bgmSrc.playing) this.bgmSrc.play();
+      if (!this.bgmSrc.playing) {
+        this.bgmSrc.play();
+        // 只在首次起播打一行：确认「对局内 → BGM 播放」这条路真的走到了
+        if (!this.bgmLogged) { this.bgmLogged = true; console.log('[audio] BGM 开始播放'); }
+      }
     } else if (this.bgmSrc.playing) {
       this.bgmSrc.stop();
     }

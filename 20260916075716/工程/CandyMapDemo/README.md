@@ -125,6 +125,7 @@ CandyMapDemo/
   - 顺带修复：预览 `cc-shim.js` 缺 `Camera/Canvas/input/Input` 导出与 `director.getScene()`（GameBootstrap 修坐标换算时引入的名字），`preview/map.html` 整页起不来；已补齐并用无头 Chrome 实测地图正常渲染。临时测量页验证：`bottomInset=20`、`navPrev` opacity 150 + disabled、图鉴 pill 底边距卡底 63（金边带 51 + 12）。222 个测试通过。
   - **生效步骤同音频条目**：Cocos Creator 重新构建微信小游戏 + 上传 `remote/`（音频与界面一起验证）。
 - **2026-10-24（构建 + 远程包上传）**：Cocos Creator 重构后（先解决 360 清理 Temp 导致的 `ENOENT *.tmp.js` 编译报错——重启编辑器全量重编）构建 `build/wechatgame/`。已核验产物含三项界面修复与音频（`assets/main/index.js` 里有 `bottomInset=20`、灰色 `172,172,172`、`frameBand`；`remote/resources/native/` 下 12 个 WAV）。主包（不含 remote）**2.2 MB** ✓；`remote/resources`（12 MB）经 tar-over-ssh 上传到 `root@118.89.83.44:/home/game/mini-assets/remote/`，公网验证 `config.json` 与音频均 200。本地 `remote/` 已移出构建目录存为仓库根 `remote-backup-015/`（沿用 012~014 惯例，已 gitignore）——不移出的话微信上传会把 12 MB 算进包体直接超 4MB。**剩最后一步（需人工）**：微信开发者工具上传小程序 + 真机验证。
+- **2026-10-24（音频二次调整：响度 + 诊断日志）**：首次构建后小程序听不到音乐。两个改动：① `tools/gen-audio.ts` 改为渲染后**峰值归一化**——第一版把 web 总线增益（0.11/0.05）原样烘进文件，手机外放几乎听不见；现在音效峰值 0.5、BGM 0.25（保留 BGM 弱于音效的层次），音色不变只提响度，已重跑生成并核验 12 个 WAV 的峰值。② `玩法/audio.ts` 的加载从「纯静默降级」改为**打日志**：每个槽位缺失 warn 一行、全部就绪 log 一行、BGM 首次起播 log 一行——真机/开发者工具控制台看 `[audio]` 行即可定位无声原因。注意：**BGM 与音效只在对局内响（与 web 一致），主页静音是设计行为**；微信开发者工具本身有不出声的已知怪癖，以真机为准。需重新构建 + 重传 remote 后生效。
 
 ## 扩展方向
 

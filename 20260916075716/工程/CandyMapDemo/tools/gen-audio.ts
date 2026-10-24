@@ -4,19 +4,24 @@
  * ## 为什么需要这个脚本
  * web 版的音效/BGM 是 WebAudio 现场合成的（零素材）；Cocos 端 `玩法/audio.ts`
  * 走 `AudioSource` + `resources/audio/*`，素材缺失时静默降级 —— 所以小程序里
- * 没声音。本脚本按 web 版**完全相同的参数**（频率/时长/包络/波形/总线增益）离线
- * 渲染同样的声音，写到 `assets/resources/audio/`，两边听感一致。
+ * 没声音。本脚本按 web 版**完全相同的参数**（频率/时长/包络/波形）离线渲染同样
+ * 的声音，写到 `assets/resources/audio/`。
+ *
+ * ## 音量（2026-10-24 二次调整）
+ * 第一版把 web 的总线增益（SFX 0.11 / BGM 0.05）原样烘进文件，在手机外放上
+ * 几乎听不见。改为渲染后**峰值归一化**：音效抬到 0.5、BGM 抬到 0.25（保留
+ * BGM 弱于音效的层次），音色与 web 完全一致，只是响度正常。
  *
  * ## 用法
- *   node tools/gen-audio.mjs
+ *   node tools/gen-audio.ts
  *
  * 只依赖 Node 内置模块。采样率 22050 Hz / 单声道 / 16-bit PCM：
  * 合成音的最高频率 2093 Hz（honor-god 尾音），22050 远超奈奎斯特，音色无损；
  * BGM 28.8 s ≈ 1.2 MB，走 resources 远程包不占主包体积。
  *
  * ## 改动须知
- * web 版调音参数（`web/ui/audio.ts` 的 `playSfx` / `BGM_NOTES` / `SFX_GAIN` /
- * `BGM_GAIN`）改了以后，要重跑本脚本才能让小程序同步听感。
+ * web 版调音参数（`web/ui/audio.ts` 的 `playSfx` / `BGM_NOTES`）改了以后，
+ * 要重跑本脚本才能让小程序同步听感。
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -29,6 +34,9 @@ const OUT_DIR = join(ROOT, 'assets', 'resources', 'audio');
 const SR = 22050;               // 采样率
 const SFX_GAIN = 0.11;          // 与 web/ui/audio.ts 的 SFX_GAIN 一致
 const BGM_GAIN = 0.05;          // 与 web/ui/audio.ts 的 BGM_GAIN 一致
+/** 归一化目标峰值：音效 0.5、BGM 0.25（BGM 保持弱于音效的层次） */
+const NORM_SFX = 0.5;
+const NORM_BGM = 0.25;
 
 /* ------------------------------------------------------------ 合成积木 */
 
@@ -123,9 +131,12 @@ function bgmNote(freq: number, at: number, buf: Float32Array): void {
 
 /* ------------------------------------------------------------ WAV 写出 */
 
-function writeWav(name: string, buf: Float32Array): void {
-  // 削波保护：总线叠加可能超 ±1
-  const clipped = Float32Array.from(buf, (v) => Math.max(-1, Math.min(1, v)));
+function writeWav(name: string, buf: Float32Array, targetPeak: number): void {
+  // 峰值归一化到 targetPeak（音色不变，只改响度）；再留削波保护
+  let max = 0;
+  for (let i = 0; i < buf.length; i++) max = Math.max(max, Math.abs(buf[i]));
+  const scale = max > 0 ? targetPeak / max : 1;
+  const clipped = Float32Array.from(buf, (v) => Math.max(-1, Math.min(1, v * scale)));
   const data = Buffer.alloc(clipped.length * 2);
   for (let i = 0; i < clipped.length; i++) {
     data.writeInt16LE(Math.round(clipped[i] * 32767), i * 2);
@@ -251,8 +262,8 @@ function renderBgm(): Float32Array {
 
 /* ------------------------------------------------------------ 主流程 */
 
-console.log(`渲染到 ${OUT_DIR}（${SR}Hz 单声道 16-bit）`);
+console.log(`渲染到 ${OUT_DIR}（${SR}Hz 单声道 16-bit，音效峰值 ${NORM_SFX} / BGM 峰值 ${NORM_BGM}）`);
 mkdirSync(OUT_DIR, { recursive: true });
-for (const [name, render] of TRACKS) writeWav(`${name}.wav`, render());
-writeWav('bgm.wav', renderBgm());
+for (const [name, render] of TRACKS) writeWav(`${name}.wav`, render(), NORM_SFX);
+writeWav('bgm.wav', renderBgm(), NORM_BGM);
 console.log('完成。打开 Cocos Creator 让其导入 audio/ 后重新构建；resources 为远程包，需同步上传。');
