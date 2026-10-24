@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>原型 A · 糖果嘉年华 —— 萌宠拼拼乐对局界面</title>
+<title>原型 A · 糖果嘉年华 —— 萌宠拼拼乐对局界面（真拼图玩法）</title>
 <style>
 /* ============================================================
-   原型 A「糖果嘉年华」—— 糖果传奇式经典流派
-   调色：紫罗兰夜空 / 木牌 / 糖果粉 / 金 / 奶油
-   主张：一切多汁、有重量；豪赌时刻 = 通关三星砸落 + 超神金光爆发
+   原型 A「糖果嘉年华」—— 糖果传奇式经典流派 × 真拼图消除玩法
+   玩法：每格一块贴纸碎片（四分之一），拖动换位；同图相邻且位置正确
+   即融合（金光提示），凑满正确 2×2 → 消除 + 上方落补 + 连锁。
    ============================================================ */
 :root {
   --sky-a: #9B6DD6;
@@ -30,15 +30,14 @@ html, body { height: 100%; }
 body {
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   background: #2A1650;
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
-  padding: 18px 12px 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 16px 12px 24px;
   color: #fff;
 }
-.meta { text-align: center; line-height: 1.7; }
+.meta { text-align: center; line-height: 1.6; }
 .meta h1 { font-size: 17px; font-weight: 900; letter-spacing: 1px; }
 .meta p { font-size: 12px; opacity: .75; }
 
-/* ---------- 手机壳 ---------- */
 .phone {
   width: 390px; height: 780px; flex: none;
   border-radius: 42px; padding: 10px;
@@ -51,7 +50,6 @@ body {
   background: linear-gradient(175deg, var(--sky-a), var(--sky-b) 62%, #5B2E93);
   display: flex; flex-direction: column;
 }
-/* 糖果光斑 */
 .screen::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background:
@@ -60,7 +58,7 @@ body {
     radial-gradient(180px 120px at 50% 108%, rgba(120,80,200,.5), transparent 70%);
 }
 
-/* ---------- 顶部 HUD：木牌 ---------- */
+/* ---------- HUD ---------- */
 .hud {
   position: relative; z-index: 2;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: start;
@@ -77,8 +75,6 @@ body {
 .plank .cap { font-size: 10px; font-weight: 800; color: #FFDFB0; letter-spacing: 2px; }
 .plank .num { font-size: 22px; font-weight: 900; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
 #score-plank { text-align: left; min-width: 108px; }
-
-/* 三星插座 */
 .stars { display: flex; gap: 6px; padding-top: 14px; }
 .star-socket {
   width: 44px; height: 44px; border-radius: 50%;
@@ -86,7 +82,7 @@ body {
   box-shadow: inset 0 3px 6px rgba(0,0,0,.45), 0 2px 0 rgba(0,0,0,.25);
   display: grid; place-items: center;
   font-size: 24px; filter: grayscale(1) brightness(.55);
-  transition: filter .25s, transform .25s;
+  transition: filter .25s;
 }
 .star-socket.on {
   filter: none;
@@ -95,8 +91,6 @@ body {
   animation: starPop .45s cubic-bezier(.34,1.8,.64,1);
 }
 @keyframes starPop { 0% { transform: scale(.2) rotate(-30deg); } 70% { transform: scale(1.35) rotate(8deg); } 100% { transform: scale(1); } }
-
-/* 计时器：糖果圆表 */
 .timer-wrap { position: relative; width: 74px; height: 74px; margin-left: auto; }
 .timer-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
 .timer-ring .bg { fill: none; stroke: rgba(0,0,0,.3); stroke-width: 9; }
@@ -110,49 +104,88 @@ body {
   text-shadow: 0 2px 0 rgba(0,0,0,.4);
 }
 
-/* ---------- 星线进度 ---------- */
+/* ---------- 星线 ---------- */
 .goal {
   position: relative; z-index: 2; margin: 4px 14px 0;
   display: flex; align-items: center; gap: 8px;
   font-size: 11px; font-weight: 800; color: #FFE9C7;
 }
-.goal .ticks { flex: 1; display: flex; align-items: center; gap: 5px; }
+.goal .ticks { flex: 1; display: flex; gap: 5px; }
 .goal .tick { flex: 1; height: 10px; border-radius: 6px; background: rgba(0,0,0,.32); overflow: hidden; }
-.goal .tick i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #FFB25E, var(--gold)); border-radius: 6px; transition: width .35s cubic-bezier(.34,1.4,.64,1); }
+.goal .tick i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #FFB25E, var(--gold)); transition: width .35s cubic-bezier(.34,1.4,.64,1); }
 .goal .tick.done { box-shadow: 0 0 10px rgba(255,201,60,.7); }
 .goal .tick.done i { width: 100%; }
 
-/* ---------- 棋盘（木桌） ---------- */
-.board-wrap { position: relative; z-index: 2; flex: 1; display: grid; place-items: center; padding: 10px 14px; }
+/* ---------- 棋盘（木桌 · 真拼图） ---------- */
+.board-wrap { position: relative; z-index: 2; flex: 1; display: grid; place-items: center; padding: 8px 14px 2px; }
 .board {
-  width: 342px; height: 428px;
+  width: 348px; height: 456px;
   background: linear-gradient(180deg, var(--wood), var(--wood-dark));
   border: 5px solid var(--wood-edge);
   border-radius: 22px;
   box-shadow: 0 10px 0 var(--wood-edge), 0 22px 30px rgba(0,0,0,.4), inset 0 3px 0 rgba(255,255,255,.22);
-  padding: 12px;
-  display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(7, 1fr);
-  gap: 6px;
+  padding: 10px;
+  display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(6, 1fr);
+  gap: 7px;
+  touch-action: none;
 }
-.cell {
-  border-radius: 12px;
-  background: rgba(0,0,0,.22);
-  box-shadow: inset 0 3px 5px rgba(0,0,0,.35);
-  display: grid; place-items: center;
-  font-size: 27px;
-  cursor: pointer; user-select: none;
-  transition: transform .12s cubic-bezier(.34,1.8,.64,1);
+.cell { position: relative; border-radius: 12px; background: rgba(0,0,0,.22); box-shadow: inset 0 3px 5px rgba(0,0,0,.35); }
+.cell.fade .piece { display: none; }
+/* 碎片：白色贴纸底 + 按图着色的软糖底色 */
+.piece {
+  position: absolute; inset: 1px; border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,.3), inset 0 -2px 0 rgba(0,0,0,.08);
+  cursor: grab; user-select: none;
 }
-.cell:hover { transform: scale(1.06); }
-.cell:active { transform: scale(.85); }
-.cell.pop { animation: pop .38s cubic-bezier(.34,1.6,.64,1) forwards; }
-@keyframes pop {
-  40% { transform: scale(1.28) rotate(6deg); filter: brightness(1.5); }
-  100% { transform: scale(0) rotate(-14deg); opacity: 0; }
+.piece[data-img="0"] { background: linear-gradient(180deg, #FFE3EF, #FFC9DE); }
+.piece[data-img="1"] { background: linear-gradient(180deg, #DDEBFF, #BBD5F7); }
+.piece[data-img="2"] { background: linear-gradient(180deg, #DFF7E8, #B7EBCB); }
+.piece[data-img="3"] { background: linear-gradient(180deg, #FFF3D0, #FBE1A0); }
+.piece[data-img="4"] { background: linear-gradient(180deg, #FFE7D3, #FACBA4); }
+.piece[data-img="5"] { background: linear-gradient(180deg, #EDE0FF, #D2BBF5); }
+.frag { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
+.frag::before {
+  content: attr(data-emoji);
+  position: absolute; font-size: 112px; line-height: 1;
 }
-.cell.drop { animation: drop .3s cubic-bezier(.34,1.5,.64,1); }
-@keyframes drop { from { transform: translateY(-260%); } }
-/* 飞出的分数 */
+.frag[data-pos="0"]::before { left: 0; top: 0; }
+.frag[data-pos="1"]::before { right: 0; top: 0; }
+.frag[data-pos="2"]::before { left: 0; bottom: 0; }
+.frag[data-pos="3"]::before { right: 0; bottom: 0; }
+/* 融合提示（正确相邻的组）：金光描边 */
+.cell.g .piece { box-shadow: 0 0 0 2.5px var(--gold), 0 0 14px rgba(255,201,60,.75); }
+.cell.g { background: rgba(255,201,60,.16); }
+/* 点选态 */
+.cell.sel .piece { box-shadow: 0 0 0 3px #FFF, 0 0 16px rgba(255,255,255,.8); transform: scale(1.07); }
+/* 拖起 */
+.cell.lift .piece { opacity: .3; }
+/* 拖影 */
+.ghost {
+  position: fixed; z-index: 999; pointer-events: none;
+  transform: scale(1.16) rotate(3deg);
+  box-shadow: 0 14px 26px rgba(0,0,0,.45), 0 0 20px rgba(255,201,60,.6);
+  border-radius: 11px; overflow: hidden;
+}
+/* 消除闪 */
+.cell.zap .piece { animation: zap .48s ease-out forwards; }
+@keyframes zap {
+  40% { transform: scale(1.14); filter: brightness(1.7); }
+  100% { transform: scale(0); opacity: 0; }
+}
+/* 完整贴纸弹出 */
+.full-pop {
+  position: absolute; z-index: 8; pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-size: 118px; line-height: 1;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,.4));
+  animation: fusePop .58s cubic-bezier(.3,1.4,.5,1) forwards;
+}
+@keyframes fusePop {
+  0% { transform: translate(-50%, -50%) scale(.5); filter: brightness(1.8) drop-shadow(0 0 18px var(--gold)); }
+  55% { transform: translate(-50%, -50%) scale(1.18); }
+  100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+}
 .fly-score {
   position: absolute; z-index: 5; pointer-events: none;
   font-size: 20px; font-weight: 900; color: #FFE58A;
@@ -160,10 +193,8 @@ body {
   animation: fly .8s ease-out forwards;
 }
 @keyframes fly { to { transform: translateY(-56px) scale(1.15); opacity: 0; } }
-
-/* 连击词 */
 .combo-word {
-  position: absolute; z-index: 6; left: 50%; top: 34%;
+  position: absolute; z-index: 6; left: 50%; top: 30%;
   transform: translateX(-50%);
   font-size: 34px; font-weight: 900; font-style: italic;
   color: #FFEE9C; letter-spacing: 2px;
@@ -176,11 +207,19 @@ body {
   100% { transform: translateX(-50%) scale(1) translateY(-30px); opacity: 0; }
 }
 
+/* ---------- 玩法提示 ---------- */
+.hint {
+  position: relative; z-index: 2; text-align: center;
+  font-size: 11px; font-weight: 700; color: #E9D8FF; opacity: .85;
+  padding: 2px 0 4px;
+}
+.hint b { color: var(--gold); }
+
 /* ---------- 底栏 ---------- */
 .footer {
   position: relative; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 18px 16px;
+  padding: 2px 18px 14px;
 }
 .mode-tag {
   font-size: 12px; font-weight: 900; color: #fff;
@@ -194,30 +233,22 @@ body {
   background: rgba(0,0,0,.3); padding: 6px 12px; border-radius: 999px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.4);
 }
-.energy .heart { font-size: 16px; }
 
-/* ---------- 通用弹层 ---------- */
+/* ---------- 弹层 ---------- */
 .overlay {
   position: absolute; inset: 0; z-index: 10;
   display: none; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(30,10,60,.72);
-  backdrop-filter: blur(3px);
+  background: rgba(30,10,60,.72); backdrop-filter: blur(3px);
   padding: 24px;
 }
 .overlay.show { display: flex; animation: fade .25s; }
 @keyframes fade { from { opacity: 0; } }
-
-/* ---------- 通关结算 ---------- */
 .win-card {
   width: 100%; max-width: 318px;
   background: linear-gradient(180deg, #FFF9EE, #FFEEDA);
-  border-radius: 26px;
-  border: 4px solid #FFDF9E;
+  border-radius: 26px; border: 4px solid #FFDF9E;
   box-shadow: 0 14px 0 rgba(0,0,0,.25), 0 26px 40px rgba(0,0,0,.4);
-  padding: 18px 22px 24px;
-  text-align: center;
-  color: #6B4A1D;
-  position: relative;
+  padding: 18px 22px 24px; text-align: center; color: #6B4A1D; position: relative;
 }
 .win-stars { display: flex; justify-content: center; gap: 10px; height: 74px; margin: 4px 0 6px; }
 .win-stars .wstar {
@@ -236,8 +267,7 @@ body {
 }
 .honor-title {
   font-size: 40px; font-weight: 900; font-style: italic; letter-spacing: 3px;
-  color: var(--cta); margin: 2px 0 4px;
-  text-shadow: 0 3px 0 #FFD9B0;
+  color: var(--cta); margin: 2px 0 4px; text-shadow: 0 3px 0 #FFD9B0;
   opacity: 0; transform: scale(2.4);
 }
 .honor-title.in { animation: honorIn .5s .75s cubic-bezier(.2,1.5,.4,1) forwards; }
@@ -246,36 +276,20 @@ body {
   55% { opacity: 1; transform: scale(.94) rotate(2deg); }
   100% { opacity: 1; transform: scale(1); }
 }
-/* 超神金色光爆 */
-.burst {
-  position: absolute; z-index: 11; left: 50%; top: 96px;
-  width: 240px; height: 240px; margin: -120px 0 0 -120px;
-  pointer-events: none; opacity: 0;
-}
+.burst { position: absolute; z-index: 11; left: 50%; top: 96px; width: 240px; height: 240px; margin: -120px 0 0 -120px; pointer-events: none; opacity: 0; }
 .burst.in { animation: burst .8s .8s ease-out forwards; }
-@keyframes burst {
-  0% { opacity: 1; transform: scale(.3) rotate(0deg); }
-  100% { opacity: 0; transform: scale(1.6) rotate(28deg); }
-}
+@keyframes burst { 0% { opacity: 1; transform: scale(.3) rotate(0deg); } 100% { opacity: 0; transform: scale(1.6) rotate(28deg); } }
 .tally { margin: 10px 0 14px; border-radius: 14px; background: #FFF3D6; box-shadow: inset 0 2px 5px rgba(160,110,30,.25); padding: 10px 14px; }
 .tally .row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; padding: 4px 2px; }
 .tally .row.total { font-size: 18px; color: #D17515; border-top: 2px dashed #E8C58A; margin-top: 6px; padding-top: 9px; }
 .tally .row .v { font-variant-numeric: tabular-nums; }
-.best-tag {
-  display: inline-block; font-size: 11px; font-weight: 900; color: #fff;
-  background: var(--gold); border-radius: 999px; padding: 3px 10px; margin-left: 6px;
-  box-shadow: 0 2px 0 var(--gold-dark);
-}
-
-/* ---------- 多汁按钮 ---------- */
+.best-tag { display: inline-block; font-size: 11px; font-weight: 900; color: #fff; background: var(--gold); border-radius: 999px; padding: 3px 10px; margin-left: 6px; box-shadow: 0 2px 0 var(--gold-dark); }
 .btn {
   font-family: inherit; font-size: 19px; font-weight: 900; color: #fff;
   letter-spacing: 2px; cursor: pointer; border: none;
-  padding: 14px 26px; border-radius: 18px;
-  background: var(--cta);
+  padding: 14px 26px; border-radius: 18px; background: var(--cta);
   box-shadow: 0 7px 0 var(--cta-edge), inset 0 3px 0 rgba(255,255,255,.4);
-  text-shadow: 0 2px 0 rgba(0,0,0,.28);
-  transition: transform .08s, box-shadow .08s;
+  text-shadow: 0 2px 0 rgba(0,0,0,.28); transition: transform .08s, box-shadow .08s;
 }
 .btn:active { transform: translateY(5px); box-shadow: 0 2px 0 var(--cta-edge), inset 0 3px 0 rgba(255,255,255,.4); }
 .btn.go { background: var(--go); box-shadow: 0 7px 0 var(--go-edge), inset 0 3px 0 rgba(255,255,255,.4); }
@@ -283,8 +297,6 @@ body {
 .btn.ghost { background: #B9B1C9; box-shadow: 0 7px 0 #8E86A0, inset 0 3px 0 rgba(255,255,255,.4); font-size: 15px; }
 .btn.ghost:active { box-shadow: 0 2px 0 #8E86A0, inset 0 3px 0 rgba(255,255,255,.4); }
 .btn-row { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 4px; }
-
-/* ---------- 失败 / 续命 ---------- */
 .fail-card {
   width: 100%; max-width: 300px; text-align: center;
   background: linear-gradient(180deg, #FFF9EE, #FFEEDA);
@@ -302,30 +314,19 @@ body {
   position: absolute; inset: 22px; border-radius: 50%;
   background: radial-gradient(circle at 50% 32%, #FFE58A, var(--gold));
   box-shadow: 0 6px 0 var(--gold-dark), inset 0 -4px 0 rgba(0,0,0,.15);
-  display: grid; place-items: center; font-size: 40px; cursor: pointer;
-  border: none; font-family: inherit;
+  display: grid; place-items: center; font-size: 40px; cursor: pointer; border: none; font-family: inherit;
   animation: pulse 0.9s infinite alternate;
 }
 .ad-note { font-size: 11px; font-weight: 700; color: #A9782F; }
-
-/* 彩带 */
 .confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 12; }
-.confetti i {
-  position: absolute; top: -14px; width: 10px; height: 16px;
-  animation: fall linear forwards;
-}
+.confetti i { position: absolute; top: -14px; width: 10px; height: 16px; animation: fall linear forwards; }
 @keyframes fall { to { transform: translateY(820px) rotate(680deg); } }
 
-/* ---------- 演示控制 ---------- */
-.demo {
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
-  max-width: 430px;
-}
+.demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 430px; }
 .demo button {
   font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
   border: 1px solid rgba(255,255,255,.35); border-radius: 999px;
   background: rgba(255,255,255,.1); color: #EFE6FF; padding: 7px 13px;
-  transition: background .15s;
 }
 .demo button:hover { background: rgba(255,255,255,.25); }
 
@@ -339,12 +340,11 @@ body {
 </head>
 <body>
 <div class="meta">
-  <h1>原型 A · 糖果嘉年华</h1>
-  <p>糖果传奇流派：饱和色 / 木牌 / 多汁按钮 —— 点贴纸消除涨分，看三星砸落与「超神」爆发</p>
+  <h1>原型 A · 糖果嘉年华（真拼图玩法）</h1>
+  <p>拖动碎片换位 · 同图相邻且位置正确即融合（金光）· 凑满 2×2 消除落补连锁</p>
 </div>
 
 <div class="phone"><div class="screen" id="screen">
-  <!-- HUD -->
   <div class="hud">
     <div class="plank" id="score-plank">
       <div class="cap">分数</div>
@@ -373,18 +373,14 @@ body {
     <span id="nextGoal">1500</span>
   </div>
 
-  <!-- 棋盘 -->
-  <div class="board-wrap">
-    <div class="board" id="board"></div>
-  </div>
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+  <div class="hint">拖碎片换位，<b>四块拼成完整贴纸</b>即消除 · 也可先点一块再点另一块</div>
 
-  <!-- 底栏 -->
   <div class="footer">
     <div class="mode-tag">简单模式 · 第 6 关</div>
     <div class="energy"><span class="heart">💛</span><span>9</span>/10</div>
   </div>
 
-  <!-- 通关 -->
   <div class="overlay" id="winOverlay">
     <svg class="burst" id="burst" viewBox="0 0 200 200">
       <g fill="#FFC93C">
@@ -401,18 +397,17 @@ body {
       <div class="honor-title" id="honorTitle">超神！</div>
       <div class="tally">
         <div class="row"><span>本局得分</span><span class="v" id="winScore">0</span></div>
-        <div class="row"><span>获得星数</span><span class="v" id="winStarNum">3 ★</span></div>
+        <div class="row"><span>拼好贴纸</span><span class="v" id="winStarNum">3 张</span></div>
         <div class="row total"><span>累计总分</span><span class="v">12,860<span class="best-tag">新纪录</span></span></div>
       </div>
       <div class="btn-row">
         <button class="btn go" style="width:100%">下一关 ▶</button>
-        <button class="btn ghost">返回地图</button>
+        <button class="btn ghost" id="closeWin">返回地图</button>
       </div>
     </div>
     <div class="confetti" id="confetti"></div>
   </div>
 
-  <!-- 失败 / 续命 -->
   <div class="overlay" id="failOverlay">
     <div class="fail-card">
       <div class="fail-face">⏰</div>
@@ -442,8 +437,9 @@ body {
 </div>
 
 <script>
-/* ---------------- 原型游戏逻辑（演示用：点贴纸消除） ---------------- */
-const PETS = ['🐶','🐱','🐰','🐼','🦊','🐸','🐯','🦁'];
+/* ============ 真拼图消除引擎（与 核心/pieces.ts + merge.ts 同规则的原型版） ============ */
+const IMG = ['🐶','🐱','🐰','🐼','🦊','🐸'];   // 6 张图（原型样本，正式 36 张）
+const COLS = 5, ROWS = 6;
 const GOALS = [1500, 3000, 4500];
 const LIMIT = 60;
 
@@ -459,65 +455,138 @@ const reviveFg = document.getElementById('reviveFg');
 const RING2 = 2 * Math.PI * 66;
 reviveFg.style.strokeDasharray = RING2;
 
-let score = 0, timeLeft = LIMIT, tick = null, combo = 0, comboT = null, ended = false;
+let grid = [];
+let score = 0, timeLeft = LIMIT, tick = null, chain = 0, ended = false, inputOn = true;
+let selected = -1;
+const rnd = n => Math.floor(Math.random() * n);
+const cellAt = (r, c) => board.children[r * COLS + c];
 
-function rand(n) { return Math.floor(Math.random() * n); }
-function buildBoard() {
-  board.innerHTML = '';
-  for (let i = 0; i < 42; i++) {
-    const c = document.createElement('div');
-    c.className = 'cell';
-    c.textContent = PETS[rand(PETS.length)];
-    c.style.transform = `rotate(${rand(7) - 3}deg)`;
-    c.addEventListener('pointerdown', () => tap(c));
-    board.appendChild(c);
+/* 正确相邻：同图 + 相对位置正确（左上在左、上排在上，见 merge.ts） */
+const pairH = (a, b) => a.img === b.img && (a.pos === 0 && b.pos === 1 || a.pos === 2 && b.pos === 3);
+const pairV = (a, b) => a.img === b.img && (a.pos === 0 && b.pos === 2 || a.pos === 1 && b.pos === 3);
+
+function newQuarter(below) {
+  // 45% 概率与下方那块拼成上下对（保持盘面活跃）
+  if (below && below.pos >= 2 && Math.random() < .45) return { img: below.img, pos: below.pos - 2 };
+  return { img: rnd(IMG.length), pos: rnd(4) };
+}
+
+function initGrid() {
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid[r][c] = newQuarter(r > 0 ? grid[r - 1][c] : null);
+  // 开局送三组「差一块就完整」的半成品：第一次交换就有满足感
+  for (let k = 0; k < 3; k++) {
+    const r0 = rnd(ROWS - 2), c0 = rnd(COLS - 2), img = rnd(IMG.length);
+    grid[r0][c0] = { img, pos: 0 };
+    grid[r0][c0 + 1] = { img, pos: 1 };
+    grid[r0 + 1][c0] = { img, pos: 2 };
+    let fr, fc, tries = 0;
+    do { fr = rnd(ROWS); fc = rnd(COLS); tries++; } while (tries < 25 && Math.abs(fr - r0) + Math.abs(fc - c0) < 3);
+    grid[fr][fc] = { img, pos: 3 };
+  }
+  // 随机填充撞出的满组拆掉，避免开局自动消除
+  let guard = 0;
+  while (findGroups().some(g => g.cells.length >= 4) && guard++ < 60) {
+    for (const g of findGroups().filter(g => g.cells.length >= 4)) {
+      const [r, c] = g.cells[rnd(g.cells.length)];
+      grid[r][c] = { img: rnd(IMG.length), pos: rnd(4) };
+    }
   }
 }
-function tap(c) {
-  if (ended || c.classList.contains('pop')) return;
-  c.classList.add('pop');
-  const gain = 80 + rand(60);
-  addScore(gain, c);
-  combo++;
-  if (combo >= 5) showCombo(combo);
-  setTimeout(() => {
-    c.classList.remove('pop');
-    c.textContent = PETS[rand(PETS.length)];
-    c.classList.add('drop');
-    setTimeout(() => c.classList.remove('drop'), 320);
-  }, 360);
+
+function findGroups() {
+  const seen = new Set(), groups = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (seen.has(r * COLS + c) || !grid[r][c]) continue;
+    const cells = [[r, c]], stack = [[r, c]];
+    seen.add(r * COLS + c);
+    while (stack.length) {
+      const [cr, cc] = stack.pop();
+      for (const [dr, dc, d] of [[0, 1, 'H'], [1, 0, 'V'], [0, -1, 'h'], [-1, 0, 'v']]) {
+        const nr = cr + dr, nc = cc + dc;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || seen.has(nr * COLS + nc) || !grid[nr][nc]) continue;
+        const a = grid[cr][cc], b = grid[nr][nc];
+        const ok = d === 'H' ? pairH(a, b) : d === 'h' ? pairH(b, a) : d === 'V' ? pairV(a, b) : pairV(b, a);
+        if (ok) { seen.add(nr * COLS + nc); stack.push([nr, nc]); cells.push([nr, nc]); }
+      }
+    }
+    if (cells.length > 1) groups.push({ cells, img: grid[r][c].img });
+  }
+  return groups;
 }
-function addScore(n, c) {
-  score += n;
+
+function buildBoard() {
+  board.innerHTML = '';
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.i = i;
+    const piece = document.createElement('div');
+    piece.className = 'piece';
+    const frag = document.createElement('div');
+    frag.className = 'frag';
+    piece.appendChild(frag);
+    cell.appendChild(piece);
+    board.appendChild(cell);
+  }
+}
+
+function render() {
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const r = Math.floor(i / COLS), c = i % COLS;
+    const cell = board.children[i], p = grid[r][c];
+    cell.classList.remove('g', 'sel', 'fade', 'zap');
+    const piece = cell.firstElementChild;
+    if (!p) { cell.classList.add('fade'); continue; }
+    piece.dataset.img = p.img;
+    const frag = piece.firstElementChild;
+    frag.dataset.pos = p.pos;
+    frag.dataset.emoji = IMG[p.img];
+  }
+  paintGroups(findGroups());
+}
+function paintGroups(groups) {
+  for (const g of groups) if (g.cells.length < 4) for (const [r, c] of g.cells) cellAt(r, c).classList.add('g');
+}
+
+function eliminate(g) {
+  // 组必然是 2×2（merge.ts 的证明），取中心放完整贴纸
+  const cr = g.cells.reduce((s, x) => s + x[0], 0) / 4;
+  const cc = g.cells.reduce((s, x) => s + x[1], 0) / 4;
+  const rect = cellAt(Math.round(cr), Math.round(cc)).getBoundingClientRect();
+  const bRect = board.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.className = 'full-pop';
+  pop.textContent = IMG[g.img];
+  pop.style.left = (rect.left - bRect.left + rect.width / 2) + 'px';
+  pop.style.top = (rect.top - bRect.top + rect.height / 2) + 'px';
+  board.appendChild(pop);
+  setTimeout(() => pop.remove(), 620);
+  for (const [r, c] of g.cells) {
+    cellAt(r, c).classList.add('zap');
+    grid[r][c] = null;
+  }
+  const gain = 300 + (chain - 1) * 100;
+  score += gain;
   scoreEl.textContent = score.toLocaleString();
-  const rect = c.getBoundingClientRect();
-  const srect = screen.getBoundingClientRect();
-  const f = document.createElement('div');
-  f.className = 'fly-score';
-  f.textContent = '+' + n;
-  f.style.left = (rect.left - srect.left + rect.width / 2 - 18) + 'px';
-  f.style.top = (rect.top - srect.top) + 'px';
-  screen.appendChild(f);
-  setTimeout(() => f.remove(), 820);
+  flyScore('+' + gain, rect.left, rect.top);
   paintGoals();
 }
-function paintGoals() {
-  document.querySelectorAll('.tick').forEach((t) => {
-    const at = +t.dataset.at;
-    t.querySelector('i').style.width = Math.min(100, score / at * 100) + '%';
-    t.classList.toggle('done', score >= at);
-  });
-  const sk = [score >= GOALS[0], score >= GOALS[1], score >= GOALS[2]];
-  ['sk1','sk2','sk3'].forEach((id, i) => {
-    document.getElementById(id).classList.toggle('on', sk[i]);
-  });
-  const nxt = GOALS.find(g => g > score);
-  document.getElementById('nextGoal').textContent = nxt ? nxt.toLocaleString() : 'MAX';
+
+function flyScore(text, x, y) {
+  const s = screen.getBoundingClientRect();
+  const f = document.createElement('div');
+  f.className = 'fly-score';
+  f.textContent = text;
+  f.style.left = (x - s.left) + 'px';
+  f.style.top = (y - s.top) + 'px';
+  screen.appendChild(f);
+  setTimeout(() => f.remove(), 820);
 }
+
 function showCombo(n) {
-  clearTimeout(comboT);
-  const words = { 5: '漂亮！', 8: '厉害！', 12: '太赞了！', 16: '无敌了！' };
-  let w = '连消 x' + n;
+  const words = { 2: '连锁！', 3: '双重连锁！', 4: '三重连锁！', 5: '疯狂连锁！' };
+  let w = '连锁 x' + n;
   for (const k in words) if (n >= +k) w = words[k];
   const old = document.querySelector('.combo-word');
   if (old) old.remove();
@@ -525,46 +594,139 @@ function showCombo(n) {
   el.className = 'combo-word';
   el.textContent = w;
   screen.appendChild(el);
-  comboT = setTimeout(() => { el.remove(); combo = 0; }, 900);
+  setTimeout(() => el.remove(), 900);
 }
-function startTimer() {
-  clearInterval(tick);
-  timeLeft = LIMIT;
-  paintTimer();
-  tick = setInterval(() => {
-    timeLeft--;
-    paintTimer();
-    if (timeLeft <= 0) finish();
-  }, 1000);
+
+function dropAndRefill() {
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (grid[r][c]) {
+        grid[write][c] = grid[r][c];
+        if (write !== r) grid[r][c] = null;
+        write--;
+      }
+    }
+    for (let r = write; r >= 0; r--) grid[r][c] = newQuarter(grid[r + 1] ? grid[r + 1][c] : null);
+  }
+}
+
+function resolve() {
+  inputOn = false;
+  const step = () => {
+    const groups = findGroups();
+    const full = groups.filter(g => g.cells.length >= 4);
+    if (!full.length) { chain = 0; paintGroups(groups); inputOn = true; return; }
+    chain++;
+    full.forEach(eliminate);
+    if (chain >= 2) showCombo(chain);
+    setTimeout(() => {
+      dropAndRefill();
+      render();
+      setTimeout(step, 80);
+    }, 470);
+  };
+  step();
+}
+
+/* ---------- 拖动 / 点选 ---------- */
+let ghost = null, dragFrom = -1, moved = false;
+board.addEventListener('pointerdown', e => {
+  if (!inputOn || ended) return;
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  dragFrom = +cell.dataset.i;
+  moved = false;
+  const piece = cell.firstElementChild;
+  ghost = piece.cloneNode(true);
+  ghost.className = 'ghost';
+  const rect = piece.getBoundingClientRect();
+  ghost.style.width = rect.width + 'px';
+  ghost.style.height = rect.height + 'px';
+  ghost.style.left = rect.left + 'px';
+  ghost.style.top = rect.top + 'px';
+  document.body.appendChild(ghost);
+  cell.classList.add('lift');
+});
+window.addEventListener('pointermove', e => {
+  if (!ghost) return;
+  moved = true;
+  ghost.style.left = (e.clientX - ghost.offsetWidth / 2) + 'px';
+  ghost.style.top = (e.clientY - ghost.offsetHeight / 2) + 'px';
+});
+window.addEventListener('pointerup', e => {
+  if (!ghost) return;
+  ghost.remove();
+  ghost = null;
+  const from = dragFrom;
+  dragFrom = -1;
+  board.querySelectorAll('.lift').forEach(c => c.classList.remove('lift'));
+  if (from < 0) return;
+  const hit = document.elementFromPoint(e.clientX, e.clientY);
+  const target = hit && hit.closest ? hit.closest('.cell') : null;
+  if (moved && target && target.parentElement === board && +target.dataset.i !== from) {
+    selected = -1;
+    paintSel();
+    swap(from, +target.dataset.i);
+    return;
+  }
+  if (!moved) {
+    if (selected < 0 || selected === from) { selected = selected === from ? -1 : from; paintSel(); }
+    else { const to = selected; selected = -1; paintSel(); swap(from, to); }
+  }
+});
+function paintSel() {
+  board.querySelectorAll('.cell').forEach(c => c.classList.remove('sel'));
+  if (selected >= 0) board.children[selected].classList.add('sel');
+}
+function swap(i, j) {
+  const r1 = Math.floor(i / COLS), c1 = i % COLS, r2 = Math.floor(j / COLS), c2 = j % COLS;
+  const t = grid[r1][c1];
+  grid[r1][c1] = grid[r2][c2];
+  grid[r2][c2] = t;
+  render();
+  resolve();
+}
+
+/* ---------- 计分 / 计时 / 结算 ---------- */
+function paintGoals() {
+  document.querySelectorAll('.tick').forEach(t => {
+    const at = +t.dataset.at;
+    t.querySelector('i').style.width = Math.min(100, score / at * 100) + '%';
+    t.classList.toggle('done', score >= at);
+  });
+  ['sk1', 'sk2', 'sk3'].forEach((id, i) => document.getElementById(id).classList.toggle('on', score >= GOALS[i]));
+  const nxt = GOALS.find(g => g > score);
+  document.getElementById('nextGoal').textContent = nxt ? nxt.toLocaleString() : 'MAX';
 }
 function paintTimer() {
   timerNum.textContent = timeLeft;
   timerFg.style.strokeDashoffset = RING * (1 - timeLeft / LIMIT);
   timerWrap.classList.toggle('urgent', timeLeft <= 10);
 }
-function starsOf() { return score >= GOALS[2] ? 3 : score >= GOALS[1] ? 2 : score >= GOALS[0] ? 1 : 0; }
+function startTimer() {
+  clearInterval(tick);
+  timeLeft = LIMIT;
+  paintTimer();
+  tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
+}
+const starsOf = () => score >= GOALS[2] ? 3 : score >= GOALS[1] ? 2 : score >= GOALS[0] ? 1 : 0;
 function finish() {
   if (ended) return;
   ended = true;
   clearInterval(tick);
-  const st = starsOf();
-  if (st >= 1) showWin(st);
-  else showFail();
+  starsOf() >= 1 ? showWin(starsOf()) : showFail();
 }
 function showWin(st) {
-  ended = true;
   document.getElementById('winScore').textContent = score.toLocaleString();
-  document.getElementById('winStarNum').textContent = st + ' ★';
-  const titles = { 3: '超神！', 2: '王者！', 1: '优秀！' };
-  document.getElementById('honorTitle').textContent = titles[st];
+  document.getElementById('winStarNum').textContent = Math.max(1, Math.floor(score / 300)) + ' 张';
+  document.getElementById('honorTitle').textContent = ['优秀！', '优秀！', '王者！', '超神！'][st];
   document.querySelectorAll('#winStars .wstar').forEach((s, i) => {
     s.className = 'wstar ' + (i < st ? 'on' : 'off');
   });
   document.getElementById('honorTitle').classList.remove('in');
   document.getElementById('burst').classList.remove('in');
-  const ov = document.getElementById('winOverlay');
-  ov.classList.add('show');
-  // 触发重排后加动画类
+  document.getElementById('winOverlay').classList.add('show');
   requestAnimationFrame(() => {
     document.getElementById('honorTitle').classList.add('in');
     if (st === 3) document.getElementById('burst').classList.add('in');
@@ -577,8 +739,8 @@ function confettiBurst() {
   const colors = ['#FF6FA5', '#FFC93C', '#7ED957', '#6FD6FF', '#FF9D5C'];
   for (let i = 0; i < 60; i++) {
     const p = document.createElement('i');
-    p.style.left = rand(100) + '%';
-    p.style.background = colors[rand(colors.length)];
+    p.style.left = rnd(100) + '%';
+    p.style.background = colors[rnd(colors.length)];
     p.style.animationDuration = (1.4 + Math.random() * 1.6) + 's';
     p.style.animationDelay = Math.random() * .5 + 's';
     p.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
@@ -587,80 +749,60 @@ function confettiBurst() {
 }
 function showFail() {
   const need = GOALS[0] - score;
-  document.getElementById('failInfo').textContent = need > 0
-    ? `就差 ${need} 分就能拿第 1 颗星` : '差一点点！';
-  const ov = document.getElementById('failOverlay');
-  ov.classList.add('show');
-  // 续命 10 秒自动放弃
+  document.getElementById('failInfo').textContent = need > 0 ? `就差 ${need} 分就能拿第 1 颗星` : '差一点点！';
+  document.getElementById('failOverlay').classList.add('show');
   let left = 10;
-  const paint = () => {
-    reviveFg.style.strokeDashoffset = RING2 * (1 - left / 10);
-  };
+  const paint = () => { reviveFg.style.strokeDashoffset = RING2 * (1 - left / 10); };
   paint();
-  clearInterval(window._reviveT);
-  window._reviveT = setInterval(() => {
-    left--;
-    paint();
-    if (left <= 0) { clearInterval(window._reviveT); hideFail(); }
-  }, 1000);
+  clearInterval(window._rt);
+  window._rt = setInterval(() => { left--; paint(); if (left <= 0) { clearInterval(window._rt); hideFail(); } }, 1000);
 }
-function hideFail() {
-  clearInterval(window._reviveT);
-  document.getElementById('failOverlay').classList.remove('show');
-}
+function hideFail() { clearInterval(window._rt); document.getElementById('failOverlay').classList.remove('show'); }
 document.getElementById('reviveBtn').addEventListener('click', () => {
   hideFail();
   ended = false;
   timeLeft += 30;
   if (timeLeft > 99) timeLeft = 99;
-  startTimerFromNow();
-});
-function startTimerFromNow() {
-  clearInterval(tick);
   paintTimer();
-  tick = setInterval(() => {
-    timeLeft--;
-    paintTimer();
-    if (timeLeft <= 0) finish();
-  }, 1000);
-}
+  clearInterval(tick);
+  tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
+});
 document.getElementById('giveUpBtn').addEventListener('click', () => { hideFail(); resetGame(); });
+document.getElementById('closeWin').addEventListener('click', resetGame);
 
 function resetGame() {
   ended = false;
-  score = 0; combo = 0;
+  score = 0; chain = 0; selected = -1;
   scoreEl.textContent = '0';
   document.getElementById('winOverlay').classList.remove('show');
   hideFail();
-  buildBoard();
+  initGrid();
+  render();
   paintGoals();
   startTimer();
 }
 
-/* ---------------- 演示控制 ---------------- */
-document.getElementById('demo').addEventListener('click', (e) => {
+/* ---------- 演示控制 ---------- */
+document.getElementById('demo').addEventListener('click', e => {
   const act = e.target.dataset.act;
   if (!act) return;
   if (act === 'stress') {
-    ended = false;
-    clearInterval(tick);
+    ended = false; clearInterval(tick);
     score = Math.max(score, 900);
-    scoreEl.textContent = score.toLocaleString();
-    paintGoals();
-    timeLeft = 10;
-    paintTimer();
+    scoreEl.textContent = score.toLocaleString(); paintGoals();
+    timeLeft = 10; paintTimer();
     tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
   } else if (act === 'win3') {
     score = GOALS[2] + 600; scoreEl.textContent = score.toLocaleString(); paintGoals(); showWin(3);
   } else if (act === 'win2') {
     score = GOALS[1] + 300; scoreEl.textContent = score.toLocaleString(); paintGoals(); showWin(2);
   } else if (act === 'fail') {
-    score = Math.max(200, GOALS[0] - 320); scoreEl.textContent = score.toLocaleString(); paintGoals(); ended = true; clearInterval(tick); showFail();
-  } else if (act === 'reset') {
-    resetGame();
-  }
+    score = Math.max(200, GOALS[0] - 320); scoreEl.textContent = score.toLocaleString(); paintGoals();
+    ended = true; clearInterval(tick); showFail();
+  } else if (act === 'reset') resetGame();
 });
 
+buildBoard();
 resetGame();
 </script>
 </body>

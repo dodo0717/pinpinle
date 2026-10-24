@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>原型 C · 贴纸手账 —— 萌宠拼拼乐对局界面</title>
+<title>原型 C · 贴纸手账 —— 萌宠拼拼乐对局界面（真拼图玩法）</title>
 <style>
 /* ============================================================
-   原型 C「贴纸手账」—— 为本作定制：贴纸收集是玩法本体，界面即手账
-   调色：纸奶油 / 牛皮卡 / 墨棕 / 和纸胶带粉蓝 / 印章红
-   主张：可触的纸感；豪赌时刻 = 通关战绩拍立得「收入手账」+ 超神红章哐地盖下
+   原型 C「贴纸手账」—— 本作专属流派 × 真拼图消除玩法
+   玩法：每格一块贴纸碎片（四分之一），拖动换位；同图相邻且位置正确
+   即融合（红虚线框提示），凑满正确 2×2 → 消除 + 上方落补 + 连锁。
    ============================================================ */
 :root {
   --paper: #FBF4E4;
@@ -28,11 +28,11 @@ html, body { height: 100%; }
 body {
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   background: #57503F;
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
-  padding: 18px 12px 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 16px 12px 24px;
   color: var(--ink);
 }
-.meta { text-align: center; color: #EDE4CD; line-height: 1.7; }
+.meta { text-align: center; color: #EDE4CD; line-height: 1.6; }
 .meta h1 { font-size: 17px; font-weight: 800; }
 .meta p { font-size: 12px; opacity: .7; }
 
@@ -48,7 +48,6 @@ body {
   background: var(--paper);
   display: flex; flex-direction: column;
 }
-/* 纸纹 + 装订孔 */
 .screen::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
   background:
@@ -62,7 +61,7 @@ body {
 }
 .hand { font-family: "KaiTi", "STKaiti", "楷体", serif; }
 
-/* ---------- HUD：和纸胶带贴的小卡 ---------- */
+/* ---------- HUD ---------- */
 .hud {
   position: relative; z-index: 2;
   display: grid; grid-template-columns: auto 1fr auto; align-items: start;
@@ -85,82 +84,102 @@ body {
 .taped.blue::before { background: var(--washi-blue); }
 .taped .cap { font-size: 10px; color: var(--ink-soft); letter-spacing: 1px; }
 .taped .num { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
-
-/* 页眉手写注释 */
-.page-note {
-  position: relative; z-index: 2; text-align: center;
-  padding: 6px 40px 0; font-size: 13px; color: var(--pencil);
-}
+.page-note { position: relative; z-index: 2; text-align: center; padding: 6px 40px 0; font-size: 13px; color: var(--pencil); }
 .page-note b { color: var(--ink); }
-
-/* 计时：手绘虚线圆 */
 .timer-taped { width: 78px; height: 78px; position: relative; }
 .timer-taped svg { position: absolute; inset: 3px; transform: rotate(-90deg); }
 .timer-taped .bg { fill: none; stroke: #E2D5B4; stroke-width: 4; stroke-dasharray: 4 5; stroke-linecap: round; }
 .timer-taped .fg { fill: none; stroke: var(--stamp); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
 .timer-taped.urgent { animation: jpulse .5s infinite alternate; }
 @keyframes jpulse { to { transform: scale(1.05) rotate(1deg); } }
-.timer-num {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 26px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums;
-}
+.timer-num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 
-/* ---------- 星线：铅笔进度 ---------- */
-.goal {
-  position: relative; z-index: 2; margin: 8px 18px 0 26px;
-  display: flex; align-items: center; gap: 9px;
-}
+/* ---------- 星线 ---------- */
+.goal { position: relative; z-index: 2; margin: 8px 18px 0 26px; display: flex; align-items: center; gap: 9px; }
 .goal .line { flex: 1; position: relative; height: 26px; }
 .goal .line .rail {
   position: absolute; left: 0; right: 34px; top: 50%; height: 3px;
   background: repeating-linear-gradient(90deg, #CBBE9E 0 10px, transparent 10px 15px);
 }
-.goal .pstar { position: absolute; top: 50%; width: 26px; height: 26px; border-radius: 50%;
+.goal .pstar {
+  position: absolute; top: 50%; width: 26px; height: 26px; border-radius: 50%;
   transform: translateY(-50%); background: #FFFDF6; border: 2px solid #CBBE9E;
-  display: grid; place-items: center; font-size: 14px; color: #CBBE9E; }
-.goal .pstar.on { border-color: var(--stamp); color: var(--stamp); background: #FFF3EE;
-  animation: sIn .4s cubic-bezier(.3,1.8,.5,1); }
+  display: grid; place-items: center; font-size: 14px; color: #CBBE9E;
+}
+.goal .pstar.on { border-color: var(--stamp); color: var(--stamp); background: #FFF3EE; animation: sIn .4s cubic-bezier(.3,1.8,.5,1); }
 @keyframes sIn { 50% { transform: translateY(-50%) scale(1.3) rotate(8deg); } }
 .goal .pstar:nth-child(2) { left: 30%; }
 .goal .pstar:nth-child(3) { left: 62%; }
 .goal .pstar:nth-child(4) { right: 0; }
 .goal .cap { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
 
-/* ---------- 棋盘：贴纸页 ---------- */
-.board-wrap { position: relative; z-index: 2; flex: 1; display: grid; place-items: center; padding: 12px 18px 8px 28px; }
+/* ---------- 棋盘：贴纸页 · 真拼图 ---------- */
+.board-wrap { position: relative; z-index: 2; flex: 1; display: grid; place-items: center; padding: 12px 18px 4px 28px; }
 .board {
-  width: 336px; height: 430px;
+  width: 340px; height: 448px;
   background: #FFFDF6;
   border: 1px solid #E5D9BC;
   border-radius: 10px;
   box-shadow: var(--shadow);
   background-image: radial-gradient(#E3D7B8 1.2px, transparent 1.2px);
   background-size: 24px 24px;
-  padding: 11px;
-  display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(7, 1fr);
-  gap: 5px;
+  padding: 10px;
+  display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(6, 1fr);
+  gap: 6px;
+  touch-action: none;
 }
-.cell {
-  position: relative;
-  border-radius: 10px;
-  display: grid; place-items: center;
-  font-size: 26px; cursor: pointer; user-select: none;
-  /* 贴纸白边 */
+.cell { position: relative; }
+.cell.fade .piece { display: none; }
+/* 碎片 = 贴纸的白边 + 虚线裁切线 */
+.piece {
+  position: absolute; inset: 0;
   background: #fff;
-  padding: 3px;
-  border: 2px dashed rgba(74,59,42,.18);
-  box-shadow: 0 2px 4px rgba(74,59,42,.14);
-  transition: transform .15s cubic-bezier(.3,1.7,.5,1);
+  border-radius: 10px;
+  border: 2px dashed rgba(74,59,42,.2);
+  box-shadow: 0 2px 4px rgba(74,59,42,.16);
+  cursor: grab; user-select: none;
 }
-.cell:hover { transform: rotate(0deg) scale(1.05) !important; }
-.cell:active { transform: scale(.86); }
-.cell.pop { animation: cpop .4s cubic-bezier(.3,1.6,.5,1) forwards; }
-@keyframes cpop {
-  40% { transform: scale(1.25) rotate(8deg); }
-  100% { transform: scale(0) rotate(-20deg); opacity: 0; }
+.piece[data-img="0"] .frag::after { content:""; position:absolute; inset:0; background: rgba(244,169,184,.18); }
+.piece[data-img="1"] .frag::after { content:""; position:absolute; inset:0; background: rgba(169,200,244,.18); }
+.piece[data-img="2"] .frag::after { content:""; position:absolute; inset:0; background: rgba(167,216,183,.2); }
+.piece[data-img="3"] .frag::after { content:""; position:absolute; inset:0; background: rgba(240,214,140,.25); }
+.piece[data-img="4"] .frag::after { content:""; position:absolute; inset:0; background: rgba(245,196,150,.2); }
+.piece[data-img="5"] .frag::after { content:""; position:absolute; inset:0; background: rgba(203,183,240,.2); }
+.frag { position: absolute; inset: 0; overflow: hidden; border-radius: 8px; }
+.frag::before { content: attr(data-emoji); position: absolute; font-size: 106px; line-height: 1; z-index: 1; }
+.frag[data-pos="0"]::before { left: 0; top: 0; }
+.frag[data-pos="1"]::before { right: 0; top: 0; }
+.frag[data-pos="2"]::before { left: 0; bottom: 0; }
+.frag[data-pos="3"]::before { right: 0; bottom: 0; }
+/* 融合提示：红虚线框（贴纸要拼上了） */
+.cell.g .piece { border: 2.5px dashed var(--stamp); box-shadow: 0 3px 8px rgba(214,69,69,.28); }
+.cell.sel .piece { border: 2.5px solid var(--ink); box-shadow: 0 4px 10px rgba(74,59,42,.3); transform: scale(1.07); }
+.cell.lift .piece { opacity: .25; }
+.ghost {
+  position: fixed; z-index: 999; pointer-events: none;
+  transform: scale(1.14) rotate(4deg);
+  background: #fff; border-radius: 10px; border: 2px dashed rgba(74,59,42,.3);
+  box-shadow: 0 16px 26px rgba(74,59,42,.35);
+  overflow: hidden;
 }
-.cell.drop { animation: cdrop .35s cubic-bezier(.3,1.5,.5,1); }
-@keyframes cdrop { from { transform: translateY(-280%); opacity: 0; } }
+.cell.zap .piece { animation: czap .48s ease-out forwards; }
+@keyframes czap {
+  40% { transform: scale(1.12) rotate(3deg); filter: brightness(1.15); }
+  100% { transform: scale(0) rotate(-18deg); opacity: 0; }
+}
+/* 完整贴纸「贴好了」再揭走 */
+.full-pop {
+  position: absolute; z-index: 8; pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-size: 110px; line-height: 1;
+  filter: drop-shadow(0 8px 12px rgba(74,59,42,.4));
+  animation: cfuse .6s cubic-bezier(.3,1.4,.5,1) forwards;
+}
+@keyframes cfuse {
+  0% { transform: translate(-50%, -50%) scale(.5) rotate(-6deg); }
+  50% { transform: translate(-50%, -50%) scale(1.15) rotate(3deg); }
+  100% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); opacity: 0; }
+}
 .fly-score {
   position: absolute; z-index: 5; pointer-events: none;
   font-family: "KaiTi", "STKaiti", "楷体", serif;
@@ -169,10 +188,10 @@ body {
 }
 @keyframes cfly { to { transform: translateY(-52px) rotate(-6deg); opacity: 0; } }
 .combo-word {
-  position: absolute; z-index: 6; left: 50%; top: 33%;
+  position: absolute; z-index: 6; left: 50%; top: 30%;
   transform: translateX(-50%) rotate(-3deg);
   font-family: "KaiTi", "STKaiti", "楷体", serif;
-  font-size: 30px; font-weight: 700; color: var(--ink);
+  font-size: 28px; font-weight: 700; color: var(--ink);
   background: #FFF3EE; border: 2px dashed var(--stamp);
   border-radius: 999px; padding: 6px 22px;
   pointer-events: none; animation: ccombo .9s cubic-bezier(.3,1.5,.5,1) forwards;
@@ -183,17 +202,25 @@ body {
   100% { transform: translateX(-50%) rotate(-3deg) translateY(-24px); opacity: 0; }
 }
 
+.hint {
+  position: relative; z-index: 2; text-align: center;
+  font-family: "KaiTi", "STKaiti", "楷体", serif;
+  font-size: 13px; color: var(--pencil);
+  padding: 2px 0 4px;
+}
+.hint b { color: var(--stamp); }
+
 /* ---------- 底栏 ---------- */
 .footer {
   position: relative; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 4px 22px 16px 28px; font-size: 12px; color: var(--ink-soft);
+  padding: 2px 22px 14px 28px; font-size: 12px; color: var(--ink-soft);
 }
 .footer .tag { border: 1.5px solid #CBBE9E; border-radius: 999px; padding: 5px 13px; background: #FFFDF6; }
 .footer .energy { display: flex; gap: 5px; align-items: center; border: 1.5px solid #CBBE9E; border-radius: 999px; padding: 5px 13px; background: #FFFDF6; }
 .footer b { color: var(--ink); }
 
-/* ---------- 通用遮罩 ---------- */
+/* ---------- 通关：拍立得 ---------- */
 .overlay {
   position: absolute; inset: 0; z-index: 10;
   display: none; align-items: center; justify-content: center;
@@ -202,8 +229,6 @@ body {
 }
 .overlay.show { display: flex; animation: jfade .25s; }
 @keyframes jfade { from { opacity: 0; } }
-
-/* ---------- 通关：拍立得收入手账 ---------- */
 .polaroid {
   width: 296px;
   background: #fff;
@@ -219,7 +244,6 @@ body {
   0% { transform: rotate(-2.5deg) translateY(60px) scale(.8); opacity: 0; }
   100% { transform: rotate(-2.5deg) translateY(0) scale(1); opacity: 1; }
 }
-/* 固定拍立得的和纸胶带 */
 .polaroid::before {
   content: ""; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg);
   width: 92px; height: 22px; background: var(--washi-blue); opacity: .9;
@@ -243,11 +267,7 @@ body {
 .photo .stars-line .s.on:nth-child(2) { animation-delay: .55s; }
 .photo .stars-line .s.on:nth-child(3) { animation-delay: .75s; }
 @keyframes sIn2 { 0% { transform: scale(0) rotate(-40deg); } 60% { transform: scale(1.35) rotate(8deg); } }
-.photo .cap-hand {
-  font-family: "KaiTi", "STKaiti", "楷体", serif;
-  font-size: 15px; color: var(--pencil);
-}
-/* 超神红章：哐地盖下 */
+.photo .cap-hand { font-family: "KaiTi", "STKaiti", "楷体", serif; font-size: 15px; color: var(--pencil); }
 .stamp-seal {
   position: absolute; right: 10px; bottom: 8px;
   width: 88px; height: 88px; border-radius: 50%;
@@ -288,7 +308,7 @@ body {
 .jbtn.ghost { background: #FFFDF6; color: var(--ink-soft); border: 1.5px dashed #CBBE9E; box-shadow: none; font-weight: 600; font-size: 13px; }
 .jbtn.ghost:active { background: #F6EED9; transform: none; }
 
-/* ---------- 失败：没写完的一页 ---------- */
+/* ---------- 失败 ---------- */
 .fail-page {
   width: 280px; background: #FFFDF6; border-radius: 8px;
   border: 1px solid #E5D9BC; box-shadow: 0 16px 34px rgba(0,0,0,.35);
@@ -316,6 +336,14 @@ body {
 .revive-ad { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 800; color: #fff; background: var(--kraft); border-radius: 999px; padding: 2px 8px; }
 .fail-page .btns { display: flex; gap: 9px; margin-top: 14px; }
 
+.demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 430px; }
+.demo button {
+  font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
+  background: rgba(255,255,255,.1); color: #EDE4CD; padding: 7px 13px;
+}
+.demo button:hover { background: rgba(255,255,255,.22); }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001s !important; transition-duration: .001s !important; }
 }
@@ -326,12 +354,11 @@ body {
 </head>
 <body>
 <div class="meta">
-  <h1>原型 C · 贴纸手账</h1>
-  <p>本作定制流派：纸张 / 和纸胶带 / 贴纸白边 —— 看通关战绩拍立得入册、超神红章盖下</p>
+  <h1>原型 C · 贴纸手账（真拼图玩法）</h1>
+  <p>拖动碎片换位 · 同图相邻且位置正确即融合（红虚线）· 凑满 2×2 消除落补连锁</p>
 </div>
 
 <div class="phone"><div class="screen" id="screen">
-  <!-- HUD -->
   <div class="hud">
     <div class="taped">
       <div class="cap hand">得分</div>
@@ -347,7 +374,6 @@ body {
     </div>
   </div>
 
-  <!-- 星线 -->
   <div class="goal">
     <span class="cap hand">星线</span>
     <div class="line">
@@ -359,10 +385,9 @@ body {
     <span class="cap" id="nextGoal">1500</span>
   </div>
 
-  <!-- 棋盘 -->
   <div class="board-wrap"><div class="board" id="board"></div></div>
+  <div class="hint">拖碎片换位，<b>四块拼成完整贴纸</b>就贴好啦 · 也可以先点一块再点另一块</div>
 
-  <!-- 底栏 -->
   <div class="footer">
     <div class="tag hand">简单 · 第 6 关</div>
     <div class="energy">体力 <b>9</b>/10</div>
@@ -426,19 +451,10 @@ body {
   <button data-act="reset">🔄 重开一局</button>
 </div>
 
-<style>
-.demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 430px; }
-.demo button {
-  font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
-  border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
-  background: rgba(255,255,255,.1); color: #EDE4CD; padding: 7px 13px;
-}
-.demo button:hover { background: rgba(255,255,255,.22); }
-</style>
-
 <script>
-/* ---------------- 演示游戏逻辑（同骨架，C 视觉） ---------------- */
-const PETS = ['🐶','🐱','🐰','🐼','🦊','🐸','🐯','🦁'];
+/* ============ 真拼图消除引擎（与 核心/pieces.ts + merge.ts 同规则的原型版） ============ */
+const IMG = ['🐶','🐱','🐰','🐼','🦊','🐸'];
+const COLS = 5, ROWS = 6;
 const GOALS = [1500, 3000, 4500];
 const LIMIT = 60;
 
@@ -454,59 +470,131 @@ const reviveFg = document.getElementById('reviveFg');
 const RING2 = 2 * Math.PI * 25;
 reviveFg.style.strokeDasharray = RING2;
 
-let score = 0, timeLeft = LIMIT, tick = null, combo = 0, comboT = null, ended = false;
-const rand = n => Math.floor(Math.random() * n);
+let grid = [];
+let score = 0, timeLeft = LIMIT, tick = null, chain = 0, ended = false, inputOn = true;
+let selected = -1;
+const rnd = n => Math.floor(Math.random() * n);
+const cellAt = (r, c) => board.children[r * COLS + c];
+
+const pairH = (a, b) => a.img === b.img && (a.pos === 0 && b.pos === 1 || a.pos === 2 && b.pos === 3);
+const pairV = (a, b) => a.img === b.img && (a.pos === 0 && b.pos === 2 || a.pos === 1 && b.pos === 3);
+
+function newQuarter(below) {
+  if (below && below.pos >= 2 && Math.random() < .45) return { img: below.img, pos: below.pos - 2 };
+  return { img: rnd(IMG.length), pos: rnd(4) };
+}
+
+function initGrid() {
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid[r][c] = newQuarter(r > 0 ? grid[r - 1][c] : null);
+  for (let k = 0; k < 3; k++) {
+    const r0 = rnd(ROWS - 2), c0 = rnd(COLS - 2), img = rnd(IMG.length);
+    grid[r0][c0] = { img, pos: 0 };
+    grid[r0][c0 + 1] = { img, pos: 1 };
+    grid[r0 + 1][c0] = { img, pos: 2 };
+    let fr, fc, tries = 0;
+    do { fr = rnd(ROWS); fc = rnd(COLS); tries++; } while (tries < 25 && Math.abs(fr - r0) + Math.abs(fc - c0) < 3);
+    grid[fr][fc] = { img, pos: 3 };
+  }
+  let guard = 0;
+  while (findGroups().some(g => g.cells.length >= 4) && guard++ < 60) {
+    for (const g of findGroups().filter(g => g.cells.length >= 4)) {
+      const [r, c] = g.cells[rnd(g.cells.length)];
+      grid[r][c] = { img: rnd(IMG.length), pos: rnd(4) };
+    }
+  }
+}
+
+function findGroups() {
+  const seen = new Set(), groups = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (seen.has(r * COLS + c) || !grid[r][c]) continue;
+    const cells = [[r, c]], stack = [[r, c]];
+    seen.add(r * COLS + c);
+    while (stack.length) {
+      const [cr, cc] = stack.pop();
+      for (const [dr, dc, d] of [[0, 1, 'H'], [1, 0, 'V'], [0, -1, 'h'], [-1, 0, 'v']]) {
+        const nr = cr + dr, nc = cc + dc;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || seen.has(nr * COLS + nc) || !grid[nr][nc]) continue;
+        const a = grid[cr][cc], b = grid[nr][nc];
+        const ok = d === 'H' ? pairH(a, b) : d === 'h' ? pairH(b, a) : d === 'V' ? pairV(a, b) : pairV(b, a);
+        if (ok) { seen.add(nr * COLS + nc); stack.push([nr, nc]); cells.push([nr, nc]); }
+      }
+    }
+    if (cells.length > 1) groups.push({ cells, img: grid[r][c].img });
+  }
+  return groups;
+}
 
 function buildBoard() {
   board.innerHTML = '';
-  for (let i = 0; i < 42; i++) {
-    const c = document.createElement('div');
-    c.className = 'cell';
-    c.textContent = PETS[rand(PETS.length)];
-    // 贴纸的随意感：每张微微歪一点
-    c.style.transform = `rotate(${rand(9) - 4}deg)`;
-    c.addEventListener('pointerdown', () => tap(c));
-    board.appendChild(c);
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.i = i;
+    const piece = document.createElement('div');
+    piece.className = 'piece';
+    const frag = document.createElement('div');
+    frag.className = 'frag';
+    piece.appendChild(frag);
+    cell.appendChild(piece);
+    board.appendChild(cell);
   }
 }
-function tap(c) {
-  if (ended || c.classList.contains('pop')) return;
-  c.classList.add('pop');
-  addScore(80 + rand(60), c);
-  combo++;
-  if (combo >= 5) showCombo(combo);
-  setTimeout(() => {
-    c.classList.remove('pop');
-    c.textContent = PETS[rand(PETS.length)];
-    c.style.transform = `rotate(${rand(9) - 4}deg)`;
-    c.classList.add('drop');
-    setTimeout(() => c.classList.remove('drop'), 340);
-  }, 390);
+
+function render() {
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const r = Math.floor(i / COLS), c = i % COLS;
+    const cell = board.children[i], p = grid[r][c];
+    cell.classList.remove('g', 'sel', 'fade', 'zap');
+    if (!p) { cell.classList.add('fade'); continue; }
+    const piece = cell.firstElementChild;
+    piece.dataset.img = p.img;
+    const frag = piece.firstElementChild;
+    frag.dataset.pos = p.pos;
+    frag.dataset.emoji = IMG[p.img];
+  }
+  paintGroups(findGroups());
 }
-function addScore(n, c) {
-  score += n;
+function paintGroups(groups) {
+  for (const g of groups) if (g.cells.length < 4) for (const [r, c] of g.cells) cellAt(r, c).classList.add('g');
+}
+
+function eliminate(g) {
+  const cr = g.cells.reduce((s, x) => s + x[0], 0) / 4;
+  const cc = g.cells.reduce((s, x) => s + x[1], 0) / 4;
+  const rect = cellAt(Math.round(cr), Math.round(cc)).getBoundingClientRect();
+  const bRect = board.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.className = 'full-pop';
+  pop.textContent = IMG[g.img];
+  pop.style.left = (rect.left - bRect.left + rect.width / 2) + 'px';
+  pop.style.top = (rect.top - bRect.top + rect.height / 2) + 'px';
+  board.appendChild(pop);
+  setTimeout(() => pop.remove(), 640);
+  for (const [r, c] of g.cells) {
+    cellAt(r, c).classList.add('zap');
+    grid[r][c] = null;
+  }
+  const gain = 300 + (chain - 1) * 100;
+  score += gain;
   scoreEl.textContent = score.toLocaleString();
-  const r = c.getBoundingClientRect(), s = screen.getBoundingClientRect();
-  const f = document.createElement('div');
-  f.className = 'fly-score';
-  f.textContent = '+' + n;
-  f.style.left = (r.left - s.left + r.width / 2 - 14) + 'px';
-  f.style.top = (r.top - s.top - 2) + 'px';
-  screen.appendChild(f);
-  setTimeout(() => f.remove(), 800);
+  flyScore('+' + gain, rect.left, rect.top);
   paintGoals();
 }
-function paintGoals() {
-  ['ps1', 'ps2', 'ps3'].forEach((id, i) => {
-    document.getElementById(id).classList.toggle('on', score >= GOALS[i]);
-  });
-  const nxt = GOALS.find(g => g > score);
-  document.getElementById('nextGoal').textContent = nxt ? nxt.toLocaleString() : 'MAX';
+function flyScore(text, x, y) {
+  const s = screen.getBoundingClientRect();
+  const f = document.createElement('div');
+  f.className = 'fly-score';
+  f.textContent = text;
+  f.style.left = (x - s.left) + 'px';
+  f.style.top = (y - s.top - 2) + 'px';
+  screen.appendChild(f);
+  setTimeout(() => f.remove(), 800);
 }
 function showCombo(n) {
-  clearTimeout(comboT);
-  const words = { 5: '贴得真顺！', 8: '手感来了！', 12: '太会贴了！', 16: '手账大师！' };
-  let w = '连消 x' + n;
+  const words = { 2: '拼上了！', 3: '又拼上了！', 4: '妙极了！', 5: '手账大师！' };
+  let w = '连锁 x' + n;
   for (const k in words) if (n >= +k) w = words[k];
   const old = document.querySelector('.combo-word');
   if (old) old.remove();
@@ -514,7 +602,105 @@ function showCombo(n) {
   el.className = 'combo-word';
   el.textContent = w;
   screen.appendChild(el);
-  comboT = setTimeout(() => { el.remove(); combo = 0; }, 880);
+  setTimeout(() => el.remove(), 880);
+}
+
+function dropAndRefill() {
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (grid[r][c]) {
+        grid[write][c] = grid[r][c];
+        if (write !== r) grid[r][c] = null;
+        write--;
+      }
+    }
+    for (let r = write; r >= 0; r--) grid[r][c] = newQuarter(grid[r + 1] ? grid[r + 1][c] : null);
+  }
+}
+
+function resolve() {
+  inputOn = false;
+  const step = () => {
+    const groups = findGroups();
+    const full = groups.filter(g => g.cells.length >= 4);
+    if (!full.length) { chain = 0; paintGroups(groups); inputOn = true; return; }
+    chain++;
+    full.forEach(eliminate);
+    if (chain >= 2) showCombo(chain);
+    setTimeout(() => {
+      dropAndRefill();
+      render();
+      setTimeout(step, 80);
+    }, 480);
+  };
+  step();
+}
+
+/* ---------- 拖动 / 点选 ---------- */
+let ghost = null, dragFrom = -1, moved = false;
+board.addEventListener('pointerdown', e => {
+  if (!inputOn || ended) return;
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  dragFrom = +cell.dataset.i;
+  moved = false;
+  const piece = cell.firstElementChild;
+  ghost = piece.cloneNode(true);
+  ghost.className = 'ghost';
+  const rect = piece.getBoundingClientRect();
+  ghost.style.width = rect.width + 'px';
+  ghost.style.height = rect.height + 'px';
+  ghost.style.left = rect.left + 'px';
+  ghost.style.top = rect.top + 'px';
+  document.body.appendChild(ghost);
+  cell.classList.add('lift');
+});
+window.addEventListener('pointermove', e => {
+  if (!ghost) return;
+  moved = true;
+  ghost.style.left = (e.clientX - ghost.offsetWidth / 2) + 'px';
+  ghost.style.top = (e.clientY - ghost.offsetHeight / 2) + 'px';
+});
+window.addEventListener('pointerup', e => {
+  if (!ghost) return;
+  ghost.remove();
+  ghost = null;
+  const from = dragFrom;
+  dragFrom = -1;
+  board.querySelectorAll('.lift').forEach(c => c.classList.remove('lift'));
+  if (from < 0) return;
+  const hit = document.elementFromPoint(e.clientX, e.clientY);
+  const target = hit && hit.closest ? hit.closest('.cell') : null;
+  if (moved && target && target.parentElement === board && +target.dataset.i !== from) {
+    selected = -1;
+    paintSel();
+    swap(from, +target.dataset.i);
+    return;
+  }
+  if (!moved) {
+    if (selected < 0 || selected === from) { selected = selected === from ? -1 : from; paintSel(); }
+    else { const to = selected; selected = -1; paintSel(); swap(from, to); }
+  }
+});
+function paintSel() {
+  board.querySelectorAll('.cell').forEach(c => c.classList.remove('sel'));
+  if (selected >= 0) board.children[selected].classList.add('sel');
+}
+function swap(i, j) {
+  const r1 = Math.floor(i / COLS), c1 = i % COLS, r2 = Math.floor(j / COLS), c2 = j % COLS;
+  const t = grid[r1][c1];
+  grid[r1][c1] = grid[r2][c2];
+  grid[r2][c2] = t;
+  render();
+  resolve();
+}
+
+/* ---------- 计分 / 计时 / 结算 ---------- */
+function paintGoals() {
+  ['ps1', 'ps2', 'ps3'].forEach((id, i) => document.getElementById(id).classList.toggle('on', score >= GOALS[i]));
+  const nxt = GOALS.find(g => g > score);
+  document.getElementById('nextGoal').textContent = nxt ? nxt.toLocaleString() : 'MAX';
 }
 function paintTimer() {
   timerNum.textContent = timeLeft;
@@ -540,19 +726,14 @@ function showWin(st) {
   const seal = document.getElementById('stampSeal');
   seal.textContent = titles[st - 1];
   seal.className = 'stamp-seal' + (st < 3 ? ' v2' : '');
-  document.querySelectorAll('#photoStars .s').forEach((s, i) => {
-    s.classList.toggle('on', i < st);
-  });
+  document.querySelectorAll('#photoStars .s').forEach((s, i) => s.classList.toggle('on', i < st));
   const ov = document.getElementById('winOverlay');
   ov.classList.remove('show');
   void ov.offsetWidth;
   ov.classList.add('show');
-  // 红章延迟重盖
   seal.classList.remove('in');
   setTimeout(() => seal.classList.add('in'), 60);
 }
-document.getElementById('closeWin').addEventListener('click', resetGame);
-
 function showFail() {
   const need = GOALS[0] - score;
   document.getElementById('failInfo').innerHTML = need > 0
@@ -577,14 +758,16 @@ document.getElementById('reviveBtn').addEventListener('click', () => {
   tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
 });
 document.getElementById('giveUpBtn').addEventListener('click', () => { hideFail(); resetGame(); });
+document.getElementById('closeWin').addEventListener('click', resetGame);
 
 function resetGame() {
   ended = false;
-  score = 0; combo = 0;
+  score = 0; chain = 0; selected = -1;
   scoreEl.textContent = '0';
   document.getElementById('winOverlay').classList.remove('show');
   hideFail();
-  buildBoard();
+  initGrid();
+  render();
   paintGoals();
   startTimer();
 }
@@ -595,8 +778,7 @@ document.getElementById('demo').addEventListener('click', e => {
   if (act === 'stress') {
     ended = false; clearInterval(tick);
     score = Math.max(score, 900);
-    scoreEl.textContent = score.toLocaleString();
-    paintGoals();
+    scoreEl.textContent = score.toLocaleString(); paintGoals();
     timeLeft = 10; paintTimer();
     tick = setInterval(() => { timeLeft--; paintTimer(); if (timeLeft <= 0) finish(); }, 1000);
   } else if (act === 'win3') {
@@ -609,6 +791,7 @@ document.getElementById('demo').addEventListener('click', e => {
   } else if (act === 'reset') resetGame();
 });
 
+buildBoard();
 resetGame();
 </script>
 </body>
