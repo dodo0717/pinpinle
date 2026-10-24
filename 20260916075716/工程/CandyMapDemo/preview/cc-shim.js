@@ -136,12 +136,18 @@ export class JsonAsset {
  * 图片走 wx.createImage(远程 URL)、音频走 InnerAudioContext(src 远程)，都吃这份基址。
  */
 const RES_BASE = WX ? 'https://candy.aidertech.cn/mini-assets/pp/' : '/assets/resources/';
-/** 素材库里 png / jpg 混放（stickers 有一半是 jpg），逐个后缀试过去 */
+/** 素材库里 png / jpg 混放（stickers 有一半是 jpg）。真实后缀清单由构建生成在
+ * runtime/asset-ext.js 的 globalThis.__PP_ASSET_EXT —— 远程化后逐后缀探测的每次未命中
+ * 都是一次真实 404 请求（jpg 素材首当其冲），先试清单命中项；没清单（浏览器直跑源码）退回探测 */
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.webp'];
 
 function loadImageAny(base) {
+  const known = (typeof globalThis !== 'undefined' && globalThis.__PP_ASSET_EXT) || null;
+  const rel = base.startsWith(RES_BASE) ? base.slice(RES_BASE.length) : base;
+  const first = known ? known[rel] : null;
+  const exts = first ? [first, ...IMG_EXT.filter((e) => e !== first)] : IMG_EXT;
   let chain = Promise.reject(new Error('init'));
-  for (const ext of IMG_EXT) chain = chain.catch(() => loadImage(base + ext));
+  for (const ext of exts) chain = chain.catch(() => loadImage(base + ext));
   return chain;
 }
 

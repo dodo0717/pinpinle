@@ -154,7 +154,8 @@ CandyMapDemo/
 - **2026-10-24（微信工具 `worker path empty` 修复 + 素材远程化）**：
   - **工具报错 `Error: worker path empty`**：挖了工具自身源码（app.asar）——带 `openDataContext` 的项目会触发一个 worker 基础库编译插件，它读 game.json 的 `workers` 字段（无则空串）直接抛错；糖果小镇没炸是因为他们 `es6: false` 走了老式子域路径。**解法：`project.config.json` 里 `enhance: false`（保留 `es6: true`，import 编译不受影响）**——用户实测生效，开放数据域（好友榜）随之恢复。
   - **素材远程化（真机 4MB 上限的前置）**：`minigame/assets/`（105 文件 / 12MB）上传到 `https://candy.aidertech.cn/mini-assets/pp/`（downloadFile 合法域名已配置，公网抽查四类素材全 200）；shim 的 `RES_BASE` 微信分支改走该远程基址（浏览器验证仍走本地 `/assets/resources/`），`tools/build-minigame.ts` 不再拷素材并清理旧拷贝。**主包从 12MB 降到 0.51MB**（44 个文件，纯代码），远低于 4MB 上限——**真机预览/上传解锁**。代价：微信侧首帧素材走网络（加载页进度条覆盖这个等待）；服务器宕机时贴图/音频缺失但 Graphics 绘制的 UI 照常。236 测试全过 + 浏览器渲染回归通过（画布像素直读）。
-  - **素材更新流程（今后换图）**：改 `assets/resources/` 源文件 → 跑上传（tar 到服务器 `/home/game/mini-assets/pp/`，同 Cocos remote 包套路）→ 无需重新构建小游戏（路径不变）。
+  - **素材更新流程（今后换图）**：改 `assets/resources/` 源文件 → 跑上传（tar 到服务器 `/home/game/mini-assets/pp/`，同 Cocos remote 包套路）→ 重跑 `tools/build-minigame.ts`（生成扩展名清单）→ 重新编译。改后缀或新增文件必须重跑构建，否则运行时找不到（见下条）。
+  - **远程 404 探测修复**：远程化后首测控制台出现 `xiaozhen.png 404`/`bg.png 404`——`loadImageAny` 逐后缀探测（png→jpg→…），jpg 素材每次先吃一个真实 404 请求。改为构建时扫 `assets/resources` 生成 **扩展名清单**（`minigame/src/runtime/asset-ext.js`，105 条，`globalThis.__PP_ASSET_EXT`），`game.js` 首先引入；运行时先试清单命中项、未命中才退回探测（浏览器直跑源码无清单也能跑）。
 
 ## 扩展方向
 

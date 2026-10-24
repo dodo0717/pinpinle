@@ -8,6 +8,7 @@
  *
  * 本文件由 tools/build-minigame.ts 之外手工维护（不参与 TS 剥离），纯 JS。
  */
+import './src/runtime/asset-ext.js';
 import { Renderer, Node, UITransform, Layers } from './src/runtime/cc.js';
 import { MapBootstrap } from './src/scripts/scenes/MapBootstrap.js';
 

@@ -26,12 +26,13 @@
 
 import { stripTypeScriptTypes } from 'node:module';
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, extname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_SCRIPTS = join(ROOT, 'assets', 'scripts');
 const SRC_SHIM = join(ROOT, 'preview', 'cc-shim.js');
+const SRC_RES = join(ROOT, 'assets', 'resources');
 const OUT = join(ROOT, 'minigame');
 const OUT_SCRIPTS = join(OUT, 'src', 'scripts');
 const OUT_RUNTIME = join(OUT, 'src', 'runtime');
@@ -98,12 +99,30 @@ walk(SRC_SCRIPTS, (p) => {
 });
 console.log(`脚本: ${count} 个 .ts → minigame/src/scripts/`);
 
-/* ------------------------------------------------ 运行时 */
+/* ------------------------------------------------ 运行时 + 素材扩展名清单 */
 
 mkdirSync(OUT_RUNTIME, { recursive: true });
 // 不用 cpSync：Windows 上偶发「unlink」怪错（杀软碰一下目标文件就炸），读写绕开
 writeFileSync(join(OUT_RUNTIME, 'cc.js'), readFileSync(SRC_SHIM));
 console.log('运行时: preview/cc-shim.js → minigame/src/runtime/cc.js');
+
+// 素材真实扩展名清单：运行时的 loadImageAny 若逐后缀探测（png→jpg→…），远程化后
+// 每次未命中都是一次真实 404 请求（map-v2 / loading 的 jpg 首当其冲）。构建时把
+// 「相对路径（无扩展名）→ 真实后缀」烘成全局表，运行时先试命中项。
+const extMap: Record<string, string> = {};
+walk(SRC_RES, (p) => {
+  if (p.endsWith('.meta')) return;
+  const rel = relative(SRC_RES, p).split(sep).join('/');
+  const ext = extname(p).toLowerCase();
+  if (!ext) return;
+  extMap[rel.slice(0, -ext.length)] = ext;
+});
+writeFileSync(
+  join(OUT_RUNTIME, 'asset-ext.js'),
+  '// 由 tools/build-minigame.ts 生成，请勿手改 —— 素材真实扩展名清单（key 为 resources.load 的路径口径）\n'
+    + `globalThis.__PP_ASSET_EXT = ${JSON.stringify(extMap)};\n`,
+);
+console.log(`素材扩展名清单: ${Object.keys(extMap).length} 条 → minigame/src/runtime/asset-ext.js`);
 
 // 素材不进包（远程化后可能还留着旧拷贝，清掉）
 rmSync(join(OUT, 'assets'), { recursive: true, force: true });
