@@ -45,7 +45,7 @@ CandyMapDemo/
 
 节点坐标由 `generateLevelPositions()` 生成，正弦摆动，可替换为外部坐标表。
 
-## 近期更新（2026-10-21 ~ 22）
+## 近期更新（2026-10-21 ~ 24）
 
 网页预览版（`web/`，`node preview/serve.mjs` → `http://localhost:5181/web/index.html`）的改动，逐条记录见 **`web/UI_README.md` §8 更新日志**。要点：
 
@@ -115,6 +115,7 @@ CandyMapDemo/
   - 未改动：任何容器（未重启、未重建）、candy-game-server 仓库、其他站点配置（smart-lock、aidertech、map-editor）。改后复测：后台首页、`/game/api/auth/login`、`/prod-api/captchaImage` 返回与改前一致；8000 / 8089 / 8092 均 200；7 个容器状态不变。
   - 新路由测试：放测试文件能取到（200 JSON），不存在的文件 404，目录不列出；`/mini-assets/../` 被 nginx 规范化后落到后台首页，不会读到 `.env`。测试文件已删除，目录当前为空。
   - 回滚：`cp -a /root/candy-game.conf.bak-20261023-miniassets /etc/nginx/conf.d/candy-game.conf && nginx -t && systemctl reload nginx`。
+- **2026-10-24（提交）**：上面 10-22 晚 ~ 10-23 的全部改动随 `c50f61f` 提交并推送到 `fix/core-web-bugs`（360 个文件：核心/玩法/场景/界面脚本、web 层、测试、新素材与瘦身后的旧素材删除）。仓库整理：`.gitignore` 新增 `remote-backup-*/`（远程包快照，每个约 11 MB）与 `debug-touch.js`（临时调试脚本），不入库。
 
 ## 扩展方向
 
