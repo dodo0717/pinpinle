@@ -124,6 +124,7 @@ CandyMapDemo/
   - **图鉴翻页被遮一半**：金框是整卡 sprite **最后盖上去**的，`frame.png`（923×1273）底部有 ~45px 不透明金边带；图鉴 pill 底边原只离卡底 24，下半截正好被金边盖住。新增 `frameBand(ch)` 按卡高等比换算金边带，图鉴与排行榜的底栈（翻页 / 挑战本关）统一从金边带之上 12px 排起。
   - 顺带修复：预览 `cc-shim.js` 缺 `Camera/Canvas/input/Input` 导出与 `director.getScene()`（GameBootstrap 修坐标换算时引入的名字），`preview/map.html` 整页起不来；已补齐并用无头 Chrome 实测地图正常渲染。临时测量页验证：`bottomInset=20`、`navPrev` opacity 150 + disabled、图鉴 pill 底边距卡底 63（金边带 51 + 12）。222 个测试通过。
   - **生效步骤同音频条目**：Cocos Creator 重新构建微信小游戏 + 上传 `remote/`（音频与界面一起验证）。
+- **2026-10-24（构建 + 远程包上传）**：Cocos Creator 重构后（先解决 360 清理 Temp 导致的 `ENOENT *.tmp.js` 编译报错——重启编辑器全量重编）构建 `build/wechatgame/`。已核验产物含三项界面修复与音频（`assets/main/index.js` 里有 `bottomInset=20`、灰色 `172,172,172`、`frameBand`；`remote/resources/native/` 下 12 个 WAV）。主包（不含 remote）**2.2 MB** ✓；`remote/resources`（12 MB）经 tar-over-ssh 上传到 `root@118.89.83.44:/home/game/mini-assets/remote/`，公网验证 `config.json` 与音频均 200。本地 `remote/` 已移出构建目录存为仓库根 `remote-backup-015/`（沿用 012~014 惯例，已 gitignore）——不移出的话微信上传会把 12 MB 算进包体直接超 4MB。**剩最后一步（需人工）**：微信开发者工具上传小程序 + 真机验证。
 
 ## 扩展方向
 
