@@ -373,27 +373,45 @@ export class MapBootstrap extends Component {
                 safeBottom = Math.max(0, ry);
             }
         } catch { /* 平台不支持就按 0 处理 */ }
+
+        // 微信胶囊底边（设计 px）。胶囊 API 在开发者工具里常取到 0（2026-10-23 有
+        // 记录），只按安全区让位时顶栏会整条压在胶囊/状态栏上（10-24 截图实测：
+        // 体力胶囊与微信胶囊完全重叠、木牌头像顶到状态栏）。三级来源兜底：
+        // 胶囊 API → 状态栏高度 + 经验值 → 安全区顶 + 经验值
         let capBottom = 0;
+        let statusBar = 0;
+        let winH = 0;
         const wx = (globalThis as { wx?: any }).wx;
         try {
-            if (wx && typeof wx.getMenuButtonBoundingClientRect === 'function') {
-                const cap = wx.getMenuButtonBoundingClientRect();
+            if (wx) {
                 const info = typeof wx.getWindowInfo === 'function'
                     ? wx.getWindowInfo()
                     : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : null;
-                const winH = finite(info?.windowHeight, 0);
-                const bottom = finite(cap?.bottom, 0);
-                // 胶囊底边（屏幕 px）→ 设计单位，再留 12 的空隙
-                if (winH > 0 && bottom > 0) capBottom = (bottom * this.screenH) / winH + 12;
+                statusBar = finite(info?.statusBarHeight, 0);
+                winH = finite(info?.windowHeight, 0);
+                if (typeof wx.getMenuButtonBoundingClientRect === 'function') {
+                    const bottom = finite(wx.getMenuButtonBoundingClientRect()?.bottom, 0);
+                    if (winH > 0 && bottom > 0) capBottom = (bottom * this.screenH) / winH;
+                }
             }
-        } catch { /* 拿不到胶囊位置就只按安全区 */ }
-        const top = Math.max(28 + safeTop, capBottom);
-        this.topInset = clamp(finite(top, 28), 28, 360);
-        // 页签栏底距与 web 对齐：web 的 .tabbar 就是 bottom:20，不叠安全区。
-        // 2026-10-24 之前把 safeBottom 全额叠上来，设备上报 ~146 设计 px 时整条栏
-        // 被抬高 146，栏顶正好顶住第 1 关珠子（用户截图实测零间距）。
-        // 底部系统手势条压在栏底下沿与 web 浏览器里的表现一致，属正常。
-        this.bottomInset = 20;
+        } catch { /* 拿不到就按下面的兜底 */ }
+        if (wx) {
+            if (capBottom <= 0 && winH > 0 && statusBar > 0) {
+                capBottom = ((statusBar + 40) * this.screenH) / winH;   // 胶囊高约 32 + 一点间隙
+            }
+            if (capBottom <= 0) capBottom = safeTop + 40;
+            // 顶栏整条让到胶囊下方：体力胶囊顶边在 topInset - 116（pillH 108 / 圆钮中心
+            // top-62），116 + 16 余量；木牌 / 返回钮同排一起下移
+            const top = Math.max(28 + safeTop, capBottom + 116 + 16);
+            this.topInset = clamp(finite(top, 28), 28, 480);
+        } else {
+            // 非微信环境（浏览器预览 / 编辑器）没有胶囊，只按安全区让位
+            this.topInset = clamp(28 + finite(safeTop, 0), 28, 480);
+        }
+        // 页签栏底距：清出底部系统手势条，但封顶 64——设备会上报离谱的安全区值
+        // （见过 ~146），全额叠加会把栏顶抬进第 1 关珠子（10-24 截图实测零间距）；
+        // 只给 20 又会压到手势条黑线（同日另一张截图实测仅隔 11px）
+        this.bottomInset = clamp(20 + finite(safeBottom, 0), 20, 64);
         console.log(`[map] 屏幕高 ${Math.round(this.screenH)}，安全区上 ${Math.round(safeTop)} 下 ${Math.round(safeBottom)}，`
             + `胶囊底 ${Math.round(capBottom)} → 顶栏让位 ${Math.round(this.topInset)}，页签让位 ${Math.round(this.bottomInset)}`);
     }
