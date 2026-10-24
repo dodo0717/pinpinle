@@ -36,3 +36,6 @@ Thumbs.db
 desktop.ini
 *.log
 *.tmp
+
+# 微信开发者工具本地私有配置（每台机器不同）
+project.private.config.json
