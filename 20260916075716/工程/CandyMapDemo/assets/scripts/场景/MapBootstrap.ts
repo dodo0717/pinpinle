@@ -230,7 +230,13 @@ export class MapBootstrap extends Component {
     private loadingOpacity: UIOpacity | null = null;
     private loadingFill: Node = null!;
     private loadingNum: Label = null!;
-    private loadingElapsed = 0;
+    /**
+     * 最短停留 / 淡出都用墙钟（performance.now 差值），不用累计帧 dt：
+     * dt 每帧被钳到 0.05s，帧率低或 rAF 稀疏（无头验证环境）时 1.2s 的最短停留
+     * 会被拉长到永远等不到 —— 加载时长本来也不该跟帧率挂钩
+     */
+    private loadingStart = 0;
+    private fadeStart = 0;
     private loadTotal = 0;
     private loadDone = 0;
     private loadingFade = -1;
@@ -1201,6 +1207,7 @@ export class MapBootstrap extends Component {
 
         this.loading = node;
         this.loadingOpacity = node.addComponent(UIOpacity);
+        this.loadingStart = performance.now();
 
         // 真实进度：当前世界底图 + 节点珠 + 顶栏 / 页签切图
         const list = PRELOAD_BASE.slice();
@@ -1213,9 +1220,9 @@ export class MapBootstrap extends Component {
         }
     }
 
-    private updateLoading(dt: number) {
+    private updateLoading(_dt: number) {
         if (!this.loading) return;
-        this.loadingElapsed += dt;
+        const elapsed = (performance.now() - this.loadingStart) / 1000;
 
         if (this.loadingFade < 0) {
             const pct = this.loadTotal > 0 ? Math.round(3 + (97 * this.loadDone) / this.loadTotal) : 100;
@@ -1223,12 +1230,14 @@ export class MapBootstrap extends Component {
             this.loadingFill.getComponent(UITransform)!.setContentSize(w, 104);
             this.loadingFill.setPosition(-430 + w / 2, 0);
             this.loadingNum.string = MAP_TEXT.loading(pct);
-            if (this.loadDone >= this.loadTotal && this.loadingElapsed >= LOADING_MIN_S) this.loadingFade = 0;
+            if (this.loadDone >= this.loadTotal && elapsed >= LOADING_MIN_S) {
+                this.loadingFade = 0;
+                this.fadeStart = performance.now();
+            }
             return;
         }
 
-        this.loadingFade += dt;
-        const t = Math.min(1, this.loadingFade / LOADING_FADE_S);
+        const t = Math.min(1, (performance.now() - this.fadeStart) / LOADING_FADE_S);
         if (this.loadingOpacity) this.loadingOpacity.opacity = Math.round(255 * (1 - t));
         if (t >= 1) {
             this.loading.destroy();

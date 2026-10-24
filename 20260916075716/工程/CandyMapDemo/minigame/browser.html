@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>纯代码小游戏 · 浏览器验证（与微信同一份构建产物）</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #15171c; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<!-- 验证的是构建产物 game.js（同一份代码小游戏里也跑它）；微信侧不打包本文件 -->
+<script type="module" src="./game.js"></script>
+</body>
+</html>

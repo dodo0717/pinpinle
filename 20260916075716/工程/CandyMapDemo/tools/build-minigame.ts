@@ -1,0 +1,117 @@
+/**
+ * 构建 `minigame/`（纯代码微信小游戏）—— 无引擎、无编辑器、零 npm 依赖。
+ *
+ *   node tools/build-minigame.ts
+ *
+ * 做四件事：
+ * 1. `assets/scripts` 下所有 .ts → `minigame/src/scripts` 下同名 .js
+ *    用 Node 22 原生 `stripTypeScriptTypes` 剥类型（与测试跑法同一条路径），
+ *    装饰器手动剥（`@ccclass` / `@property`，与 preview/serve.mjs 同一套正则）；
+ * 2. import 重写：`from 'cc'` → 指向 `src/runtime/cc.js`（cc-shim 的拷贝）的相对路径；
+ *    相对导入补 `.js` 扩展名；中文目录段映射成 ASCII（场景→scenes 等），
+ *    避免小游戏包 / git / 工具链在非 ASCII 路径上出幺蛾子；
+ * 3. `preview/cc-shim.js` → `minigame/src/runtime/cc.js`（双环境运行时原样拷贝）；
+ * 4. `assets/resources/**`（除 .meta）→ `minigame/assets/`。
+ *
+ * 入口 `game.js` / `game.json` / `project.config.json` / `browser.html` 手工维护，
+ * 本脚本不覆盖。产物提交进 git（可 review、可 diff、可回滚）。
+ *
+ * ## 包体
+ * 代码 ~几百 KB + 素材 9.9 MB：开发者工具模拟器直接可跑；真机预览/上传有 4MB
+ * 主包上限 —— 下一步把素材挪分包或远程（`https://candy.aidertech.cn/mini-assets/`）。
+ */
+
+import { stripTypeScriptTypes } from 'node:module';
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SRC_SCRIPTS = join(ROOT, 'assets', 'scripts');
+const SRC_SHIM = join(ROOT, 'preview', 'cc-shim.js');
+const SRC_RES = join(ROOT, 'assets', 'resources');
+const OUT = join(ROOT, 'minigame');
+const OUT_SCRIPTS = join(OUT, 'src', 'scripts');
+const OUT_RUNTIME = join(OUT, 'src', 'runtime');
+
+/** 中文目录 → ASCII（输出结构与 import 路径同步映射） */
+const DIR_MAP: Record<string, string> = {
+  '场景': 'scenes',
+  '玩法': 'game',
+  '核心': 'core',
+  '界面': 'ui',
+};
+
+/** 与 preview/serve.mjs 同一套：装饰器在 shim 运行时里没有意义，删掉最省心 */
+function stripDecorators(code: string): string {
+  return code
+    .replace(/^[ \t]*@ccclass\([^\n]*\)[ \t]*\r?\n/gm, '')
+    .replace(/^[ \t]*@property\([^\n]*\)[ \t]*\r?\n/gm, '');
+}
+
+/** 相对导入路径分段映射（中文目录段替换、无扩展名补 .js） */
+function remapRelative(spec: string): string {
+  const parts = spec.split('/');
+  const mapped = parts.map((p) => DIR_MAP[p] ?? p);
+  let out = mapped.join('/');
+  if (!/\.[a-z]+$/i.test(out)) out += '.js';
+  return out;
+}
+
+/** 输出文件目录 → 目标的 POSIX 相对导入路径（带 ./ 前缀） */
+function relImport(fromDir: string, target: string): string {
+  const r = relative(fromDir, join(OUT, target)).split(sep).join('/');
+  return r.startsWith('.') ? r : './' + r;
+}
+
+function walk(dir: string, cb: (p: string) => void): void {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, cb);
+    else cb(p);
+  }
+}
+
+/* ------------------------------------------------ 游戏脚本：剥类型 + 重写导入 */
+
+let count = 0;
+rmSync(OUT_SCRIPTS, { recursive: true, force: true });
+walk(SRC_SCRIPTS, (p) => {
+  if (!p.endsWith('.ts')) return;
+  const rel = relative(SRC_SCRIPTS, p);
+  const outRel = rel.split(sep).map((s) => (s.includes('.') ? s : (DIR_MAP[s] ?? s))).join('/');
+  const outPath = join(OUT_SCRIPTS, outRel.replace(/\.ts$/, '.js'));
+  let code = stripDecorators(stripTypeScriptTypes(readFileSync(p, 'utf8'), { sourceMap: false }));
+  const outDir = dirname(outPath);
+  code = code.replace(/(\bfrom\s*)('([^']*)'|"([^"]*)")/g, (m, pre: string, quoted: string) => {
+    const spec = quoted.slice(1, -1);
+    const q = quoted[0];
+    if (spec === 'cc') return pre + q + relImport(outDir, 'src/runtime/cc.js') + q;
+    if (spec.startsWith('.')) return pre + q + remapRelative(spec) + q;
+    return m;   // 裸包名导入（本仓库没有，留原样报警）
+  });
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, code);
+  count++;
+});
+console.log(`脚本: ${count} 个 .ts → minigame/src/scripts/`);
+
+/* ------------------------------------------------ 运行时 + 素材 */
+
+mkdirSync(OUT_RUNTIME, { recursive: true });
+// 不用 cpSync：Windows 上偶发「unlink」怪错（杀软碰一下目标文件就炸），读写绕开
+writeFileSync(join(OUT_RUNTIME, 'cc.js'), readFileSync(SRC_SHIM));
+console.log('运行时: preview/cc-shim.js → minigame/src/runtime/cc.js');
+
+rmSync(join(OUT, 'assets'), { recursive: true, force: true });
+let files = 0, skipped = 0;
+walk(SRC_RES, (p) => {
+  if (p.endsWith('.meta')) { skipped++; return; }
+  const rel = relative(SRC_RES, p);
+  const outPath = join(OUT, 'assets', rel);
+  mkdirSync(dirname(outPath), { recursive: true });
+  cpSync(p, outPath);
+  files++;
+});
+console.log(`素材: ${files} 个文件 → minigame/assets/（跳过 ${skipped} 个 .meta）`);
+console.log('完成。微信开发者工具导入 minigame/ 目录；浏览器验证开 minigame/browser.html。');

@@ -3,7 +3,15 @@
  *
  * 目的：让 `assets/scripts/**` 的真实 Cocos 源码可以原样跑在浏览器里预览，
  * 从而「预览到的 == Cocos 里跑的」。渲染走 Canvas 2D。
+ *
+ * 2026-10-24 起双环境：同一份文件既做浏览器预览运行时，也是
+ * `minigame/`（纯代码微信小游戏，见 tools/build-minigame.ts）的运行时 ——
+ * 检测到 `wx` 就走小游戏分支（wx.createCanvas / wx.createImage /
+ * wx.onTouchStart / wx.createInnerAudioContext / wx.onShow…），否则走浏览器。
  * ========================================================== */
+
+/** 微信小游戏全局对象（浏览器里为 null） */
+const WX = typeof wx !== 'undefined' ? wx : null;
 
 /* ---------- 基础值类型 ---------- */
 export class Color {
@@ -29,13 +37,43 @@ export const view = {
   _h: DESIGN_H,
   _policy: ResolutionPolicy.FIXED_WIDTH,
   setDesignResolutionSize(w, h, policy) { this._w = w; this._h = h; if (policy !== undefined) this._policy = policy; },
-  getVisibleSize() { return new Size(this._w, this._h); },
+  /**
+   * FIXED_WIDTH 下高度跟着画布宽高比走（浏览器预览画布就是 1080×1920，结果不变；
+   * 小游戏里画布是物理全屏，长屏手机会得到比 1920 更高的可视高度 —— 与真引擎一致，
+   * 地图轨道按可视高度缩放，行为和 web 版对齐）。
+   */
+  getVisibleSize() {
+    const cv = director._canvas;
+    if (cv && cv.width > 0 && this._policy === ResolutionPolicy.FIXED_WIDTH && cv.height !== cv.width) {
+      return new Size(this._w, (this._w * cv.height) / cv.width);
+    }
+    return new Size(this._w, this._h);
+  },
   getDesignResolutionSize() { return new Size(this._w, this._h); },
 };
 
-/** 平台信息：预览里没有刘海，安全区 = 整个可视区（MapBootstrap 据此算顶栏 / 页签让位） */
+/**
+ * 平台安全区（设计坐标，y-up、左下角原点 —— MapBootstrap.measureInsets 的口径）。
+ * 浏览器预览里没有刘海：安全区 = 整个可视区。
+ */
 export const sys = {
-  getSafeAreaRect() { return new Rect(0, 0, view._w, view._h); },
+  getSafeAreaRect() {
+    if (WX) {
+      try {
+        const info = typeof WX.getWindowInfo === 'function'
+          ? WX.getWindowInfo()
+          : typeof WX.getSystemInfoSync === 'function' ? WX.getSystemInfoSync() : null;
+        const safe = info && info.safeArea;
+        if (safe && info.windowWidth > 0 && info.windowHeight > 0) {
+          const kd = view.getVisibleSize().width / info.windowWidth;   // 逻辑 px → 设计 px
+          const bottom = (info.windowHeight - safe.bottom) * kd;      // y-up：底边 = 底部内边距
+          return new Rect(0, bottom, view.getVisibleSize().width, safe.height * kd);
+        }
+      } catch { /* 拿不到就退回整屏 */ }
+    }
+    const vs = view.getVisibleSize();
+    return new Rect(0, 0, vs.width, vs.height);
+  },
 };
 
 /** 渲染器在启动时把 canvas / ctx 注册进来 */
@@ -53,11 +91,11 @@ export const director = {
 /* ---------- 资源 ---------- */
 const imgCache = new Map();
 
-/** 加载一张图片并缓存（Promise） */
+/** 加载一张图片并缓存（Promise）。浏览器走 Image + HTTP；小游戏走 wx.createImage + 包内相对路径 */
 export function loadImage(url) {
   if (imgCache.has(url)) return imgCache.get(url);
   const p = new Promise((resolve, reject) => {
-    const img = new Image();
+    const img = WX ? WX.createImage() : new Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('图片加载失败 ' + url));
     img.src = url;
@@ -86,8 +124,8 @@ export class JsonAsset {
   constructor(json) { this.json = json; }
 }
 
-/** 资源表：把 Cocos 的 `resources.load('ui/xxx/texture')` 映射成本站图片路径 */
-const RES_BASE = '/assets/resources/';
+/** 资源表根：浏览器走 HTTP（serve.mjs 服务 assets/resources/）；小游戏走包内相对路径（构建时拷到 minigame/assets/） */
+const RES_BASE = WX ? 'assets/' : '/assets/resources/';
 /** 素材库里 png / jpg 混放（stickers 有一半是 jpg），逐个后缀试过去 */
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.webp'];
 
@@ -99,18 +137,25 @@ function loadImageAny(base) {
 
 export const resources = {
   load(path, type, cb) {
-    // 预览环境没有音频素材（也不该在预览里放声音）：直接回错误。
-    // 不回的话会去请求 `audio/xxx.png`，刷一屏 404，还会把真正的缺图警告淹掉。
-    // 这里用 `type.name` 而不是 `type === AudioClip`，因为 AudioClip 定义在文件末尾，
+    // 音频：小游戏里素材已随包拷到 assets/audio/*.wav，直接给出可播的 AudioClip；
+    // 浏览器预览不放声音（也不该在预览里放），回错误即可。
+    // 用 `type.name` 而不是 `type === AudioClip`，因为 AudioClip 定义在文件末尾，
     // class 不提升，直接引用会踩 TDZ。
     const name = type && type.name;
     if (name === 'AudioClip') {
-      cb && cb(new Error('preview: audio not supported'), null);
+      if (WX) {
+        const base = RES_BASE + String(path).replace(/\/(texture|spriteFrame)$/, '');
+        cb && cb(null, new AudioClip(base + '.wav'));
+      } else {
+        cb && cb(new Error('preview: audio not supported'), null);
+      }
       return;
     }
     const base = RES_BASE + String(path).replace(/\/(texture|spriteFrame)$/, '');
 
     if (name === 'JsonAsset') {
+      // 当前源码已无人加载 JSON（旧 HomeHUD 已删）；小游戏侧真要接时按 require 方案接
+      if (WX) { cb && cb(new Error('wx: json asset 未接入'), null); return; }
       fetch(base + '.json')
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error('404 ' + base + '.json'))))
         .then((j) => cb && cb(null, new JsonAsset(j)), (e) => cb && cb(e, null));
@@ -560,6 +605,19 @@ export class Renderer {
     this._last = 0;
     this._target = null;
     this._start = null;
+    this._touchId = null;   // 小游戏：只跟第一根手指（与 web 的 pointerId 过滤同口径）
+    // 小游戏：缓存逻辑窗口尺寸（wx 触摸坐标是逻辑 px，画布是物理 px）
+    this._logicalW = 0;
+    this._logicalH = 0;
+    if (WX) {
+      try {
+        const info = typeof WX.getWindowInfo === 'function'
+          ? WX.getWindowInfo()
+          : typeof WX.getSystemInfoSync === 'function' ? WX.getSystemInfoSync() : null;
+        this._logicalW = (info && info.windowWidth) || 0;
+        this._logicalH = (info && info.windowHeight) || 0;
+      } catch { /* 拿不到就按画布尺寸兜底 */ }
+    }
     director._canvas = canvas;
     director._ctx = this.ctx;
     this._bindInput();
@@ -587,13 +645,18 @@ export class Renderer {
     const loop = (now) => {
       const dt = Math.min(0.05, (now - this._last) / 1000);
       this._last = now;
-      // 每帧补一次生命周期：节点经常是在别的组件 onLoad 里动态创建的
-      // （Game 节点就是 MapBootstrap.onLoad 建的），只在启动时 mount 一次的话，
-      // 这些节点的 onLoad / start 永远不会被调用 —— 表现是「进了关但棋盘不存在」
-      this.mount();
-      stepTweens(dt);
-      this._update(this.root, dt);
-      this._draw();
+      try {
+        // 每帧补一次生命周期：节点经常是在别的组件 onLoad 里动态创建的
+        // （Game 节点就是 MapBootstrap.onLoad 建的），只在启动时 mount 一次的话，
+        // 这些节点的 onLoad / start 永远不会被调用 —— 表现是「进了关但棋盘不存在」
+        this.mount();
+        stepTweens(dt);
+        this._update(this.root, dt);
+        this._draw();
+      } catch (e) {
+        // 一帧抛错不能弄死整个循环（死了就是永远半张图/黑屏），打出来继续跑
+        if (!this._errLogged) { this._errLogged = true; console.error('[renderer] 帧异常:', e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e); }
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -620,8 +683,14 @@ export class Renderer {
     drawNode(ctx, this.root);
   }
 
-  /** 屏幕坐标 → 设计坐标（原点在中心，y 向上） */
+  /** 屏幕坐标 → 设计坐标（原点在中心，y 向上）。浏览器按画布矩形换算；小游戏按逻辑窗口换算 */
   _toDesign(clientX, clientY) {
+    if (WX) {
+      const lw = this._logicalW || this.canvas.width;
+      const lh = this._logicalH || this.canvas.height;
+      const k = view._w / lw;                    // 逻辑 px → 设计 px
+      return { x: (clientX - lw / 2) * k, y: (lh / 2 - clientY) * k };
+    }
     const r = this.canvas.getBoundingClientRect();
     const px = (clientX - r.left) * (this.canvas.width / r.width);
     const py = (clientY - r.top) * (this.canvas.height / r.height);
@@ -629,6 +698,10 @@ export class Renderer {
   }
 
   _bindInput() {
+    if (WX) {
+      this._bindWxInput();
+      return;
+    }
     const cv = this.canvas;
     const pick = (clientX, clientY) => {
       const p = this._toDesign(clientX, clientY);
@@ -678,6 +751,55 @@ export class Renderer {
     cv.addEventListener('pointercancel', (e) => end(e, true));
     cv.addEventListener('pointerleave', (e) => { if (this._target) end(e, true); });
   }
+
+  /** 小游戏输入：wx.onTouchStart/Move/End（全局事件，逻辑 px）→ 命中 → 冒泡，与浏览器路径同构 */
+  _bindWxInput() {
+    const pick = (x, y) => {
+      const p = this._toDesign(x, y);
+      const out = [];
+      hitTest(this.root, p.x, p.y, out);
+      return { node: out[0] || null, p };
+    };
+    const bubble = (node, type, evt) => {
+      for (let n = node; n; n = n._parent) {
+        n.emit(type, evt);
+        if (evt.propagationStopped) break;
+      }
+    };
+    WX.onTouchStart((e) => {
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      this._touchId = t.identifier;
+      const hit = pick(t.clientX, t.clientY);
+      if (!hit.node) return;
+      this._target = hit.node;
+      this._start = hit.p;
+      bubble(hit.node, Node.EventType.TOUCH_START, new EventTouch(hit.p.x, hit.p.y));
+    });
+    WX.onTouchMove((e) => {
+      if (!this._target) return;
+      const arr = e.touches || [];
+      const t = arr.find((x) => x.identifier === this._touchId) || arr[0];
+      if (!t) return;
+      const p = this._toDesign(t.clientX, t.clientY);
+      const s = this._start || p;
+      bubble(this._target, Node.EventType.TOUCH_MOVE, new EventTouch(p.x, p.y, s.x, s.y));
+    });
+    const finish = (e, cancel) => {
+      if (!this._target) return;
+      const arr = (cancel ? e.touches : e.changedTouches) || [];
+      const t = arr.find((x) => x.identifier === this._touchId) || arr[0] || { clientX: 0, clientY: 0 };
+      const p = this._toDesign(t.clientX, t.clientY);
+      const s = this._start || p;
+      const target = this._target;
+      this._target = null;
+      this._start = null;
+      this._touchId = null;
+      bubble(target, cancel ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END, new EventTouch(p.x, p.y, s.x, s.y));
+    };
+    WX.onTouchEnd((e) => finish(e, false));
+    WX.onTouchCancel((e) => finish(e, true));
+  }
 }
 
 /* ============================================================
@@ -714,18 +836,17 @@ export const game = {
   },
 };
 
-if (typeof document !== 'undefined' && document.addEventListener) {
+if (WX) {
+  // 小游戏：切后台走 wx.onHide / onShow（「切后台停表、回前台补扣」在真机走这条）
+  if (typeof WX.onHide === 'function') WX.onHide(() => game.emit(Game.EVENT_HIDE));
+  if (typeof WX.onShow === 'function') WX.onShow(() => game.emit(Game.EVENT_SHOW));
+} else if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {
     game.emit(document.hidden ? Game.EVENT_HIDE : Game.EVENT_SHOW);
   });
 }
 
-export class AudioClip {
-  constructor(name = '') {
-    this.name = name;
-    this.duration = 0;
-  }
-}
+/* AudioClip / AudioSource 定义在文件末尾（微信实装版）；resources.load 用 type.name 引用它们 */
 
 /**
  * 预览环境不发声（没有音频素材，也不该在预览里放声音），
@@ -780,6 +901,19 @@ export const input = {
   off() {},
 };
 
+/**
+ * 音频：浏览器预览不发声（也不该在预览里放声音），但 play / stop / playing 的状态
+ * 要**真实维护**（「BGM 跟着倒计时停」「关掉音乐就停」这些联动靠 playing 判）。
+ * 小游戏里用 wx.createInnerAudioContext 实装：BGM 一条长连接（loop），
+ * playOneShot 每次新开一条、播完自毁（短音效不能复用同一条，会掐掉上一次的尾音）。
+ */
+export class AudioClip {
+  constructor(src = '') {
+    this.src = src;
+    this.duration = 0;
+  }
+}
+
 export class AudioSource extends Component {
   constructor() {
     super();
@@ -787,11 +921,43 @@ export class AudioSource extends Component {
     this.loop = false;
     this.volume = 1;
     this._playing = false;
+    this._ctx = null;   // 小游戏 BGM 的 InnerAudioContext（浏览器预览里恒为 null）
   }
   get playing() { return this._playing; }
-  play() { this._playing = !!this.clip; }
-  stop() { this._playing = false; }
-  pause() { this._playing = false; }
-  resume() { this._playing = !!this.clip; }
-  playOneShot(clip, volume) { /* 静默 */ }
+  _ensureCtx() {
+    if (!this._ctx && WX && typeof WX.createInnerAudioContext === 'function') {
+      this._ctx = WX.createInnerAudioContext();
+      this._ctx.onError(() => { this._playing = false; });
+      this._ctx.onEnded(() => { if (!this.loop) this._playing = false; });
+    }
+    return this._ctx;
+  }
+  play() {
+    if (!this.clip) return;
+    const c = this._ensureCtx();
+    if (c) {
+      if (c.src !== this.clip.src) c.src = this.clip.src;
+      c.loop = this.loop;
+      c.volume = this.volume;
+      c.play();
+    }
+    this._playing = true;
+  }
+  stop() {
+    if (this._ctx) this._ctx.stop();
+    this._playing = false;
+  }
+  pause() {
+    if (this._ctx) this._ctx.pause();
+    this._playing = false;
+  }
+  resume() { this.play(); }
+  playOneShot(clip, volume = 1) {
+    if (!clip || !WX || typeof WX.createInnerAudioContext !== 'function') return;
+    const c = WX.createInnerAudioContext();
+    c.src = clip.src;
+    c.volume = Math.max(0, Math.min(1, volume));
+    c.onEnded(() => c.destroy());
+    c.play();
+  }
 }

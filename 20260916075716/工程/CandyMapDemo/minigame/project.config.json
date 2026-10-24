@@ -1,0 +1,9 @@
+{
+  "description": "萌宠拼拼乐（纯代码微信小游戏，无引擎）",
+  "packOptions": { "ignore": [ { "type": "folder", "value": "browser.html" } ] },
+  "setting": { "urlCheck": true, "es6": true, "enhance": true, "minified": true },
+  "compileType": "game",
+  "libVersion": "widelyUsed",
+  "appid": "wxd84cc8ded4b62579",
+  "projectname": "pinpinle-pure"
+}

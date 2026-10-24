@@ -92,8 +92,10 @@ http
         return;
       }
       const buf = await readFile(file);
+      // no-store：改代码/素材后浏览器永远拿新的 —— 无头验证曾因缓存一直跑旧模块白折腾
       res.writeHead(200, {
         'Content-Type': MIME[path.extname(p).toLowerCase()] || 'application/octet-stream',
+        'Cache-Control': 'no-store',
       });
       res.end(buf);
     } catch {
