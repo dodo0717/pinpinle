@@ -156,6 +156,9 @@ CandyMapDemo/
   - **素材远程化（真机 4MB 上限的前置）**：`minigame/assets/`（105 文件 / 12MB）上传到 `https://candy.aidertech.cn/mini-assets/pp/`（downloadFile 合法域名已配置，公网抽查四类素材全 200）；shim 的 `RES_BASE` 微信分支改走该远程基址（浏览器验证仍走本地 `/assets/resources/`），`tools/build-minigame.ts` 不再拷素材并清理旧拷贝。**主包从 12MB 降到 0.51MB**（44 个文件，纯代码），远低于 4MB 上限——**真机预览/上传解锁**。代价：微信侧首帧素材走网络（加载页进度条覆盖这个等待）；服务器宕机时贴图/音频缺失但 Graphics 绘制的 UI 照常。236 测试全过 + 浏览器渲染回归通过（画布像素直读）。
   - **素材更新流程（今后换图）**：改 `assets/resources/` 源文件 → 跑上传（tar 到服务器 `/home/game/mini-assets/pp/`，同 Cocos remote 包套路）→ 重跑 `tools/build-minigame.ts`（生成扩展名清单）→ 重新编译。改后缀或新增文件必须重跑构建，否则运行时找不到（见下条）。
   - **远程 404 探测修复**：远程化后首测控制台出现 `xiaozhen.png 404`/`bg.png 404`——`loadImageAny` 逐后缀探测（png→jpg→…），jpg 素材每次先吃一个真实 404 请求。改为构建时扫 `assets/resources` 生成 **扩展名清单**（`minigame/src/runtime/asset-ext.js`，105 条，`globalThis.__PP_ASSET_EXT`），`game.js` 首先引入；运行时先试清单命中项、未命中才退回探测（浏览器直跑源码无清单也能跑）。
+- **2026-10-24（体力双轨 v1：本地为主 + 服务器规则配置）**：读了后端 `GameStaminaService`/`StaminaCalc`——只有查/扣/退三个口，规则走后台参数（sys_config），**没有「加体力」通道**，且返还有 `pending>0` 配对约束 → 咱们的「看广告 +1」进不了服务端账本，完整双轨会在下次同步时把广告体力冲掉（玩家白看广告）。按用户决策走 **A+C**：
+  - **A（已做）**：体力维持现有本地逻辑不动（广告/恢复/存档零变化）；线上参数改为本作规则 `game.stamina.max 5→10`、`recoverMinutes 30→20`（SQL UPDATE + 清 Redis 的 `sys_config:game.stamina.*` 三键，免重启；DB 复核 10/20/1 ✓）——将来上双轨的地基现成，后台「玩家管理」的体力显示也不再错口径。
+  - **C（下次后端维护窗口第一项）**：`GameStaminaService` 加「体力调整」小接口（~20 行，广告上报用），按部署说明的**串行构建规程**构建 + 分钟级重启；之后客户端完整双轨（进关 consume / 退出 refund / 启动对齐 + 广告直接上报）预计半天。**备选 B（广告做本地信用层、不过服务器）已评估并否决**：服务器/本地恢复/广告信用三份真值对账，状态机复杂、bug 面大。
 
 ## 扩展方向
 
