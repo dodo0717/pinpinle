@@ -68,6 +68,12 @@ export class GameBootstrap extends Component {
   private hudNode: Node | null = null;
   /** 最近一次 view.build 的参数（主题切换时按它重建棋盘） */
   private boardSpec: { rows: number; cols: number; cell: number } | null = null;
+  /** 三星插座 Graphics（updateStarVisuals 更新颜色） */
+  private starSockets: Graphics[] = [];
+  /** 星线进度填充 Graphics（updateStarVisuals 更新宽度） */
+  private starLineFills: Graphics[] = [];
+  /** 计时圆环前景弧（updateTimerRing 更新） */
+  private timerRingFg: Graphics | null = null;
 
   private engine: PuzzleEngine = null!;
   private rng: Rng = null!;
@@ -886,13 +892,88 @@ export class GameBootstrap extends Component {
     if (!this.hudTime) return;
     this.hudLevel.string = `${currentTheme().copy.modeLabel} · 第 ${this.levelIndex} 关`;
     this.hudTime.string = fmtMMSS(this.timeLeft);
-    this.hudScore.string = `${this.engine ? this.engine.score : 0} 分`;
+    this.hudScore.string = `${this.engine ? this.engine.score : 0}`;
     // 颜色即信息：剩 1 分钟转橙、剩 10 秒转红（原版 #hud-timer.warn / .danger）
     this.hudTime.color = this.timeLeft <= 10
       ? new Color(226, 68, 68, 255)
       : this.timeLeft <= 60
         ? new Color(240, 150, 40, 255)
-        : new Color(255, 255, 255, 255);
+        : currentTheme().hudAccent;
+    // 三星插座 + 星线进度 + 计时环（照抄原型 A）
+    this.updateStarVisuals();
+    this.updateTimerRing();
+  }
+
+  /** 三星插座 + 星线进度（照抄原型 A 的 star-socket + goal .tick） */
+  private updateStarVisuals(): void {
+    if (!this.engine || !this.cfg) return;
+    const score = this.engine.score;
+    const lines = [this.cfg.star1, this.cfg.star2, this.cfg.star3];
+    // 星插座
+    for (let i = 0; i < 3; i++) {
+      const g = this.starSockets[i];
+      if (!g || !g.isValid) continue;
+      const earned = score >= lines[i];
+      g.clear();
+      if (earned) {
+        g.fillColor = new Color(255, 229, 138);
+        g.circle(0, 0, 61);
+        g.fill();
+        g.fillColor = new Color(255, 201, 60);
+        g.circle(0, -3, 56);
+        g.fill();
+      } else {
+        g.fillColor = new Color(87, 53, 142);
+        g.circle(0, 0, 61);
+        g.fill();
+        g.fillColor = new Color(69, 39, 111);
+        g.circle(0, 0, 56);
+        g.fill();
+      }
+      // 星形字符
+      const label = g.node.getChildByName('Star');
+      if (label) {
+        const l = label.getComponent(Label);
+        if (l) {
+          l.color = earned ? new Color(255, 255, 255) : new Color(120, 90, 160);
+          l.string = '★';
+        }
+      }
+    }
+    // 星线进度
+    for (let i = 0; i < 3; i++) {
+      const g = this.starLineFills[i];
+      if (!g || !g.isValid) continue;
+      const pct = Math.min(100, score / lines[i] * 100);
+      const w = (pct / 100) * 200;
+      g.clear();
+      if (w > 0) {
+        g.fillColor = score >= lines[i]
+          ? new Color(255, 201, 60)
+          : new Color(255, 178, 94);
+        g.roundRect(-100, -14, w, 28, 14);
+        g.fill();
+      }
+    }
+  }
+
+  /** 计时圆环进度弧（照抄原型 A 的 timer-ring） */
+  private updateTimerRing(): void {
+    if (!this.timerRingFg || !this.timerRingFg.isValid) return;
+    const g = this.timerRingFg;
+    const total = this.cfg?.timeLimit ?? 180;
+    const pct = Math.max(0, Math.min(1, this.timeLeft / total));
+    const circumference = 2 * Math.PI * 82;
+    const arcLen = circumference * pct;
+    g.clear();
+    if (arcLen > 1) {
+      g.lineWidth = 12;
+      g.strokeColor = this.timeLeft <= 10
+        ? new Color(255, 91, 77)
+        : new Color(255, 201, 60);
+      g.arc(0, 0, 82, -Math.PI / 2, -Math.PI / 2 + arcLen / 82);
+      g.stroke();
+    }
   }
 
   /** 提示：高亮当前最优可拼组（原版 2.6s 后自动撤销） */
@@ -910,58 +991,143 @@ export class GameBootstrap extends Component {
     this.view?.setHint([]);
   }
 
+  /**
+   * HUD —— 照抄原型 A（糖果嘉年华）的排版：
+   *   左：木牌分数卡（分数标签 + 数值）    中：三星插座（圆底 + ★）    右：金色计时圆环
+   *   下方：星线进度（三段圆角条 + 当前目标数字）
+   *   底栏：模式标签胶囊（左） + 体力胶囊（右）
+   */
   private buildHud(): void {
     if (this.hudNode) this.hudNode.destroy();
     const t = currentTheme();
-    const bar = new Node('Hud');
-    bar.parent = this.node;
-    bar.layer = Layers.Enum.UI_2D;
-    bar.addComponent(UITransform).setContentSize(DESIGN_W, 150);
-    bar.setPosition(0, 885);
-    this.hudNode = bar;
+    const hud = new Node('Hud');
+    hud.parent = this.node;
+    hud.layer = Layers.Enum.UI_2D;
+    hud.addComponent(UITransform).setContentSize(DESIGN_W, 200);
+    hud.setPosition(0, 840);
+    this.hudNode = hud;
 
-    if (t.hudStyle === 'bar') {
-      // 整条横牌（糖果嘉年华的木牌 / 手账的牛皮纸）
-      const g = bar.addComponent(Graphics);
-      g.fillColor = t.hudFillB;
-      g.roundRect(-DESIGN_W / 2, -75, DESIGN_W, 150, 26);
-      g.fill();
-      g.fillColor = t.hudFillA;
-      g.roundRect(-DESIGN_W / 2, -30, DESIGN_W, 105, 26);
-      g.fill();
+    // ========== 左：木牌分数卡 ==========
+    const scorePlank = new Node('ScorePlank');
+    scorePlank.parent = hud;
+    scorePlank.layer = Layers.Enum.UI_2D;
+    scorePlank.addComponent(UITransform).setContentSize(300, 130);
+    scorePlank.setPosition(-350, 30);
+    const spg = scorePlank.addComponent(Graphics);
+    // 木牌（深底 + 浅面 + 边框 + 投影，照抄 .plank 样式）
+    spg.fillColor = new Color(107, 63, 24); // wood-edge
+    spg.roundRect(-150, -65, 300, 130, 16);
+    spg.fill();
+    spg.fillColor = new Color(169, 113, 59); // wood
+    spg.roundRect(-146, -55, 292, 116, 14);
+    spg.fill();
+    spg.fillColor = new Color(139, 90, 43); // wood-dark（下沿）
+    spg.roundRect(-146, -55, 292, 50, 14);
+    spg.fill();
+    // 「分数」标签
+    const capL = this.hudText(scorePlank, 22, 0, 38, 200, new Color(255, 223, 176));
+    capL.string = '分数';
+    // 分数数值
+    this.hudScore = this.hudText(scorePlank, 48, 0, -12, 260, new Color(255, 255, 255));
+    this.hudScore.string = '0';
+
+    // ========== 中：三星插座 ==========
+    this.starSockets = [];
+    for (let i = 0; i < 3; i++) {
+      const sock = new Node(`Sock${i}`);
+      sock.parent = hud;
+      sock.layer = Layers.Enum.UI_2D;
+      sock.addComponent(UITransform).setContentSize(130, 130);
+      sock.setPosition((i - 1) * 140, 30);
+      const g = sock.addComponent(Graphics);
+      this.starSockets.push(g);
+      // ★ 字符
+      const star = new Node('Star');
+      star.parent = sock;
+      star.layer = Layers.Enum.UI_2D;
+      star.addComponent(UITransform).setContentSize(130, 130);
+      const sl = star.addComponent(Label);
+      sl.fontSize = 56;
+      sl.lineHeight = 60;
+      sl.string = '★';
+      sl.color = new Color(120, 90, 160);
     }
-    // pills 形态（果冻乐园）不画整条：三只白胶囊各自带底
 
-    const mkPill = (x: number, w: number): Graphics => {
-      const n = new Node('Pill');
-      n.parent = bar;
-      n.layer = Layers.Enum.UI_2D;
-      n.addComponent(UITransform).setContentSize(w, 118);
-      n.setPosition(x, 0);
-      const g = n.addComponent(Graphics);
-      g.fillColor = t.hudFillA;
-      g.roundRect(-w / 2, -59, w, 118, 59);
-      g.fill();
-      return g;
-    };
-    const pill = t.hudStyle === 'pills';
+    // ========== 右：金色计时圆环 ==========
+    const timerWrap = new Node('TimerWrap');
+    timerWrap.parent = hud;
+    timerWrap.layer = Layers.Enum.UI_2D;
+    timerWrap.addComponent(UITransform).setContentSize(190, 190);
+    timerWrap.setPosition(350, 30);
+    // 背景圆
+    const tbg = timerWrap.addComponent(Graphics);
+    tbg.lineWidth = 12;
+    tbg.strokeColor = new Color(0, 0, 0, 80);
+    tbg.circle(0, 0, 82);
+    tbg.stroke();
+    // 前景进度弧（updateTimerRing 更新）
+    const tfg = new Node('TimerFg');
+    tfg.parent = timerWrap;
+    tfg.layer = Layers.Enum.UI_2D;
+    tfg.addComponent(UITransform).setContentSize(190, 190);
+    this.timerRingFg = tfg.addComponent(Graphics);
+    // 数字
+    this.hudTime = this.hudText(timerWrap, 40, 0, 0, 160, t.hudAccent);
+    this.hudTime.string = '03:00';
 
-    this.hudLevel = this.hudText(bar, 30, pill ? -432 : -330, 0, 300, t.hudText);
-    this.hudTime = this.hudText(bar, 46, 0, 0, 260, t.hudAccent);
-    this.hudScore = this.hudText(bar, 34, pill ? 432 : 300, 0, 240, t.hudText);
-    for (const l of [this.hudLevel, this.hudTime, this.hudScore]) {
-      l.fontFamily = t.fontFamily;
-      if (t.textShadow) l.enableBold = true;
+    // ========== 星线进度（HUD 下方） ==========
+    const goalRow = new Node('GoalRow');
+    goalRow.parent = hud;
+    goalRow.layer = Layers.Enum.UI_2D;
+    goalRow.addComponent(UITransform).setContentSize(DESIGN_W - 80, 34);
+    goalRow.setPosition(0, -60);
+    // 「★线」标签
+    const gl = this.hudText(goalRow, 20, -(DESIGN_W - 80) / 2 + 30, 0, 60, new Color(255, 233, 199));
+    gl.string = '★线';
+    // 三段进度条
+    this.starLineFills = [];
+    for (let i = 0; i < 3; i++) {
+      const seg = new Node(`Seg${i}`);
+      seg.parent = goalRow;
+      seg.layer = Layers.Enum.UI_2D;
+      seg.addComponent(UITransform).setContentSize(210, 28);
+      seg.setPosition(-160 + i * 220, 0);
+      // 背景槽
+      const bgG = seg.addComponent(Graphics);
+      bgG.fillColor = new Color(0, 0, 0, 80);
+      bgG.roundRect(-105, -14, 210, 28, 14);
+      bgG.fill();
+      // 前景填充（updateStarVisuals 更新宽度）
+      const fgN = new Node('Fill');
+      fgN.parent = seg;
+      fgN.layer = Layers.Enum.UI_2D;
+      fgN.addComponent(UITransform).setContentSize(200, 28);
+      const fgG = fgN.addComponent(Graphics);
+      this.starLineFills.push(fgG);
     }
-    if (pill) { mkPill(-432, 250); mkPill(0, 260); mkPill(432, 250); }
 
-    // 返回主页 —— 必须挂在 bar 上（bar 在棋盘上方的安全区）。
-    // 挂 this.node 的话坐标原点是画面中心，(-460, 0) 会直接压在棋盘左中部，
-    // 既挡视线又吞掉那一带的拖动。
-    const back = this.hudButton(bar, 'BtnBack', -460, 0, 120, 88, t.backFill, '返回', 28);
+    // ========== 底栏 ==========
+    // 模式标签（粉色胶囊，左）
+    this.hudLevel = this.hudText(hud, 26, -380, -60, 420, new Color(255, 255, 255));
+    this.hudLevel.string = `${t.copy.modeLabel} · 第 ${this.levelIndex} 关`;
+    // 体力胶囊（右）
+    const energy = new Node('Energy');
+    energy.parent = hud;
+    energy.layer = Layers.Enum.UI_2D;
+    energy.addComponent(UITransform).setContentSize(280, 56);
+    energy.setPosition(350, -60);
+    const eg = energy.addComponent(Graphics);
+    eg.fillColor = new Color(0, 0, 0, 80);
+    eg.roundRect(-140, -28, 280, 56, 28);
+    eg.fill();
+    const el = this.hudText(energy, 28, 0, 0, 220, new Color(255, 255, 255));
+    el.string = `💛 ${GS.stamina.available}/${GS.staminaMax}`;
+
+    // ========== 返回按钮（左上角） ==========
+    const back = this.hudButton(hud, 'BtnBack', -480, 30, 100, 80, t.backFill, '返回', 24);
     back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
 
-    // 提示 —— 棋盘下沿是 BOARD_BOTTOM(-640)，-740 在其下方，属于安全区
+    // ========== 提示按钮（棋盘下方） ==========
     const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, t.hintFill, '提示', 32);
     hint.on(Node.EventType.TOUCH_END, () => this.showHint(), this);
   }
