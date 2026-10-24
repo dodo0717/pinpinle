@@ -176,6 +176,10 @@ CandyMapDemo/
   - **`themeForLevel(level)`**：第 1/2/3/4 关 → candy/clean/journal/candy（循环）。`beginLevel` 里调 `setThemeForLevel(level)`，进关即换皮（**不再有手动切换按钮**）。
   - 新增 **`玩法/themeResult.ts`**：主题化通关/失败弹窗——通关 = 三星逐颗砸落（tween 位置+缩放）+ 荣誉头衔弹入 + 结算表（三行数据）+ 主/副按钮；失败/续命 = 标题 + 差分副标题 + 续命大按钮 + 广告标签 + 放弃按钮。卡片底板按主题画（糖果奶油卡+金边 / 白卡+细边 / 拍立得+内虚线框）。`showHonorDialog`/`showFailDialog`/`showReviveDialog` 全部替换为主题版。
   - HUD 的模式标签也读主题文案（`简单模式`/`简单`/`简单`）。238 测试全过；minigame 重建（39 个脚本）。
+- **2026-10-25（补齐原型视觉元素 + 玩法指引）**：新增 `玩法/themeExtras.ts`：
+  - **连击词**：`showComboWord(parent, chain)`——连锁 ≥2 时弹主题化连击词（糖果「漂亮！/厉害！/太赞了/无敌了」、果冻「连上了/再连锁/三连锁/停不下来」、手账「贴得真顺！/手感来了/太会贴了/手账大师」），大字弹入→淡出动画。`GameBootstrap` 加 `chainCount` 字段，在消除动画处递增、`afterResolve` 重置。
+  - **棋盘操作提示**：`ensureBoardHint(parent)`——棋盘下方（-700）常驻一行主题文案（「拖碎片换位，四块拼成完整贴纸即消除」/「...就贴好啦」），主题字体/颜色。
+  - **首次玩法指引**：`showThemeGuideOnce(parent)`——首次进关弹半透明遮罩 + 主题化卡片：标题「怎么玩」+ 三步说明（🧩 碎片是四分之一 / 👆 拖动换位融合 / ✨ 拼满 2×2 消除）+ 星线说明 + 「知道了，开玩！」按钮。第二次进关不再弹（模块级 `guideShown` 标记）。238 测试全过；minigame 重建（40 个脚本）。
 
 ## 扩展方向
 

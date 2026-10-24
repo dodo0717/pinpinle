@@ -25,6 +25,7 @@ import { syncFriendRank } from './wxFriend';
 import { cloudSync, REPORT_MODES } from './cloud';
 import { currentTheme, setThemeForLevel, onThemeChanged } from './theme';
 import { showThemeWin, showThemeFail } from './themeResult';
+import { showComboWord, ensureBoardHint, showThemeGuideOnce } from './themeExtras';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text';
 import { unlockedImageIds } from './meta';
 import {
@@ -77,6 +78,8 @@ export class GameBootstrap extends Component {
   private started = false;
   private paused = false;
   private busy = false;
+  /** 本回合连锁数（一次交换引发的连续消除次数，≥2 弹连击词） */
+  private chainCount = 0;
   private finished = false;
   private revived = false;
   private revivedUsed = false;
@@ -249,6 +252,11 @@ export class GameBootstrap extends Component {
 
     // 关卡绑定主题：第 1/2/3/4 关 → 糖果/果冻/手账/糖果（循环），进关即换皮
     setThemeForLevel(level);
+
+    // 棋盘下方的常驻操作提示（主题文案）
+    ensureBoardHint(this.node);
+    // 首次进关弹视觉指引（三步说明 + 知道了按钮；第二次起不再弹）
+    showThemeGuideOnce(this.node, () => {});
 
     const cfgs = buildLevelConfigs(from?.mode ?? GS.mode);
     this.cfg = cfgs[level - 1] ?? cfgs[0]!;
@@ -552,6 +560,8 @@ export class GameBootstrap extends Component {
             this.audio.play('eliminate');
             this.view.playVanish(st.eliminatedCells);
             if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`);
+            this.chainCount++;
+            if (this.chainCount >= 2) showComboWord(this.node, this.chainCount);
             this.eliminatedOnce = true;
             this.runGuide(4);
             this.scheduleOnce(() => this.playCollapse(st), ANIM.vanish);
@@ -586,6 +596,7 @@ export class GameBootstrap extends Component {
 
   private afterResolve(): void {
     this.busy = false;
+    this.chainCount = 0;   // 本轮连锁结束
     if (!this.finished) this.setPaused(false);
     this.paintAll();
     this.updateHud();
