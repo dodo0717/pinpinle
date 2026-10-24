@@ -34,6 +34,7 @@
  *   两条都只是数值门槛的后果，不是代码缺陷；真要修，改的是 `HONOR_RULE`，不是这里。
  */
 
+import { BOARD_MIN_STARS } from './progress';
 import { Rng } from './rng';
 
 /* ------------------------------------------------------------------ 类型与常量 */
@@ -269,7 +270,9 @@ export interface HonorOutcome {
  *     这些分数一定低于所有模拟玩家，所以百分比是 0，稳定落进优秀档。
  */
 export function honorForLevel(input: HonorInput): HonorOutcome {
-  const onBoard = input.boardBest > 0;
+  // 上不上榜看的是**本局**成绩（≥3★ 且没续命），不是「这关历史上上过榜」——
+  // 否则以前 3★ 上过榜的关，这次续命或 1★ 通关也会被判成超神
+  const onBoard = !input.revived && input.stars >= BOARD_MIN_STARS && input.boardBest > 0;
   const scores = mockBoardScores(input.level, input.line);
   const pool = onBoard ? [...scores, input.boardBest] : scores;
   const rankScore = onBoard ? input.boardBest : input.line.star1;

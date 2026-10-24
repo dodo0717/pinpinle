@@ -11,7 +11,9 @@ export * from './structure';
 export * from './init';
 export * from './refill';
 export * from './forceConstruct';
-export * from './ledger';
+// ⚠️ 不再写 `export * from './ledger'`：config.ts 已经 `export * from './ledger'`，
+// 两条路径导出同一批名字，Cocos 构建（Rollup）报 84 条「Conflicting namespaces … (will be ignored)」，
+// 冲突的名字可能被直接丢掉。ledger 的导出统一经由下面的 config 带出来。
 export * from './poolGen';
 export * from './config';
 export * from './engine';

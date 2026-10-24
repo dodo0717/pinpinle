@@ -11,6 +11,7 @@ import { stripTypeScriptTypes } from 'node:module';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'); // 站点根 = CandyMapDemo
 const port = Number(process.env.PORT || 5181);
+const host = process.env.HOST || '127.0.0.1';
 
 /**
  * 浏览器 ESM 不认无扩展名的相对路径，把 `from './grid'` 补成 `from './grid.ts'`。
@@ -55,9 +56,23 @@ const MIME = {
 
 http
   .createServer(async (req, res) => {
-    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    // 非法百分号编码（如 `/%E0`）会让 decodeURIComponent 抛错；不接住就是未处理的 rejection，整个进程退出
+    let p;
+    try {
+      p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('400 bad url');
+      return;
+    }
     if (p === '/' || p === '') p = '/preview/index.html';
-    const file = path.join(root, p);
+    const file = path.resolve(root, '.' + p);
+    // 挡路径穿越：`/..%2F..%2F` 解码后能跳出站点根目录，读到工程外的任意文件
+    if (file !== root && !file.startsWith(root + path.sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('403');
+      return;
+    }
 
     try {
       if (p.endsWith('.ts')) {
@@ -86,4 +101,5 @@ http
       res.end('404 ' + p);
     }
   })
-  .listen(port, () => console.log('serving ' + root + ' at http://localhost:' + port + '/'));
+  // 默认只监听本机；要用手机走局域网真机预览时显式 `HOST=0.0.0.0 node preview/serve.mjs`
+  .listen(port, host, () => console.log('serving ' + root + ' at http://' + host + ':' + port + '/'));

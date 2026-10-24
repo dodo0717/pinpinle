@@ -217,12 +217,17 @@ function sanitizeProgress(raw: unknown, mode: GameMode, limits: SaveLimits, issu
     levels[level] = sanitizeRecord(value, level, issues);
   }
 
-  // 有记录的关卡必然 <= unlocked（只增不减），否则把 unlocked 抬上去，
-  // 避免出现「已通关第 20 关但第 1~19 关还锁着」这种自相矛盾的进度
-  const maxRecorded = Object.keys(levels).reduce((m, k) => Math.max(m, Number(k)), 1);
-  const fixed = Math.min(limits.totalLevels, Math.max(unlocked, maxRecorded));
+  // 通关第 L 关必然已解锁第 L+1 关（首次通关即解锁，只增不减），否则把 unlocked 抬上去，
+  // 避免出现「已通关第 20 关但第 1~19 关还锁着」这种自相矛盾的进度。
+  // ⚠️ 只认 ≥1★ 的记录：被兜底成全 0 的坏记录不代表通关过，不能拿来抬进度；
+  // ⚠️ 必须抬到 L+1 而不是 L：重复通关不会再解锁下一关，抬到 L 会让第 L+1 关永久锁死。
+  const maxCleared = Object.entries(levels).reduce(
+    (m, [k, rec]) => (rec.stars > 0 ? Math.max(m, Number(k)) : m),
+    0,
+  );
+  const fixed = Math.min(limits.totalLevels, Math.max(unlocked, maxCleared + 1));
   if (fixed !== unlocked) {
-    issues.push(`${mode} 已通关到第 ${maxRecorded} 关但 unlocked=${unlocked}，已抬到 ${fixed}`);
+    issues.push(`${mode} 已通关到第 ${maxCleared} 关但 unlocked=${unlocked}，已抬到 ${fixed}`);
     unlocked = fixed;
   }
 

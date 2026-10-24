@@ -12,7 +12,7 @@
  *   - 百名榜的模拟玩家必须**确定性**（同一关两次一致）、恰好 100 名、
  *     且分数全部 ≥ 本关 3★ 线（1★ / 2★ 与续命局根本不上榜）。
  *
- * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/core/honor.ts`
+ * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/核心/honor.ts`
  * （`boardSnapshot` / `mockBoardScores`），界面模块不再自己造数据 —— 所以下面的用例
  * 改成直接核对 core 层，界面层只保留「挑战本关」状态机。
  */
@@ -34,7 +34,7 @@ import {
   mockBoardNames,
   mockBoardScores,
   type LevelOutcome,
-} from '../assets/scripts/core/index.ts';
+} from '../assets/scripts/核心/index.ts';
 import {
   AD_STAMINA_DAILY_MAX,
   STAMINA_RECOVER_MS,

@@ -5,7 +5,7 @@ import {
   findAllPositionCorrectMatches,
   findAllSameImageSquares,
   validateBoard,
-} from '../assets/scripts/core/matcher';
+} from '../assets/scripts/核心/matcher';
 import { makeGrid } from './helpers';
 
 describe('matcher —— 内容完整性 / 消除判定（§4.9 / §6.2）', () => {

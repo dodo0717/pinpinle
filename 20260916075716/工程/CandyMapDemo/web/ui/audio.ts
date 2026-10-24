@@ -42,8 +42,12 @@ export type SfxName =
   | 'honor-pass';
 
 export interface GameAudio {
-  /** 第一次用户手势时调用（浏览器要求手势后才能出声） */
-  unlock(): void;
+  /**
+   * 用户手势里调用（浏览器要求手势后才能出声）。
+   * 返回 true = 上下文已经真正跑起来，调用方可以撤掉手势监听；
+   * false = 还在 suspended（比如手势不算「用户激活」），下一次手势要再调。
+   */
+  unlock(): boolean;
   /** 播放一次性音效；未解锁 / 音效关闭 / 倒计时暂停（滴答类）时是空操作 */
   play(name: SfxName): void;
   /** 设置里的「音效」开关 */
@@ -263,12 +267,15 @@ export function createAudio(): GameAudio {
   }
 
   return {
-    unlock(): void {
+    unlock(): boolean {
       const c = ensureContext();
-      if (!c) return;
-      // iOS/Safari 首次手势里必须 resume，否则一直 suspended（表现为「完全没声音」）
-      if (c.state === 'suspended') void c.resume();
+      // 平台根本没有 WebAudio：再试也没用，告诉调用方可以撤监听了
+      if (!c) return true;
+      // iOS/Safari 首次手势里必须 resume，否则一直 suspended（表现为「完全没声音」）。
+      // resume 被拒（触摸的 pointerdown 不算用户激活）时吞掉错误，等下一次手势再试
+      if (c.state === 'suspended') void c.resume().catch(() => {});
       startBgm();
+      return c.state === 'running';
     },
 
     play(name: SfxName): void {

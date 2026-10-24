@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>萌宠拼拼乐 · 首页地图（跑 Cocos 真源码）</title>
+<style>
+  body { margin:0; background:#15171c; display:flex; height:100vh; align-items:center; justify-content:center; }
+  canvas { background:#20242c; display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<canvas id="cv" width="1080" height="1920"></canvas>
+<script type="importmap">
+{ "imports": { "cc": "/preview/cc-shim.js" } }
+</script>
+<script type="module">
+// 直接 import assets/scripts 下的 MapBootstrap.ts（与微信小游戏里跑的是同一份源码）
+import { Renderer, Node, UITransform, Layers } from '/preview/cc-shim.js';
+import { MapBootstrap } from '/assets/scripts/场景/MapBootstrap.ts';
+
+const cv = document.getElementById('cv');
+function fit() {
+  const h = window.innerHeight - 24;
+  cv.style.height = h + 'px';
+  cv.style.width = (h * 1080) / 1920 + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+
+// 场景根 = Cocos 里的 Canvas；MapBootstrap 挂在子节点上（与 Map.scene 结构一致）
+const root = new Node('Canvas');
+root.layer = Layers.Enum.UI_2D;
+root.addComponent(UITransform).setContentSize(1080, 1920);
+const boot = new Node('Bootstrap');
+boot.parent = root;
+boot.addComponent(UITransform).setContentSize(1080, 1920);
+const map = boot.addComponent(MapBootstrap);
+
+const renderer = new Renderer(cv, root);
+renderer.start();
+window.__map = map;
+window.__root = root;
+</script>
+</body>
+</html>

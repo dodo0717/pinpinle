@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findAllPositionCorrectMatches } from '../assets/scripts/core/matcher';
+import { findAllPositionCorrectMatches } from '../assets/scripts/核心/matcher';
 import {
   computeMergeDisplay,
   computeMergeGroups,
   findHintCells,
   isCorrectHorizontalPair,
   isCorrectVerticalPair,
-} from '../assets/scripts/core/merge';
+} from '../assets/scripts/核心/merge';
 import { makeGrid } from './helpers';
 
 function permutations4(): number[][] {

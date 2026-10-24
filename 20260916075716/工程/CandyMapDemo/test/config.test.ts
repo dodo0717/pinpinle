@@ -25,9 +25,9 @@ import {
   validateLevelConfigs,
   validateLevelDesign,
   validateRewardConfig,
-} from '../assets/scripts/core/config';
-import { confusionOf } from '../assets/scripts/core/poolGen';
-import { ANIMAL_IMAGE_IDS } from '../assets/scripts/core/ledger';
+} from '../assets/scripts/核心/config';
+import { confusionOf } from '../assets/scripts/核心/poolGen';
+import { ANIMAL_IMAGE_IDS } from '../assets/scripts/核心/ledger';
 
 /** 设计表里各段位的网格（第 1~15 / 16~35 / 36~60 关） */
 function designGridOf(level: number): string {

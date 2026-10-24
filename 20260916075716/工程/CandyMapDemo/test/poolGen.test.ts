@@ -12,7 +12,7 @@ import {
   generateLevelPools,
   imagesPerLevel,
   moodCountsOfLevel,
-} from '../assets/scripts/core/index';
+} from '../assets/scripts/核心/index';
 
 /** 素材齐全：36 张全到货 */
 const FULL = allArtIds();

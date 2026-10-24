@@ -66,8 +66,17 @@ function wxPort(): Port | null {
 }
 
 function localStoragePort(): Port | null {
-  const ls = (globalThis as { localStorage?: Storage }).localStorage;
-  if (!ls) return null;
+  // 读 `localStorage` 这个属性本身就可能抛 SecurityError（禁用站点数据 / 沙箱 iframe），
+  // 不接住的话 `port()` 一路抛到启动流程，内存兜底永远走不到
+  let probed: Storage | undefined;
+  try {
+    probed = (globalThis as { localStorage?: Storage }).localStorage;
+  } catch {
+    return null;
+  }
+  if (!probed) return null;
+  // 收窄成 const：下面的闭包里 TS 不会沿用 `let` 的判空结果
+  const ls: Storage = probed;
   return {
     kind: 'localStorage',
     read: () => {

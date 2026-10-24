@@ -13,7 +13,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
-  view, ResolutionPolicy, game, Game, EventTouch,
+  view, ResolutionPolicy, game, Game, EventTouch, input, Input, Camera, Canvas, director,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -83,6 +83,8 @@ export class GameBootstrap extends Component {
   private dragAnchor = -1;
   private dragStart = new Vec2();
   private dragging = false;
+  /** 触点换算用的 UI 相机（懒查找） */
+  private cam: Camera | null = null;
 
   /* ---------------------------------------------------------------- HUD */
   private hudLevel: Label = null!;
@@ -127,6 +129,7 @@ export class GameBootstrap extends Component {
   onDestroy(): void {
     game.off(Game.EVENT_HIDE, this.handleHidden, this);
     game.off(Game.EVENT_SHOW, this.handleVisible, this);
+    input.off(Input.EventType.TOUCH_START, this.onRawTouch, this);
     if (this.hintTimer !== null) clearTimeout(this.hintTimer);
   }
 
@@ -277,7 +280,8 @@ export class GameBootstrap extends Component {
     this.finished = false;
     this.busy = false;
     this.pendingOutcome = null;
-    this.lastUnlocked = unlockedImageIds(GS.progress).length;
+    // 图鉴按两套模式的星数合并计算（与 web 同口径），只算当前模式会漏掉另一半星
+    this.lastUnlocked = unlockedImageIds(GS.data.progress.normal, GS.data.progress.nightmare).length;
     // 设置页可能在地图场景改过开关，进关时重新应用一次
     this.applyAudioSettings();
     this.dragCells = [];
@@ -335,12 +339,47 @@ export class GameBootstrap extends Component {
     host.on(Node.EventType.TOUCH_MOVE, this.onTouchMove, this);
     host.on(Node.EventType.TOUCH_END, this.onTouchEnd, this);
     host.on(Node.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
+    // 真机排查：引擎层收到的原始触摸。有这行、没有 [board] 开始拖动 → 触摸被别的节点吞了或没命中棋盘
+    input.on(Input.EventType.TOUCH_START, this.onRawTouch, this);
+    console.log('[board] 输入已绑定');
   }
 
+  private onRawTouch(e: EventTouch): void {
+    if (!this.node.activeInHierarchy) return;
+    console.log('[board] 原始触摸', e.getUILocation().toString());
+  }
+
+  /**
+   * 触点 → 棋盘本地坐标。
+   *
+   * ⚠️ 2026-10-23：不能用 `getUILocation()` 直接当世界坐标。它是「设计分辨率、左下角为原点」的坐标，
+   * 只有 Canvas 恰好摆在屏幕中心时才等于世界坐标。微信里两者对不上，每次触摸都被判成
+   * 「不在格子上」—— 而引擎自己判定命中棋盘用的是「屏幕坐标 + 相机 screenToWorld」，
+   * 所以这里走同一条换算，结果和引擎的命中判定一致。
+   */
   private localOf(e: EventTouch): Vec3 {
-    const p = e.getUILocation();
     const t = this.view.node.getComponent(UITransform)!;
+    const cam = this.uiCamera();
+    if (cam) {
+      const s = e.getLocation();
+      const world = cam.screenToWorld(new Vec3(s.x, s.y, 0));
+      return t.convertToNodeSpaceAR(new Vec3(world.x, world.y, 0));
+    }
+    const p = e.getUILocation();
     return t.convertToNodeSpaceAR(new Vec3(p.x, p.y, 0));
+  }
+
+  /** 拍 UI 层的相机（Canvas 上挂的那台）；找不到时退回 UI 坐标换算 */
+  private uiCamera(): Camera | null {
+    if (this.cam?.isValid) return this.cam;
+    let p: Node | null = this.node;
+    while (p) {
+      const canvas = p.getComponent(Canvas);
+      if (canvas?.cameraComponent) { this.cam = canvas.cameraComponent; return this.cam; }
+      p = p.parent;
+    }
+    this.cam = director.getScene()?.getComponentInChildren(Camera) ?? null;
+    return this.cam;
   }
 
   /** 本地坐标 → 格子下标，落在缝隙或界外返回 -1 */
@@ -369,11 +408,24 @@ export class GameBootstrap extends Component {
   }
 
   private onTouchStart(e: EventTouch): void {
-    if (this.busy || this.finished) return;
-    const cell = this.hitCell(this.localOf(e));
-    if (cell < 0) return;
+    // 真机排查用：点了没反应时，看控制台卡在哪一步（2026-10-23 微信里拖不动）
+    if (this.busy || this.finished) {
+      console.log(`[board] 触摸被忽略：busy=${this.busy} finished=${this.finished}`);
+      return;
+    }
+    const local = this.localOf(e);
+    const cell = this.hitCell(local);
+    if (cell < 0) {
+      console.log(`[board] 触点不在格子上 ui=${e.getUILocation().toString()} 本地=(${Math.round(local.x)}, ${Math.round(local.y)})`
+        + ` 格距=${this.view.step} ${this.cfg.rows}×${this.cfg.cols} 相机=${this.uiCamera() ? '有' : '无'}`);
+      return;
+    }
     const group = this.engine.groupOfCell(cell);
-    if (!group) return;
+    if (!group) {
+      console.log(`[board] 第 ${cell} 格是空位`);
+      return;
+    }
+    console.log(`[board] 开始拖动第 ${cell} 格（整片 ${group.cells.length} 块）`);
     this.dragCells = group.cells.slice();
     this.dragAnchor = cell;
     this.dragStart = e.getUILocation();
@@ -637,7 +689,9 @@ export class GameBootstrap extends Component {
 
   /** 图鉴解锁播报（§10.3：首次通关即解锁） */
   private announceUnlocks(next: ProgressData): void {
-    const ids = unlockedImageIds(next);
+    // `next` 是当前模式结算后的新进度，另一套模式的星数也要算上
+    const other = GS.mode === 'normal' ? GS.data.progress.nightmare : GS.data.progress.normal;
+    const ids = unlockedImageIds(next, other);
     if (ids.length > this.lastUnlocked) {
       const gained = ids.length - this.lastUnlocked;
       this.lastUnlocked = ids.length;

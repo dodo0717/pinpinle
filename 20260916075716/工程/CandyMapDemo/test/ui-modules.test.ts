@@ -98,7 +98,7 @@ test('各界面模块的工厂函数存在（主控制器依赖它们）', async
   assert.equal(typeof collection.createCollectionScreen, 'function');
   assert.equal(typeof collection.createPreviewScreen, 'function');
 
-  // 榜单数据改由 assets/scripts/core/honor.ts 的 boardSnapshot 组装（main.ts 传进 view()），
+  // 榜单数据改由 assets/scripts/核心/honor.ts 的 boardSnapshot 组装（main.ts 传进 view()），
   // 界面模块自己不再造模拟数据，所以这里只核对工厂函数与「挑战」状态机。
   const leaderboard = await import('../web/ui/leaderboard.ts');
   assert.equal(typeof leaderboard.createLeaderboardScreen, 'function');

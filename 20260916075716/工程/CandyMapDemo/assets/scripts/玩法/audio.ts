@@ -111,7 +111,9 @@ export class GameAudio extends Component {
   private onHide(): void { if (this.bgmSrc?.playing) this.bgmSrc.pause(); }
   private onShow(): void {
     if (!this.bgmSrc) return;
-    if (this.bgmOn && this.running) this.bgmSrc.resume();
+    // Cocos 3.8 的 AudioSource 没有 resume()：暂停后再 play() 就是从暂停处继续。
+    // 调 resume() 在真机上会抛 TypeError，切回前台那一下整个回调就断了
+    if (this.bgmOn && this.running && !this.bgmSrc.playing) this.bgmSrc.play();
   }
 
   /* ------------------------------------------------------------ 播放 */

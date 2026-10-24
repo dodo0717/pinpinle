@@ -23,6 +23,62 @@ export const HOME = {
   loading: '正在加载素材…',
 } as const;
 
+/** 首页地图（对应 web/ui/text.ts 的 HOME / MAP / TABBAR，口径保持一致） */
+export const MAP_TEXT = {
+  /** 顶栏昵称 / 头像：还没有账号系统，先用占位（接账号时只改这里） */
+  nickname: '玩家',
+  avatar: '🐶',
+  staminaCountdown: (mmss: string) => `下颗体力 ${mmss}`,
+  locked: (prev: number) => `先通关第 ${prev} 关`,
+  /** 困难模式门槛：同一关必须先在简单模式拿到 3 星 */
+  nightmareLocked: '三星通关后开启困难模式',
+  level: (level: number) => `第 ${level} 关`,
+  starLine: (s1: number, s3: number) => `1星 ${s1} 分   |   3星 ${s3} 分`,
+  play: 'Play',
+  loading: (pct: number) => `${pct}%`,
+} as const;
+
+/** 排行榜 / 图鉴 / 设置三个整屏面板（对应 web/ui/text.ts 的 LEADERBOARD / COLLECTION / SETTINGS） */
+export const PANEL = {
+  boardTitle: '排行榜',
+  tabTotal: '总分榜',
+  tabLevel: '关卡榜',
+  colRank: '排名',
+  colName: '昵称',
+  colSimple: '简单',
+  colHard: '困难',
+  colTotal: '总分',
+  level: (level: number) => `第 ${level} 关`,
+  mineRankLabel: '我的排名',
+  mineScoreLabel: '累计总分',
+  mineLevelScoreLabel: '本关最高分',
+  mineStarsLabel: '累计星数',
+  rankValue: (rank: number) => (rank > 0 ? `${rank}` : '未上榜'),
+  starsValue: (stars: number) => `⭐${stars}`,
+  page: (page: number, pages: number) => `第 ${page} / ${pages} 页`,
+  prevPage: '◀ 上一页',
+  nextPage: '下一页 ▶',
+  empty: '暂无记录，快来挑战吧！',
+  challenge: '▶ 挑战本关（消耗1体力）',
+  challengeLocked: '通关前一关后解锁',
+  challengeUnclear: '通关后解锁',
+  collectionTitle: '图鉴',
+  collected: (got: number, total: number) => `已收集：${got} / ${total}`,
+  lockedToast: '每获得 10 颗星解锁一张',
+  settingsTitle: '设置',
+  music: '音乐',
+  sfx: '音效',
+  version: '版本 v1.0',
+  reset: '重置存档',
+} as const;
+
+export const TABBAR = {
+  home: '首页',
+  leaderboard: '排行榜',
+  collection: '图鉴',
+  settings: '设置',
+} as const;
+
 export const HONOR = {
   godTitle: '🏆 超神通关！',
   kingTitle: '👑 王者通关！',

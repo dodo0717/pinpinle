@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildLevelConfigs } from '../assets/scripts/core/config';
-import { buildInitialGrid } from '../assets/scripts/core/init';
-import { validateBoard } from '../assets/scripts/core/matcher';
-import { poolSnapshot } from '../assets/scripts/core/pools';
-import { Rng } from '../assets/scripts/core/rng';
+import { buildLevelConfigs } from '../assets/scripts/核心/config';
+import { buildInitialGrid } from '../assets/scripts/核心/init';
+import { validateBoard } from '../assets/scripts/核心/matcher';
+import { poolSnapshot } from '../assets/scripts/核心/pools';
+import { Rng } from '../assets/scripts/核心/rng';
 
 const CONFIGS = buildLevelConfigs();
 /** 全表实际使用的三种段位（每行 ≤4、每列 ≤5，24 格段位已取消） */

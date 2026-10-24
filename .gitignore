@@ -7,6 +7,10 @@
 # 不明用途:   约  28 MB（渲染检查图等中间产物）
 备份/
 不明用途/
+# 远程包备份（从 candy.aidertech.cn 下载的 remote bundle 快照）
+remote-backup-*/
+# 临时调试脚本（贴控制台用）
+debug-touch.js
 
 # ---------- 2. Cocos Creator 生成物（可重建，不入库）----------
 library/

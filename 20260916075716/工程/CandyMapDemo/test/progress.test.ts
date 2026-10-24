@@ -14,7 +14,7 @@ import {
   starsFor,
   type LevelOutcome,
   type ProgressData,
-} from '../assets/scripts/core/index';
+} from '../assets/scripts/核心/index';
 
 /** 一关的星线（第 15 关的真实数值：5 / 7 / 9） */
 const LINES = { star1: 5, star2: 7, star3: 9 };

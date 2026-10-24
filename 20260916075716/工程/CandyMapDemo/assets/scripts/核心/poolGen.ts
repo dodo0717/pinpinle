@@ -50,7 +50,9 @@ export function confusionOf(imageIds: readonly number[]): number {
     const animal = animalOf(id) ?? `#${id}`;
     counts.set(animal, (counts.get(animal) ?? 0) + 1);
   }
-  return Math.max(...counts.values());
+  // Set/Map 迭代器一律先 Array.from 再展开：Cocos 构建的 loose 模式会把
+  // `Math.max(...iter)` 编译成 `Math.max.apply(Math, iter)`，迭代器没有 length → 结果错（见 test/cocos-compat.test.ts）
+  return Math.max(...Array.from(counts.values()));
 }
 
 /** 生成一关图池所需的输入 */
@@ -124,7 +126,7 @@ function generateOne(
    * 否则关卡会莫名变难。同能力的动物之间保持 rng 打乱后的顺序（排序稳定），
    * 所以「换种子 → 换一套动物」。素材充足时所有动物能力相同 → 等价于纯随机。
    */
-  const shuffled = rng.shuffle([...byAnimal.keys()]);
+  const shuffled = rng.shuffle(Array.from(byAnimal.keys()));
   const ability = (animal: string): number => byAnimal.get(animal)!.length;
   const ordered = [...shuffled].sort((a, b) => ability(b) - ability(a));
 
@@ -233,7 +235,7 @@ export function generateLevelPools(
   const skipped: number[] = [];
   const notes: PoolNote[] = [];
 
-  const available = [...new Set(availableIds)]
+  const available = Array.from(new Set(availableIds))
     .filter((id) => Number.isInteger(id) && id >= 0 && id <= MAX_ART_ID)
     .sort((a, b) => a - b);
 

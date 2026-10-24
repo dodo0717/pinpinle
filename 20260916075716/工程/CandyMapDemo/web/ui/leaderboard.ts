@@ -154,8 +154,9 @@ function buildTotalBoard(my: { simple: number; hard: number }): LeaderboardRow[]
     const hard = total - simple;
     return { rank: 0, name, simple, hard, total, avatar: avatarUrl(name), mine: false };
   });
-  // 把本机玩家「我」塞进榜单，方便看高亮效果（真实值，不做任何比例拆分）
-  rows.push({ rank: 0, name: '我', simple: my.simple, hard: my.hard, total: my.simple + my.hard, avatar: avatarUrl('我'), mine: true });
+  // 把本机玩家「我」塞进榜单，方便看高亮效果（真实值，不做任何比例拆分）。
+  // 0 分不上榜：否则新玩家会显示「排名 101」，与关卡榜「未上榜」的口径不一致
+  if (my.simple + my.hard > 0) rows.push({ rank: 0, name: '我', simple: my.simple, hard: my.hard, total: my.simple + my.hard, avatar: avatarUrl('我'), mine: true });
   rows.sort((a, b) => b.total - a.total);
   rows.forEach((r, i) => (r.rank = i + 1));
   return rows;

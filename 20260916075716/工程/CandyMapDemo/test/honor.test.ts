@@ -9,7 +9,7 @@ import {
   mockBoardScores,
   percentileText,
   rankStats,
-} from '../assets/scripts/core/index';
+} from '../assets/scripts/核心/index';
 
 /** 第 15 关的真实星线 */
 const LINE = { star1: 5, star2: 7, star3: 9 };
@@ -181,6 +181,17 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
     assert.strictEqual(out.tier, 'pass');
     assert.strictEqual(out.rankScore, LINE.star1);
     assert.strictEqual(out.stats.percentile, 0);
+  });
+
+  it('历史上过榜，但本局续命 / 只拿 1★ → 仍是优秀，不能沿用历史榜分判超神', () => {
+    const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 30 });
+    assert.strictEqual(revived.tier, 'pass');
+    assert.strictEqual(revived.rankScore, LINE.star1);
+    assert.strictEqual(revived.boardBest, 0);
+
+    const oneStar = honorForLevel({ level: 15, line: LINE, score: 5, stars: 1, revived: false, boardBest: 30 });
+    assert.strictEqual(oneStar.tier, 'pass');
+    assert.strictEqual(oneStar.rankScore, LINE.star1);
   });
 
   it('重复通关时用「更新后的上榜最高分」排名 —— 不会把自己算成比自己高的人', () => {

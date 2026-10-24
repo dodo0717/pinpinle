@@ -272,6 +272,13 @@ let started = false;
 let paused = true;
 let busy = false;
 let finished = false;
+/**
+ * 局次令牌：进关 / 重开 / 恢复断点 / 退出时 +1。
+ * 消除动画是一串 `await delay()`，引导气泡排队也是定时器，它们都不能被取消 ——
+ * 所以每一步醒来先比对令牌，变了就说明那一局已经不在了，直接收手，
+ * 免得旧动画去改新棋盘、旧引导弹到主页上、旧的 `afterResolve` 改掉新局的 `busy`。
+ */
+let roundId = 0;
 
 /* ---- M4：关卡进度 / 结算 ---- */
 
@@ -329,7 +336,7 @@ let eliminatedOnce = false;
  * ⚠️ 拖动全程不写 engine：松手时才提交一次移动事务 —— 拖到一半来电 / 手势返回，
  * 棋盘还是原样，不存在「半成品状态」。
  */
-let drag: { index: number; x: number; y: number; cells: number[] } | null = null;
+let drag: { pointerId: number; index: number; x: number; y: number; cells: number[] } | null = null;
 
 /* ---- M6：存档（§16）---- */
 
@@ -422,6 +429,10 @@ function syncSession(): void {
   session.eliminations = snap.eliminations;
   session.rngState = rng.snapshot;
   session.timeLeft = timeLeft;
+  // `timeLeft` 与 `savedAt` 必须成对更新：`resumeTimeLeft` 按「savedAt 之后流逝的时间」
+  // 从 timeLeft 里扣。只更新前者的话，动画中（busy）切后台 → handleHidden 不写 savedAt →
+  // 回前台时会把「开局到上次同步」这段已经扣过的时间再扣一遍，甚至直接判超时
+  session.savedAt = Date.now();
   session.started = started;
   session.revived = revived;
   session.revivedUsed = revivedUsed;
@@ -580,8 +591,15 @@ const guide = createGuide();
  * 与「不设暂停按钮」（§0 第 1 条）是同一条约束。
  */
 const tabbar = createTabBar({
-  onHome: () => showScreen('home'),
+  onHome: () => {
+    // 从页签离开 = 不再走「排行榜 → 返回结算」那条路；不清掉的话，之后从页签进排行榜再点返回，
+    // 会切回 game 屏把早已结束那局的荣誉弹窗又画出来
+    backToSettlement = null;
+    showScreen('home');
+  },
   onLeaderboard: () => {
+    // 从页签进来的排行榜，返回就该回主页
+    backToSettlement = null;
     showScreen('leaderboard');
     // 与主界面「🏆 排行榜」同口径：默认看最后一关
     leaderboardScreen.show(TOTAL_LEVELS, TOTAL_LEVELS);
@@ -743,12 +761,16 @@ function mapView(): MapView {
  */
 async function watchStaminaAd(): Promise<void> {
   const now = Date.now();
+  // 两条提前返回也要把原弹窗还回去：结算 / 失败弹窗的按钮点下时弹窗已经收起，
+  // 只弹一条 toast 就 return 的话，棋盘停在结束态、没有任何按钮可点
   if (meta.stamina.available >= STAMINA_MAX) {
     toast(ADS.staminaFull, 1800);
+    reopenDialog?.();
     return;
   }
   if (adStaminaLeft(meta, now) <= 0) {
     toast(ADS.dailyUsed, 2600);
+    reopenDialog?.();
     return;
   }
   const result = await runAd('stamina');
@@ -1123,6 +1145,7 @@ function challengeLevel(level: number): void {
   }
   // 先回主页（收起排行榜浮层 + scrim），再弹 PLAY 页（吊牌），
   // 让玩家先选「简单 / 困难」模式再开始，而不是直接进关
+  backToSettlement = null;
   showScreen('home');
   levelPreview.open(index, level, mode);
 }
@@ -1192,6 +1215,7 @@ function currentConfig(): LevelConfig | null {
 
 /** 把界面与计时器复位到「刚进本关」的状态（`loadLevel` / `restartLevel` 共用） */
 function enterLevel(cfg: LevelConfig): void {
+  roundId += 1;
   finished = false;
   // 「每局限 1 次续命」的计数在这里归零：换关与重开都算新的一局
   revived = false;
@@ -1539,10 +1563,12 @@ function paintAll(): void {
  * `gained` 是这次移动拿到的分数（调用方在 move 前后取 engine.score 之差）——
  * 飘字的意义就是把「这 1 分加到哪儿了」讲清楚，所以不接受这里自己猜。
  */
-async function playResolution(outcome: MoveOutcome, gained: number): Promise<void> {
+async function playResolution(outcome: MoveOutcome, gained: number, round: number): Promise<void> {
   const cols = engine.config.cols;
   const step = cellSize + GAP;
   const stages = outcome.stages;
+  // 每次 await 醒来都要确认「还是这一局」：中途退出 / 换关后，后面的步骤会改到新棋盘上
+  const stale = (): boolean => round !== roundId;
 
   if (!stages) {
     paintAll();
@@ -1552,6 +1578,7 @@ async function playResolution(outcome: MoveOutcome, gained: number): Promise<voi
   // 移动完成帧：整片已落到新位置、消除尚未发生，留一段时间让玩家看清「我挪成了」
   paintBoard(stages.afterMove);
   await delay(SWAP_MS);
+  if (stale()) return;
 
   const group = stages.eliminatedCells;
 
@@ -1564,20 +1591,24 @@ async function playResolution(outcome: MoveOutcome, gained: number): Promise<voi
   // ① 识别：整组抬起 + 套一圈金环 —— 先让玩家看清「要消的是这 4 块」
   setMergePhase(group, 'recog');
   await delay(RECOGNIZE_MS);
+  if (stale()) return;
 
   // ② 拼合：落回原位，读作「缝隙合上了」
   setMergePhase(group, 'fit');
   await delay(FIT_MS);
+  if (stale()) return;
 
   // ③ 确认：整体一顿，读作「就是现在」
   setMergePhase(group, 'confirm');
   await delay(CONFIRM_MS);
+  if (stale()) return;
 
   // ④ 消除 + ⑤ 得分飘字：飘字与消除、随后的掉落**并行**，不额外占用节奏
   setMergePhase(group, 'vanish');
   audio.play('eliminate');
   showScoreFloat(group, gained);
   await delay(VANISH_MS);
+  if (stale()) return;
 
   // ⑥ 掉落 + 补位
   const finalData = engine.board.toArray();
@@ -1618,6 +1649,7 @@ async function playResolution(outcome: MoveOutcome, gained: number): Promise<voi
   }
 
   await delay(Math.max(FALL_MS, SPAWN_MS) + cols * STAGGER_MS + 30);
+  if (stale()) return;
   paintAll();
   // 新手引导第 4 步：首次掉落 / 补位（§14）。消除气泡还在时排队等它消失，避免两句挤在一起
   showGuide('refill');
@@ -1796,10 +1828,12 @@ function clearHint(): void {
  * 引导气泡是**串行**的：上一条还在屏幕上时不叠加，排队等它消失。
  * 否则「首次消除」和「首次掉落」只隔 220ms，两句会直接盖在一起谁也看不清。
  */
-function showGuide(step: GuideStep): void {
+function showGuide(step: GuideStep, round: number = roundId): void {
+  // 排队期间那一局已经结束（退出 / 换关）→ 这条引导作废，不能弹到主页上
+  if (round !== roundId || currentScreen !== 'game') return;
   if (guide.isDone(step)) return;
   if (guide.isVisible()) {
-    window.setTimeout(() => showGuide(step), 500);
+    window.setTimeout(() => showGuide(step, round), 500);
     return;
   }
   guide.show(step);
@@ -1964,7 +1998,10 @@ function doMove(anchor: number, target: number): void {
 
   // 解锁交给动画本身，而不是拍一个固定时长的定时器 ——
   // 否则动画长度一改，输入锁就会和画面脱节
-  void playResolution(outcome, gained).then(afterResolve);
+  const round = roundId;
+  void playResolution(outcome, gained, round).then(() => {
+    if (round === roundId) afterResolve();
+  });
 }
 
 /**
@@ -2153,12 +2190,16 @@ function clearDragPreview(indices: readonly number[]): void {
 
 function onPointerDown(event: PointerEvent): void {
   if (busy || finished) return;
+  // 同一时间只认一根手指：第二根手指按下会覆盖 `drag`，第一片的 dragging 状态就再也清不掉，
+  // 而且之后任意一指抬起都会拿错起点去执行移动
+  if (drag) return;
   const cell = (event.target as HTMLElement).closest('.cell') as HTMLElement | null;
   if (!cell || cell.dataset.index === undefined) return;
   const index = Number(cell.dataset.index);
   // 拖动单位是「锚点所在的整片」（§1.6）；单块时它就退化成一次两块交换
   const group = engine.groupOfCell(index);
   drag = {
+    pointerId: event.pointerId,
     index,
     x: event.clientX,
     y: event.clientY,
@@ -2179,13 +2220,14 @@ function onPointerDown(event: PointerEvent): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (!drag || busy || finished) return;
+  if (event.pointerId !== drag.pointerId) return;
   const follow = dragFollow(drag.cells, event.clientX - drag.x, event.clientY - drag.y);
   paintDrag(follow.x, follow.y);
 }
 
 function onPointerUp(event: PointerEvent): void {
   const active = drag;
-  if (!active) return;
+  if (!active || event.pointerId !== active.pointerId) return;
   drag = null;
   clearDragPreview(active.cells);
 
@@ -2222,8 +2264,8 @@ function onPointerUp(event: PointerEvent): void {
 }
 
 /** 手指被系统打断（来电 / 手势返回 / 弹窗抢走指针）：把整片放回原地，不留半截拖动状态 */
-function onPointerCancel(): void {
-  if (!drag) return;
+function onPointerCancel(event: PointerEvent): void {
+  if (!drag || event.pointerId !== drag.pointerId) return;
   const active = drag;
   drag = null;
   clearDragPreview(active.cells);
@@ -2236,6 +2278,11 @@ function exitToHome(): void {
   if (!ready) return;
   meta.stamina = refundStamina(meta.stamina);
   finished = true;
+  // 作废还在跑的消除动画 / 排队的引导；`busy` 也要当场放开 ——
+  // 存档的 `canWrite` 是 `!busy`，不放开的话下面那次 flush 会被拖到旧动画播完
+  roundId += 1;
+  busy = false;
+  drag = null;
   setPaused(true);
   // 主动退出 = 玩家明确放弃这一局 → 断点必须一起清掉，否则下次启动还会弹
   // 「继续上次的挑战」，而这一局在玩家心里已经结束了。
@@ -2812,6 +2859,7 @@ function resumeSession(from: LevelSession, judgeNow = false): void {
   });
 
   // 局内现场：先摆盘再定状态，顺序反了 `paintAll()` 会按旧状态上色
+  roundId += 1;
   drag = null;
   finished = false;
   busy = false;
@@ -2882,7 +2930,12 @@ function showResumeDialog(from: LevelSession): void {
  */
 function handleHidden(): void {
   if (!ready || busy) return;
-  if (currentScreen !== 'game' || finished || !session || !engine) return;
+  if (currentScreen !== 'game' || finished || !session || !engine) {
+    // 不在对局里也要落一次：地图页切音效 / 模式等改动走的是 1 秒防抖，
+    // 这 1 秒内关页面，改动就丢了
+    save.flush();
+    return;
+  }
 
   // `savedAt` = 离开时刻，是回来补扣时间的唯一基准
   session.savedAt = Date.now();
@@ -3010,10 +3063,16 @@ async function main(): Promise<void> {
   boardEl.addEventListener('dragstart', (event) => event.preventDefault());
   exitBtn.addEventListener('click', exitToHome);
 
-  // 浏览器要求「有用户手势才允许出声」：第一次按下时解锁音频上下文。
-  // 只挂 once —— 第一次手势没解锁成功（比如被策略拦下）后面再调用也没用，
-  // 而 `unlock()` 本身是幂等的，这里只是不想每次点击都走一遍。
-  window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+  // 浏览器要求「有用户手势才允许出声」。不能只挂一次 pointerdown：
+  // 按规范触摸产生的 pointerdown **不算用户激活**，手机上第一次 resume 会被拒，
+  // 监听一撤就整局没声音。所以 pointerup / touchend / click / keydown 都挂上，
+  // 直到上下文真正跑起来（`unlock()` 返回 true）才撤掉。
+  const unlockEvents = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
+  const tryUnlockAudio = (): void => {
+    if (!audio.unlock()) return;
+    for (const type of unlockEvents) window.removeEventListener(type, tryUnlockAudio, true);
+  };
+  for (const type of unlockEvents) window.addEventListener(type, tryUnlockAudio, true);
 
   // ── M6：「退出」的三种形态（§16：主动返回主页 / 切后台 / 进程结束）。
   // 主动返回走 `exitToHome()`，这里覆盖后两种 —— `pagehide` 是移动端最可靠的那一个

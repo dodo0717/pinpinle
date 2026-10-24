@@ -125,7 +125,9 @@ export function computeMergeGroups(grid: Grid): MergeGroup[] {
     buckets.set(root, list);
   }
 
-  const roots = [...buckets.keys()].sort((a, b) => a - b);
+  // ⚠️ 不能写 `[...buckets.keys()]`：Cocos 构建按 loose 模式把展开编译成 `[].concat(iter)`，
+  // 迭代器不会被展开，拿到的是 `[迭代器]` 本身（见 test/cocos-compat.test.ts）
+  const roots = Array.from(buckets.keys()).sort((a, b) => a - b);
   const groups: MergeGroup[] = [];
   roots.forEach((root, groupId) => {
     const cells = buckets.get(root)!.slice().sort((a, b) => a - b);

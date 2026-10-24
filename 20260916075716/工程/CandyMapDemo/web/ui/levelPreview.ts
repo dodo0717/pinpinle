@@ -131,9 +131,18 @@ export function createLevelPreview(h: LevelPreviewHandlers): LevelPreview {
     root.classList.remove('on');
   }
 
-  // 点浮层空白处 = 关闭（牌子上点不算）
+  // 点浮层空白处 = 关闭（牌子上点不算）。
+  // ⚠️ 必须「按下」和「点击」都落在空白处才算：触屏上地图在 pointerup 里就把吊牌打开了，
+  // 浏览器随后补发的那次 click 会按手指位置重新命中 —— 正好落在刚盖上来的浮层空白处，
+  // 只看 click 的话吊牌刚弹出就被关掉，表现为「点关卡没反应」。
+  let downOnRoot = false;
+  root.addEventListener('pointerdown', (e) => {
+    downOnRoot = e.target === root;
+  });
   root.addEventListener('click', (e) => {
-    if (e.target === root) h.onClose();
+    const fromRoot = downOnRoot;
+    downOnRoot = false;
+    if (e.target === root && fromRoot) h.onClose();
   });
 
   return { el: root, open, close };

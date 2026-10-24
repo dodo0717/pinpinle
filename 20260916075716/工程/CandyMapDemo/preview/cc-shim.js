@@ -33,6 +33,11 @@ export const view = {
   getDesignResolutionSize() { return new Size(this._w, this._h); },
 };
 
+/** 平台信息：预览里没有刘海，安全区 = 整个可视区（MapBootstrap 据此算顶栏 / 页签让位） */
+export const sys = {
+  getSafeAreaRect() { return new Rect(0, 0, view._w, view._h); },
+};
+
 /** 渲染器在启动时把 canvas / ctx 注册进来 */
 export const director = {
   _canvas: null,
@@ -144,6 +149,8 @@ export class Component {
     this.enabled = true;
     this._timers = new Map();
   }
+  /** 真引擎组件有 isValid（节点销毁后为 false）；缺了它，贴图回调里的 `sp.isValid` 判断恒为假，图永远贴不上 */
+  get isValid() { return !this.node || this.node.isValid; }
   /** 周期回调由宿主在合适时机调用（onLoad / start / update） */
   schedule(cb, interval = 0) {
     this.unschedule(cb);
@@ -171,14 +178,16 @@ export class UITransform extends Component {
   constructor() { super(); this.width = 0; this.height = 0; this.anchorX = 0.5; this.anchorY = 0.5; }
   setContentSize(w, h) { this.width = w; if (h !== undefined) this.height = h; return this; }
   getContentSize() { return new Size(this.width, this.height); }
+  /** 真引擎的 contentSize 是属性（MapBootstrap 页签按它画选中底） */
+  get contentSize() { return new Size(this.width, this.height); }
   /** 世界坐标 → 本节点本地坐标（忽略旋转/缩放，本项目够用） */
   convertToNodeSpaceAR(v) {
-    const wp = this.node ? this.node.worldPos() : { x: 0, y: 0 };
-    return new Vec3(v.x - wp.x, v.y - wp.y, 0);
+    const w = this.node ? this.node.worldXform() : { x: 0, y: 0, sx: 1, sy: 1 };
+    return new Vec3((v.x - w.x) / (w.sx || 1), (v.y - w.y) / (w.sy || 1), 0);
   }
   convertToWorldSpaceAR(v) {
-    const wp = this.node ? this.node.worldPos() : { x: 0, y: 0 };
-    return new Vec3(v.x + wp.x, v.y + wp.y, 0);
+    const w = this.node ? this.node.worldXform() : { x: 0, y: 0, sx: 1, sy: 1 };
+    return new Vec3(w.x + v.x * w.sx, w.y + v.y * w.sy, 0);
   }
 }
 
@@ -209,7 +218,10 @@ export class Label extends Component {
     this.fontFamily = '"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
     this.enableBold = false;
     this.enableWrapText = true;
+    this.overflow = 0;
   }
+  /** 真引擎的 Label.Overflow（GameDialog 用 SHRINK 防止长行溢出面板）；预览里只记值不缩字 */
+  static Overflow = { NONE: 0, CLAMP: 1, SHRINK: 2, RESIZE_HEIGHT: 3 };
 }
 
 export class Graphics extends Component {
@@ -328,12 +340,19 @@ export class Node {
     for (const e of arr.slice()) e.cb.apply(e.thisArg || this, args);
   }
 
-  /** 世界坐标（累加父链，忽略旋转/缩放） */
+  /**
+   * 世界变换（忽略旋转，**计入父链缩放**）。
+   * 之前只累加位置、不乘父节点缩放：地图轨道整体缩放 0.7 时，珠子的命中框全部错位，
+   * 预览里点第 1 关会命中第 3 关 —— 和真引擎（按缩放算命中）对不上。
+   */
+  worldXform() {
+    if (!this._parent) return { x: this._x, y: this._y, sx: this._sx, sy: this._sy };
+    const p = this._parent.worldXform();
+    return { x: p.x + this._x * p.sx, y: p.y + this._y * p.sy, sx: p.sx * this._sx, sy: p.sy * this._sy };
+  }
   worldPos() {
-    let x = this._x, y = this._y;
-    let p = this._parent;
-    while (p) { x += p._x; y += p._y; p = p._parent; }
-    return { x, y };
+    const w = this.worldXform();
+    return { x: w.x, y: w.y };
   }
   /** 节点在世界里是否有效可见 */
   isActiveInHierarchy() {
@@ -508,6 +527,7 @@ function drawNode(ctx, node) {
 export class EventTouch {
   constructor(x, y, sx, sy) {
     this._x = x; this._y = y; this._sx = sx === undefined ? x : sx; this._sy = sy === undefined ? y : sy;
+    this.propagationStopped = false;
   }
   getUILocation() { return new Vec2(this._x, this._y); }
   getLocation() { return new Vec2(this._x, this._y); }
@@ -522,9 +542,9 @@ function hitTest(node, x, y, out) {
   for (let i = node.children.length - 1; i >= 0; i--) hitTest(node.children[i], x, y, out);
   const t = node.getComponent(UITransform);
   if (!t || !t.width || !t.height || node._listeners.size === 0) return;
-  const wp = node.worldPos();
-  const hw = (t.width * Math.abs(node._sx)) / 2;
-  const hh = (t.height * Math.abs(node._sy)) / 2;
+  const wp = node.worldXform();
+  const hw = (t.width * Math.abs(wp.sx)) / 2;
+  const hh = (t.height * Math.abs(wp.sy)) / 2;
   if (x >= wp.x - hw && x <= wp.x + hw && y >= wp.y - hh && y <= wp.y + hh) out.push(node);
 }
 
@@ -615,13 +635,22 @@ export class Renderer {
       return { node: out[0] || null, p };
     };
 
+    // 与真引擎一致：事件从命中节点开始，沿父链往上冒泡，直到有人设 `propagationStopped`。
+    // 之前只发给命中节点本身 —— 地图「珠子记下点了谁、地图负责拖动」这种依赖冒泡的写法在预览里就验不出来
+    const bubble = (node, type, evt) => {
+      for (let n = node; n; n = n._parent) {
+        n.emit(type, evt);
+        if (evt.propagationStopped) break;
+      }
+    };
+
     cv.addEventListener('pointerdown', (e) => {
       const hit = pick(e.clientX, e.clientY);
       if (!hit.node) return;
       cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
       this._target = hit.node;
       this._start = hit.p;
-      hit.node.emit(Node.EventType.TOUCH_START, new EventTouch(hit.p.x, hit.p.y));
+      bubble(hit.node, Node.EventType.TOUCH_START, new EventTouch(hit.p.x, hit.p.y));
       e.preventDefault();
     });
 
@@ -629,7 +658,7 @@ export class Renderer {
       if (!this._target) return;
       const p = this._toDesign(e.clientX, e.clientY);
       const s = this._start || p;
-      this._target.emit(Node.EventType.TOUCH_MOVE, new EventTouch(p.x, p.y, s.x, s.y));
+      bubble(this._target, Node.EventType.TOUCH_MOVE, new EventTouch(p.x, p.y, s.x, s.y));
       e.preventDefault();
     });
 
@@ -640,7 +669,7 @@ export class Renderer {
       const t = this._target;
       this._target = null;
       this._start = null;
-      t.emit(cancel ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END, new EventTouch(p.x, p.y, s.x, s.y));
+      bubble(t, cancel ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END, new EventTouch(p.x, p.y, s.x, s.y));
       e.preventDefault();
     };
     cv.addEventListener('pointerup', (e) => end(e, false));

@@ -1,7 +1,7 @@
 /**
  * 对局层冒烟测试（无 Cocos、无浏览器）。
  *
- * 目标：证明 `assets/scripts/game/**` 的真实源码能被加载并完成一局的最小闭环 ——
+ * 目标：证明 `assets/scripts/玩法/**` 的真实源码能被加载并完成一局的最小闭环 ——
  * 建棋盘 → 加载贴图 → 接受拖动 → 触发一次消除 → 结算弹窗。
  *
  * 跑法：node --import ./test/cc-resolve.mjs test/smoke-game.mjs
@@ -47,7 +47,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------- 加载真源码 ---------- */
 const { Renderer, Node, UITransform, Layers, EventTouch } = await import('../preview/cc-shim.js');
-const { GameBootstrap } = await import('../assets/scripts/game/GameBootstrap.ts');
+const { GameBootstrap } = await import('../assets/scripts/玩法/GameBootstrap.ts');
 
 /* ---------- 搭场景 ---------- */
 const root = new Node('Canvas');

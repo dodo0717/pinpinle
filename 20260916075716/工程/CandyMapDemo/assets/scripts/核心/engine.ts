@@ -117,6 +117,24 @@ export function validateSnapshot(config: LevelConfig, snapshot: EngineSnapshot):
       break;
     }
   }
+  if (issues.length > 0) return issues;
+
+  // 碎片层面合法之后，再核对事务结束点必须满足的池子结构（§4.3 / §4.9）：
+  // 不在这里拦，坏档会一直玩到第一次消除，才在补位里抛「池子1 应有且仅有 1 组」
+  const grid = new Grid(config.rows, config.cols, snapshot.cells);
+  const pools = poolSnapshot(grid, config.imageIds);
+  const shape: Array<[string, number, number]> = [
+    ['池子5', pools.complete.length, 1],
+    ['池子1', pools.pool1.length, 1],
+    ['池子3', pools.pool3.length, 1],
+    ['池子4', pools.pool4.length, 1],
+  ];
+  for (const [name, actual, expectedCount] of shape) {
+    if (actual !== expectedCount) issues.push(`${name} 应为 ${expectedCount} 组，实际 ${actual} 组`);
+  }
+  if (pools.pool2.length < 1) issues.push(`池子2 至少应有 1 组，实际 ${pools.pool2.length} 组`);
+  const placed = findAllPositionCorrectMatches(grid);
+  if (placed.length > 0) issues.push(`存在 ${placed.length} 组已拼好的 2×2（事务结束点应为 0 组）`);
   return issues;
 }
 

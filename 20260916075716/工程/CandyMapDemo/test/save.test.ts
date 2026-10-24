@@ -31,7 +31,7 @@ import {
   type LevelSession,
   type SaveData,
   type SaveLimits,
-} from '../assets/scripts/core/index.ts';
+} from '../assets/scripts/核心/index.ts';
 
 /** 与 `web/main.ts` 组装的 SAVE_LIMITS 同口径（广告上限取 §13.3 的 5） */
 const LIMITS: SaveLimits = {
@@ -157,7 +157,7 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
     assert.ok(result.issues.some((s) => s.includes('999')), `应指出越界关卡号：${result.issues.join('；')}`);
   });
 
-  it('有通关记录但 unlocked 落后 → 自动抬到最高已通关关卡（不许自相矛盾）', () => {
+  it('有通关记录但 unlocked 落后 → 自动抬到「最高已通关关卡 + 1」（不许自相矛盾）', () => {
     const raw = {
       version: SAVE_VERSION,
       mode: 'normal',
@@ -168,7 +168,58 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
       session: null,
     };
     const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
-    assert.equal(result.data.progress.normal.unlocked, 5);
+    // 抬到 5 会让第 6 关永久锁死：重复通关第 5 关不会再解锁下一关
+    assert.equal(result.data.progress.normal.unlocked, 6);
+  });
+
+  it('unlocked 恰好等于最高已通关关卡 → 同样补到下一关', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: { mode: 'normal', unlocked: 5, levels: { 5: { stars: 2, personalBest: 40, boardBest: 0 } } },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 6);
+  });
+
+  it('通关最后一关时 unlocked 不越过总关数', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: {
+          mode: 'normal',
+          unlocked: 1,
+          levels: { [TOTAL_LEVELS]: { stars: 3, personalBest: 99, boardBest: 99 } },
+        },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, TOTAL_LEVELS);
+  });
+
+  it('坏掉 / 0 星的关卡记录不能抬高解锁进度', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: {
+          mode: 'normal',
+          unlocked: 2,
+          levels: { 1: { stars: 1, personalBest: 10, boardBest: 0 }, [TOTAL_LEVELS]: 'x', 30: { stars: 0, personalBest: 3, boardBest: 0 } },
+        },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 2, '只有第 1 关真正通关，进度应停在第 2 关');
   });
 
   it('元系统越界：体力 / 广告次数 / 恢复时间戳 / 开关类型都被降级', () => {
@@ -303,6 +354,24 @@ describe('save —— 断点能真的接上（恢复后棋盘与随机序列都�
     const outOfPool = [...ok.cells];
     outOfPool[0] = 0; // 第 1 关不含图 0 时才算越界；含则本条退化为重复碎片，仍应报出
     assert.ok(validateSnapshot(cfg, { ...ok, cells: outOfPool }).length > 0);
+  });
+
+  it('validateSnapshot 能指认池子结构被破坏（碎片合法但分布非法）', () => {
+    const cfg = buildLevelConfigs('normal').find((c) => c.rows === 4 && c.cols === 4);
+    assert.ok(cfg);
+    const ok = new PuzzleEngine(cfg, new Rng(9)).toSnapshot();
+    // 把池子5 那张图的一块换成备用池（场上 0 块）那张图的同位置碎片：
+    // 碎片仍然不重复、仍在本关图池内，但池子5 变成 0 组 —— 消除后补位必然崩
+    const imgOf = (p: number) => Math.floor(p / 4);
+    const counts = new Map<number, number>();
+    for (const c of ok.cells) counts.set(imgOf(c as number), (counts.get(imgOf(c as number)) ?? 0) + 1);
+    const full = [...counts].find(([, n]) => n === 4)![0];
+    const spare = cfg.imageIds.find((id) => !counts.has(id))!;
+    const bad = [...ok.cells];
+    const at = bad.findIndex((c) => imgOf(c as number) === full);
+    bad[at] = spare * 4 + ((bad[at] as number) % 4);
+    const issues = validateSnapshot(cfg, { ...ok, cells: bad });
+    assert.ok(issues.some((s) => s.includes('池子5')), `应指出池子5 异常：${issues.join('；')}`);
   });
 
   it('引擎用坏快照构造时必须当场抛错（不能带病开局）', () => {

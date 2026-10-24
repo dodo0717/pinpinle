@@ -1,202 +1,805 @@
-import { _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers, Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite, SpriteFrame, resources, Font } from 'cc';
-import { LevelNode } from './LevelNode';
+import {
+    _decorator, Component, Node, Graphics, UITransform, Color, view, Layers, Label, ResolutionPolicy,
+    HorizontalTextAlignment, VerticalTextAlignment, Sprite, SpriteFrame, resources, UIOpacity, Vec2, Vec3,
+    EventTouch, sys, Texture2D,
+} from 'cc';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
-import { HomeHUD } from '../界面/HomeHUD';
 import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { HOME, ADS, COLLECTION, BOARD, SETTINGS } from '../玩法/text';
-import { unlockedImageIds, COLLECTION_TOTAL } from '../玩法/meta';
-import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode } from '../核心/index';
+import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../玩法/text';
+import { MapPanels } from '../界面/MapPanels';
+import {
+    levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
+    type GameMode, type LevelStatus,
+} from '../核心/index';
 const { ccclass } = _decorator;
+
+/**
+ * 首页 = 关卡地图（移植自 web/ui/map.ts + web/ui/levelPreview.ts + 加载页，2026-10-23）。
+ *
+ * web 版是 UI 与规则的定稿，这里逐条对齐它的口径：
+ *   - 5 个世界 × 12 关，每个世界一张 1080×3840 底图（两屏），整屏翻页、松手吸附；
+ *   - 节点落在底图小路上（ROAD_X 路中线表），果冻珠三态：待完成 / 1~2 星 / 3 星；
+ *   - 点关卡弹 PLAY 吊牌：选「简单 / 困难」（困难要同关简单三星）→ Play 进关；
+ *   - 顶栏：返回圆钮 + 木牌（头像 / 昵称）｜体力胶囊（点它加体力）；
+ *   - 左右大箭头换世界，右侧「▲ · 页点 · ▼」翻页，底部四个页签。
+ *
+ * 坐标约定：轨道（track）沿用 web 的 1536 × 5462 坐标（y 从上往下），整条轨道按
+ * `k = 可视高度 / 2731` 缩放，一页正好铺满一屏 —— 与 web 的 fitScale 同一口径。
+ */
+
+/* ------------------------------------------------------------------ 布局常量（与 web/ui/map.ts 一致） */
 
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
-const MAP_H = 2880;            // v4 定稿 1440×3840 按 1080 屏宽等比缩放后的高度（2 屏）
-const LEVEL_COUNT = 10;        // W1 当前 10 关；后续若要扩 20 关，再补一段同规格底图即可
+/** 轨道宽 / 高（web track 坐标）；高 = 2 页 × 2731 */
+const TRACK_W = 1536;
+const PAGE_H = 2731;
+const PAGE_COUNT = 2;
+const TRACK_H = PAGE_H * PAGE_COUNT;
+/** 相邻关卡纵向间距 + 上留白：5462 = PAD_TOP + 11 × NODE_STEP + PAD_BOTTOM(472) */
+const NODE_STEP = 385;
+const PAD_TOP = 755;
+/** 拖动位移小于它算点击（设计 px） */
+const TAP_SLOP = 24;
+const MAX_FLING = 95;
+const FLING_PROJECT = 14;
+const RUBBER = 0.32;
+const SNAP_S = 0.42;
+const FLIP_OUT_S = 0.28;
+const FLIP_IN_S = 0.42;
+const PULSE_S = 1.1;
+const DROP_S = 0.55;
+/** 加载页最短停留（与 web 一致：太快一闪而过反而像出错） */
+const LOADING_MIN_S = 1.2;
+const LOADING_FADE_S = 0.5;
+/** 底部页签栏高度（三个整屏面板的卡片要让开它） */
+const TABBAR_H = 170;
 
-/**
- * 地图上下留白 —— 顶栏 / 底导航是浮在地图之上的，如果没有留白：
- * 滚到底时 L1 落在底栏热区里（点气球 = 点排行榜）、滚到顶时 L10 被顶栏压住。
- * 留白让首尾关卡都能滚进「顶栏底边 ~ 底栏顶边」这条安全区。
- */
-const PAD_TOP = 560;
-const PAD_BOTTOM = 340;
-const CONTENT_H = MAP_H + PAD_TOP + PAD_BOTTOM;
-
-/**
- * 世界1（奶油果园）关卡坐标 —— 基于 v4 定稿图 1440×3840，按 1080×2880 换算
- * x / y 均为底图图片坐标（从顶部 0 往下），程序内部转成「从底部往上」的 yFromBottom
- */
-const W1_LEVEL_XY: number[][] = [
-  [622, 2682],   // L1
-  [628, 2334],   // L2
-  [558, 2006],   // L3
-  [668, 1742],   // L4
-  [616, 1424],   // L5
-  [696, 1112],   // L6（当前关）
-  [634,  816],   // L7
-  [702,  526],   // L8
-  [640,  246],   // L9
-  [714,   60],   // L10
+/** 五个世界：每世界 12 关，`art` = resources/map-v2/{art}.png */
+const WORLDS = [
+    { name: '小镇', from: 1, to: 12, art: 'xiaozhen' },
+    { name: '果园', from: 13, to: 24, art: 'guoyuan' },
+    { name: '雪地', from: 25, to: 36, art: 'xuedi' },
+    { name: '沙滩', from: 37, to: 48, art: 'shatan' },
+    { name: '花园', from: 49, to: 60, art: 'huayuan' },
 ];
 
-/** UI 落位（1080×1920 基准，Cocos 坐标，屏幕中心为原点）—— 与美术落位文档一致 */
-const UI_POS = {
-    topbarLeft:  { w: 683,  h: 274, x: -258, y: 820 },
-    avatar:      { w: 180,  h: 180, x: -200, y: 10 },     // 相对 topbarLeft
-    nickname:    { w: 280,  h: 55,  x: 50,   y: 20 },     // 相对 topbarLeft
-    level:       { w: 200,  h: 40,  x: 50,   y: -25 },    // 相对 topbarLeft
-    topbarRight: { w: 692,  h: 163, x: 288,  y: 852 },
-    staminaNum:  { w: 120,  h: 60,  x: 30,   y: 10 },      // 相对 topbarRight
-    countdown:   { w: 180,  h: 24,  x: 30,   y: -35 },     // 相对 topbarRight
-    plusHit:     { w: 90,   h: 90,  x: 220,  y: 0 },        // 相对 topbarRight
-    difficulty:  { w: 880,  h: 180, x: -228, y: 580 },
-    diffBtnW:    400,
-    diffBtnH:    180,
-    diffHit:     { w: 360,  h: 160, dx: 220 },             // 相对 difficulty 中心
-    tabbar:      { w: 1080, h: 260, x: 0,    y: -826 },
-    tabSliceW:   270,                                      // 1080 / 4
-    tabIcon:     { w: 200,  h: 180, dx: 270, dy: 0 },     // 相对 tabbar 中心
-    tabHit:      { w: 220,  h: 220, dx: 270, dy: 0 },
+/** 小路中线（归一化 x），从上到下 12 个点，最下面那个 = 本世界第 1 关。换底图只改这张表 */
+const ROAD_X: Record<string, number[]> = {
+    xiaozhen: [0.48, 0.45, 0.42, 0.45, 0.5, 0.55, 0.52, 0.48, 0.52, 0.58, 0.56, 0.53],
+    guoyuan: [0.5, 0.46, 0.42, 0.46, 0.52, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.46],
+    xuedi: [0.5, 0.47, 0.45, 0.5, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.47, 0.5],
+    shatan: [0.52, 0.48, 0.44, 0.42, 0.48, 0.55, 0.58, 0.52, 0.46, 0.48, 0.53, 0.55],
+    huayuan: [0.5, 0.47, 0.5, 0.54, 0.5, 0.46, 0.5, 0.55, 0.5, 0.47, 0.52, 0.5],
 };
 
-/** 关卡气球切片：按 1~10 顺序对应关卡 */
-const BALLOON_PATHS: string[] = [
-    'map/level_balloon_1', 'map/level_balloon_2', 'map/level_balloon_3', 'map/level_balloon_4', 'map/level_balloon_5',
-    'map/level_balloon_6', 'map/level_balloon_7', 'map/level_balloon_8', 'map/level_balloon_9', 'map/level_balloon_10',
+/** 底图没加载出来时的天空底色（取 web .map.world-N 渐变的中段色） */
+const WORLD_SKY = [
+    new Color(232, 247, 255), new Color(234, 248, 228), new Color(234, 233, 255),
+    new Color(217, 246, 251), new Color(233, 249, 226),
 ];
-const BALLOON_W = 240;
-const BALLOON_H = 320;
 
+/** 珠显示直径（track px，web --nd = --pw = 190） */
+const BEAD_D = 190;
 /**
- * 兜底背景层配色 —— 采样自底图上下边缘，保证铺满时与地图无缝衔接：
- * 上半 = w1_bg_top 顶部天空色，下半 = w1_bg_bottom 底部草地色。
+ * 三张珠切图的珠直径不一致，按「珠直径一致」归一（web ui.css 里采样的系数）：
+ * `k` = 切图边长 / 珠直径，`cy` = 珠圆心在切图里的纵向比例。
  */
-const BACKDROP_TOP = new Color(122, 169, 202, 255);
-const BACKDROP_BOTTOM = new Color(184, 195, 68, 255);
+const BEAD = {
+    todo: { path: 'map/node/node-todo', k: 1.0638, cy: 0.475 },
+    star1: { path: 'map/node/node-star1', k: 1.3514, cy: 0.37 },
+    star3: { path: 'map/node/node-star3', k: 1.6129, cy: 0.47 },
+};
 
-/** 选中 / 未选中：只差色调（Sprite 只能乘色变暗，故「高亮」= 保持原色，未选中压暗） */
-const TINT_ON = new Color(255, 255, 255, 255);
-const TINT_OFF = new Color(150, 150, 150, 255);
+/** 困难模式门槛：同一关简单模式要拿到的星数（web main.ts NIGHTMARE_MIN_NORMAL_STARS） */
+const NIGHTMARE_MIN_NORMAL_STARS = 3;
 
-/**
- * 难度切换 —— 素材只有「普通=黄 / 困难=灰」两张常态图，没有按下 / 置灰态：
- * 选中 = 相乘着色偏暖黄（两张都会变黄），未选中 = 留原色 + 叠灰罩压成灰调。
- */
-const TINT_DIFF_ON = new Color(255, 236, 150, 255);
-const TINT_DIFF_OFF = new Color(255, 255, 255, 255);
+/* 配色（取自 web ui.css） */
+const C_WHITE = new Color(255, 255, 255);
+const C_BROWN = new Color(107, 74, 47);
+const C_GOLD = new Color(245, 197, 66);
+const C_NUM = new Color(255, 215, 94);
+const C_NUM_EDGE = new Color(154, 90, 16);
+const C_NICK = new Color(255, 233, 199);
+const C_SHADOW = new Color(40, 20, 5, 110);
 
-const TEXT_BROWN = new Color(90, 50, 25);
-const TEXT_WHITE = new Color(255, 255, 255);
+/** 加载页要先拉的素材（进度条的真实进度来源） */
+const PRELOAD_BASE = [
+    BEAD.todo.path, BEAD.star1.path, BEAD.star3.path,
+    'home/back', 'home/banner', 'home/pill', 'home/heart', 'home/plus',
+    'home/tab-home', 'home/tab-rank', 'home/tab-book', 'home/tab-gear',
+];
 
-/**
- * 地图启动器 —— 世界1（奶油果园）正式版：真底图 + 真 UI 素材
- * 关卡石台 / 数字 / 星级 / 锁由程序画，小路在底图里（程序不再画藤蔓）
- */
+interface MapNodeData {
+    level: number;
+    status: LevelStatus;
+    stars: number;
+    /** 额外的锁原因（困难模式门槛），有值时提示用它 */
+    lockNote?: string;
+    /** track 坐标（web 口径，y 从上往下） */
+    x: number;
+    y: number;
+}
+
+interface ModeBtn {
+    node: Node;
+    g: Graphics;
+    label: Label;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+    return v < lo ? lo : v > hi ? hi : v;
+}
+function easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+}
+/** 吊牌落下的回弹（web lp-drop 的 cubic-bezier(.18,.9,.32,1.25) 近似） */
+function easeOutBack(t: number): number {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+function worldIndexOf(level: number): number {
+    return clamp(Math.floor((Math.max(1, level) - 1) / 12), 0, WORLDS.length - 1);
+}
+function nodeX(local: number, world: number): number {
+    const road = ROAD_X[WORLDS[world].art] ?? ROAD_X.xiaozhen;
+    return (road[road.length - 1 - local] ?? 0.5) * TRACK_W;
+}
+function nodeY(local: number, count: number): number {
+    return PAD_TOP + (count - 1 - local) * NODE_STEP;
+}
+function pageOfY(y: number): number {
+    return clamp(Math.floor(y / PAGE_H), 0, PAGE_COUNT - 1);
+}
+
 @ccclass('MapBootstrap')
 export class MapBootstrap extends Component {
+    private screenH = DESIGN_H;
+    /** 顶栏顶边 / 页签栏底边距屏幕边的距离（已含刘海、微信胶囊、底部手势条） */
+    private topInset = 28;
+    private bottomInset = 20;
+    /** 轨道缩放：一页（2731）铺满一屏 */
+    private k = DESIGN_H / PAGE_H;
+    private ready = false;
+    private enabledOnce = false;
+    private time = 0;
+
+    /* ---- 地图 ---- */
+    private mapView: Node = null!;
     private content: Node = null!;
-    private levels: { level: number; x: number; y: number }[] = [];
-    private visibleSize = new Size(0, 0);
-    private screenH = DESIGN_H;   // 实际可视高度（FIXED_WIDTH 下可能 > 1920）
-    private viewH = 0;
+    private contentOpacity: UIOpacity = null!;
+    private sky: Graphics = null!;
+    private bgSprite: Sprite = null!;
+    private beadLayer: Node = null!;
+    private world = 0;
+    private page = PAGE_COUNT - 1;
+    /** content 的 y：-H/2 = 第 0 页（上），+H/2 = 第 1 页（下） */
+    private offset = 0;
+    private nodes: MapNodeData[] = [];
+    private pulses: { node: Node; op: UIOpacity }[] = [];
+    /** 底图加载令牌：快速切世界时丢弃过期的回调 */
+    private bgToken = 0;
 
-    private levelNodes: LevelNode[] = [];
-    private diffNormalYellow: Sprite = null!;
-    private diffNormalGray: Sprite = null!;
-    private diffHardYellow: Sprite = null!;
-    private diffHardGray: Sprite = null!;
-    private tabSprites: Sprite[] = [];
-    private selectedLevel = 0;        // 已选中的关卡；0 = 未选中任何关
-    private playBtn: Node = null!;    // 「开始」按钮：选中关卡后才出现，点击进入
-    private playLabel: Label = null!;
-    private gameNode: Node = null!;   // 玩法层（挂 GameBootstrap），与本节点互为兄弟
-    private hud: HomeHUD = null!;     // HUD 层：由 layout/home_hud.json 驱动，换场景直接复用
-    private diffIndex = 0;   // 0 = 普通，1 = 困难（互斥，必选其一）
-    private tabIndex = 0;    // 0 首页 / 1 排行 / 2 图鉴 / 3 设置（互斥，必选其一）
+    private dragging = false;
+    private dragMoved = false;
+    /** 本次触摸落在哪颗珠上（珠自己的 TOUCH_END 先于地图冒泡上来的那次触发） */
+    private tappedLevel = 0;
+    private dragStartY = 0;
+    private dragStartOffset = 0;
+    private lastY = 0;
+    private velocity = 0;
 
+    private snapFrom = 0;
+    private snapTo = 0;
+    private snapT = 0;
+    private snapDur = 0;
+
+    /** 换世界：0 无，1 淡出，2 淡入 */
+    private flipPhase = 0;
+    private flipT = 0;
+    private flipTarget = 0;
+
+    /* ---- 浮层控件 ---- */
     private staminaLabel: Label = null!;
     private countdownLabel: Label = null!;
+    private navPrev: Node = null!;
+    private navNext: Node = null!;
+    private pageUp: Node = null!;
+    private pageDown: Node = null!;
+    private dots: Graphics[] = [];
+    private tabs: { node: Node; bg: Graphics; icon: Sprite; label: Label }[] = [];
+    private tabIndex = 0;
+    private disabled = new Set<Node>();
+
+    /* ---- PLAY 吊牌 ---- */
+    private preview: Node = null!;
+    private drop: Node = null!;
+    private pvLevelLabel: Label = null!;
+    private pvStarsLabel: Label = null!;
+    private pvModes: Record<GameMode, ModeBtn> = null!;
+    private pvLevel = 1;
+    private pvMode: GameMode = 'normal';
+    private dropT = -1;
+
+    /* ---- 加载页 ---- */
+    private loading: Node | null = null;
+    private loadingOpacity: UIOpacity | null = null;
+    private loadingFill: Node = null!;
+    private loadingNum: Label = null!;
+    private loadingElapsed = 0;
+    private loadTotal = 0;
+    private loadDone = 0;
+    private loadingFade = -1;
+
     private dialog: GameDialog = null!;
+    private panels: MapPanels = null!;
     private toast: ToastLayer = null!;
+    private gameNode: Node = null!;
+
+    /** 订阅要用同一个函数引用退订（原来用匿名函数，订阅会越叠越多） */
+    private readonly metaListener = (): void => this.refreshTopbar();
 
     onLoad() {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
-        this.visibleSize = view.getVisibleSize();
-        this.screenH = this.visibleSize.height || DESIGN_H;
+        const vs = view.getVisibleSize();
+        this.screenH = vs.height || DESIGN_H;
+        this.k = this.screenH / PAGE_H;
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
-        this.buildBackdrop();
-        this.mountDialogs();
-        this.buildLevelPositions();
-        this.buildUI();
+        this.measureInsets();
+
+        // 创建顺序 = 叠放顺序（后建的在上层）
         this.buildMap();
-        this.raiseOverlays();
-        // 场景里挂本组件的节点实际叫 Bootstrap，而 GameBootstrap 返回时按 'Map' 查找，
-        // 两边名字对不上会造成「进得去、回不来」，这里统一成 Map
+        this.buildTopbar();
+        this.buildWorldNav();
+        this.buildPager();
+        this.buildPanels();
+        this.buildTabbar();
+        this.buildPreview();
+        this.mountDialogs();
+        this.buildLoading();
+
+        // GameBootstrap 返回时按 'Map' 查找本节点
         this.node.name = 'Map';
         this.ensureGameNode();
-        // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进
-        GS.onMetaChange(() => this.refreshTopbar());
+        GS.onMetaChange(this.metaListener);
         this.schedule(this.onTick, 1);
+
+        this.world = worldIndexOf(GS.progress.unlocked);
+        this.renderMap(true);
+        this.refreshTopbar();
+        this.ready = true;
     }
 
     onDestroy() {
-        // 场景来回切换时不清订阅会越叠越多
-        GS.offMetaChange(() => this.refreshTopbar());
+        GS.offMetaChange(this.metaListener);
     }
 
-    /**
-     * 从关卡返回时重新读一次进度：通关会解锁下一关、星级也会变，
-     * 地图不重建就会显示「打完了但还是锁着」。
-     */
+    /** 从关卡返回：进度、星级、当前关都可能变了，整张地图按最新进度重画 */
     onEnable() {
-        if (!this.content?.isValid) return;
-        this.rebuildLevelNodes();
+        if (!this.ready) return;
+        // 首次激活时 onLoad 刚画过，不重复画
+        if (!this.enabledOnce) {
+            this.enabledOnce = true;
+            return;
+        }
+        this.world = worldIndexOf(GS.progress.unlocked);
+        this.renderMap(true);
         this.refreshTopbar();
     }
 
-    // ========== 兜底背景 / 屏幕自适应 ==========
-    /** 铺满整屏的底色层：上半天空、下半草地，任何屏幕比例都不露黑 */
-    private buildBackdrop() {
-        const w = this.visibleSize.width || DESIGN_W;
-        const h = this.screenH;
-        const bg = new Node('Backdrop');
-        bg.parent = this.node;
-        bg.layer = Layers.Enum.UI_2D;
-        bg.addComponent(UITransform).setContentSize(w, h);
-        bg.setPosition(0, 0);
+    update(dt: number) {
+        this.time += dt;
 
-        const g = bg.addComponent(Graphics);
-        const halfW = w / 2;
-        const halfH = h / 2;
-        g.fillColor = BACKDROP_TOP;
-        g.rect(-halfW, 0, w, halfH);
-        g.fill();
-        g.fillColor = BACKDROP_BOTTOM;
-        g.rect(-halfW, -halfH, w, halfH);
-        g.fill();
+        // 整屏翻页补间
+        if (this.snapDur > 0) {
+            this.snapT += dt;
+            const t = Math.min(1, this.snapT / this.snapDur);
+            this.offset = this.snapFrom + (this.snapTo - this.snapFrom) * easeOutCubic(t);
+            this.applyOffset();
+            if (t >= 1) this.snapDur = 0;
+        }
+
+        // 换世界：淡出 → 换图 → 淡入
+        if (this.flipPhase === 1) {
+            this.flipT += dt;
+            const t = Math.min(1, this.flipT / FLIP_OUT_S);
+            this.contentOpacity.opacity = Math.round(255 * (1 - t));
+            this.content.setScale(this.k, this.k * (1 - 0.1 * t));
+            if (t >= 1) {
+                this.world = this.flipTarget;
+                this.renderMap(true);
+                this.flipPhase = 2;
+                this.flipT = 0;
+            }
+        } else if (this.flipPhase === 2) {
+            this.flipT += dt;
+            const t = Math.min(1, this.flipT / FLIP_IN_S);
+            const e = easeOutCubic(t);
+            this.contentOpacity.opacity = Math.round(255 * e);
+            this.content.setScale(this.k, this.k * (0.9 + 0.1 * e));
+            if (t >= 1) {
+                this.flipPhase = 0;
+                this.contentOpacity.opacity = 255;
+                this.content.setScale(this.k, this.k);
+            }
+        }
+
+        // 可玩关卡的呼吸光圈
+        const ph = (this.time % PULSE_S) / PULSE_S;
+        for (const p of this.pulses) {
+            p.node.setScale(1 + 0.2 * ph, 1 + 0.2 * ph);
+            p.op.opacity = Math.round(210 * (1 - ph));
+        }
+
+        // 吊牌从屏幕上方落下
+        if (this.dropT >= 0) {
+            this.dropT += dt;
+            const t = Math.min(1, this.dropT / DROP_S);
+            this.drop.setPosition(0, this.screenH * (1 - easeOutBack(t)));
+            if (t >= 1) this.dropT = -1;
+        }
+
+        this.updateLoading(dt);
     }
 
-    /** 贴顶：inset = 元素顶边到屏幕顶边的距离 + 元素半高 */
-    private topY(inset: number) { return this.screenH / 2 - inset; }
-    /** 贴底：inset = 元素底边到屏幕底边的距离 + 元素半高 */
-    private botY(inset: number) { return -this.screenH / 2 + inset; }
+    /* ================================================================ 屏幕安全区 */
 
-    private mountDialogs() {
-        const dn = new Node('Dialog');
-        dn.parent = this.node;
-        dn.layer = Layers.Enum.UI_2D;
-        dn.addComponent(UITransform).setContentSize(DESIGN_W, this.screenH);
-        this.dialog = dn.addComponent(GameDialog);
+    /**
+     * 顶栏 / 页签栏让出刘海、底部手势条；微信小游戏里还要让出右上角的胶囊按钮，
+     * 不然体力胶囊会被「··· ⊙」压住、点不到。
+     */
+    /**
+     * ⚠️ 2026-10-23：微信里顶栏整块消失。这里任何一个平台值是 undefined，
+     * `Math.max / Math.min` 就会传染成 NaN，顶栏所有节点的坐标都变 NaN、整块不渲染，
+     * 而且不报错。所以每个外部值都过一遍 `finite()`，算完再夹到合理区间，并打一行日志。
+     */
+    private measureInsets() {
+        const finite = (v: unknown, fb: number): number =>
+            typeof v === 'number' && Number.isFinite(v) ? v : fb;
+        let safeTop = 0;
+        let safeBottom = 0;
+        try {
+            // Cocos 的安全区以「可视区左下角」为原点（设计分辨率单位）
+            const r = sys.getSafeAreaRect();
+            const ry = finite(r?.y, 0);
+            const rh = finite(r?.height, 0);
+            if (rh > 0) {
+                safeTop = Math.max(0, this.screenH - (ry + rh));
+                safeBottom = Math.max(0, ry);
+            }
+        } catch { /* 平台不支持就按 0 处理 */ }
+        let capBottom = 0;
+        const wx = (globalThis as { wx?: any }).wx;
+        try {
+            if (wx && typeof wx.getMenuButtonBoundingClientRect === 'function') {
+                const cap = wx.getMenuButtonBoundingClientRect();
+                const info = typeof wx.getWindowInfo === 'function'
+                    ? wx.getWindowInfo()
+                    : typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : null;
+                const winH = finite(info?.windowHeight, 0);
+                const bottom = finite(cap?.bottom, 0);
+                // 胶囊底边（屏幕 px）→ 设计单位，再留 12 的空隙
+                if (winH > 0 && bottom > 0) capBottom = (bottom * this.screenH) / winH + 12;
+            }
+        } catch { /* 拿不到胶囊位置就只按安全区 */ }
+        const top = Math.max(28 + safeTop, capBottom);
+        this.topInset = clamp(finite(top, 28), 28, 360);
+        this.bottomInset = clamp(20 + finite(safeBottom, 0), 20, 180);
+        console.log(`[map] 屏幕高 ${Math.round(this.screenH)}，安全区上 ${Math.round(safeTop)} 下 ${Math.round(safeBottom)}，`
+            + `胶囊底 ${Math.round(capBottom)} → 顶栏让位 ${Math.round(this.topInset)}，页签让位 ${Math.round(this.bottomInset)}`);
+    }
 
-        const tn = new Node('Toast');
-        tn.parent = this.node;
-        tn.layer = Layers.Enum.UI_2D;
-        tn.addComponent(UITransform).setContentSize(DESIGN_W, this.screenH);
-        this.toast = tn.addComponent(ToastLayer);
+    /* ================================================================ 通用小工具 */
+
+    private makeNode(parent: Node, name: string, w: number, h: number, x = 0, y = 0): Node {
+        const n = new Node(name);
+        n.parent = parent;
+        n.layer = Layers.Enum.UI_2D;
+        n.addComponent(UITransform).setContentSize(w, h);
+        n.setPosition(x, y);
+        return n;
+    }
+
+    private makeLabel(
+        parent: Node, name: string, text: string, size: number, color: Color,
+        w: number, h: number, x = 0, y = 0,
+        opts: { outline?: Color; outlineWidth?: number; shadow?: boolean; align?: 'left' | 'center' } = {},
+    ): Label {
+        const n = this.makeNode(parent, name, w, h, x, y);
+        const l = n.addComponent(Label);
+        l.string = text;
+        l.fontSize = size;
+        l.lineHeight = size + 6;
+        l.color = color;
+        l.isBold = true;
+        l.horizontalAlign = opts.align === 'left' ? HorizontalTextAlignment.LEFT : HorizontalTextAlignment.CENTER;
+        l.verticalAlign = VerticalTextAlignment.CENTER;
+        if (opts.outline) {
+            l.enableOutline = true;
+            l.outlineColor = opts.outline;
+            l.outlineWidth = opts.outlineWidth ?? 3;
+        }
+        if (opts.shadow) {
+            l.enableShadow = true;
+            l.shadowColor = C_SHADOW;
+            l.shadowOffset = new Vec2(0, -3);
+            l.shadowBlur = 2;
+        }
+        return l;
+    }
+
+    /**
+     * 按 `路径/spriteFrame` 加载；没有就退回 `路径/texture` 现场包一个 SpriteFrame。
+     *
+     * ⚠️ 新拷进 resources 的图，Cocos 默认按 `texture` 导入，没有 spriteFrame 子资源 ——
+     * 2026-10-23 整批顶栏 / 页签 / 珠子 / 加载页全因此不显示。退回 texture 之后，
+     * 以后再加图忘了改导入类型也不会整块空白（控制台仍会提示一次，方便回头把类型改对）。
+     */
+    private loadFrame(path: string, cb: (sf: SpriteFrame) => void, onFail?: () => void) {
+        resources.load(path + '/spriteFrame', SpriteFrame, (err, sf) => {
+            if (!err && sf) {
+                cb(sf);
+                return;
+            }
+            resources.load(path + '/texture', Texture2D, (err2, tex) => {
+                if (err2 || !tex) {
+                    console.warn('[map] 贴图缺失: ' + path);
+                    onFail?.();
+                    return;
+                }
+                console.warn('[map] 导入类型不是 sprite-frame，已按 texture 兜底: ' + path);
+                const frame = new SpriteFrame();
+                frame.texture = tex;
+                cb(frame);
+            });
+        });
+    }
+
+    private makeSprite(parent: Node, name: string, path: string, w: number, h: number, x = 0, y = 0): Sprite {
+        const n = this.makeNode(parent, name, w, h, x, y);
+        const sp = n.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.loadFrame(path, (sf) => { if (sp.isValid) sp.spriteFrame = sf; });
+        return sp;
+    }
+
+    /** 可点按钮：按下缩一下，抬手触发；`disabled` 集合里的按钮点了不响应 */
+    private makeButton(parent: Node, name: string, w: number, h: number, x: number, y: number, onTap: () => void): Node {
+        const n = this.makeNode(parent, name, w, h, x, y);
+        n.on(Node.EventType.TOUCH_START, (e: EventTouch) => {
+            e.propagationStopped = true;
+            if (!this.disabled.has(n)) n.setScale(0.93, 0.93);
+        }, this);
+        n.on(Node.EventType.TOUCH_END, (e: EventTouch) => {
+            e.propagationStopped = true;
+            n.setScale(1, 1);
+            if (!this.disabled.has(n)) onTap();
+        }, this);
+        n.on(Node.EventType.TOUCH_CANCEL, () => n.setScale(1, 1), this);
+        return n;
+    }
+
+    private setDisabled(n: Node, off: boolean) {
+        if (off) this.disabled.add(n);
+        else this.disabled.delete(n);
+        const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
+        op.opacity = off ? 80 : 255;
+    }
+
+    /** 金色圆钮（换世界 / 翻页箭头共用，web .map-world-nav 的配色） */
+    private paintGoldCircle(g: Graphics, r: number) {
+        g.clear();
+        g.fillColor = new Color(140, 70, 10, 128);
+        g.circle(0, -7, r);
+        g.fill();
+        g.fillColor = new Color(247, 177, 63);
+        g.circle(0, 0, r);
+        g.fill();
+        g.fillColor = new Color(255, 228, 155, 200);
+        g.circle(0, r * 0.28, r * 0.55);
+        g.fill();
+        g.lineWidth = 5;
+        g.strokeColor = new Color(255, 243, 214);
+        g.circle(0, 0, r - 2.5);
+        g.stroke();
+    }
+
+    /* ================================================================ 地图 */
+
+    private buildMap() {
+        this.mapView = this.makeNode(this.node, 'MapView', DESIGN_W, this.screenH);
+        this.sky = this.makeNode(this.mapView, 'Sky', DESIGN_W, this.screenH).addComponent(Graphics);
+
+        this.content = this.makeNode(this.mapView, 'Content', TRACK_W, TRACK_H);
+        this.content.setScale(this.k, this.k);
+        this.contentOpacity = this.content.addComponent(UIOpacity);
+
+        const bg = this.makeNode(this.content, 'Bg', TRACK_W, TRACK_H);
+        this.bgSprite = bg.addComponent(Sprite);
+        this.bgSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.beadLayer = this.makeNode(this.content, 'Beads', TRACK_W, TRACK_H);
+
+        this.mapView.on(Node.EventType.TOUCH_START, this.onMapStart, this);
+        this.mapView.on(Node.EventType.TOUCH_MOVE, this.onMapMove, this);
+        this.mapView.on(Node.EventType.TOUCH_END, this.onMapEnd, this);
+        this.mapView.on(Node.EventType.TOUCH_CANCEL, this.onMapCancel, this);
+    }
+
+    /** 当前世界的 12 个节点（状态全部由进度派生，与 web mapView() 同口径） */
+    private worldNodes(w: number): MapNodeData[] {
+        const { from, to } = WORLDS[w];
+        const progress = GS.progress;
+        const count = to - from + 1;
+        const out: MapNodeData[] = [];
+        for (let level = from; level <= to; level++) {
+            const local = level - from;
+            const blocked = GS.mode === 'nightmare' && !this.canNightmare(level);
+            out.push({
+                level,
+                status: blocked ? 'locked' : levelStatus(progress, level),
+                stars: recordOf(progress, level).stars,
+                lockNote: blocked ? MAP_TEXT.nightmareLocked : undefined,
+                x: nodeX(local, w),
+                y: nodeY(local, count),
+            });
+        }
+        return out;
+    }
+
+    private canNightmare(level: number): boolean {
+        return recordOf(GS.data.progress.normal, level).stars >= NIGHTMARE_MIN_NORMAL_STARS;
+    }
+
+    /** 当前正在解锁的关卡 = 默认定位目标 = 宠物站的那一关 */
+    private currentLevel(): number {
+        return clamp(GS.progress.unlocked, 1, TOTAL_LEVELS);
+    }
+
+    /** 重画当前世界：底色、底图、节点、箭头与页点 */
+    private renderMap(focus: boolean) {
+        this.nodes = this.worldNodes(this.world);
+
+        this.sky.clear();
+        this.sky.fillColor = WORLD_SKY[this.world];
+        this.sky.rect(-DESIGN_W, -this.screenH / 2, DESIGN_W * 2, this.screenH);
+        this.sky.fill();
+
+        const token = ++this.bgToken;
+        this.bgSprite.spriteFrame = null;
+        this.loadFrame('map-v2/' + WORLDS[this.world].art, (sf) => {
+            if (token === this.bgToken && this.bgSprite.isValid) this.bgSprite.spriteFrame = sf;
+        });
+
+        this.buildBeads();
+        this.setDisabled(this.navPrev, this.world <= 0);
+        this.setDisabled(this.navNext, this.world >= WORLDS.length - 1);
+        if (focus) this.focusWorld(false);
+        else this.applyOffset();
+        this.paintPager();
+    }
+
+    private buildBeads() {
+        for (const c of this.beadLayer.children.slice()) c.destroy();
+        this.pulses = [];
+        const current = this.currentLevel();
+        const last = WORLDS[this.world].to;
+
+        for (const n of this.nodes) {
+            const node = this.makeNode(this.beadLayer, 'Level_' + n.level, BEAD_D * 1.2, BEAD_D * 1.2,
+                n.x - TRACK_W / 2, TRACK_H / 2 - n.y);
+            // 点击由珠自己命中（引擎按节点包围盒判定，不用再自己换算坐标）；
+            // 不停止冒泡：事件继续传到地图，拖动 / 翻页照常走地图那一套
+            const level = n.level;
+            node.on(Node.EventType.TOUCH_END, () => { this.tappedLevel = level; }, this);
+
+            // 已解锁未通关：珠外呼吸光圈；当前关：常亮金圈
+            if (n.status === 'unlocked') {
+                const ring = this.makeNode(node, 'Ring', BEAD_D, BEAD_D);
+                const g = ring.addComponent(Graphics);
+                g.lineWidth = n.level === current ? 16 : 12;
+                g.strokeColor = new Color(255, 215, 0, 255);
+                g.circle(0, 0, BEAD_D / 2 + 6);
+                g.stroke();
+                const op = ring.addComponent(UIOpacity);
+                if (n.level === current) op.opacity = 200;
+                else this.pulses.push({ node: ring, op });
+            }
+
+            const kind = n.status === 'cleared' ? (n.stars >= 3 ? BEAD.star3 : BEAD.star1) : BEAD.todo;
+            const size = BEAD_D * kind.k;
+            // 切图里珠心不在正中：把精灵挪一下，让珠心对准路面定位点
+            const bead = this.makeSprite(node, 'Bead', kind.path, size, size, 0, -(0.5 - kind.cy) * size);
+            if (n.status === 'locked') bead.color = new Color(165, 165, 170, 255);
+
+            if (n.status === 'locked') {
+                this.makeLabel(node, 'Lock', '🔒', BEAD_D * 0.42, C_WHITE, BEAD_D, BEAD_D);
+            } else {
+                this.makeLabel(node, 'Num', String(n.level), BEAD_D * 0.4, C_NUM, BEAD_D, BEAD_D, 0, 0,
+                    { outline: C_NUM_EDGE, outlineWidth: 4, shadow: true });
+            }
+            if (n.level === current) {
+                this.makeLabel(node, 'Pet', '🐶', BEAD_D * 0.34, C_WHITE, 90, 90, BEAD_D * 0.34, -BEAD_D * 0.18);
+            }
+            if (n.level === last) {
+                this.makeLabel(node, 'Trophy', '🏆', BEAD_D * 0.34, C_WHITE, 90, 90, BEAD_D * 0.36, BEAD_D * 0.5);
+            }
+        }
+    }
+
+    private applyOffset() {
+        this.content.setPosition(0, this.offset);
+    }
+
+    private minOffset(): number { return -this.screenH / 2; }
+    private maxOffset(): number { return this.screenH / 2; }
+
+    private pageOffset(p: number): number {
+        return clamp(-this.screenH / 2 + p * this.screenH, this.minOffset(), this.maxOffset());
+    }
+
+    private nearestPage(v: number): number {
+        return clamp(Math.round((v + this.screenH / 2) / this.screenH), 0, PAGE_COUNT - 1);
+    }
+
+    private rubber(v: number): number {
+        const lo = this.minOffset();
+        const hi = this.maxOffset();
+        if (v > hi) return hi + (v - hi) * RUBBER;
+        if (v < lo) return lo + (v - lo) * RUBBER;
+        return v;
+    }
+
+    private snapToPage(p: number, animated: boolean) {
+        this.page = clamp(p, 0, PAGE_COUNT - 1);
+        this.velocity = 0;
+        const target = this.pageOffset(this.page);
+        if (animated && Math.abs(target - this.offset) > 0.5) {
+            this.snapFrom = this.offset;
+            this.snapTo = target;
+            this.snapT = 0;
+            this.snapDur = SNAP_S;
+        } else {
+            this.snapDur = 0;
+            this.offset = target;
+            this.applyOffset();
+        }
+        this.paintPager();
+    }
+
+    /** 进入世界时的定位：当前关所在页 → 最靠上的已通关关 → 最底一页（第 1 关所在） */
+    private focusWorld(animated: boolean) {
+        const current = this.currentLevel();
+        const hit = this.nodes.find((n) => n.level === current);
+        if (hit) {
+            this.snapToPage(pageOfY(hit.y), animated);
+            return;
+        }
+        let best: MapNodeData | null = null;
+        for (const n of this.nodes) if (n.status === 'cleared') best = n;
+        this.snapToPage(best ? pageOfY(best.y) : PAGE_COUNT - 1, animated);
+    }
+
+    private flipTo(next: number) {
+        const target = clamp(next, 0, WORLDS.length - 1);
+        if (target === this.world || this.flipPhase !== 0) return;
+        this.flipTarget = target;
+        this.flipPhase = 1;
+        this.flipT = 0;
+    }
+
+    private busyForInput(): boolean {
+        return this.flipPhase !== 0 || this.loading !== null;
+    }
+
+    private onMapStart(e: EventTouch) {
+        if (this.busyForInput()) {
+            console.log('[map] 触摸被忽略：', this.loading ? '加载页还在' : '正在切换世界');
+            return;
+        }
+        this.snapDur = 0;
+        this.dragging = true;
+        this.dragMoved = false;
+        this.velocity = 0;
+        const y = e.getUILocation().y;
+        this.dragStartY = y;
+        this.lastY = y;
+        this.dragStartOffset = this.offset;
+    }
+
+    private onMapMove(e: EventTouch) {
+        if (!this.dragging) return;
+        const y = e.getUILocation().y;
+        const moved = y - this.dragStartY;
+        if (!this.dragMoved && Math.abs(moved) > TAP_SLOP) this.dragMoved = true;
+        this.velocity = (y - this.lastY) * 0.6 + this.velocity * 0.4;
+        this.lastY = y;
+        // 手指往上推 → 地图往上走 → 看到下面那页（content.y 增大）
+        this.offset = this.rubber(this.dragStartOffset + moved);
+        this.applyOffset();
+    }
+
+    private onMapEnd(e: EventTouch) {
+        const tapped = this.tappedLevel;
+        this.tappedLevel = 0;
+        if (!this.dragging) return;
+        const wasTap = !this.dragMoved;
+        this.endDrag();
+        if (!wasTap) return;
+        const hit = tapped ? this.nodes.find((n) => n.level === tapped) : undefined;
+        console.log('[map] tap', hit ? `第 ${hit.level} 关（${hit.status}）` : '空白处，按坐标再找一次');
+        if (hit) this.selectNode(hit);
+        else this.tapAt(e);
+    }
+
+    private onMapCancel() {
+        this.endDrag();
+    }
+
+    private endDrag() {
+        if (!this.dragging) return;
+        this.dragging = false;
+        const v = clamp(this.velocity, -MAX_FLING, MAX_FLING);
+        this.snapToPage(this.nearestPage(this.offset + v * FLING_PROJECT), true);
+    }
+
+    /** 点击命中哪颗珠：把触点换算回 track 坐标，找最近的那颗 */
+    private tapAt(e: EventTouch) {
+        const ui = e.getUILocation();
+        const p = this.mapView.getComponent(UITransform)!.convertToNodeSpaceAR(new Vec3(ui.x, ui.y, 0));
+        const tx = p.x / this.k + TRACK_W / 2;
+        const ty = TRACK_H / 2 - (p.y - this.offset) / this.k;
+        let best: MapNodeData | null = null;
+        let bestD = BEAD_D * 0.7;
+        for (const n of this.nodes) {
+            const d = Math.hypot(n.x - tx, n.y - ty);
+            if (d < bestD) { bestD = d; best = n; }
+        }
+        if (best) this.selectNode(best);
+    }
+
+    private selectNode(n: MapNodeData) {
+        if (n.status === 'locked') {
+            this.toast.show(n.lockNote ?? MAP_TEXT.locked(Math.max(1, n.level - 1)), 1800);
+            return;
+        }
+        this.openPreview(n.level);
+    }
+
+    /* ================================================================ 顶栏 */
+
+    private buildTopbar() {
+        const top = this.screenH / 2 - this.topInset;
+
+        // 左：返回圆钮（装饰）压在木牌左端；木牌里放头像与昵称
+        const bannerW = 420;
+        const bannerH = 118;
+        const bannerX = -DESIGN_W / 2 + 36 + 122 - 46 + bannerW / 2;
+        const bannerY = top - 62;
+        const banner = this.makeNode(this.node, 'Banner', bannerW, bannerH, bannerX, bannerY);
+        this.makeSprite(banner, 'Bg', 'home/banner', bannerW, bannerH);
+        this.makeLabel(banner, 'Avatar', MAP_TEXT.avatar, 56, C_WHITE, 80, 80, -bannerW / 2 + 92 + 28, 0);
+        this.makeLabel(banner, 'Nick', MAP_TEXT.nickname, 40, C_NICK, 200, 60, -bannerW / 2 + 92 + 56 + 18 + 100, 0,
+            { shadow: true, align: 'left' });
+        this.makeSprite(this.node, 'Back', 'home/back', 122, 124, -DESIGN_W / 2 + 36 + 61, top - 62);
+
+        // 右：体力胶囊，整块就是「加体力」按钮
+        const pillW = 300;
+        const pillH = 108;
+        const pillX = DESIGN_W / 2 - 36 - pillW / 2;
+        const pillY = top - 62;
+        const pill = this.makeButton(this.node, 'Stamina', pillW, pillH, pillX, pillY, () => this.onStaminaPlus());
+        this.makeSprite(pill, 'Bg', 'home/pill', pillW, pillH);
+        this.makeSprite(pill, 'Heart', 'home/heart', 78, 70, -pillW / 2 + 20 + 39, 0);
+        this.staminaLabel = this.makeLabel(pill, 'Num', '0', 52, C_WHITE, 110, 70, -pillW / 2 + 20 + 78 + 14 + 55, 0,
+            { shadow: true, align: 'left' });
+        this.makeSprite(pill, 'Plus', 'home/plus', 84, 86, pillW / 2 - 14 - 42, 0);
+        this.countdownLabel = this.makeLabel(this.node, 'Recover', '', 22, C_WHITE, 260, 32, pillX - 37, pillY - pillH / 2 - 20,
+            { shadow: true });
     }
 
     private onTick() {
@@ -204,19 +807,12 @@ export class MapBootstrap extends Component {
         this.refreshTopbar();
     }
 
-    /** 顶栏：体力数字 + 恢复倒计时（满格不显示倒计时，§11.1） */
+    /** 顶栏：体力数字 + 恢复倒计时（满格不显示倒计时） */
     private refreshTopbar() {
-        const cur = String(GS.stamina.available);
-        const cd = GS.countdownText();
-        const cdText = cd ? `${cd} 后 +1` : '已满';
-        if (this.hud) {
-            this.hud.setText('staminaNum', cur);
-            this.hud.setText('countdown', cdText);
-            return;
-        }
         if (!this.staminaLabel) return;
-        this.staminaLabel.string = cur;
-        this.countdownLabel.string = cdText;
+        this.staminaLabel.string = String(GS.stamina.available);
+        const cd = GS.countdownText();
+        this.countdownLabel.string = cd ? MAP_TEXT.staminaCountdown(cd) : '';
     }
 
     /** 体力 + ：看广告（本地模拟），每日上限由 GS 收口 */
@@ -238,504 +834,385 @@ export class MapBootstrap extends Component {
         }, 1.2);
     }
 
-    /** 关卡坐标：文档 y（图片从上往下）→ 从底部往上量的 y（Cocos content 用） */
-    private buildLevelPositions() {
-        for (let i = 0; i < LEVEL_COUNT && i < W1_LEVEL_XY.length; i++) {
-            const x = W1_LEVEL_XY[i][0];
-            const yFromBottom = MAP_H - W1_LEVEL_XY[i][1];
-            this.levels.push({ level: i + 1, x, y: yFromBottom });
+    /* ================================================================ 换世界 / 翻页 */
+
+    private tabbarTop(): number {
+        return -this.screenH / 2 + this.bottomInset + TABBAR_H;
+    }
+
+    private buildWorldNav() {
+        const r = 59;
+        const y = this.tabbarTop() + 40 + r;
+        const make = (name: string, glyph: string, x: number, delta: number): Node => {
+            const n = this.makeButton(this.node, name, r * 2, r * 2, x, y, () => this.flipTo(this.world + delta));
+            this.paintGoldCircle(n.addComponent(Graphics), r);
+            this.makeLabel(n, 'Glyph', glyph, 78, C_WHITE, r * 2, r * 2, delta < 0 ? -3 : 3, 6, { shadow: true });
+            return n;
+        };
+        this.navPrev = make('WorldPrev', '‹', -DESIGN_W / 2 + 22 + r, -1);
+        this.navNext = make('WorldNext', '›', DESIGN_W / 2 - 22 - r, 1);
+    }
+
+    private buildPager() {
+        const r = 49;
+        const x = DESIGN_W / 2 - 18 - r;
+        const make = (name: string, glyph: string, y: number, delta: number): Node => {
+            const n = this.makeButton(this.node, name, r * 2, r * 2, x, y, () => this.snapToPage(this.page + delta, true));
+            this.paintGoldCircle(n.addComponent(Graphics), r);
+            this.makeLabel(n, 'Glyph', glyph, 40, C_WHITE, r * 2, r * 2, 0, 0, { shadow: true });
+            return n;
+        };
+        this.pageUp = make('PageUp', '▲', 120, -1);
+        this.pageDown = make('PageDown', '▼', -120, 1);
+        this.dots = [];
+        for (let i = 0; i < PAGE_COUNT; i++) {
+            const dot = this.makeButton(this.node, 'Dot_' + i, 40, 40, x, 16 - i * 32, () => this.snapToPage(i, true));
+            this.dots.push(dot.addComponent(Graphics));
         }
     }
 
-    // ========== 通用小工具 ==========
-    /** 免费商用字体：HarmonyOS Sans SC（华为官方免费商用许可） */
-    private fontAsset: Font | null = null;
-
-    private applyFont(l: Label) {
-        if (this.fontAsset) { l.font = this.fontAsset; return; }
-        resources.load('font/HarmonyOS_Sans_SC_Medium', Font, (err, f) => {
-            if (err || !f) return;   // 加载失败就用系统默认字体，不阻塞
-            this.fontAsset = f;
-            l.font = f;
-            for (const ln of this.levelNodes) ln.setFont(f);
+    private paintPager() {
+        if (!this.pageUp) return;
+        this.setDisabled(this.pageUp, this.page <= 0);
+        this.setDisabled(this.pageDown, this.page >= PAGE_COUNT - 1);
+        this.dots.forEach((g, i) => {
+            g.clear();
+            g.fillColor = i === this.page ? new Color(245, 183, 61) : new Color(255, 255, 255, 200);
+            g.circle(0, 0, 9);
+            g.fill();
         });
     }
 
-    private makeLabel(parent: Node, name: string, str: string, x: number, y: number, size: number, color: Color, w = 300, h = 60): Label {
-        const n = new Node(name);
-        n.parent = parent;
-        n.layer = parent.layer;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(x, y);
-        const l = n.addComponent(Label);
-        l.string = str;
-        l.fontSize = size;
-        l.lineHeight = size + 6;
-        l.color = color;
-        l.horizontalAlign = HorizontalTextAlignment.CENTER;
-        l.verticalAlign = VerticalTextAlignment.CENTER;
-        this.applyFont(l);
-        return l;
-    }
+    /* ================================================================ 底部页签 */
 
-    /** 贴图节点：资源从 assets/resources 异步加载，尺寸固定 */
-    private makeSprite(parent: Node, name: string, path: string, w: number, h: number, x: number, y: number): Sprite {
-        const n = new Node(name);
-        n.parent = parent;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(x, y);
-        const sp = n.addComponent(Sprite);
-        sp.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load(path + '/spriteFrame', SpriteFrame, (err, sf) => {
-            if (err || !sf) {
-                console.warn('[map] 贴图缺失: ' + path);
-                return;
-            }
-            if (sp.isValid) sp.spriteFrame = sf;
-        });
-        return sp;
-    }
+    private buildTabbar() {
+        const w = DESIGN_W - 48;
+        const h = TABBAR_H;
+        const bar = this.makeNode(this.node, 'Tabbar', w, h, 0, -this.screenH / 2 + this.bottomInset + h / 2);
+        // 页签栏自己吞掉触摸，免得点在缝隙里拖动了地图
+        bar.on(Node.EventType.TOUCH_START, (e: EventTouch) => { e.propagationStopped = true; }, this);
+        const g = bar.addComponent(Graphics);
+        g.fillColor = new Color(20, 10, 0, 90);
+        g.roundRect(-w / 2, -h / 2 - 10, w, h, 44);
+        g.fill();
+        g.fillColor = new Color(90, 57, 32);
+        g.roundRect(-w / 2, -h / 2, w, h, 44);
+        g.fill();
+        g.lineWidth = 5;
+        g.strokeColor = new Color(58, 35, 18);
+        g.roundRect(-w / 2, -h / 2, w, h, 44);
+        g.stroke();
 
-    /** 透明热区 */
-    private makeHit(parent: Node, name: string, w: number, h: number, x: number, y: number, fn: () => void): Node {
-        const n = new Node(name);
-        n.parent = parent;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(x, y);
-        n.on(Node.EventType.TOUCH_END, fn, this);
-        return n;
-    }
-
-    // ========== 顶栏 ==========
-    private buildTopbar() {
-        const L = UI_POS.topbarLeft;
-        const left = new Node('TopbarLeft');
-        left.parent = this.node;
-        left.layer = Layers.Enum.UI_2D;
-        left.addComponent(UITransform).setContentSize(L.w, L.h);
-        left.setPosition(L.x, this.topY(L.h / 2));
-        this.makeSprite(left, 'Bg', 'ui/顶栏/home_topbar_left', L.w, L.h, 0, 0);
-
-        // 真实兔子头像（新素材切片 006）
-        const av = new Node('Avatar');
-        av.parent = left;
-        av.layer = Layers.Enum.UI_2D;
-        av.addComponent(UITransform).setContentSize(UI_POS.avatar.w, UI_POS.avatar.h);
-        av.setPosition(UI_POS.avatar.x, UI_POS.avatar.y);
-        this.makeSprite(av, 'AvatarImg', 'ui/顶栏/home_avatar', UI_POS.avatar.w, UI_POS.avatar.h, 0, 0);
-
-        this.makeLabel(left, 'Nickname', '小兔兔', UI_POS.nickname.x, UI_POS.nickname.y, 34, TEXT_BROWN, UI_POS.nickname.w, UI_POS.nickname.h);
-        this.makeLabel(left, 'Level', 'Lv.23', UI_POS.level.x, UI_POS.level.y, 26, TEXT_BROWN, UI_POS.level.w, UI_POS.level.h);
-
-        const R = UI_POS.topbarRight;
-        const right = new Node('TopbarRight');
-        right.parent = this.node;
-        right.layer = Layers.Enum.UI_2D;
-        right.addComponent(UITransform).setContentSize(R.w, R.h);
-        right.setPosition(R.x, R.y);
-        this.makeSprite(right, 'Bg', 'ui/顶栏/home_topbar_right', R.w, R.h, 0, 0);
-
-        this.staminaLabel = this.makeLabel(right, 'StaminaNum', '0', UI_POS.staminaNum.x, UI_POS.staminaNum.y, 34, TEXT_WHITE, UI_POS.staminaNum.w, UI_POS.staminaNum.h);
-        this.countdownLabel = this.makeLabel(right, 'Countdown', '', UI_POS.countdown.x, UI_POS.countdown.y, 18, TEXT_WHITE, UI_POS.countdown.w, UI_POS.countdown.h);
-        this.makeHit(right, 'PlusHit', UI_POS.plusHit.w, UI_POS.plusHit.h, UI_POS.plusHit.x, UI_POS.plusHit.y, () => this.onStaminaPlus());
-        this.refreshTopbar();
-    }
-
-    // ========== 难度切换（互斥两态：简单/困难） ==========
-    /** 用户要求"底图互换"：选中项显示黄底，未选中项显示灰底，文字固定为简单/困难 */
-    private buildModePanel() {
-        const D = UI_POS.difficulty;
-        const panel = new Node('ModeSwitch');
-        panel.parent = this.node;
-        panel.layer = Layers.Enum.UI_2D;
-        panel.addComponent(UITransform).setContentSize(D.w, D.h);
-        panel.setPosition(D.x, D.y);
-
-        const bw = D.diffBtnW;
-        const bh = D.diffBtnH;
-        const gap = 80;
-
-        // 简单按钮
-        const normal = new Node('Normal');
-        normal.parent = panel;
-        normal.layer = Layers.Enum.UI_2D;
-        normal.addComponent(UITransform).setContentSize(bw, bh);
-        normal.setPosition(-bw / 2 - gap / 2, 0);
-        this.diffNormalYellow = this.makeSprite(normal, 'Yellow', 'ui/难度/home_difficulty_yellow', bw, bh, 0, 0);
-        this.diffNormalGray = this.makeSprite(normal, 'Gray', 'ui/难度/home_difficulty_gray', bw, bh, 0, 0);
-        this.makeLabel(normal, 'Label', '简单', 0, 0, 44, TEXT_BROWN, 200, 70);
-
-        // 困难按钮
-        const hard = new Node('Hard');
-        hard.parent = panel;
-        hard.layer = Layers.Enum.UI_2D;
-        hard.addComponent(UITransform).setContentSize(bw, bh);
-        hard.setPosition(bw / 2 + gap / 2, 0);
-        this.diffHardYellow = this.makeSprite(hard, 'Yellow', 'ui/难度/home_difficulty_yellow', bw, bh, 0, 0);
-        this.diffHardGray = this.makeSprite(hard, 'Gray', 'ui/难度/home_difficulty_gray', bw, bh, 0, 0);
-        this.makeLabel(hard, 'Label', '困难', 0, 0, 44, TEXT_BROWN, 200, 70);
-
-        const hit = UI_POS.diffHit;
-        this.makeHit(panel, 'NormalHit', hit.w, hit.h, -hit.dx, 0, () => this.setDifficulty(0));
-        this.makeHit(panel, 'HardHit', hit.w, hit.h, hit.dx, 0, () => this.setDifficulty(1));
-
-        this.applyDifficulty();
-    }
-
-    /**
-     * 切换难度 = 切换模式（两套进度分别存，切模式不丢）。
-     * 必须重建关卡节点：解锁范围与星级都跟着模式变。
-     */
-    private setDifficulty(i: number) {
-        this.diffIndex = i === 1 ? 1 : 0;   // 只能 0 或 1，不能都选 / 都不选
-        GS.setMode((this.diffIndex === 1 ? 'nightmare' : 'normal') as GameMode);
-        this.selectedLevel = 0;             // 换模式解锁范围会变，清空选中免得选到锁定关
-        this.applyDifficulty();
-        this.hud?.setDifficulty(this.diffIndex);
-        this.rebuildLevelNodes();
-    }
-
-    private applyDifficulty() {
-        const normalOn = this.diffIndex === 0;
-        this.diffNormalYellow.node.active = normalOn;
-        this.diffNormalGray.node.active = !normalOn;
-        this.diffHardYellow.node.active = !normalOn;
-        this.diffHardGray.node.active = normalOn;
-    }
-
-    // ========== 底部导航（互斥四选一） ==========
-    /** 底条背景 + 四个独立图标，选中后高亮（放大+原色），未选中压暗 */
-    private buildNavbar() {
-        const T = UI_POS.tabbar;
-        const nav = new Node('Navbar');
-        nav.parent = this.node;
-        nav.layer = Layers.Enum.UI_2D;
-        nav.addComponent(UITransform).setContentSize(T.w, T.h);
-        nav.setPosition(T.x, this.botY(T.h / 2));
-
-        this.makeSprite(nav, 'Bg', 'ui/底栏/home_tabbar_bg', T.w, T.h, 0, 0);
-
-        const icons = [
-            'ui/底栏/home_tab_home',
-            'ui/底栏/home_tab_rank',
-            'ui/底栏/home_tab_collection',
-            'ui/底栏/home_tab_settings',
+        const items = [
+            { icon: 'home/tab-home', label: TABBAR.home },
+            { icon: 'home/tab-rank', label: TABBAR.leaderboard },
+            { icon: 'home/tab-book', label: TABBAR.collection },
+            { icon: 'home/tab-gear', label: TABBAR.settings },
         ];
-        const hit = UI_POS.tabHit;
-        const iconPos = UI_POS.tabIcon;
-        const startX = -T.w / 2 + UI_POS.tabSliceW / 2;   // -405
-        this.tabSprites = [];
-        for (let i = 0; i < 4; i++) {
-            const ix = startX + i * iconPos.dx;
-            const icon = new Node('TabIcon_' + i);
-            icon.parent = nav;
-            icon.layer = Layers.Enum.UI_2D;
-            icon.addComponent(UITransform).setContentSize(iconPos.w, iconPos.h);
-            icon.setPosition(ix, iconPos.dy);
-            const sp = this.makeSprite(icon, 'Icon', icons[i], iconPos.w, iconPos.h, 0, 0);
-            this.tabSprites.push(sp);
-
-            const hx = startX + i * hit.dx;
-            this.makeHit(nav, 'TabHit_' + i, hit.w, hit.h, hx, hit.dy, () => this.setTab(i));
-        }
-
-        this.applyTab();
+        const tabW = (w - 52) / items.length;
+        this.tabs = items.map((it, i) => {
+            const x = -w / 2 + 26 + tabW * (i + 0.5);
+            const node = this.makeButton(bar, 'Tab_' + i, tabW, h - 28, x, 0, () => this.setTab(i));
+            const bg = node.addComponent(Graphics);
+            const icon = this.makeSprite(node, 'Icon', it.icon, 84, 78, 0, 20);
+            const label = this.makeLabel(node, 'Label', it.label, 26, C_WHITE, tabW, 34, 0, -42);
+            return { node, bg, icon, label };
+        });
+        this.paintTabs();
     }
 
-    private applyTab() {
-        for (let i = 0; i < this.tabSprites.length; i++) {
+    private paintTabs() {
+        this.tabs.forEach((t, i) => {
             const on = i === this.tabIndex;
-            const sp = this.tabSprites[i];
-            if (!sp) continue;
-            sp.color = on ? TINT_ON : TINT_OFF;   // 选中原色，未选中压暗
-            sp.node.setScale(on ? 1.15 : 1, on ? 1.15 : 1);
-        }
+            const size = t.node.getComponent(UITransform)!.contentSize;
+            t.bg.clear();
+            if (on) {
+                t.bg.fillColor = new Color(160, 90, 10, 140);
+                t.bg.roundRect(-size.width / 2 + 10, -size.height / 2 - 6, size.width - 20, size.height, 26);
+                t.bg.fill();
+                t.bg.fillColor = new Color(245, 183, 61);
+                t.bg.roundRect(-size.width / 2 + 10, -size.height / 2, size.width - 20, size.height, 26);
+                t.bg.fill();
+            }
+            t.icon.color = on ? C_WHITE : new Color(175, 165, 155, 255);
+            t.label.color = on ? new Color(109, 61, 10) : new Color(232, 217, 195);
+        });
     }
 
-    // ========== 地图 ==========
-    private buildMap() {
-        this.viewH = this.screenH;   // 铺满整屏，顶栏 / 底导航浮在地图之上
-        const viewY = 0;
-
-        const scrollNode = new Node('ScrollView');
-        scrollNode.parent = this.node;
-        scrollNode.layer = Layers.Enum.UI_2D;
-        scrollNode.addComponent(UITransform).setContentSize(DESIGN_W, this.viewH);
-        scrollNode.setPosition(0, viewY);
-
-        const maskNode = new Node('view');   // Cocos 标准结构：ScrollView > view(Mask) > content
-        maskNode.parent = scrollNode;
-        maskNode.layer = Layers.Enum.UI_2D;
-        maskNode.addComponent(UITransform).setContentSize(DESIGN_W, this.viewH);
-        // Mask 默认是 GRAPHICS_STENCIL，靠节点上的 Graphics 取模板形状；
-        // 本节点没有 Graphics，模板为空会把整张地图裁掉 —— 必须显式改成矩形裁剪
-        const mask = maskNode.addComponent(Mask);
-        mask.type = Mask.Type.RECT;
-
-        const scroll = scrollNode.addComponent(ScrollView);
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.inertia = true;
-        scroll.brake = 0.5;
-        scroll.elastic = true;
-        // 默认为 true，滚动相关逻辑会把 content 内部节点（关卡气球）的点击吞掉，
-        // 表现就是「气球看得见，点下去毫无反应」
-        scroll.cancelInnerEvents = false;
-
-        this.content = new Node('Content');
-        this.content.parent = maskNode;
-        this.content.layer = Layers.Enum.UI_2D;
-        this.content.addComponent(UITransform).setContentSize(DESIGN_W, CONTENT_H);
-        this.content.setPosition(0, CONTENT_H / 2 - this.viewH / 2);
-        scroll.content = this.content;
-
-        this.createMapBackground();
-        this.createLevelNodes();
-
-        // 滚动到当前关卡（= 已解锁到的那一关）
-        this.scheduleOnce(() => this.scrollToLevel(GS.progress.unlocked), 0.1);
-    }
-
-    /** 地图坐标（从底往上量的 y）→ content 局部 y（原点在 content 中心） */
-    private localY(yFromBottom: number): number {
-        return yFromBottom - CONTENT_H / 2 + PAD_BOTTOM;
-    }
-
-    /** 把某关滚到视口正中：offset = 关卡 y − 半屏高 + 底部留白 */
-    private scrollToLevel(level: number): void {
-        if (!this.content?.isValid || this.levels.length === 0) return;
-        const idx = Math.min(Math.max(level - 1, 0), this.levels.length - 1);
-        const max = Math.max(0, CONTENT_H - this.viewH);
-        const offset = Math.max(0, Math.min(max, this.levels[idx].y - this.viewH / 2 + PAD_BOTTOM));
-        this.content.setPosition(0, (CONTENT_H / 2 - this.viewH / 2) - offset);
-    }
-
-    /**
-     * 把浮层提到地图之上 —— 地图是 onLoad 里最后建的节点，默认排在最上层，
-     * 会把顶栏 / 底导航 / 「开始」按钮整个盖住（看得见代码、看不见画面）。
-     * 真引擎里的 Mask 只负责裁剪溢出，管不了层级，所以这里显式排一次：
-     * 底图 → 地图 → HUD → 开始按钮 → 弹窗 → Toast。
-     */
-    private raiseOverlays() {
-        const order = ['Backdrop', 'ScrollView', 'HUD', 'PlayButton', 'Dialog', 'Toast'];
-        for (const name of order) {
-            const n = this.node.getChildByName(name);
-            if (n?.isValid) n.setSiblingIndex(this.node.children.length - 1);
-        }
-    }
-
-    /** 底图：1080×2880 切 2 段 1080×1440，从上到下拼 */
-    private createMapBackground() {
-        const seg = MAP_H / 2;
-        const top = this.localY(MAP_H);         // 地图顶边的局部 y
-        this.makeSprite(this.content, 'BgTop', 'map/w1_bg_top', DESIGN_W, seg, 0, top - seg / 2);
-        this.makeSprite(this.content, 'BgBottom', 'map/w1_bg_bottom', DESIGN_W, seg, 0, this.localY(0) + seg / 2);
-
-        // 新素材藤蔓浮层，盖住原底图藤蔓
-        this.makeSprite(this.content, 'Vine', 'map/vine', 152, MAP_H, 0, this.localY(MAP_H / 2));
-    }
-
-    /**
-     * 关卡节点的状态全部由进度派生（§7.3.3）：
-     * 锁定 / 解锁 / 已通关 + 星级。
-     * 「当前关」= 已解锁到的最后一关，不另存一份 —— 存了就会和进度分叉。
-     */
-    private createLevelNodes() {
-        this.levelNodes = [];
-        const p = GS.progress;
-        const cur = Math.min(p.unlocked, LEVEL_COUNT);
-        for (let i = 0; i < this.levels.length; i++) {
-            const lv = this.levels[i];
-            const node = new Node('Level_' + lv.level);
-            node.parent = this.content;
-            node.layer = Layers.Enum.UI_2D;
-            node.addComponent(UITransform).setContentSize(BALLOON_W, BALLOON_H);
-            node.setPosition(lv.x - DESIGN_W / 2, this.localY(lv.y));
-
-            // 真实气球切片（含数字），直接覆盖原底图气球，数字即点击区
-            this.makeSprite(node, 'Balloon', BALLOON_PATHS[i], BALLOON_W, BALLOON_H, 0, 0);
-
-            const ln = node.addComponent(LevelNode);
-            const st = levelStatus(p, lv.level);
-            ln.init(lv.level, lv.level === cur, st === 'locked', recordOf(p, lv.level).stars);
-            if (this.fontAsset) ln.setFont(this.fontAsset);
-            this.levelNodes.push(ln);
-            node.on(Node.EventType.TOUCH_END, () => this.onLevelTap(lv.level), this);
-        }
-        this.applySelection();   // 重建后把选中态套回新节点
-    }
-
-    /** 切模式 / 通关回来后重建（解锁范围与星级都变了） */
-    private rebuildLevelNodes() {
-        for (const ln of this.levelNodes) {
-            if (ln.node?.isValid) ln.node.destroy();
-        }
-        this.createLevelNodes();
-    }
-
-    /**
-     * 关卡点击：选中并提亮，底部随即出现「开始第 N 关」按钮，点按钮进入。
-     * 再点一次同一关也直接进入（保留快捷操作）。未解锁的关卡不给选中。
-     */
-    private onLevelTap(level: number) {
-        if (levelStatus(GS.progress, level) === 'locked') {
-            this.toast.show(HOME.lockedToast, 1600);
-            return;
-        }
-        if (this.selectedLevel === level) {
-            this.enterLevel(level);
-            return;
-        }
-        this.selectedLevel = level;
-        this.applySelection();
-    }
-
-    /** 选中态由各 LevelNode 自己绘制，节点重建后重新套用；同时刷新「开始」按钮 */
-    private applySelection() {
-        for (const ln of this.levelNodes) {
-            ln.setSelected(ln.level === this.selectedLevel);
-        }
-        const has = this.selectedLevel > 0;
-        if (this.playBtn?.isValid) {
-            this.playBtn.active = has;
-            if (has && this.playLabel) this.playLabel.string = `开始第 ${this.selectedLevel} 关`;
-        }
-    }
-
-    // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
     private setTab(i: number) {
-        this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
-        this.applyTab();
-        if (i === 1) this.showBoardPanel();
-        else if (i === 2) this.showCollectionPanel();
-        else if (i === 3) this.showSettingsPanel();
+        this.tabIndex = clamp(i, 0, this.tabs.length - 1);
+        this.paintTabs();
+        if (i === 1) this.panels.show('board');
+        else if (i === 2) this.panels.show('collection');
+        else if (i === 3) this.panels.show('settings');
+        else this.panels.hide();
     }
 
-    /** 排行榜：当前关的百名榜（灰盒 100 人 + 本机） */
-    private showBoardPanel() {
-        const level = Math.min(GS.progress.unlocked, LEVEL_COUNT);
-        const cfg = buildLevelConfigs(GS.mode)[level - 1];
-        if (!cfg) return;
-        const best = recordOf(GS.progress, level).boardBest;
-        const snap = boardSnapshot(level, { star1: cfg.star1, star2: cfg.star2, star3: cfg.star3 }, best);
-        const lines = [`第 ${level} 关 · ${BOARD.total(snap.totalPlayers)}`];
-        for (const r of snap.rows.slice(0, 8)) lines.push(`${r.rank}. ${r.name}　${r.score} 分`);
-        lines.push(snap.myRank ? BOARD.myRank(snap.myRank) : BOARD.notOnBoard);
-        this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
-    }
+    /** 面板关掉 → 页签回到「首页」 */
+    private backToHomeTab = (): void => {
+        this.panels.hide();
+        this.tabIndex = 0;
+        this.paintTabs();
+    };
 
-    /** 图鉴：36 格，已解锁显示图号，未解锁显示问号 */
-    private showCollectionPanel() {
-        const ids = new Set(unlockedImageIds(GS.progress));
-        const lines = [COLLECTION.progress(ids.size, COLLECTION_TOTAL)];
-        let row = '';
-        for (let i = 0; i < COLLECTION_TOTAL; i++) {
-            row += ids.has(i) ? `[${String(i + 1).padStart(2, '0')}] ` : '[??] ';
-            if ((i + 1) % 6 === 0) { lines.push(row.trimEnd()); row = ''; }
-        }
-        if (row) lines.push(row.trimEnd());
-        this.dialog.show(COLLECTION.title, lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
-    }
+    /* ---- 三个整屏面板（排行榜 / 图鉴 / 设置）：实现在 界面/MapPanels.ts ---- */
 
-    /** 设置：音效 / 背景音乐 / 重置存档 */
-    private showSettingsPanel() {
-        const s = GS.meta.settings;
-        this.dialog.show(SETTINGS.title, [
-            `${SETTINGS.sound}：${s.sound ? SETTINGS.on : SETTINGS.off}`,
-            `${SETTINGS.bgm}：${s.bgm ? SETTINGS.on : SETTINGS.off}`,
-        ], [
-            { text: `音效 ${s.sound ? SETTINGS.off : SETTINGS.on}`, onClick: () => { GS.setSound(!s.sound); this.showSettingsPanel(); } },
-            { text: `音乐 ${s.bgm ? SETTINGS.off : SETTINGS.on}`, onClick: () => { GS.setBgm(!s.bgm); this.showSettingsPanel(); } },
-            { text: SETTINGS.reset, onClick: () => this.confirmReset() },
-        ]);
+    /** 建在地图与浮层控件之上、页签栏之下：面板打开时页签栏仍可切换 */
+    private buildPanels() {
+        this.panels = new MapPanels(this.node, {
+            screenH: this.screenH,
+            topInset: this.topInset,
+            bottomInset: this.bottomInset,
+            tabbarH: TABBAR_H,
+            toast: (text, ms) => this.toast.show(text, ms),
+            onBack: this.backToHomeTab,
+            // 「挑战本关」：与 web 同口径 —— 回到主页，弹该关的 PLAY 吊牌让玩家选模式
+            onChallenge: (level) => {
+                this.backToHomeTab();
+                this.world = worldIndexOf(level);
+                this.renderMap(false);
+                this.openPreview(level);
+            },
+            onReset: () => this.confirmReset(),
+        });
     }
 
     private confirmReset() {
         this.dialog.confirm(SETTINGS.resetConfirmTitle, [SETTINGS.resetConfirmLine], SETTINGS.resetYes, SETTINGS.resetNo, () => {
             GS.reset();
-            this.rebuildLevelNodes();
+            this.panels.refresh();
+            this.world = worldIndexOf(GS.progress.unlocked);
+            this.renderMap(true);
             this.refreshTopbar();
             this.toast.show(SETTINGS.resetDone, 2200);
         });
     }
 
-    private buildUI() {
-        this.mountHUD();
-        this.createPlayButton();
-    }
+    /* ================================================================ PLAY 吊牌 */
 
-    /**
-     * 「开始」按钮 —— 选中关卡后出现在底栏上方，点击直接进关。
-     * 之前只有「再点一次进入」这种隐式操作，没有可见入口，用户找不到怎么开始。
-     */
-    private createPlayButton() {
-        const w = 380, h = 130;
-        const n = new Node('PlayButton');
-        n.parent = this.node;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(0, -this.screenH / 2 + 330);   // 底栏（高 260）上方，不重叠
-        n.active = false;
+    private buildPreview() {
+        const H = this.screenH;
+        this.preview = this.makeNode(this.node, 'Preview', DESIGN_W, H);
+        const dim = this.preview.addComponent(Graphics);
+        dim.fillColor = new Color(20, 12, 4, 87);
+        dim.rect(-DESIGN_W, -H / 2, DESIGN_W * 2, H);
+        dim.fill();
+        // 只有直接点在遮罩空白处才关（牌子上的按钮会自己停止冒泡）
+        this.preview.on(Node.EventType.TOUCH_END, () => this.closePreview(), this);
 
-        const g = n.addComponent(Graphics);
-        g.fillColor = new Color(255, 205, 70, 255);
-        g.roundRect(-w / 2, -h / 2, w, h, 65);
-        g.fill();
-        g.lineWidth = 6;
-        g.strokeColor = new Color(255, 255, 255, 240);
-        g.roundRect(-w / 2, -h / 2, w, h, 65);
-        g.stroke();
+        const cardW = 820;
+        const cardH = 654;
+        this.drop = this.makeNode(this.preview, 'Drop', cardW, H);
 
-        const lbNode = new Node('Label');
-        lbNode.parent = n;
-        lbNode.layer = Layers.Enum.UI_2D;
-        lbNode.addComponent(UITransform).setContentSize(w, h);
-        const lb = lbNode.addComponent(Label);
-        lb.string = '开始游戏';
-        lb.fontSize = 48;
-        lb.lineHeight = 58;
-        lb.color = new Color(90, 50, 25);
-        lb.horizontalAlign = HorizontalTextAlignment.CENTER;
-        lb.verticalAlign = VerticalTextAlignment.CENTER;
-        this.playLabel = lb;
+        // 麻绳：从屏幕顶垂到牌子
+        const ropeH = H / 2 - cardH / 2 + 8;
+        const rope = this.makeNode(this.drop, 'Rope', 12, ropeH, 0, cardH / 2 + ropeH / 2 - 8);
+        const rg = rope.addComponent(Graphics);
+        rg.fillColor = new Color(201, 138, 79);
+        rg.roundRect(-6, -ropeH / 2, 12, ropeH, 6);
+        rg.fill();
 
-        n.on(Node.EventType.TOUCH_END, () => {
-            if (this.selectedLevel > 0) this.enterLevel(this.selectedLevel);
-        }, this);
+        const card = this.makeNode(this.drop, 'Card', cardW, cardH);
+        card.on(Node.EventType.TOUCH_START, (e: EventTouch) => { e.propagationStopped = true; }, this);
+        card.on(Node.EventType.TOUCH_END, (e: EventTouch) => { e.propagationStopped = true; }, this);
+        const cg = card.addComponent(Graphics);
+        cg.fillColor = new Color(60, 40, 10, 90);
+        cg.roundRect(-cardW / 2, -cardH / 2 - 20, cardW, cardH, 38);
+        cg.fill();
+        cg.fillColor = new Color(255, 248, 231);
+        cg.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 38);
+        cg.fill();
+        cg.lineWidth = 6;
+        cg.strokeColor = C_GOLD;
+        cg.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 38);
+        cg.stroke();
 
-        this.playBtn = n;
-    }
+        const topY = cardH / 2;
+        const close = this.makeButton(card, 'Close', 72, 72, cardW / 2 - 20 - 30, topY - 16 - 30, () => this.closePreview());
+        const clg = close.addComponent(Graphics);
+        clg.fillColor = new Color(0, 0, 0, 64);
+        clg.circle(0, -3, 30);
+        clg.fill();
+        clg.fillColor = new Color(176, 106, 58);
+        clg.circle(0, 0, 30);
+        clg.fill();
+        this.makeLabel(close, 'X', '✕', 34, C_WHITE, 60, 60);
 
-    /**
-     * HUD（顶栏 / 难度切换 / 底导航）完全由 layout/home_hud.json 驱动。
-     * 换场景或新增页面时直接挂载 HomeHUD 即可，不要再手写任何坐标。
-     */
-    private mountHUD() {
-        const n = new Node('HUD');
-        n.parent = this.node;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(DESIGN_W, this.screenH);
-        const hud = n.addComponent(HomeHUD);
-        this.hud = hud;
+        this.pvLevelLabel = this.makeLabel(card, 'Level', '', 96, C_BROWN, 700, 110, 0, topY - 72 - 48,
+            { outline: C_GOLD, outlineWidth: 3 });
 
-        hud.onDifficulty = (i) => this.setDifficulty(i);
-        hud.onTab = (i) => this.setTab(i);
-        hud.onPlus = () => this.onStaminaPlus();
-        hud.onReady = () => {
-            hud.setText('nickname', '小兔兔');
-            hud.setText('level', 'Lv.23');
-            hud.setDifficulty(this.diffIndex);
-            this.refreshTopbar();
+        const modeY = topY - 72 - 96 - 42 - 43;
+        const makeMode = (m: GameMode, x: number): ModeBtn => {
+            const node = this.makeButton(card, 'Mode_' + m, 240, 86, x, modeY, () => this.pickMode(m));
+            const g = node.addComponent(Graphics);
+            const label = this.makeLabel(node, 'Label', MODE_LABEL[m], 40, C_WHITE, 240, 86);
+            return { node, g, label };
         };
+        this.pvModes = { normal: makeMode('normal', -132), nightmare: makeMode('nightmare', 132) };
+
+        const starsY = modeY - 43 - 28 - 12 - 30;
+        this.pvStarsLabel = this.makeLabel(card, 'Stars', '', 46, C_BROWN, 760, 66, 0, starsY);
+
+        const playY = starsY - 30 - 46 - 65;
+        const play = this.makeButton(card, 'Play', 420, 130, 0, playY, () => this.playFromPreview());
+        const pg = play.addComponent(Graphics);
+        pg.fillColor = new Color(20, 120, 40, 128);
+        pg.roundRect(-210, -73, 420, 130, 65);
+        pg.fill();
+        pg.fillColor = new Color(55, 184, 74);
+        pg.roundRect(-210, -65, 420, 130, 65);
+        pg.fill();
+        pg.fillColor = new Color(107, 227, 107, 200);
+        pg.roundRect(-190, 0, 380, 55, 28);
+        pg.fill();
+        this.makeLabel(play, 'Label', MAP_TEXT.play, 62, C_WHITE, 420, 130, 0, 0, { shadow: true });
+
+        this.preview.active = false;
     }
 
-    /**
-     * 保证存在名为 Game 的兄弟节点并挂上 GameBootstrap。
-     * 场景里只预置了 Bootstrap 一个节点，根本没有 Game —— enterLevel 找不到它就静默
-     * return，这正是「点关卡没反应」的根因。这里补建，不再依赖场景手工摆节点。
-     */
+    private paintModes() {
+        const canHard = this.canNightmare(this.pvLevel);
+        (['normal', 'nightmare'] as GameMode[]).forEach((m) => {
+            const b = this.pvModes[m];
+            const on = m === this.pvMode;
+            const locked = m === 'nightmare' && !canHard;
+            b.g.clear();
+            b.g.fillColor = new Color(0, 0, 0, locked ? 0 : 56);
+            b.g.roundRect(-120, -49, 240, 86, 43);
+            b.g.fill();
+            b.g.fillColor = locked ? new Color(74, 74, 74) : on ? new Color(255, 107, 53) : new Color(90, 90, 90);
+            b.g.roundRect(-120, -43, 240, 86, 43);
+            b.g.fill();
+            b.g.lineWidth = 3;
+            b.g.strokeColor = locked ? new Color(138, 138, 138) : new Color(217, 162, 39);
+            b.g.roundRect(-120, -43, 240, 86, 43);
+            b.g.stroke();
+            b.label.string = locked ? `🔒 ${MODE_LABEL[m]}` : MODE_LABEL[m];
+            b.label.color = locked ? new Color(216, 216, 216) : C_WHITE;
+            // 锁住的困难按钮仍然可点：点了由 pickMode 提示「三星通关后开启」，不能毫无反应
+        });
+        const line = STAR_LINES_BY_MODE[this.pvMode]?.[this.pvLevel];
+        this.pvStarsLabel.string = line ? MAP_TEXT.starLine(line[0], line[2]) : '';
+    }
+
+    private openPreview(level: number) {
+        this.pvLevel = level;
+        // 当前是困难但这一关没达门槛 → 退回简单
+        this.pvMode = GS.mode === 'nightmare' && !this.canNightmare(level) ? 'normal' : GS.mode;
+        this.pvLevelLabel.string = MAP_TEXT.level(level);
+        this.paintModes();
+        this.preview.active = true;
+        this.drop.setPosition(0, this.screenH);
+        this.dropT = 0;
+    }
+
+    private closePreview() {
+        this.preview.active = false;
+        this.dropT = -1;
+    }
+
+    private pickMode(m: GameMode) {
+        if (m === this.pvMode) return;
+        if (m === 'nightmare' && !this.canNightmare(this.pvLevel)) {
+            this.toast.show(MAP_TEXT.nightmareLocked, 2000);
+            return;
+        }
+        this.pvMode = m;
+        this.paintModes();
+        this.applyMode(m);
+    }
+
+    /** 切模式 = 换一套进度：地图跟着换状态（两套进度分别存） */
+    private applyMode(m: GameMode) {
+        if (GS.mode === m) return;
+        GS.setMode(m);
+        this.world = worldIndexOf(GS.progress.unlocked);
+        this.renderMap(true);
+    }
+
+    private playFromPreview() {
+        // 进关前最后一道闸：困难模式没达门槛不让进
+        if (this.pvMode === 'nightmare' && !this.canNightmare(this.pvLevel)) {
+            this.toast.show(MAP_TEXT.nightmareLocked, 2600);
+            return;
+        }
+        this.applyMode(this.pvMode);
+        this.closePreview();
+        this.enterLevel(this.pvLevel);
+    }
+
+    /* ================================================================ 加载页 */
+
+    private buildLoading() {
+        const H = this.screenH;
+        const node = this.makeNode(this.node, 'Loading', DESIGN_W, H);
+        // 加载期间挡住所有点击
+        node.on(Node.EventType.TOUCH_START, (e: EventTouch) => { e.propagationStopped = true; }, this);
+        const g = node.addComponent(Graphics);
+        g.fillColor = new Color(255, 236, 200);
+        g.rect(-DESIGN_W, -H / 2, DESIGN_W * 2, H);
+        g.fill();
+        // 背景图 1536×2730：按 cover 铺满
+        const cover = Math.max(DESIGN_W / 1536, H / 2730);
+        this.makeSprite(node, 'Bg', 'loading/bg', 1536 * cover, 2730 * cover);
+
+        const barY = -H / 2 + this.bottomInset + 150 + 74;
+        const bar = this.makeNode(node, 'Bar', 920, 148, 0, barY);
+        this.makeSprite(bar, 'Slot', 'loading/bar-bg', 920, 148);
+        this.loadingFill = this.makeNode(bar, 'Fill', 0, 104, -430, 0);
+        const fs = this.loadingFill.addComponent(Sprite);
+        fs.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.loadFrame('loading/bar-fill', (sf) => { if (fs.isValid) fs.spriteFrame = sf; });
+        this.loadingNum = this.makeLabel(bar, 'Num', MAP_TEXT.loading(0), 46, C_WHITE, 200, 60, 0, 0, { shadow: true });
+
+        this.loading = node;
+        this.loadingOpacity = node.addComponent(UIOpacity);
+
+        // 真实进度：当前世界底图 + 节点珠 + 顶栏 / 页签切图
+        const list = PRELOAD_BASE.slice();
+        list.unshift('map-v2/' + WORLDS[worldIndexOf(GS.progress.unlocked)].art);
+        this.loadTotal = list.length;
+        this.loadDone = 0;
+        for (const path of list) {
+            const done = () => { this.loadDone += 1; };
+            this.loadFrame(path, done, done);
+        }
+    }
+
+    private updateLoading(dt: number) {
+        if (!this.loading) return;
+        this.loadingElapsed += dt;
+
+        if (this.loadingFade < 0) {
+            const pct = this.loadTotal > 0 ? Math.round(3 + (97 * this.loadDone) / this.loadTotal) : 100;
+            const w = (860 * pct) / 100;
+            this.loadingFill.getComponent(UITransform)!.setContentSize(w, 104);
+            this.loadingFill.setPosition(-430 + w / 2, 0);
+            this.loadingNum.string = MAP_TEXT.loading(pct);
+            if (this.loadDone >= this.loadTotal && this.loadingElapsed >= LOADING_MIN_S) this.loadingFade = 0;
+            return;
+        }
+
+        this.loadingFade += dt;
+        const t = Math.min(1, this.loadingFade / LOADING_FADE_S);
+        if (this.loadingOpacity) this.loadingOpacity.opacity = Math.round(255 * (1 - t));
+        if (t >= 1) {
+            this.loading.destroy();
+            this.loading = null;
+            this.loadingOpacity = null;
+        }
+    }
+
+    /* ================================================================ 弹窗 / 进关 */
+
+    private mountDialogs() {
+        const dn = this.makeNode(this.node, 'Dialog', DESIGN_W, this.screenH);
+        this.dialog = dn.addComponent(GameDialog);
+        const tn = this.makeNode(this.node, 'Toast', DESIGN_W, this.screenH);
+        this.toast = tn.addComponent(ToastLayer);
+    }
+
+    /** 保证存在名为 Game 的兄弟节点并挂上 GameBootstrap（场景里只预置了 Bootstrap） */
     private ensureGameNode(): Node | null {
         const parent = this.node.parent;
         if (!parent) return null;
@@ -752,12 +1229,11 @@ export class MapBootstrap extends Component {
         return g;
     }
 
-    /**
-     * 进入关卡：隐藏地图，显示兄弟节点 `Game`（挂 GameBootstrap）并开局。
-     */
+    /** 进入关卡：隐藏地图，显示兄弟节点 `Game` 并开局 */
     private enterLevel(level: number): void {
-        if (levelStatus(GS.progress, level) === 'locked') {
-            this.toast.show(HOME.lockedToast, 1600);
+        const n = this.worldNodes(worldIndexOf(level)).find((x) => x.level === level);
+        if (!n || n.status === 'locked') {
+            this.toast.show(n?.lockNote ?? HOME.lockedToast, 1600);
             return;
         }
         const game = this.gameNode?.isValid ? this.gameNode : this.ensureGameNode();
@@ -767,9 +1243,17 @@ export class MapBootstrap extends Component {
             this.toast.show('进入关卡失败：缺少 Game 节点', 2000);
             return;
         }
-        this.node.active = false;
-        game.active = true;
-        // 延迟一帧开局：等 GameBootstrap 的 onLoad / start 跑完再 startLevel
-        gb.scheduleOnce(() => gb.startLevel(level), 0);
+        // ⚠️ 2026-10-23：微信里从 PLAY 进关后，对局里点什么都没反应（编辑器预览正常）。
+        // 进关是在 PLAY 按钮的 TOUCH_END 回调里触发的 —— 此刻引擎正在分发这次触摸，
+        // 对局节点在分发途中被激活、注册触摸监听，只会进「待加入」队列。
+        // 推到下一帧再切换，让对局节点在触摸分发之外激活，监听直接生效。
+        console.log(`[map] 进入第 ${level} 关（下一帧切换）`);
+        setTimeout(() => {
+            if (!game.isValid) return;
+            this.node.active = false;
+            game.active = true;
+            // 再延迟一帧开局：等 GameBootstrap 的 onLoad / start 跑完再 startLevel
+            gb.scheduleOnce(() => gb.startLevel(level), 0);
+        }, 0);
     }
 }

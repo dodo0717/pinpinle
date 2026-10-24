@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildLevelConfigs } from '../assets/scripts/core/config';
-import { PuzzleEngine } from '../assets/scripts/core/engine';
-import { isAdjacent } from '../assets/scripts/core/grid';
-import { Rng } from '../assets/scripts/core/rng';
+import { buildLevelConfigs } from '../assets/scripts/核心/config';
+import { PuzzleEngine } from '../assets/scripts/核心/engine';
+import { isAdjacent } from '../assets/scripts/核心/grid';
+import { Rng } from '../assets/scripts/核心/rng';
 import { randomAdjacentPair } from './helpers';
 
 const CONFIGS = buildLevelConfigs();

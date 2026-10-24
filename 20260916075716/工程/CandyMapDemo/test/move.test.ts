@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { Grid } from '../assets/scripts/core/grid';
-import { findAllPositionCorrectMatches } from '../assets/scripts/core/matcher';
-import { computeMergeGroups, isMergeGroupComplete } from '../assets/scripts/core/merge';
-import { applyGroupMove, clampShift, planGroupMove, ruleAllowsShift } from '../assets/scripts/core/move';
-import { POS_BL, POS_BR, POS_TL, POS_TR, pieceOf } from '../assets/scripts/core/pieces';
-import { Rng } from '../assets/scripts/core/rng';
+import { Grid } from '../assets/scripts/核心/grid';
+import { findAllPositionCorrectMatches } from '../assets/scripts/核心/matcher';
+import { computeMergeGroups, isMergeGroupComplete } from '../assets/scripts/核心/merge';
+import { applyGroupMove, clampShift, planGroupMove, ruleAllowsShift } from '../assets/scripts/核心/move';
+import { POS_BL, POS_BR, POS_TL, POS_TR, pieceOf } from '../assets/scripts/核心/pieces';
+import { Rng } from '../assets/scripts/核心/rng';
 import { fillRest, makeGrid } from './helpers';
 
 /* ------------------------------------------------------------------ 夹具 */

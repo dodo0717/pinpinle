@@ -489,6 +489,25 @@
     <div id="dialog" hidden></div>
   </div>
 </div>
+<!-- 首帧缩放：main.ts 是 module 脚本，要等整棵 import 树下载 + 转译完才执行，
+     在那之前 #stage 是未缩放的 1080×1920，窗口里只露出加载页左上角一块（先闪半张图再变正常）。
+     这里同步跑一遍与 main.ts `fitStage()` 相同的算式，让第一帧就是缩放好的；
+     之后的 resize 仍由 main.ts 接管。⚠️ 常量必须与 main.ts 的 STAGE_WIDTH / STAGE_BASE_HEIGHT /
+     EDGE_SAFE_X / EDGE_SAFE_Y 保持一致。 -->
+<script>
+  (function () {
+    var W = 1080, H = 1920, SX = 16, SY = 12;
+    var stage = document.getElementById('stage');
+    var w = window.innerWidth || document.documentElement.clientWidth;
+    var h = window.innerHeight || document.documentElement.clientHeight;
+    var aw = Math.max(1, w - SX * 2), ah = Math.max(1, h - SY * 2);
+    var s = Math.min(aw / W, ah / H);
+    if (!(isFinite(s) && s > 0)) s = 1;
+    var sh = Math.max(H, ah / s);
+    stage.style.height = sh + 'px';
+    stage.style.transform = 'translate(' + (SX + (aw - W * s) / 2) + 'px, ' + (SY + (ah - sh * s) / 2) + 'px) scale(' + s + ')';
+  })();
+</script>
 <script type="module" src="/web/main.ts"></script>
 </body>
 </html>

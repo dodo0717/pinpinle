@@ -1,5 +1,5 @@
-import { Grid } from '../assets/scripts/core/grid';
-import { pieceOf } from '../assets/scripts/core/pieces';
+import { Grid } from '../assets/scripts/核心/grid';
+import { pieceOf } from '../assets/scripts/核心/pieces';
 
 export type CellSpec = [imageId: number, position: number] | null;
 
