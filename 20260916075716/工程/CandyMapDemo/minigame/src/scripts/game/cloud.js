@@ -214,6 +214,32 @@ export class CloudSync {
     if (!ok) this.enqueue(item);
   }
 
+  /**
+   * 调一个需要登录的接口（体力 / 分享邀请人 / …… 的通用通道）。
+   * 返回若依格式的响应体（{code,msg,data,...}）；未启用、未登录、网络失败返回 null。
+   * 401 清 token。**注意**：后端二期能力（如 /game/api/invite）可能还没上线，
+   * 404 也归入 null——调用方按「尽力而为」处理，别当错误弹给玩家。
+   */
+  async api(method                        , path        , data          )                                          {
+    if (!this.enabled || !this.token) return null;
+    try {
+      const res = await this.host.request({
+        url: `${this.base}${path}`,
+        method,
+        data,
+        header: { 'Wx-Authorization': `Bearer ${this.token}` },
+      });
+      if (res.statusCode === 401) {
+        this.clearToken();
+        return null;
+      }
+      if (res.statusCode !== 200 || !res.data || typeof res.data !== 'object') return null;
+      return res.data                           ;
+    } catch {
+      return null;
+    }
+  }
+
   /** 补传离线队列（登录后调用）。 */
   async flush()                {
     if (!this.enabled || !this.token) return;

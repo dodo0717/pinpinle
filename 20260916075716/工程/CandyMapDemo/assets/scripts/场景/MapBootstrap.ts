@@ -8,7 +8,7 @@ import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { syncFriendRank } from '../玩法/wxFriend';
+import { syncFriendRank, enableShare, getInviter, reportInviter } from '../玩法/wxFriend';
 import { cloudSync, type CloudSync } from '../玩法/cloud';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../玩法/text';
 import { MapPanels } from '../界面/MapPanels';
@@ -302,6 +302,10 @@ export class MapBootstrap extends Component {
      */
     private async bootCloud(cloud: CloudSync): Promise<void> {
         if (!(await cloud.login())) return;   // 登录失败：纯本地继续
+        // 登录拿到 playerId 后开「转发带邀请人」；受邀启动的把邀请人报给后端（二期接口未上，静默）
+        enableShare(cloud.playerId);
+        const inviter = getInviter();
+        if (inviter) void reportInviter(inviter);
         await cloud.flush();
         const merged = await cloud.pull(GS.data.progress.normal);
         if (merged === GS.data.progress.normal) return;

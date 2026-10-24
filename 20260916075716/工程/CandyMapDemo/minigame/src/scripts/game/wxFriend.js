@@ -1,5 +1,5 @@
 /**
- * 微信专属：好友排行（开放数据域）主域侧。
+ * 微信专属：好友排行（开放数据域）主域侧 + 分享卡片（带邀请人）。
  *
  * 微信的硬规矩（不是我们能绕开的）：
  *   - 主域（游戏逻辑所在）读不到好友数据，只能用 `wx.setUserCloudStorage` 写**本人**的 KV；
@@ -8,8 +8,9 @@
  *   - 主域拿不到好友数据也看不到那块画布的内容，只能把 sharedCanvas（`odc.canvas`）
  *     整张贴到主画布上展示。
  *
- * 非微信环境（浏览器预览 / 纯本地）全部安全降级：syncFriendRank 为 no-op、
- * friendRankCanvas 返回 null —— 排行榜的好友 Tab 显示「仅在微信内可用」。
+ * 非微信环境（浏览器预览 / 纯本地）全部安全降级：syncFriendRank / enableShare /
+ * reportInviter 为 no-op、friendRankCanvas / getInviter 返回 null —— 排行榜的
+ * 好友 Tab 显示「仅在微信内可用」。
  *
  * 移植自糖果小镇 `universal-map-editor/src/minigame/wxFeatures.ts`（评估文档 §C），
  * KV 形状沿用 wxgame 协议：`{wxgame:{score,update_time}, totalStars, unlocked}`。
@@ -18,6 +19,7 @@
 import { GS } from './state.js';
 import { totalStars } from './meta.js';
 import { recordOf } from '../core/index.js';
+import { cloudSync } from './cloud.js';
                                                 
 
 /** 开放数据域按同一个 key 读（open-data/index.js 里的 RANK_KEY 必须一致） */
@@ -95,4 +97,53 @@ export function friendRankCanvas(w        , h        , scale        )           
   } catch {
     return null;
   }
+}
+
+/* ================================================================ 分享卡片（带邀请人） */
+
+/** 分享卡片标题（糖果小镇同款做法：文案写在 wxFeatures 侧） */
+const SHARE_TITLE = '萌宠拼拼乐，一起闯关！';
+
+/**
+ * 读取启动 / 分享参数里的邀请人 id（inviter）。非微信或无参数时返回 null。
+ * 云同步登录成功后调用方把结果交给 reportInviter（本次登录只报一次）。
+ */
+export function getInviter()                {
+  const wx = (globalThis                ).wx;
+  if (!wx || typeof wx.getLaunchOptionsSync !== 'function') return null;
+  try {
+    const q = (wx.getLaunchOptionsSync()                                       ).query || {};
+    const v = q.inviter;
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 开启「转发给好友」并把本人 playerId 放进卡片 query（受邀者启动时 getInviter 能读到）。
+ * playerId 是云同步登录后才有——未登录时也开分享，只是不带邀请人。非微信 no-op。
+ */
+export function enableShare(myPlayerId                        )       {
+  const wx = (globalThis                ).wx;
+  if (!wx || typeof wx.onShareAppMessage !== 'function') return;
+  try {
+    wx.onShareAppMessage(() => ({
+      title: SHARE_TITLE,
+      query: myPlayerId == null ? '' : `inviter=${encodeURIComponent(String(myPlayerId))}`,
+    }));
+  } catch {
+    /* 忽略：分享开关失败不影响游戏 */
+  }
+}
+
+/**
+ * 上报「我是被谁邀请来的」。好友系统是后端**二期**，/game/api/invite 还没上线：
+ * 404 / 失败一律静默（尽力而为），接口上线后自动开始生效。
+ */
+export async function reportInviter(inviter        )                {
+  if (!inviter) return;
+  const cloud = cloudSync();
+  if (!cloud) return;
+  await cloud.api('POST', '/game/api/invite', { inviter });
 }

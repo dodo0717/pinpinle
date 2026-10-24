@@ -158,3 +158,33 @@ test('cloudSync()：无 wx 的环境返回 null（浏览器/测试降级为纯�
   assert.equal(cloudSync(), null);
   resetCloudForTest();
 });
+
+test('CloudSync.api()：登录态调任意接口，401 清 token，404 归入 null（二期接口静默）', async () => {
+  const { host } = fakeHost({
+    responses: [
+      { match: (c) => c.url.endsWith('/auth/login'), status: 200, body: { token: 'T1' } },
+      { match: (c) => c.url.endsWith('/game/api/invite'), status: 404 },
+      { match: (c) => c.url.endsWith('/game/api/stamina'), status: 200, body: { code: 200, data: { value: 7, max: 10 } } },
+      { match: (c) => c.url.endsWith('/expired'), status: 401 },
+    ],
+  });
+  const cs = new CloudSync(host, 'https://x.example/');
+  // 未登录 → null
+  assert.equal(await cs.api('GET', '/game/api/stamina'), null);
+  await cs.login();
+  // 404（二期未上线）→ null 而不是抛
+  assert.equal(await cs.api('POST', '/game/api/invite', { inviter: '42' }), null);
+  // 200 → 返回若依响应体
+  const ok = await cs.api('GET', '/game/api/stamina');
+  assert.equal((ok as { data?: { value?: number } }).data!.value, 7);
+  // 401 → 清 token 转 null
+  assert.equal(await cs.api('GET', '/expired'), null);
+  assert.equal(cs.loggedIn, false);
+});
+
+test('分享三件套：无 wx 全部安全降级', async () => {
+  const { getInviter, enableShare, reportInviter } = await import('../assets/scripts/玩法/wxFriend');
+  assert.equal(getInviter(), null);
+  assert.doesNotThrow(() => enableShare(42));
+  await assert.doesNotReject(() => reportInviter('x'));
+});
