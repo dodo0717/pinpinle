@@ -23,7 +23,8 @@ import { GuideBar } from './guide';
 import { GS } from './state';
 import { syncFriendRank } from './wxFriend';
 import { cloudSync, REPORT_MODES } from './cloud';
-import { currentTheme, cycleTheme, onThemeChanged } from './theme';
+import { currentTheme, setThemeForLevel, onThemeChanged } from './theme';
+import { showThemeWin, showThemeFail } from './themeResult';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text';
 import { unlockedImageIds } from './meta';
 import {
@@ -245,6 +246,9 @@ export class GameBootstrap extends Component {
   private beginLevel(level: number, from: LevelSession | null): void {
     this.unschedule(this.onTick);
     this.clearHint();
+
+    // 关卡绑定主题：第 1/2/3/4 关 → 糖果/果冻/手账/糖果（循环），进关即换皮
+    setThemeForLevel(level);
 
     const cfgs = buildLevelConfigs(from?.mode ?? GS.mode);
     this.cfg = cfgs[level - 1] ?? cfgs[0]!;
@@ -721,7 +725,7 @@ export class GameBootstrap extends Component {
     }
   }
 
-  /** 荣誉弹窗三档（超神 / 王者 / 优秀） */
+  /** 荣誉弹窗三档（超神 / 王者 / 优秀）—— 主题化结算弹窗（照抄 design/ 原型布局） */
   private showHonorDialog(outcome: LevelOutcome, settlement: LevelSettlement, boardBest: number): void {
     const honor = honorForLevel({
       level: this.levelIndex,
@@ -732,28 +736,29 @@ export class GameBootstrap extends Component {
       boardBest,
     });
 
-    const hero = honor.tier === 'god' ? '🏆' : honor.tier === 'king' ? '👑' : '🎉';
-    const title = honor.tier === 'god' ? HONOR.godTitle : honor.tier === 'king' ? HONOR.kingTitle : HONOR.passTitle;
-    const tierLine = honor.tier === 'god'
-      ? HONOR.godLine(honor.stats.rank)
-      : honor.tier === 'king'
-        ? HONOR.kingLine(honor.percentText)
-        : HONOR.starLine(settlement.stars);
     this.audio.play(honor.tier === 'god' ? 'honorGod' : honor.tier === 'king' ? 'honorKing' : 'honorPass');
 
-    const lines = [
-      HONOR.scoreLine(outcome.score),
-      tierLine,
-      boardBest > 0 ? HONOR.bestLine(boardBest) : '',
-    ].filter(Boolean);
+    const normal = GS.data.progress.normal;
+    const nightmare = GS.data.progress.nightmare;
+    let total = 0;
+    for (const p of [normal, nightmare]) {
+      for (const key of Object.keys(p.levels)) {
+        const level = Number(key);
+        if (Number.isFinite(level)) total += recordOf(p, level).personalBest;
+      }
+    }
+    const stickers = Math.max(1, Math.floor(outcome.score / 300));
 
-    const buttons: { text: string; onClick: () => void; primary?: boolean }[] = [];
-    if (this.levelIndex < TOTAL_LEVELS) buttons.push({ text: HONOR.next, onClick: () => this.nextLevel(), primary: true });
-    buttons.push({ text: HONOR.retry, onClick: () => this.restart(), primary: buttons.length === 0 });
-    if (boardBest > 0) buttons.push({ text: HONOR.rank, onClick: () => this.showBoardDialog(boardBest) });
-    buttons.push({ text: HONOR.backHome, onClick: () => this.exitToHome() });
-
-    this.dialog.show(title, lines, buttons.slice(0, 3), settlement.stars, hero);
+    showThemeWin(this.node, {
+      stars: settlement.stars,
+      score: outcome.score,
+      stickers,
+      totalScore: total,
+      isNewBest: boardBest === outcome.score && outcome.score > 0,
+    }, {
+      onNext: () => this.nextLevel(),
+      onBack: () => this.exitToHome(),
+    });
   }
 
   /** 排行榜（灰盒 100 人 + 本机） */
@@ -768,26 +773,15 @@ export class GameBootstrap extends Component {
     this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
   }
 
+  /** 失败弹窗 —— 主题化（差多少分到第 1 星 + 续命/放弃） */
   private showFailDialog(outcome: LevelOutcome): void {
-    this.dialog.show(FAIL.title, [
-      FAIL.line1(outcome.score),
-      FAIL.line2(this.cfg.star1, this.cfg.star2, this.cfg.star3),
-      FAIL.line3,
-    ], [
-      { text: FAIL.backHome, onClick: () => this.exitToHome() },
-      { text: FAIL.retry, onClick: () => this.restart(), primary: true },
-    ]);
+    const need = this.cfg.star1 - outcome.score;
+    showThemeFail(this.node, Math.max(0, need), () => this.watchRevive(), () => this.exitToHome());
   }
 
+  /** 续命弹窗 —— 主题化（失败弹窗的续命变体） */
   private showReviveDialog(): void {
-    const left = GS.adStaminaLeft;
-    this.dialog.show(REVIVE.title, [
-      REVIVE.line1(REVIVE_SECONDS),
-      REVIVE.line2,
-    ], [
-      { text: REVIVE.giveUp, onClick: () => this.giveUp() },
-      { text: REVIVE.watch, onClick: () => this.watchRevive(), primary: true, disabled: left <= 0 },
-    ]);
+    showThemeFail(this.node, 0, () => this.watchRevive(), () => this.giveUp());
   }
 
   /** 广告续命（本地模拟：1.2 秒「观看」） */
@@ -879,7 +873,7 @@ export class GameBootstrap extends Component {
 
   private updateHud(): void {
     if (!this.hudTime) return;
-    this.hudLevel.string = `${MODE_LABEL[GS.mode]} · 第 ${this.levelIndex} 关`;
+    this.hudLevel.string = `${currentTheme().copy.modeLabel} · 第 ${this.levelIndex} 关`;
     this.hudTime.string = fmtMMSS(this.timeLeft);
     this.hudScore.string = `${this.engine ? this.engine.score : 0} 分`;
     // 颜色即信息：剩 1 分钟转橙、剩 10 秒转红（原版 #hud-timer.warn / .danger）
@@ -953,12 +947,8 @@ export class GameBootstrap extends Component {
     // 返回主页 —— 必须挂在 bar 上（bar 在棋盘上方的安全区）。
     // 挂 this.node 的话坐标原点是画面中心，(-460, 0) 会直接压在棋盘左中部，
     // 既挡视线又吞掉那一带的拖动。
-    const back = this.hudButton(bar, 'BtnBack', -460, 118, 120, 88, t.backFill, '返回', 28);
+    const back = this.hudButton(bar, 'BtnBack', -460, 0, 120, 88, t.backFill, '返回', 28);
     back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
-
-    // 三主题切换（对局内即时换皮）
-    const sw = this.hudButton(bar, 'BtnTheme', 460, 118, 168, 88, t.switchFill, '样式·' + t.name.slice(0, 2), 26);
-    sw.on(Node.EventType.TOUCH_END, () => { cycleTheme(); }, this);
 
     // 提示 —— 棋盘下沿是 BOARD_BOTTOM(-640)，-740 在其下方，属于安全区
     const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, t.hintFill, '提示', 32);

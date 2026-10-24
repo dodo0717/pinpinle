@@ -171,6 +171,11 @@ CandyMapDemo/
   - `GameBootstrap`：`applyThemeVisuals()` 落地（全屏背景渐变 Graphics + HUD 重建 + `rebuildBoard()` 按 boardSpec 重放 `build/setCells/applyMerge`）；HUD 右上角新增「样式·XX」按钮循环切换三主题；HUD 主题化（横牌双层木色 / pills 白胶囊+墨字+金数值）。
   - `BoardView`：`buildPanel()` 主题底板（投影 + 双层填充 + 描边；journal 加内虚线框）；融合环颜色/线宽随主题。
   - **`核心/progress.ts` 出厂 `unlocked: 1→4`**（用户要求 2/3/4 关默认可玩，供三主题在不同图池上对比；上线前视产品口径改回），progress/save 测试同步改。238 测试全过；minigame 重建（38 个脚本）+ 浏览器回归通过。
+- **2026-10-24（关卡绑定主题 + 全套文案 + 主题化结算弹窗）**：按用户最终需求「每关一个风格、各自文案、照抄原型」：
+  - `theme.ts` 扩充 **ThemeCopy 全套文案表**——三个原型各自的模式标签、棋盘提示、连击词（漂亮/连上了/贴得真顺）、荣誉头衔（超神！/超神通关/超神）、结算表标签（本局得分/拼好贴纸/累计总分/新纪录）、按钮文案（下一关/下一页/回地图）、失败标题（时间到！/就差一点点/这一页还差一点…）、续命文案（看广告免费续命/看广告继续拼/看免费广告）——**逐字照抄原型**。结算弹窗配色也进表（卡片底色/边框/荣誉色/表底色/按钮色）。
+  - **`themeForLevel(level)`**：第 1/2/3/4 关 → candy/clean/journal/candy（循环）。`beginLevel` 里调 `setThemeForLevel(level)`，进关即换皮（**不再有手动切换按钮**）。
+  - 新增 **`玩法/themeResult.ts`**：主题化通关/失败弹窗——通关 = 三星逐颗砸落（tween 位置+缩放）+ 荣誉头衔弹入 + 结算表（三行数据）+ 主/副按钮；失败/续命 = 标题 + 差分副标题 + 续命大按钮 + 广告标签 + 放弃按钮。卡片底板按主题画（糖果奶油卡+金边 / 白卡+细边 / 拍立得+内虚线框）。`showHonorDialog`/`showFailDialog`/`showReviveDialog` 全部替换为主题版。
+  - HUD 的模式标签也读主题文案（`简单模式`/`简单`/`简单`）。238 测试全过；minigame 重建（39 个脚本）。
 
 ## 扩展方向
 

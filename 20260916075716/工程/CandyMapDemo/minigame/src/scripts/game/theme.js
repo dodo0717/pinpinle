@@ -17,7 +17,7 @@ import { Color } from '../../runtime/cc.js';
 
                             
               
-                   
+           
                
                         
                
@@ -35,19 +35,75 @@ import { Color } from '../../runtime/cc.js';
                       
                           
                      
-                          
+                     
                   
                   
                     
-                                               
+             
                     
                     
                      
-                                                          
+            
                    
                     
-                                 
+                 
                        
+                   
+                  
+ 
+
+/** 主题文案表 —— 三个原型的完整文案照抄 */
+                            
+                   
+                    
+                  
+                    
+                             
+                  
+                       
+                                  
+                 
+                   
+                 
+                      
+                 
+                   
+                  
+                  
+                
+                    
+                 
+                    
+             
+                    
+                                
+                                    
+             
+                      
+             
+                    
+               
+                   
+             
+                    
+             
+                 
+                  
+                
+                   
+                    
+                
+                    
+              
+                 
+                       
+                     
+                      
+                     
+                      
+                       
+               
+                        
  
 
 const SANS = '"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
@@ -75,6 +131,33 @@ export const THEMES                             = {
     ringColor: new Color(255, 201, 60),
     ringWidth: 5,
     ringSketchy: false,
+    copy: {
+      modeLabel: '简单模式',
+      boardHint: '拖碎片换位，四块拼成完整贴纸即消除',
+      combo: ['漂亮！', '厉害！', '太赞了！', '无敌了！'],
+      honor: ['超神！', '王者！', '优秀！'],
+      winScore: '本局得分',
+      winStickers: '拼好贴纸',
+      winTotal: '累计总分',
+      newBest: '新纪录',
+      nextLevel: '下一关 ▶',
+      backToMap: '返回地图',
+      failTitle: '时间到！',
+      failSub: (n) => `就差 ${n} 分就能拿第 1 颗星`,
+      reviveTitle: '续命 30 秒',
+      reviveSub: '接着刚才的分数继续，已拼好的进度都还在',
+      reviveAd: '▶ 看广告免费续命 · 加 30 秒',
+      reviveBtn: '▶ 续命 30 秒',
+      giveUp: '就这样吧，回地图',
+      cardBg: new Color(255, 249, 238),
+      cardBorder: new Color(255, 223, 158),
+      honorColor: new Color(255, 91, 77),
+      tallyBg: new Color(255, 243, 214),
+      primaryFill: new Color(126, 217, 87),
+      primaryEdge: new Color(78, 168, 50),
+      secondaryFill: new Color(185, 177, 201),
+      honorFontSize: 52,
+    },
   },
   clean: {
     id: 'clean',
@@ -97,6 +180,33 @@ export const THEMES                             = {
     ringColor: new Color(245, 166, 35),
     ringWidth: 4,
     ringSketchy: false,
+    copy: {
+      modeLabel: '简单',
+      boardHint: '拖碎片换位，四块拼成完整贴纸即消除',
+      combo: ['连上了', '再连锁', '三连锁！', '停不下来'],
+      honor: ['超神通关', '王者通关', '优秀通关'],
+      winScore: '本局得分',
+      winStickers: '拼好贴纸',
+      winTotal: '累计总分',
+      newBest: '新纪录',
+      nextLevel: '下一关',
+      backToMap: '返回地图',
+      failTitle: '就差一点点',
+      failSub: (n) => `再得 ${n} 分就能摘下第 1 颗星`,
+      reviveTitle: '续命 30 秒',
+      reviveSub: '接着刚才的分数继续，已拼好的进度都还在',
+      reviveAd: '▶ 免费广告',
+      reviveBtn: '▶ 看广告，继续拼',
+      giveUp: '回地图',
+      cardBg: new Color(255, 255, 255),
+      cardBorder: new Color(228, 237, 244),
+      honorColor: new Color(176, 114, 20),
+      tallyBg: new Color(246, 250, 253),
+      primaryFill: new Color(245, 166, 35),
+      primaryEdge: new Color(200, 122, 30),
+      secondaryFill: new Color(240, 245, 249),
+      honorFontSize: 32,
+    },
   },
   journal: {
     id: 'journal',
@@ -119,6 +229,33 @@ export const THEMES                             = {
     ringColor: new Color(214, 69, 69),
     ringWidth: 3,
     ringSketchy: true,
+    copy: {
+      modeLabel: '简单',
+      boardHint: '拖碎片换位，四块拼成完整贴纸就贴好啦',
+      combo: ['贴得真顺！', '手感来了！', '太会贴了！', '手账大师！'],
+      honor: ['超神', '王者', '优秀'],
+      winScore: '本局',
+      winStickers: '贴好',
+      winTotal: '累计',
+      newBest: '新纪录',
+      nextLevel: '下一页 ▶',
+      backToMap: '回地图',
+      failTitle: '这一页还差一点…',
+      failSub: (n) => `再得 ${n} 分就能摘下第 1 颗星`,
+      reviveTitle: '续命 30 秒',
+      reviveSub: '已拼好的进度都在，接着刚才的分数继续',
+      reviveAd: '▶ 看免费广告',
+      reviveBtn: '续命 30 秒',
+      giveUp: '回地图',
+      cardBg: new Color(255, 253, 246),
+      cardBorder: new Color(229, 217, 188),
+      honorColor: new Color(214, 69, 69),
+      tallyBg: new Color(241, 230, 204),
+      primaryFill: new Color(200, 155, 109),
+      primaryEdge: new Color(168, 123, 78),
+      secondaryFill: new Color(255, 253, 246),
+      honorFontSize: 44,
+    },
   },
 };
 
@@ -162,6 +299,26 @@ function writeStored(id         )       {
 
 let currentId          = readStored() ?? 'candy';
 
+/**
+ * 关卡 → 主题绑定（2026-10-24）：第 1/2/3/4 关分别用 糖果/果冻/手账/糖果（循环）。
+ * 进关时由 GameBootstrap 调用 `setThemeForLevel`，不再需要手动切换。
+ */
+export function themeForLevel(level        )            {
+  const idx = (Math.max(1, level) - 1) % ORDER.length;
+  return THEMES[ORDER[idx] ];
+}
+
+/** 进关时设定主题（GameBootstrap 调用） */
+export function setThemeForLevel(level        )            {
+  const t = themeForLevel(level);
+  if (currentId !== t.id) {
+    currentId = t.id;
+    writeStored(currentId);
+    for (const cb of listeners.slice()) cb(t);
+  }
+  return t;
+}
+
 /** 当前主题（纯数据，调用方据此画 Graphics / 设字体） */
 export function currentTheme()            {
   return THEMES[currentId];
@@ -172,7 +329,7 @@ export function onThemeChanged(cb          )       {
   listeners.push(cb);
 }
 
-/** 切到三主题的下一个并持久化；返回新主题 */
+/** 切到三主题的下一个（调试用，正常流程走 setThemeForLevel） */
 export function cycleTheme()            {
   const i = ORDER.indexOf(currentId);
   currentId = ORDER[(i + 1) % ORDER.length] ;
