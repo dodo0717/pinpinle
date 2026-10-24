@@ -400,9 +400,13 @@ export class MapBootstrap extends Component {
                 capBottom = ((statusBar + 40) * this.screenH) / winH;   // 胶囊高约 32 + 一点间隙
             }
             if (capBottom <= 0) capBottom = safeTop + 40;
-            // 顶栏整条让到胶囊下方：体力胶囊顶边在 topInset - 116（pillH 108 / 圆钮中心
-            // top-62），116 + 16 余量；木牌 / 返回钮同排一起下移
-            const top = Math.max(28 + safeTop, capBottom + 116 + 16);
+            // 2026-10-24（三修）：胶囊 API 在开发者工具里报的位置和实际绘制对不上
+            // （12:11 截图实测 API 折算 ≈138 设计px、实画在 safeTop+125 附近；不同预设
+            // 间胶囊底在 safeTop+99~125 浮动）。统一抬到 safeTop+118 兜底，两头都盖住。
+            // 顶栏顶边就是整排元素的最上沿（体力胶囊顶边 = topInset+8），只需再让 8；
+            // 上一版的 +132 把偏移方向算反（叠加 API 偏小后整条下放过头，用户反馈太低）
+            capBottom = Math.max(capBottom, safeTop + 118);
+            const top = Math.max(28 + safeTop, capBottom + 8);
             this.topInset = clamp(finite(top, 28), 28, 480);
         } else {
             // 非微信环境（浏览器预览 / 编辑器）没有胶囊，只按安全区让位
