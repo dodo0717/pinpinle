@@ -389,7 +389,11 @@ export class MapBootstrap extends Component {
         } catch { /* 拿不到胶囊位置就只按安全区 */ }
         const top = Math.max(28 + safeTop, capBottom);
         this.topInset = clamp(finite(top, 28), 28, 360);
-        this.bottomInset = clamp(20 + finite(safeBottom, 0), 20, 180);
+        // 页签栏底距与 web 对齐：web 的 .tabbar 就是 bottom:20，不叠安全区。
+        // 2026-10-24 之前把 safeBottom 全额叠上来，设备上报 ~146 设计 px 时整条栏
+        // 被抬高 146，栏顶正好顶住第 1 关珠子（用户截图实测零间距）。
+        // 底部系统手势条压在栏底下沿与 web 浏览器里的表现一致，属正常。
+        this.bottomInset = 20;
         console.log(`[map] 屏幕高 ${Math.round(this.screenH)}，安全区上 ${Math.round(safeTop)} 下 ${Math.round(safeBottom)}，`
             + `胶囊底 ${Math.round(capBottom)} → 顶栏让位 ${Math.round(this.topInset)}，页签让位 ${Math.round(this.bottomInset)}`);
     }
@@ -484,27 +488,33 @@ export class MapBootstrap extends Component {
         return n;
     }
 
-    private setDisabled(n: Node, off: boolean) {
+    private setDisabled(n: Node, off: boolean, repaint?: (g: Graphics, gray: boolean) => void) {
         if (off) this.disabled.add(n);
         else this.disabled.delete(n);
         const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
-        op.opacity = off ? 80 : 255;
+        // 2026-10-24：只降透明度在真机上不够醒目，禁用时把金钮重绘成灰色再压一层
+        // 半透明 —— 任何环境下一眼可见（web 的禁用态是 opacity .3，这里叠加灰化更强）
+        op.opacity = off ? 150 : 255;
+        if (repaint) {
+            const g = n.getComponent(Graphics);
+            if (g) repaint(g, off);
+        }
     }
 
-    /** 金色圆钮（换世界 / 翻页箭头共用，web .map-world-nav 的配色） */
-    private paintGoldCircle(g: Graphics, r: number) {
+    /** 金色圆钮（换世界 / 翻页箭头共用，web .map-world-nav 的配色）；gray = 边界禁用态 */
+    private paintGoldCircle(g: Graphics, r: number, gray = false) {
         g.clear();
-        g.fillColor = new Color(140, 70, 10, 128);
+        g.fillColor = gray ? new Color(96, 96, 96, 128) : new Color(140, 70, 10, 128);
         g.circle(0, -7, r);
         g.fill();
-        g.fillColor = new Color(247, 177, 63);
+        g.fillColor = gray ? new Color(172, 172, 172) : new Color(247, 177, 63);
         g.circle(0, 0, r);
         g.fill();
-        g.fillColor = new Color(255, 228, 155, 200);
+        g.fillColor = gray ? new Color(216, 216, 216, 200) : new Color(255, 228, 155, 200);
         g.circle(0, r * 0.28, r * 0.55);
         g.fill();
         g.lineWidth = 5;
-        g.strokeColor = new Color(255, 243, 214);
+        g.strokeColor = gray ? new Color(238, 238, 238) : new Color(255, 243, 214);
         g.circle(0, 0, r - 2.5);
         g.stroke();
     }
@@ -576,8 +586,9 @@ export class MapBootstrap extends Component {
         });
 
         this.buildBeads();
-        this.setDisabled(this.navPrev, this.world <= 0);
-        this.setDisabled(this.navNext, this.world >= WORLDS.length - 1);
+        // r=59 与 buildWorldNav 一致：到边界（第一世界 / 最后世界）置灰，不再只是变淡
+        this.setDisabled(this.navPrev, this.world <= 0, (g, gray) => this.paintGoldCircle(g, 59, gray));
+        this.setDisabled(this.navNext, this.world >= WORLDS.length - 1, (g, gray) => this.paintGoldCircle(g, 59, gray));
         if (focus) this.focusWorld(false);
         else this.applyOffset();
         this.paintPager();
@@ -873,8 +884,9 @@ export class MapBootstrap extends Component {
 
     private paintPager() {
         if (!this.pageUp) return;
-        this.setDisabled(this.pageUp, this.page <= 0);
-        this.setDisabled(this.pageDown, this.page >= PAGE_COUNT - 1);
+        // r=49 与 buildPager 一致：翻到顶页 / 底页时对应箭头置灰
+        this.setDisabled(this.pageUp, this.page <= 0, (g, gray) => this.paintGoldCircle(g, 49, gray));
+        this.setDisabled(this.pageDown, this.page >= PAGE_COUNT - 1, (g, gray) => this.paintGoldCircle(g, 49, gray));
         this.dots.forEach((g, i) => {
             g.clear();
             g.fillColor = i === this.page ? new Color(245, 183, 61) : new Color(255, 255, 255, 200);

@@ -46,6 +46,8 @@ export const director = {
   _ox: 0,
   _oy: 0,
   scene: null,
+  /** GameBootstrap.uiCamera() 会调 getScene()（拿不到相机就退回 UI 坐标换算） */
+  getScene() { return this.scene; },
 };
 
 /* ---------- 资源 ---------- */
@@ -756,6 +758,27 @@ export class ScrollView extends Component {
   scrollToTop() {}
   stopAutoScroll() {}
 }
+
+/**
+ * 2026-10-24 补：GameBootstrap 修微信触摸坐标时引入了这四个名字，shim 没跟上，
+ * 模块图里 `export named 'Camera'` 直接 SyntaxError，预览页整页起不来。
+ * Camera 只做类型 + 恒等变换（预览画布本身就是设计坐标系）；
+ * input 的原始触摸监听是真机排查日志用的，预览里空实现即可。
+ */
+export class Camera extends Component {
+  screenToWorld(v) { return v; }
+  worldToScreen(v) { return v; }
+}
+export class Canvas extends Component {
+  constructor() { super(); this.cameraComponent = null; }
+}
+export const Input = {
+  EventType: { TOUCH_START: 'touchstart', TOUCH_MOVE: 'touchmove', TOUCH_END: 'touchend', TOUCH_CANCEL: 'touchcancel' },
+};
+export const input = {
+  on() {},
+  off() {},
+};
 
 export class AudioSource extends Component {
   constructor() {

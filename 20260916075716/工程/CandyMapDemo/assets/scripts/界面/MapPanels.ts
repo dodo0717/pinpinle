@@ -317,6 +317,15 @@ export class MapPanels {
     return -this.host.screenH / 2 + this.host.bottomInset + this.host.tabbarH + 20;
   }
 
+  /**
+   * 卡片金框（frame.png，923×1273）底部有一段不透明金边（约 45px，按卡高等比换算）。
+   * 金框是整张卡最后盖上去的，内容压进这段会被盖住 —— 2026-10-24 用户截图：
+   * 图鉴翻页 pill 底边只离卡底 24，下半截正好被金边盖住「被遮挡一半」。
+   */
+  private frameBand(ch: number): number {
+    return Math.ceil((ch * 45) / 1273);
+  }
+
   /** 卡片底板（投影 + 圆角填充）；金框由调用方最后盖上（框在内容之上，与 web ::before z-index 9 一致） */
   private cardBase(top: number, w: number, h: number, fill: Color): Node {
     const card = this.node(this.root, 'Card', w, h, 0, top - h / 2);
@@ -356,8 +365,8 @@ export class MapPanels {
     this.mineCard(card, inner - 20, 150, y - 75, rows);
     y -= 150 + 4;
 
-    // ---- 从下往上：(挑战本关) → 翻页 ----
-    let yb = -ch / 2 + 50;
+    // ---- 从下往上：(挑战本关) → 翻页；起点避开金框底边带（同图鉴 10-24 修复） ----
+    let yb = -ch / 2 + this.frameBand(ch) + 12;
     if (isLevel) {
       this.challenge(card, inner - 74, yb + 52);
       yb += 104 + 8;
@@ -619,9 +628,11 @@ export class MapPanels {
     const ch = cTop - this.bottomY();
     const card = this.cardBase(cTop, cw, ch, new Color(141, 188, 240));
 
-    const pagerY = -ch / 2 + 16 + 33 + 8;
+    // 底栈从卡底往上：金边带 band → 空 12 → 翻页 pill(66) → 空 16 → 网格
+    const band = this.frameBand(ch);
+    const pagerY = -ch / 2 + band + 12 + 33;
     const gridTop = ch / 2 - 24;
-    const gridBottom = -ch / 2 + 16 + 66 + 22;
+    const gridBottom = -ch / 2 + band + 12 + 66 + 16;
     const gridW = cw - 36;
     const gridH = gridTop - gridBottom;
     let cellW = (gridW - 2 * CELL_GAP) / 3;

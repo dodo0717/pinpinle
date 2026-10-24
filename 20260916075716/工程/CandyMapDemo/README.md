@@ -118,6 +118,12 @@ CandyMapDemo/
 - **2026-10-24（提交）**：上面 10-22 晚 ~ 10-23 的全部改动随 `c50f61f` 提交并推送到 `fix/core-web-bugs`（360 个文件：核心/玩法/场景/界面脚本、web 层、测试、新素材与瘦身后的旧素材删除）。仓库整理：`.gitignore` 新增 `remote-backup-*/`（远程包快照，每个约 11 MB）与 `debug-touch.js`（临时调试脚本），不入库。
 - **2026-10-24（本机环境：切到 Node 22）**：web 预览与测试要求的 Node ≥ 22.18 本机原本没激活（默认 20.19.5，`serve.mjs` 启动即报 `stripTypeScriptTypes` 不存在）。本机版本管理是 **nvm-windows（`D:\anZhuang\nvm`）**，`D:\anZhuang\nodejs` 是符号链接；已 `nvm use 22.18.0`（镜像里早已下载好），并把全局包 `@anthropic-ai/claude-code@2.1.197`、`@openai/codex@0.158.0` 重装到 22.18.0 下（走 npmmirror，15 秒）。验证：`node -v` = v22.18.0，`claude` / `codex` 命令正常，`node preview/serve.mjs` 实测 web 预览 200，222 个测试全部通过。要回退就 `nvm use 20.19.5`（注意 claude / codex 全局包在哪个版本下就只在哪个版本可用）。
 - **2026-10-24（音频：小程序没声音的根因与修复）**：全仓库**没有任何音频素材**——web 版的声音是 WebAudio 现场合成的占位音（`web/ui/audio.ts`，注释写明 `art/` 无音频文件），Cocos 版 `玩法/audio.ts` 走 `AudioSource` + `resources/audio/*`，缺素材时静默降级，所以微信里完全无声。新增 `tools/gen-audio.ts`（`node tools/gen-audio.ts` 即可重跑，需 Node 22.18 的原生类型擦除）：按 web 版**逐字相同的合成参数**（频率/时长/包络/波形/总线增益 SFX 0.11、BGM 0.05）离线渲染 12 个 WAV 到 `assets/resources/audio/`——11 个音槽（swap/eliminate/drop/tick/rush/win/fail/honor_god/honor_king/honor_pass/reject）+ BGM（C 大调五声音阶 8 拍循环 × 4 圈，28.8s）。22050Hz 单声道 16-bit，共约 1.45 MB（BGM 1.28 MB，音效合计 178KB）；`reject` 槽 web 版没有（Cocos 预留、暂无人调用），配了两声短促低音。已核验头格式与峰值/RMS（与 web 总线增益吻合）。**生效步骤**：Cocos Creator 打开项目让其导入 `audio/` 生成 `.meta` → 重新构建微信小游戏 → `resources` 是远程包，构建后 `remote/` 重新上传到 `https://candy.aidertech.cn/mini-assets/remote/`。两端行为对齐：BGM 都只在**对局内**播放（web `currentScreen === 'game'`，Cocos `setRunning`），主页无音乐。web 版调音参数改动后需重跑脚本同步听感。
+- **2026-10-24（界面三修，以 web 为准）**：小程序截图反馈的三个问题，全部定位到根因后修复。
+  - **第一关贴底**：像素级实测用户截图——第 1 关珠子底边与页签栏顶边**零间距贴死**。根因：`measureInsets` 把设备上报的底部安全区**全额**叠进页签栏底距（该设备约 146 设计 px），整条栏被抬高 146；而 web 的 `.tabbar` 就是 `bottom:20`、全代码不处理安全区。已改为 `bottomInset` 固定 20（顶栏的刘海/胶囊让位保留，那是 web 没有的微信真实约束）。
+  - **换世界箭头边界置灰**：`setDisabled` 原来只降透明度（80/255），用户截图里左箭头仍是满饱和金色 `#F7B13F`（预览里同代码置灰正常，疑似小程序包早于最终代码）。改为禁用时把金钮**重绘成灰色**（`paintGoldCircle` 加 gray 变体）+ 半透明 150，右侧 ▲▼ 翻页箭头同步处理——任何环境下一眼可见。
+  - **图鉴翻页被遮一半**：金框是整卡 sprite **最后盖上去**的，`frame.png`（923×1273）底部有 ~45px 不透明金边带；图鉴 pill 底边原只离卡底 24，下半截正好被金边盖住。新增 `frameBand(ch)` 按卡高等比换算金边带，图鉴与排行榜的底栈（翻页 / 挑战本关）统一从金边带之上 12px 排起。
+  - 顺带修复：预览 `cc-shim.js` 缺 `Camera/Canvas/input/Input` 导出与 `director.getScene()`（GameBootstrap 修坐标换算时引入的名字），`preview/map.html` 整页起不来；已补齐并用无头 Chrome 实测地图正常渲染。临时测量页验证：`bottomInset=20`、`navPrev` opacity 150 + disabled、图鉴 pill 底边距卡底 63（金边带 51 + 12）。222 个测试通过。
+  - **生效步骤同音频条目**：Cocos Creator 重新构建微信小游戏 + 上传 `remote/`（音频与界面一起验证）。
 
 ## 扩展方向
 
