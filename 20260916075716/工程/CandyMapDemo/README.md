@@ -146,6 +146,11 @@ CandyMapDemo/
   - **MapPanels**：Tab 从两栏 340 宽改三栏 250 宽；好友分支跳过我的成绩/表头/分页，卡内整块贴 sharedCanvas。
   - 验证：227 测试全过；浏览器实测三 Tab 渲染 + 降级提示 + 无异常（画布像素直读法）。微信侧（mock 好友数据）待开发者工具实测。minigame 重建（36 个脚本）。
 - **2026-10-24（后端决策：云同步直接用现有 candy.aidertech.cn）**：原计划在用户腾讯云新服务器（124.221.226.15）单独部署第二套 candy-game-server，当天完成上传/compose 自带 PG 改造/.env 密钥/数据库恢复清数/nginx 镜像后**用户叫停**，全部清理（容器/镜像/卷/文件/2.8G 构建缓存，smart-lock 与 Superset 未受影响）。原因核实：现有实例 `.env` 的 `WX_MINIAPP_APPID=wxd84cc8ded4b62579` 与本游戏一致，评估文档担心的「单游戏配置冲突」不存在——域名白名单、HTTPS、code2session 密钥全现成，**云同步客户端（下一步）直接指向 `https://candy.aidertech.cn/game/api/`** 即可，无需任何后端部署。注意点：该库还有糖果小镇测试期的玩家数据（同一 AppID），同一微信号两边都玩过时进度会按「取大合并」混到一起。
+- **2026-10-24（复用糖果小镇资产 ③：云同步客户端移植，v1 仅简单模式）**：新增 `玩法/cloud.ts`（移植自 `universal-map-editor/src/minigame/cloud.ts`，按本作双模式进度形状改造）：
+  - **协议**：`POST /game/api/auth/login`（wx.login code 换 JWT+playerId）→ `GET /game/api/progress`（后端自维护 `{unlocked, stars:{}, best:{}}` JSON）→ 与本地**逐关取大合并**（星/personalBest 取大；boardBest 是排行榜口径云端没有，保持本地）→ 本地更优的关**按升序补推**（与后端 `level ≤ unlocked` 跳关守卫天然吻合：通关集是连续前缀）；`POST /game/api/level/result` 结算上报，**失败进离线队列（≤200 条）下次启动补传**；401 清 token 转纯本地。
+  - **v1 只同步简单模式**：后端单模式模型 + 关卡守卫会把困难模式的偏移关号判成跳关拒收（LevelRule/ReportGuard 核实过），硬上会丢数据；`REPORT_MODES` 留了缝，后端加模式维度后一行放开。困难模式进度仍由微信 KV 好友榜（总分+总星）覆盖展示。
+  - **接入点**：`MapBootstrap.onLoad` 异步 `bootCloud`（登录→flush 队列→pull 合并→有变化才重画；直接写 `GS.data.progress.normal`+markDirty+flush，绕开 setProgress 只写当前模式的问题）；`GameBootstrap` 结算落盘后按 `REPORT_MODES` 上报。`cloudSync()` 懒单例共享登录态；非微信返回 null 全 no-op。
+  - 期间踩坑：`constructor(private host)` 参数属性不被 Node 剥离模式支持（MapPanels 头注释早有此规约）→ 改显式字段。新增 `test/cloud.test.ts` 9 项（合并/补推/队列/401/降级，假宿主注入）；**236 测试全过**；minigame 重建（37 个脚本）+ 浏览器验证游戏照常起。微信侧待开发者工具/真机实测（登录换 token、进度同步）。
 
 ## 扩展方向
 

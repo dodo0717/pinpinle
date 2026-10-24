@@ -9,6 +9,7 @@ import { GameDialog } from '../game/GameDialog.js';
 import { ToastLayer } from '../game/toast.js';
 import { GS } from '../game/state.js';
 import { syncFriendRank } from '../game/wxFriend.js';
+import { cloudSync,                } from '../game/cloud.js';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../game/text.js';
 import { MapPanels } from '../ui/MapPanels.js';
 import { LEVELS_BY_ART } from './levelTable.js';
@@ -259,6 +260,10 @@ export class MapBootstrap extends Component {
         if (!GS.readResult) GS.init();
         // 启动即把本人总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
         syncFriendRank();
+        // 云同步启动对齐：登录 → 补传离线队列 → 拉云档取大合并（非微信 no-op）。
+        // 异步进行，不挡首帧；合并有变化时重画地图（珠子星级 / 解锁状态可能变了）
+        const cloud = cloudSync();
+        if (cloud) void this.bootCloud(cloud);
         this.measureInsets();
 
         // 创建顺序 = 叠放顺序（后建的在上层）
@@ -286,6 +291,24 @@ export class MapBootstrap extends Component {
 
     onDestroy() {
         GS.offMetaChange(this.metaListener);
+    }
+
+    /**
+     * 云同步启动对齐（onLoad 里异步触发）。注意两点：
+     * - 直接写 `GS.data.progress.normal`（setProgress 只写「当前模式」，而这里 GS.mode
+     *   可能停在 nightmare）+ markDirty + flush，与 setProgress 的落盘路径一致；
+     * - 合并结果与本地引用不同才重画，避免每次启动都白画一遍。
+     */
+            async bootCloud(cloud           )                {
+        if (!(await cloud.login())) return;   // 登录失败：纯本地继续
+        await cloud.flush();
+        const merged = await cloud.pull(GS.data.progress.normal);
+        if (merged === GS.data.progress.normal) return;
+        GS.data.progress.normal = merged;
+        GS.markDirty();
+        GS.flush();
+        this.renderMap(true);
+        this.refreshTopbar();
     }
 
     /** 从关卡返回：进度、星级、当前关都可能变了，整张地图按最新进度重画 */

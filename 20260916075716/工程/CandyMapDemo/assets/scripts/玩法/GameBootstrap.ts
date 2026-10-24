@@ -22,6 +22,7 @@ import { GameAudio } from './audio';
 import { GuideBar } from './guide';
 import { GS } from './state';
 import { syncFriendRank } from './wxFriend';
+import { cloudSync, REPORT_MODES } from './cloud';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text';
 import { unlockedImageIds } from './meta';
 import {
@@ -681,6 +682,13 @@ export class GameBootstrap extends Component {
       GS.flush();
       // 结算落盘后把最新总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
       syncFriendRank();
+      // 云端结算上报（v1 仅简单模式：后端关卡守卫会拒困难模式的偏移关号，见 cloud.ts 头注释）。
+      // 失败进离线队列，下次启动补传；不挡本地流程
+      if (REPORT_MODES.includes(GS.mode)) {
+        void cloudSync()?.report({
+          level: outcome.level, win: true, stars: settlement.stars, score: outcome.score,
+        });
+      }
       this.audio.play('win');
       this.announceUnlocks(next);
       this.showHonorDialog(outcome, settlement, after.boardBest);
