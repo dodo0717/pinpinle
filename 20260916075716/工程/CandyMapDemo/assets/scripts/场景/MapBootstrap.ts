@@ -1,8 +1,9 @@
 import {
     _decorator, Component, Node, Graphics, UITransform, Color, view, Layers, Label, ResolutionPolicy,
     HorizontalTextAlignment, VerticalTextAlignment, Sprite, SpriteFrame, resources, UIOpacity, Vec2, Vec3,
-    EventTouch, sys, Texture2D,
+    EventTouch, sys, Texture2D, Rect,
 } from 'cc';
+import { reportError } from '../玩法/runtimeError';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
@@ -12,6 +13,11 @@ import { syncFriendRank, enableShare, getInviter, reportInviter } from '../玩�
 import { cloudSync, type CloudSync } from '../玩法/cloud';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../玩法/text';
 import { MapPanels } from '../界面/MapPanels';
+import { AvatarView, ProfilePanel } from '../界面/ProfilePanel';
+import { ThemedPreview } from '../界面/ThemedPreview';
+import { themeForLevel } from '../玩法/theme';
+import { getProfile, onProfileChanged, trySilentWxProfile, syncProfileAfterLogin } from '../玩法/profile';
+import { starPath, shadow } from '../玩法/paint';
 import { LEVELS_BY_ART } from './levelTable';
 import {
     levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
@@ -87,15 +93,18 @@ const WORLD_SKY = [
 
 /** 珠显示直径（track px，web --nd = --pw = 190） */
 const BEAD_D = 190;
+
 /**
- * 三张珠切图的珠直径不一致，按「珠直径一致」归一（web ui.css 里采样的系数）：
- * `k` = 切图边长 / 珠直径，`cy` = 珠圆心在切图里的纵向比例。
+ * 2026-10-25 新关卡节点 + 关卡连线（美术图：UI及角色/首页/关卡节点/，深灰底由 tools/key-map-art.py 抠成透明）：
+ *   - node-candy：粉白糖果珠 190×188，珠体约占 182 → 显示时按珠径对齐 BEAD_D；
+ *   - link-candy：粉白斜纹糖果条 1094×57，左右是直切口，按长度**截取**（不拉伸，斜纹比例不变）。
+ * 三态不再换三张图：已通关在珠下方显示 3 颗星（点亮实得星数），未解锁盖一层灰 + 锁。
  */
-const BEAD = {
-    todo: { path: 'map/node/node-todo', k: 1.0638, cy: 0.475 },
-    star1: { path: 'map/node/node-star1', k: 1.3514, cy: 0.37 },
-    star3: { path: 'map/node/node-star3', k: 1.6129, cy: 0.47 },
-};
+const NODE_ART = { path: 'map/node/node-candy', w: 190, h: 188, k: 190 / 182 };
+const LINK_ART = { path: 'map/node/link-candy', w: 1094, h: 57 };
+/** 连线显示粗细（track px） */
+const LINK_H = 46;
+const C_NODE_NUM_EDGE = new Color(200, 70, 122);
 
 /** 困难模式门槛：同一关简单模式要拿到的星数（web main.ts NIGHTMARE_MIN_NORMAL_STARS） */
 const NIGHTMARE_MIN_NORMAL_STARS = 3;
@@ -104,14 +113,12 @@ const NIGHTMARE_MIN_NORMAL_STARS = 3;
 const C_WHITE = new Color(255, 255, 255);
 const C_BROWN = new Color(107, 74, 47);
 const C_GOLD = new Color(245, 197, 66);
-const C_NUM = new Color(255, 215, 94);
-const C_NUM_EDGE = new Color(154, 90, 16);
 const C_NICK = new Color(255, 233, 199);
 const C_SHADOW = new Color(40, 20, 5, 110);
 
 /** 加载页要先拉的素材（进度条的真实进度来源） */
 const PRELOAD_BASE = [
-    BEAD.todo.path, BEAD.star1.path, BEAD.star3.path,
+    NODE_ART.path, LINK_ART.path,
     'home/back', 'home/banner', 'home/pill', 'home/heart', 'home/plus',
     'home/tab-home', 'home/tab-rank', 'home/tab-book', 'home/tab-gear',
 ];
@@ -246,6 +253,11 @@ export class MapBootstrap extends Component {
 
     private dialog: GameDialog = null!;
     private panels: MapPanels = null!;
+    /** 「我的资料」面板（点左上角木牌打开） */
+    private profilePanel: ProfilePanel = null!;
+    /** 第 2/3/4 关的主题版关卡详情窗口（其余关卡用原吊牌） */
+    private themedPreview: ThemedPreview = null!;
+    private offProfile: (() => void) | null = null;
     private toast: ToastLayer = null!;
     private gameNode: Node = null!;
 
@@ -276,7 +288,10 @@ export class MapBootstrap extends Component {
         this.buildTabbar();
         this.buildPreview();
         this.mountDialogs();
+        this.profilePanel = new ProfilePanel(this.node, { toast: (t, ms) => this.toast.show(t, ms ?? 2000) });
         this.buildLoading();
+        // 以前授权过微信资料、且玩家没自己改过 → 静默换上微信头像昵称（不弹授权框）
+        trySilentWxProfile();
 
         // GameBootstrap 返回时按 'Map' 查找本节点
         this.node.name = 'Map';
@@ -292,6 +307,8 @@ export class MapBootstrap extends Component {
 
     onDestroy() {
         GS.offMetaChange(this.metaListener);
+        this.offProfile?.();
+        this.profilePanel?.hide();
     }
 
     /**
@@ -304,6 +321,8 @@ export class MapBootstrap extends Component {
         if (!(await cloud.login())) return;   // 登录失败：纯本地继续
         // 登录拿到 playerId 后开「转发带邀请人」；受邀启动的把邀请人报给后端（二期接口未上，静默）
         enableShare(cloud.playerId);
+        // 本机资料推给后端（排行榜上的名字 / 头像）
+        syncProfileAfterLogin();
         const inviter = getInviter();
         if (inviter) void reportInviter(inviter);
         await cloud.flush();
@@ -661,6 +680,8 @@ export class MapBootstrap extends Component {
         this.pulses = [];
         const current = this.currentLevel();
         const last = WORLDS[this.world].to;
+        // 先画连线（垫在珠子下面）
+        this.buildLinks();
 
         for (const n of this.nodes) {
             const node = this.makeNode(this.beadLayer, 'Level_' + n.level, BEAD_D * 1.2, BEAD_D * 1.2,
@@ -683,18 +704,22 @@ export class MapBootstrap extends Component {
                 else this.pulses.push({ node: ring, op });
             }
 
-            const kind = n.status === 'cleared' ? (n.stars >= 3 ? BEAD.star3 : BEAD.star1) : BEAD.todo;
-            const size = BEAD_D * kind.k;
-            // 切图里珠心不在正中：把精灵挪一下，让珠心对准路面定位点
-            const bead = this.makeSprite(node, 'Bead', kind.path, size, size, 0, -(0.5 - kind.cy) * size);
-            if (n.status === 'locked') bead.color = new Color(165, 165, 170, 255);
+            // 糖果珠（珠径对齐 BEAD_D）
+            const nw = BEAD_D * NODE_ART.k;
+            this.makeSprite(node, 'Bead', NODE_ART.path, nw, nw * NODE_ART.h / NODE_ART.w);
 
             if (n.status === 'locked') {
+                // 未解锁：灰罩 + 锁（纯代码运行时的 Sprite 不支持着色，用一层半透明灰盖住）
+                const veil = this.makeNode(node, 'Veil', BEAD_D, BEAD_D).addComponent(Graphics);
+                veil.fillColor = new Color(70, 70, 82, 130);
+                veil.circle(0, 0, BEAD_D / 2 - 4);
+                veil.fill();
                 this.makeLabel(node, 'Lock', '🔒', BEAD_D * 0.42, C_WHITE, BEAD_D, BEAD_D);
             } else {
-                this.makeLabel(node, 'Num', String(n.level), BEAD_D * 0.4, C_NUM, BEAD_D, BEAD_D, 0, 0,
-                    { outline: C_NUM_EDGE, outlineWidth: 4, shadow: true });
+                this.makeLabel(node, 'Num', String(n.level), BEAD_D * 0.42, C_WHITE, BEAD_D, BEAD_D, 0, 4,
+                    { outline: C_NODE_NUM_EDGE, outlineWidth: 6, shadow: true });
             }
+            if (n.status === 'cleared') this.buildNodeStars(node, n.stars);
             if (n.level === current) {
                 this.makeLabel(node, 'Pet', '🐶', BEAD_D * 0.34, C_WHITE, 90, 90, BEAD_D * 0.34, -BEAD_D * 0.18);
             }
@@ -702,6 +727,87 @@ export class MapBootstrap extends Component {
                 this.makeLabel(node, 'Trophy', '🏆', BEAD_D * 0.34, C_WHITE, 90, 90, BEAD_D * 0.36, BEAD_D * 0.5);
             }
         }
+    }
+
+    /**
+     * 相邻两关之间的糖果条：从上一关珠边到下一关珠边，按方向旋转。
+     * 通向未解锁关卡的那一段调暗（玩家一眼看出「路走到哪了」）。
+     *
+     * ⚠️ 旋转方向：纯代码运行时（cc-shim）里 `angle` 正值 = **顺时针**（与 web CSS rotate 同向，
+     * MapPanels 的装饰角度也按这个调的），所以这里按顺时针算。将来回到真 Cocos 要取反。
+     */
+    private buildLinks() {
+        const nodes = this.nodes;
+        for (let i = 0; i + 1 < nodes.length; i++) {
+            const a = nodes[i]!;
+            const b = nodes[i + 1]!;
+            // track 坐标 y 向下 → 本地坐标 y 向上
+            const ax = a.x - TRACK_W / 2;
+            const ay = TRACK_H / 2 - a.y;
+            const bx = b.x - TRACK_W / 2;
+            const by = TRACK_H / 2 - b.y;
+            const dx = bx - ax;
+            const dy = by - ay;
+            const dist = Math.hypot(dx, dy);
+            // 两端各埋进珠子一点，接缝藏在珠子下面
+            const len = dist - BEAD_D * 0.62;
+            if (len <= 8) continue;
+            const link = this.makeNode(this.beadLayer, `Link_${a.level}`, len, LINK_H, (ax + bx) / 2, (ay + by) / 2);
+            link.angle = -Math.atan2(dy, dx) * 180 / Math.PI;
+            // 投影：糖果条略浮起
+            const sh = this.makeNode(link, 'Shadow', len, LINK_H).addComponent(Graphics);
+            sh.fillColor = new Color(60, 30, 50, 60);
+            sh.roundRect(-len / 2, -LINK_H / 2 - 6, len, LINK_H, LINK_H / 2);
+            sh.fill();
+            this.tileLink(link, len);
+            if (b.status === 'locked') link.addComponent(UIOpacity).opacity = 140;
+        }
+    }
+
+    /** 糖果条贴图按长度截取（超出原图长度就分段平铺），斜纹保持原比例 */
+    private tileLink(link: Node, len: number) {
+        const srcPerPx = LINK_ART.h / LINK_H;          // 原图 px / 显示 px
+        const maxSeg = LINK_ART.w / srcPerPx;          // 一张原图能铺的显示长度
+        resources.load(LINK_ART.path + '/texture', Texture2D, (err, tex) => {
+            if (err || !tex || !link.isValid) return;
+            let x = -len / 2;
+            let left = len;
+            let k = 0;
+            while (left > 0.5) {
+                const seg = Math.min(left, maxSeg);
+                const n = this.makeNode(link, 'Seg' + k++, seg, LINK_H, x + seg / 2, 0);
+                const sp = n.addComponent(Sprite);
+                sp.sizeMode = Sprite.SizeMode.CUSTOM;
+                const sf = new SpriteFrame();
+                sf.texture = tex;
+                sf.rect = new Rect(0, 0, seg * srcPerPx, LINK_ART.h);
+                sp.spriteFrame = sf;
+                x += seg;
+                left -= seg;
+            }
+        });
+    }
+
+    /** 已通关：珠下方一排 3 颗星，点亮实得星数（中间那颗略大、略低，弧形排布） */
+    private buildNodeStars(parent: Node, stars: number) {
+        const g = this.makeNode(parent, 'Stars', BEAD_D * 1.2, 80, 0, -BEAD_D * 0.5 - 6).addComponent(Graphics);
+        const slots: Array<[number, number, number]> = [[-56, 8, 26], [0, -2, 32], [56, 8, 26]];
+        slots.forEach(([x, y, r], i) => {
+            const on = i < stars;
+            shadow(g, new Color(80, 40, 10, 120), 4, 0, 3);
+            starPath(g, x, y, r + 5, 0.5);
+            g.fillColor = on ? new Color(154, 90, 16) : new Color(90, 80, 90, 200);
+            g.fill();
+            shadow(g, null);
+            starPath(g, x, y, r, 0.5);
+            g.fillColor = on ? new Color(255, 210, 60) : new Color(205, 200, 210, 230);
+            g.fill();
+            if (on) {
+                g.fillColor = new Color(255, 248, 200, 200);
+                g.circle(x - r * 0.18, y + r * 0.22, r * 0.18);
+                g.fill();
+            }
+        });
     }
 
     private applyOffset() {
@@ -770,6 +876,7 @@ export class MapBootstrap extends Component {
     }
 
     private onMapStart(e: EventTouch) {
+        console.log('[map] touch start', this.loading ? '(加载页)' : '', this.flipPhase ? '(翻页中)' : '');
         if (this.busyForInput()) {
             console.log('[map] 触摸被忽略：', this.loading ? '加载页还在' : '正在切换世界');
             return;
@@ -832,7 +939,19 @@ export class MapBootstrap extends Component {
             const d = Math.hypot(n.x - tx, n.y - ty);
             if (d < bestD) { bestD = d; best = n; }
         }
-        if (best) this.selectNode(best);
+        if (best) {
+            this.selectNode(best);
+            return;
+        }
+        // 真机排查：点在珠子上却判成空白时，看触点换算出的 track 坐标离最近的珠子有多远
+        let near: MapNodeData | null = null;
+        let nd = Infinity;
+        for (const n of this.nodes) {
+            const d = Math.hypot(n.x - tx, n.y - ty);
+            if (d < nd) { nd = d; near = n; }
+        }
+        console.log(`[map] 空白处：ui=(${Math.round(ui.x)},${Math.round(ui.y)}) track=(${Math.round(tx)},${Math.round(ty)})`
+            + ` 最近第 ${near ? near.level : '-'} 关，距离 ${Math.round(nd)}（阈值 ${Math.round(BEAD_D * 0.7)}）`);
     }
 
     private selectNode(n: MapNodeData) {
@@ -855,9 +974,19 @@ export class MapBootstrap extends Component {
         const bannerY = top - 62;
         const banner = this.makeNode(this.node, 'Banner', bannerW, bannerH, bannerX, bannerY);
         this.makeSprite(banner, 'Bg', 'home/banner', bannerW, bannerH);
-        this.makeLabel(banner, 'Avatar', MAP_TEXT.avatar, 56, C_WHITE, 80, 80, -bannerW / 2 + 92 + 28, 0);
-        this.makeLabel(banner, 'Nick', MAP_TEXT.nickname, 40, C_NICK, 200, 60, -bannerW / 2 + 92 + 56 + 18 + 100, 0,
+        // 头像 / 昵称跟随玩家资料（玩法/profile.ts：微信头像昵称 或 自选预设头像 + 自定义昵称）；
+        // 点木牌打开「我的资料」面板
+        new AvatarView(banner, 88, -bannerW / 2 + 92 + 28, 0);
+        const nick = this.makeLabel(banner, 'Nick', getProfile().nickname, 40, C_NICK, 220, 60, -bannerW / 2 + 92 + 56 + 18 + 110, 0,
             { shadow: true, align: 'left' });
+        this.offProfile = onProfileChanged((p) => { if (nick.isValid) nick.string = p.nickname; });
+        banner.on(Node.EventType.TOUCH_START, (e: EventTouch) => { e.propagationStopped = true; banner.setScale(0.96, 0.96); }, this);
+        banner.on(Node.EventType.TOUCH_CANCEL, () => banner.setScale(1, 1), this);
+        banner.on(Node.EventType.TOUCH_END, (e: EventTouch) => {
+            e.propagationStopped = true;
+            banner.setScale(1, 1);
+            if (!this.busyForInput()) this.profilePanel.show();
+        }, this);
         this.makeSprite(this.node, 'Back', 'home/back', 122, 124, -DESIGN_W / 2 + 36 + 61, top - 62);
 
         // 右：体力胶囊，整块就是「加体力」按钮
@@ -1142,6 +1271,28 @@ export class MapBootstrap extends Component {
         this.makeLabel(play, 'Label', MAP_TEXT.play, 62, C_WHITE, 420, 130, 0, 0, { shadow: true });
 
         this.preview.active = false;
+
+        this.themedPreview = new ThemedPreview(this.node, {
+            mode: () => this.pvMode,
+            canHard: (level) => this.canNightmare(level),
+            pickMode: (m) => {
+                if (m === 'nightmare' && !this.canNightmare(this.pvLevel)) {
+                    this.toast.show(MAP_TEXT.nightmareLocked, 2000);
+                    return false;
+                }
+                this.pvMode = m;
+                this.applyMode(m);
+                return true;
+            },
+            lines: (m, level) => {
+                const l = STAR_LINES_BY_MODE[m]?.[level];
+                return l ? [l[0], l[1], l[2]] : null;
+            },
+            bestStars: (m, level) => recordOf(GS.data.progress[m], level).stars,
+            play: () => this.playFromPreview(),
+            // 与原吊牌同一层（在 toast 之下）
+            siblingIndex: () => this.preview.getSiblingIndex() + 1,
+        });
     }
 
     private paintModes() {
@@ -1173,6 +1324,18 @@ export class MapBootstrap extends Component {
         this.pvLevel = level;
         // 当前是困难但这一关没达门槛 → 退回简单
         this.pvMode = GS.mode === 'nightmare' && !this.canNightmare(level) ? 'normal' : GS.mode;
+        // 第 2/3/4 关：与对局皮肤对应的主题窗口（糖果嘉年华 / 果冻乐园 / 贴纸手账）
+        const theme = themeForLevel(level).id;
+        if (theme !== 'classic') {
+            // 主题窗口出错时退回原吊牌：点关卡至少要有反应（错误由运行时画在屏幕顶部，便于截图排查）
+            try {
+                this.themedPreview.show(level, theme);
+                return;
+            } catch (err) {
+                this.themedPreview.hide();
+                reportError(`第 ${level} 关详情窗口`, err);
+            }
+        }
         this.pvLevelLabel.string = MAP_TEXT.level(level);
         this.paintModes();
         this.preview.active = true;
@@ -1183,6 +1346,7 @@ export class MapBootstrap extends Component {
     private closePreview() {
         this.preview.active = false;
         this.dropT = -1;
+        this.themedPreview?.hide();
     }
 
     private pickMode(m: GameMode) {

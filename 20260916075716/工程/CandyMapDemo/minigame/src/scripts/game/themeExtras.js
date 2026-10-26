@@ -1,178 +1,214 @@
 /**
- * 主题化辅助视觉（2026-10-25）：连击词 / 棋盘操作提示 / 首次玩法指引。
- * 全部挂在 GameBootstrap.node 下，按当前主题配色与字体。
+ * 主题化辅助视觉（2026-10-25 重做）：连击词 / 首次玩法指引。
+ * 棋盘下方的常驻操作提示已并入 themeHud（随 HUD 一起按主题重建，不再单独维护位置）。
+ *
+ *   连击词：candy 金黄斜体大字 + 橙色投影（原型 A .combo-word）
+ *           clean 白胶囊 + 墨色粗体（原型 B）
+ *           journal 淡粉胶囊 + 红虚线框 + 手写字、微微歪着（原型 C）
  */
 
-import { Node, UITransform, Layers, Graphics, Label, Color, UIOpacity, Vec3, tween } from '../../runtime/cc.js';
-import { currentTheme,                } from './theme.js';
+import { Node, Graphics, Color, UIOpacity, Vec3, tween, EventTouch } from '../../runtime/cc.js';
+import { currentTheme, P_CANDY, P_CLEAN, P_JOURNAL } from './theme.js';
+import { fillV, shadow, dash, mkNode, mkGfx, mkText, screenH,                } from './paint.js';
+import { estW } from './themeHud.js';
 
 /* ================================================================ 连击词 */
 
 let comboNode              = null;
-let comboLabel               = null;
-let comboOp                   = null;
-let comboTimer                                       = null;
 
-/** 显示连击词（连锁 ≥2 时调用）——按主题配色/字体，大字弹入后淡出 */
-export function showComboWord(parent      , chain        )       {
+/** 显示连击词（连锁 ≥2 时调用）。y = 棋盘上部的位置（GameBootstrap 按布局给） */
+export function showComboWord(parent      , chain        , y = 300)       {
   const t = currentTheme();
   const words = t.copy.combo;
-  const idx = Math.min(chain - 2, words.length - 1);
-  const text = words[Math.max(0, idx)] ?? words[words.length - 1] ;
+  const text = words[Math.max(0, Math.min(chain - 2, words.length - 1))] ;
 
-  if (!comboNode || !comboNode.isValid || comboNode.parent !== parent) {
-    if (comboNode && comboNode.isValid) comboNode.destroy();
-    comboNode = new Node('ComboWord');
-    comboNode.parent = parent;
-    comboNode.layer = Layers.Enum.UI_2D;
-    comboNode.addComponent(UITransform).setContentSize(600, 100);
-    comboNode.setPosition(0, 80);
-    comboOp = comboNode.addComponent(UIOpacity);
-    comboLabel = comboNode.addComponent(Label);
-    comboLabel.fontSize = 44;
-    comboLabel.lineHeight = 52;
-    comboLabel.horizontalAlign = 1; // CENTER
+  if (comboNode && comboNode.isValid) comboNode.destroy();
+  const n = mkNode(parent, 'ComboWord', 800, 200, 0, y);
+  comboNode = n;
+  const op = n.addComponent(UIOpacity);
+
+  if (t.id === 'candy') {
+    mkText(n, text, 0, 0, 800, {
+      font: t.font, size: 120, color: new Color(255, 238, 156), italic: true,
+      outline: new Color(179, 84, 30), outlineWidth: 6,
+      shadow: { color: new Color(255, 150, 60, 230), blur: 40 },
+    });
+  } else {
+    const st            = t.id === 'clean'
+      ? { font: t.font, size: 64, color: P_CLEAN.ink, bold: true }
+      : { font: t.font, size: 80, color: P_JOURNAL.ink, bold: true };
+    const w = Math.round(estW(text, st.size) + 120);
+    const h = t.id === 'clean' ? 128 : 136;
+    const g = mkGfx(n, 'Pill', w, h);
+    if (t.id === 'clean') {
+      shadow(g, new Color(34, 48, 63, 46), 50, 0, 22);
+      g.fillColor = P_CLEAN.card;
+      g.roundRect(-w / 2, -h / 2, w, h, h / 2);
+      g.fill();
+      shadow(g, null);
+    } else {
+      g.fillColor = P_JOURNAL.stampSoft;
+      g.roundRect(-w / 2, -h / 2, w, h, h / 2);
+      g.fill();
+      g.lineWidth = 6;
+      g.strokeColor = P_JOURNAL.stamp;
+      dash(g, [16, 10]);
+      g.roundRect(-w / 2, -h / 2, w, h, h / 2);
+      g.stroke();
+      dash(g, []);
+      n.angle = 3;
+    }
+    mkText(n, text, 0, 0, w, st);
   }
 
-  const t2 = t;
-  comboLabel .fontFamily = t2.fontFamily;
-  comboLabel .color = t2.id === 'candy'
-    ? new Color(255, 238, 156)
-    : t2.id === 'clean'
-      ? new Color(34, 48, 63)
-      : new Color(214, 69, 69);
-  if (t2.textShadow) comboLabel .enableBold = true;
-  comboLabel .string = text;
-
-  comboNode.setPosition(0, 80);
-  comboNode.setScale(0.3, 0.3);
-  comboOp .opacity = 255;
-
-  tween(comboNode )
-    .to(0.22, { scale: new Vec3(1.22, 1.22, 1), position: new Vec3(0, 100, 0) })
-    .to(0.1, { scale: new Vec3(1, 1, 1) })
-    .delay(0.5)
-    .to(0.25, { position: new Vec3(0, 130, 0) })
-    .call(() => { if (comboOp) comboOp.opacity = 0; })
+  // 弹入（0.3 → 1.25 → 1）→ 停一下 → 上飘淡出
+  n.setScale(0.3, 0.3);
+  tween(n)
+    .to(0.2, { scale: new Vec3(1.25, 1.25, 1) })
+    .to(0.12, { scale: new Vec3(1, 1, 1) })
+    .delay(0.35)
+    .to(0.3, { position: new Vec3(0, y + 80, 0) })
     .start();
-
-  if (comboTimer) clearTimeout(comboTimer);
-  comboTimer = setTimeout(() => {
-    if (comboOp) comboOp.opacity = 0;
-    comboTimer = null;
-  }, 1100);
-}
-
-/* ================================================================ 棋盘操作提示 */
-
-let hintNode              = null;
-let hintLabel               = null;
-
-/** 棋盘下方的常驻操作提示（按主题字体/颜色） */
-export function ensureBoardHint(parent      )       {
-  const t = currentTheme();
-  if (hintNode && hintNode.isValid && hintNode.parent === parent) {
-    hintLabel .fontFamily = t.fontFamily;
-    hintLabel .string = t.copy.boardHint;
-    return;
-  }
-  if (hintNode && hintNode.isValid) hintNode.destroy();
-  hintNode = new Node('BoardHint');
-  hintNode.parent = parent;
-  hintNode.layer = Layers.Enum.UI_2D;
-  hintNode.addComponent(UITransform).setContentSize(800, 44);
-  hintNode.setPosition(0, -700);
-  hintLabel = hintNode.addComponent(Label);
-  hintLabel.fontSize = 24;
-  hintLabel.lineHeight = 30;
-  hintLabel.horizontalAlign = 1; // CENTER
-  hintLabel.string = t.copy.boardHint;
+  tween(op).delay(0.67).to(0.3, { opacity: 0 }).call(() => { if (n.isValid) n.destroy(); }).start();
 }
 
 /* ================================================================ 首次玩法指引 */
 
-let guideShown = false;
+const GUIDE_KEY = 'pinpin.themeGuide';
+
+function guideSeen()          {
+  try {
+    const wx = (globalThis                ).wx;
+    if (wx && typeof wx.getStorageSync === 'function') return wx.getStorageSync(GUIDE_KEY) === '1';
+    const ls = (globalThis                              ).localStorage;
+    return !!ls && ls.getItem(GUIDE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markGuideSeen()       {
+  try {
+    const wx = (globalThis                ).wx;
+    if (wx && typeof wx.setStorageSync === 'function') { wx.setStorageSync(GUIDE_KEY, '1'); return; }
+    const ls = (globalThis                              ).localStorage;
+    if (ls) ls.setItem(GUIDE_KEY, '1');
+  } catch { /* 存不上就每次冷启动再看一遍 */ }
+}
+
+let guideShownThisRun = false;
 
 /**
  * 首次进关的视觉指引（3 步）：碎片是什么 → 怎么拼 → 拼满了怎样。
- * 半透明遮罩 + 主题化卡片 + 「知道了」按钮。第二次进关不再弹。
+ * 只在**首次安装后第一次进关**弹（落盘记住），弹着的时候不开表 —— onDone 才开始。
  */
 export function showThemeGuideOnce(parent      , onDone            )       {
-  if (guideShown) { onDone(); return; }
-  guideShown = true;
+  if (guideShownThisRun || guideSeen()) { onDone(); return; }
+  guideShownThisRun = true;
 
   const t = currentTheme();
-  const overlay = new Node('ThemeGuide');
-  overlay.parent = parent;
-  overlay.layer = Layers.Enum.UI_2D;
-  overlay.addComponent(UITransform).setContentSize(1080, 1920);
+  const H = screenH();
+  const overlay = mkNode(parent, 'ThemeGuide', 1080, H);
   const op = overlay.addComponent(UIOpacity);
+  const mask = mkGfx(overlay, 'Mask', 1080, H);
+  mask.fillColor = t.mask;
+  mask.rect(-540, -H / 2, 1080, H);
+  mask.fill();
+  const block = (e            )       => { e.propagationStopped = true; };
+  mask.node.on(Node.EventType.TOUCH_START, block);
+  mask.node.on(Node.EventType.TOUCH_END, block);
 
-  // 遮罩
-  const mask = new Node('Mask');
-  mask.parent = overlay;
-  mask.layer = Layers.Enum.UI_2D;
-  mask.addComponent(UITransform).setContentSize(1080, 1920);
-  const mg = mask.addComponent(Graphics);
-  mg.fillColor = new Color(20, 10, 40, 200);
-  mg.rect(-540, -960, 1080, 1920);
-  mg.fill();
+  const W = 860;
+  const CH = 1060;
+  const card = mkNode(overlay, 'Card', W, CH);
+  const g = card.addComponent(Graphics);
+  const ink = t.id === 'candy' ? P_CANDY.ink : t.id === 'clean' ? P_CLEAN.ink : P_JOURNAL.ink;
+  const soft = t.id === 'candy' ? new Color(150, 110, 60) : t.id === 'clean' ? P_CLEAN.inkSoft : P_JOURNAL.inkSoft;
+  const accent = t.id === 'candy' ? P_CANDY.cta : t.id === 'clean' ? P_CLEAN.gold : P_JOURNAL.stamp;
+  if (t.id === 'candy') {
+    g.fillColor = new Color(0, 0, 0, 64);
+    g.roundRect(-W / 2, -CH / 2 - 30, W, CH, 70);
+    g.fill();
+    g.roundRect(-W / 2, -CH / 2, W, CH, 70);
+    fillV(g, CH / 2, -CH / 2, P_CANDY.cardA, P_CANDY.cardB);
+    g.lineWidth = 11;
+    g.strokeColor = P_CANDY.cardBorder;
+    g.roundRect(-W / 2, -CH / 2, W, CH, 70);
+    g.stroke();
+  } else if (t.id === 'clean') {
+    shadow(g, new Color(34, 48, 63, 60), 80, 0, 30);
+    g.fillColor = P_CLEAN.card;
+    g.roundRect(-W / 2, -CH / 2, W, CH, 70);
+    g.fill();
+    shadow(g, null);
+  } else {
+    card.angle = -1;
+    shadow(g, new Color(0, 0, 0, 80), 70, 0, 36);
+    g.fillColor = P_JOURNAL.sheet;
+    g.roundRect(-W / 2, -CH / 2, W, CH, 22);
+    g.fill();
+    shadow(g, null);
+    g.lineWidth = 3;
+    g.strokeColor = P_JOURNAL.border;
+    g.roundRect(-W / 2, -CH / 2, W, CH, 22);
+    g.stroke();
+    const tp = mkGfx(card, 'Tape', 240, 58, 0, CH / 2);
+    tp.node.angle = -3;
+    tp.fillColor = new Color(P_JOURNAL.washiPink.r, P_JOURNAL.washiPink.g, P_JOURNAL.washiPink.b, 225);
+    tp.roundRect(-120, -29, 240, 58, 5);
+    tp.fill();
+  }
 
-  // 卡片
-  const card = new Node('Card');
-  card.parent = overlay;
-  card.layer = Layers.Enum.UI_2D;
-  card.addComponent(UITransform).setContentSize(580, 760);
-  const cg = card.addComponent(Graphics);
-  cg.fillColor = t.copy.cardBg;
-  cg.roundRect(-290, -380, 580, 760, 28);
-  cg.fill();
-  cg.lineWidth = t.id === 'candy' ? 5 : 2;
-  cg.strokeColor = t.copy.cardBorder;
-  cg.roundRect(-290, -380, 580, 760, 28);
-  cg.stroke();
+  mkText(card, t.copy.guideTitle, 0, CH / 2 - 110, 700, { font: t.font, size: 76, color: accent, bold: t.id !== 'candy' });
 
-  // 标题
-  const title = mkLabel(card, '怎么玩', 40, t.copy.honorColor, 0, 300, 480, t);
-
-  // 三步说明
-  const steps                          = [
-    ['🧩', '每块碎片是贴纸的四分之一\n（左上 / 右上 / 左下 / 右下）'],
-    ['👆', '拖动碎片换位置\n同图相邻 + 位置正确 = 融合'],
-    ['✨', '四块拼成完整 2×2 贴纸\n→ 消除得分 + 连锁加分！'],
-  ];
-  steps.forEach(([icon, text], i) => {
-    const y = 160 - i * 160;
-    // 图标
-    const ic = mkLabel(card, icon, 44, new Color(60, 45, 30), -200, y, 80, t);
-    // 文字
-    const tx = mkLabel(card, text, 26, new Color(80, 60, 40), 40, y, 360, t);
-    tx.horizontalAlign = 0; // LEFT
+  t.copy.guideSteps.forEach(([title, sub], i) => {
+    const y = CH / 2 - 270 - i * 190;
+    // 序号圆片
+    const dot = mkGfx(card, 'No', 100, 100, -W / 2 + 110, y);
+    dot.fillColor = accent;
+    dot.circle(0, 0, 44);
+    dot.fill();
+    mkText(dot.node, String(i + 1), 0, 0, 90, { font: t.font, size: 52, color: new Color(255, 255, 255), bold: true });
+    mkText(card, title, 70, y + 30, 600, { font: t.font, size: 46, color: ink, bold: t.id !== 'candy', align: 'left' });
+    mkText(card, sub, 70, y - 34, 600, { font: t.body, size: 34, color: soft, align: 'left' });
   });
 
-  // 星线说明
-  const starLine = mkLabel(card, `★ 达到星线就能通关（${'★'.repeat(3)} = 超神！）`, 22, new Color(200, 130, 20), 0, -160, 480, t);
+  mkText(card, '★ 达到星线就能通关，三颗星 = 超神', 0, -CH / 2 + 290, 760, { font: t.body, size: 34, color: soft });
 
   // 按钮
-  const btn = new Node('Btn');
-  btn.parent = card;
-  btn.layer = Layers.Enum.UI_2D;
-  btn.addComponent(UITransform).setContentSize(380, 88);
-  btn.setPosition(0, -290);
+  const bw = 660;
+  const bh = 140;
+  const btn = mkNode(card, 'Btn', bw, bh + 16, 0, -CH / 2 + 140);
   const bg = btn.addComponent(Graphics);
-  bg.fillColor = t.copy.primaryFill;
-  bg.roundRect(-190, -44, 380, 88, 44);
-  bg.fill();
-  bg.fillColor = t.copy.primaryEdge;
-  bg.roundRect(-190, -44, 380, 82, 44);
-  bg.fill();
-  bg.fillColor = t.copy.primaryFill;
-  bg.roundRect(-190, -38, 380, 76, 38);
-  bg.fill();
-  const bl = mkLabel(btn, '知道了，开玩！', 30, new Color(255, 255, 255), 0, 0, 360, t);
-  if (t.textShadow) bl.enableBold = true;
+  const btxt            = { font: t.font, size: 50, color: new Color(255, 255, 255), bold: t.id !== 'candy' };
+  if (t.id === 'candy') {
+    bg.fillColor = P_CANDY.goEdge;
+    bg.roundRect(-bw / 2, -bh / 2 - 16, bw, bh, 54);
+    bg.fill();
+    bg.roundRect(-bw / 2, -bh / 2, bw, bh, 54);
+    fillV(bg, bh / 2, -bh / 2, new Color(160, 234, 128), P_CANDY.go);
+    btxt.shadow = { color: new Color(0, 0, 0, 72), y: 5 };
+  } else if (t.id === 'clean') {
+    shadow(bg, new Color(245, 166, 35, 102), 50, 0, 22);
+    bg.roundRect(-bw / 2, -bh / 2, bw, bh, 50);
+    fillV(bg, bh / 2, -bh / 2, P_CLEAN.goldBtn, P_CLEAN.gold);
+    shadow(bg, null);
+  } else {
+    bg.fillColor = P_JOURNAL.kraftDark;
+    bg.roundRect(-bw / 2, -bh / 2 - 11, bw, bh, 28);
+    bg.fill();
+    bg.fillColor = P_JOURNAL.kraft;
+    bg.roundRect(-bw / 2, -bh / 2, bw, bh, 28);
+    bg.fill();
+    btxt.color = P_JOURNAL.btnText;
+  }
+  mkText(btn, t.copy.guideBtn, 0, 3, bw, btxt);
 
+  let closed = false;
   btn.on(Node.EventType.TOUCH_END, () => {
+    if (closed) return;
+    closed = true;
+    markGuideSeen();
     tween(op).to(0.2, { opacity: 0 }).call(() => {
       overlay.destroy();
       onDone();
@@ -180,28 +216,12 @@ export function showThemeGuideOnce(parent      , onDone            )       {
   }, btn);
 
   op.opacity = 0;
-  tween(op).to(0.3, { opacity: 255 }).start();
+  tween(op).to(0.25, { opacity: 255 }).start();
+  card.setScale(0.8, 0.8);
+  tween(card).to(0.22, { scale: new Vec3(1.04, 1.04, 1) }).to(0.12, { scale: new Vec3(1, 1, 1) }).start();
 }
 
 /** 重置指引（测试用） */
 export function resetGuideForTest()       {
-  guideShown = false;
-}
-
-/* ---------------------------------------------------------------- 工具 */
-
-function mkLabel(parent      , text        , size        , color       , x        , y        , w        , t           )        {
-  const n = new Node('L');
-  n.parent = parent;
-  n.layer = Layers.Enum.UI_2D;
-  n.addComponent(UITransform).setContentSize(w, size + 10);
-  n.setPosition(x, y);
-  const l = n.addComponent(Label);
-  l.fontSize = size;
-  l.lineHeight = size + 8;
-  l.color = color;
-  l.fontFamily = t.fontFamily;
-  l.string = text;
-  l.horizontalAlign = 1; // CENTER
-  return l;
+  guideShownThisRun = false;
 }

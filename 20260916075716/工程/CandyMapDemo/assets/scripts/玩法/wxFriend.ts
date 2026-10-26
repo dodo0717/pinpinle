@@ -17,10 +17,8 @@
  */
 
 import { GS } from './state';
-import { totalStars } from './meta';
-import { recordOf } from '../核心/index';
+import { rankTotals } from '../核心/index';
 import { cloudSync } from './cloud';
-import type { ProgressData } from '../核心/index';
 
 /** 开放数据域按同一个 key 读（open-data/index.js 里的 RANK_KEY 必须一致） */
 const RANK_KEY = 'pinpin_rank';
@@ -28,17 +26,6 @@ const RANK_KEY = 'pinpin_rank';
 /** sharedCanvas 尺寸缓存：变了才重设 + 让子域重画 */
 let friendSize = '';
 
-/** 两模式「所有关卡本关最高分之和」（与 MapPanels.totalScoreOf 同口径） */
-function totalScoreOfBoth(progress: ProgressData[]): number {
-  let sum = 0;
-  for (const p of progress) {
-    for (const key of Object.keys(p.levels)) {
-      const level = Number(key);
-      if (Number.isFinite(level)) sum += recordOf(p, level).personalBest;
-    }
-  }
-  return sum;
-}
 
 /**
  * 把本人总分 / 总星 / 进度写进微信托管 KV（好友榜的数据源）。
@@ -48,10 +35,10 @@ export function syncFriendRank(): void {
   const wx = (globalThis as { wx?: any }).wx;
   if (!wx || typeof wx.setUserCloudStorage !== 'function') return;
   try {
-    const normal = GS.data.progress.normal;
-    const nightmare = GS.data.progress.nightmare;
-    const score = totalScoreOfBoth([normal, nightmare]);
-    const stars = totalStars(normal) + totalStars(nightmare);
+    // 与总榜同一口径（核心/rank.ts）：总积分 = 简单 + 困难×1.5（只认有效成绩），总星数两模式合计
+    const t = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare);
+    const score = t.total;
+    const stars = t.stars;
     wx.setUserCloudStorage({
       KVDataList: [
         {

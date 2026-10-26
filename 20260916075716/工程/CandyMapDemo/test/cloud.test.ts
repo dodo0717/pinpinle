@@ -64,8 +64,8 @@ test('cloudDiff：只挑本地更优的关，按关号升序（升序补推才�
   assert.deepEqual(all, [1, 2, 3]);
 });
 
-test('REPORT_MODES：v1 只含简单模式（困难模式被后端关卡守卫挡住）', () => {
-  assert.deepEqual([...REPORT_MODES], ['normal']);
+test('REPORT_MODES：服务端按模式分开记分后（2026-10-26），两种模式都上报', () => {
+  assert.deepEqual([...REPORT_MODES], ['normal', 'nightmare']);
 });
 
 /* ---------------------------------------------------------------- 假宿主全流程 */

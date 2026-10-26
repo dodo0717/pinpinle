@@ -72,36 +72,24 @@ describe('M9 · 三档判定（§三 / §四）', () => {
     percentile,
   });
 
-  it('进了百强 → 超神', () => {
-    assert.strictEqual(honorOf(stats(101, 1, 100)), 'god');
-    assert.strictEqual(honorOf(stats(101, 100, 1)), 'god');
-    assert.strictEqual(honorOf(stats(9999, 100, 99)), 'god');
+  it('超神：名次 ≤ 10（人少时保底）或在前 1%', () => {
+    assert.strictEqual(honorOf(stats(5, 1, 100)), 'god');
+    assert.strictEqual(honorOf(stats(101, 10, 0)), 'god');
+    assert.strictEqual(honorOf(stats(5000, 50, 0)), 'god', '5000 人的前 1% = 前 50 名');
+    assert.strictEqual(honorOf(stats(5000, 51, 0)), 'king');
   });
 
-  it('总玩家数 ≤ 100 时**不启用**超神档，直接看百分比', () => {
-    assert.strictEqual(honorOf(stats(100, 1, 100)), 'king');
-    assert.strictEqual(honorOf(stats(50, 1, 100)), 'king');
+  it('王者：名次在前 10%', () => {
+    assert.strictEqual(honorOf(stats(101, 11, 0)), 'king', '101 人的前 10% 向上取整 = 前 11 名');
+    assert.strictEqual(honorOf(stats(101, 12, 0)), 'pass');
+    assert.strictEqual(honorOf(stats(1000, 100, 0)), 'king');
+    assert.strictEqual(honorOf(stats(1000, 101, 0)), 'pass');
   });
 
-  it('没进百强但百分比 ≥ 90% → 王者', () => {
-    assert.strictEqual(honorOf(stats(1001, 101, 90)), 'king');
-    assert.strictEqual(honorOf(stats(2000, 150, 95.5)), 'king');
-  });
-
-  it('其余都是优秀', () => {
-    assert.strictEqual(honorOf(stats(2000, 150, 89.9)), 'pass');
-    assert.strictEqual(honorOf(stats(101, 101, 0)), 'pass');
-  });
-
-  it('⚠️ 已知后果：总玩家数只有 101 时，王者档数学上不可达', () => {
-    // 名次 > 100 意味着至少 100 人比你高 → percentile ≤ (N-101)/(N-1)。
-    // 让它 ≥ 90% 需要 N ≥ 1001；101 人的池子里「不进百强」等价于「垫底」，
-    // 百分比必然是 0，只能落进优秀档。这不是代码缺陷，是数值门槛的后果。
-    for (let rank = 1; rank <= 101; rank++) {
-      const percentile = rank <= 100 ? (101 - rank) / 100 : 0;
-      const tier = honorOf(stats(101, rank, percentile * 100));
-      assert.notStrictEqual(tier, 'king', `101 人池子里第 ${rank} 名不该是王者`);
-    }
+  it('王者档在小池子里也可达（旧规则下 101 人时不可达）', () => {
+    const tiers = new Set<string>();
+    for (let rank = 1; rank <= 300; rank++) tiers.add(honorOf(stats(300, rank, 0)));
+    assert.deepStrictEqual([...tiers].sort(), ['god', 'king', 'pass']);
   });
 });
 
@@ -159,11 +147,17 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
 });
 
 describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
-  it('3★ 上榜 → 超神', () => {
+  it('3★ 上榜但分数贴着 3★ 线 → 优秀（新规：只够线不再白送超神）', () => {
     const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 9 });
-    assert.strictEqual(out.tier, 'god');
+    assert.strictEqual(out.tier, 'pass');
     assert.strictEqual(out.stats.totalPlayers, 101);
     assert.strictEqual(out.rankScore, 9);
+  });
+
+  it('3★ 上榜且名次靠前 → 超神 / 王者按名次占比', () => {
+    const top = honorForLevel({ level: 15, line: LINE, score: 99, stars: 3, revived: false, boardBest: 99 });
+    assert.strictEqual(top.stats.rank, 1);
+    assert.strictEqual(top.tier, 'god');
   });
 
   it('1★ / 2★ 不上榜 → 优秀（百分比 0）', () => {

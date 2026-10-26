@@ -15,7 +15,7 @@
 
 import { GRID_BY_LEVEL, type GameMode } from './config';
 import type { Cell } from './grid';
-import { STAMINA_MAX, createProgress, type LevelRecord, type ProgressData, type Stamina } from './progress';
+import { STAMINA_MAX, createProgress, type LevelRecord, type ProgressData, type Stamina, INITIAL_UNLOCKED } from './progress';
 
 /** 存档格式版本；改动字段含义时必须 +1（旧档会整档作废，见 `parseSave`） */
 export const SAVE_VERSION = 1;
@@ -169,19 +169,26 @@ function boolOr(v: unknown, fb: boolean): boolean {
 function sanitizeRecord(raw: unknown, level: number, issues: string[]): LevelRecord {
   if (!isObj(raw)) {
     issues.push(`第 ${level} 关记录不是对象，已按全 0 处理`);
-    return { stars: 0, personalBest: 0, boardBest: 0 };
+    return { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
   }
   const stars = intIn(raw.stars, 0, 3);
   const personalBest = intIn(raw.personalBest, 0, Number.MAX_SAFE_INTEGER);
   const boardBest = intIn(raw.boardBest, 0, Number.MAX_SAFE_INTEGER);
+  // 2026-10-25 新字段：老存档没有 → 按个人最高分迁移（旧口径下总分本来就算它；
+  // 老存档分不清哪局是续命局，迁移只会让续命玩家多一点分，不会少算正常玩家）
+  const validRaw = raw.validBest === undefined ? raw.personalBest : raw.validBest;
+  const validBest = intIn(validRaw, 0, Number.MAX_SAFE_INTEGER);
   if (stars === null) issues.push(`第 ${level} 关星级非法（${String(raw.stars)}），已按 0 处理`);
   if (personalBest === null) issues.push(`第 ${level} 关个人最高分非法，已按 0 处理`);
   if (boardBest === null) issues.push(`第 ${level} 关上榜最高分非法，已按 0 处理`);
+  if (validBest === null && raw.validBest !== undefined) issues.push(`第 ${level} 关有效最高分非法，已按 0 处理`);
   return {
     stars: stars ?? 0,
     personalBest: personalBest ?? 0,
     // 上榜分不可能高于个人最高分（续命局只涨个人分、不涨上榜分，见 §7.4）
     boardBest: Math.min(boardBest ?? 0, personalBest ?? 0),
+    // 有效分介于上榜分与个人最高分之间（上榜成绩一定是有效成绩）
+    validBest: Math.min(personalBest ?? 0, Math.max(validBest ?? 0, Math.min(boardBest ?? 0, personalBest ?? 0))),
   };
 }
 
@@ -230,6 +237,9 @@ function sanitizeProgress(raw: unknown, mode: GameMode, limits: SaveLimits, issu
     issues.push(`${mode} 已通关到第 ${maxCleared} 关但 unlocked=${unlocked}，已抬到 ${fixed}`);
     unlocked = fixed;
   }
+
+  // 出厂解锁数是下限（老存档在改出厂值之前建的，unlocked 可能更小）；不算修复，不记 issue
+  unlocked = Math.min(limits.totalLevels, Math.max(unlocked, INITIAL_UNLOCKED));
 
   return { mode, unlocked, levels };
 }

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>排行榜规则原型 —— 积分 / 星数 / 上榜（2026-10-25 产品方案）</title>
+<style>
+/* ============================================================
+   排行榜规则原型：左边是手机里的榜单（按新规则实时算），右边是规则说明 + 沙盘。
+   沙盘里改每关成绩（分数 / 是否续命 / 模式），左边的榜单、我的成绩、上榜状态、
+   荣誉档位跟着变 —— 用来和策划 / 开发对齐口径，不是正式代码。
+   ============================================================ */
+:root {
+  --sky-a: #3f83d8; --sky-b: #6fa9ea; --sky-c: #a9d0f5;
+  --gold: #F5C542; --gold-d: #D9A227; --brown: #5F3A12; --head: #7C4A12;
+  --simple: #2EA44F; --hard: #F08A24; --total: #F5B800;
+  --ink: #22303F; --soft: #6B7785; --line: #E4EDF4; --ok: #2FBF8F; --bad: #E2554B;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #1d2633; color: var(--ink);
+  display: flex; gap: 22px; padding: 20px; min-height: 100vh; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+h1 { font-size: 20px; } h2 { font-size: 16px; margin: 18px 0 8px; } h3 { font-size: 14px; margin: 12px 0 6px; }
+
+/* ---------- 手机 ---------- */
+.phone { width: 390px; height: 820px; flex: none; border-radius: 42px; padding: 10px;
+  background: linear-gradient(160deg, #33475C, #1B2734); box-shadow: 0 30px 60px rgba(0,0,0,.5); position: sticky; top: 20px; }
+.screen { position: relative; width: 100%; height: 100%; border-radius: 34px; overflow: hidden;
+  background: linear-gradient(180deg, var(--sky-a), var(--sky-b) 42%, var(--sky-c)); display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; padding: 18px 16px 6px; }
+.back { width: 46px; height: 46px; border-radius: 50%; background: #8a5a2b; color: #FFE9B0; display: grid; place-items: center; font-weight: 900; box-shadow: 0 3px 0 #5a3a18; }
+.title { flex: 1; text-align: center; font-size: 34px; font-weight: 900; color: #fff; margin-right: 46px;
+  -webkit-text-stroke: 2px #5a2d0a; paint-order: stroke; text-shadow: 0 3px 0 rgba(60,30,0,.4); }
+.card { margin: 6px 10px 10px; flex: 1; min-height: 0; background: #6ea8ec; border: 5px solid var(--gold); border-radius: 30px;
+  padding: 10px 10px 8px; display: flex; flex-direction: column; gap: 7px; }
+.tabs { display: flex; gap: 6px; }
+.tab { flex: 1; text-align: center; padding: 8px 0; border-radius: 14px; font-weight: 900; font-size: 17px; color: #fff; cursor: pointer;
+  background: linear-gradient(180deg, #7aa7d8, #5b86b8); box-shadow: 0 3px 0 #3d5f88; }
+.tab.on { background: linear-gradient(180deg, #ffcf4a, #f59e0b); box-shadow: 0 3px 0 #b8700a; -webkit-text-stroke: 1px #7a3c00; paint-order: stroke; }
+.sub { display: flex; justify-content: center; align-items: center; gap: 8px; color: #fff; font-weight: 800; font-size: 14px; }
+.sub button { border: 0; border-radius: 999px; padding: 4px 12px; background: rgba(40,70,120,.5); color: #fff; font-weight: 800; cursor: pointer; }
+.sub button.on { background: #fff; color: #2b5d99; }
+.mine { background: #1a305a; border: 2px solid rgba(255,201,94,.9); border-radius: 18px; padding: 8px 6px; display: grid; grid-template-columns: repeat(3,1fr); }
+.mine div { text-align: center; } .mine div + div { border-left: 1px solid rgba(255,201,94,.35); }
+.mine .k { font-size: 11px; color: #cfe0f5; font-weight: 700; } .mine .v { font-size: 22px; font-weight: 900; color: #FFD54A; -webkit-text-stroke: 1px #783c00; paint-order: stroke; }
+.mine .v.small { font-size: 16px; }
+.hintbar { background: rgba(255,255,255,.92); border-radius: 12px; padding: 6px 10px; font-size: 12px; font-weight: 700; color: #2b4a73; display: flex; gap: 6px; align-items: center; }
+.hintbar b { color: #d36a00; }
+.thead, .row { display: grid; grid-template-columns: 40px 1fr 46px 46px 54px; align-items: center; gap: 4px; padding: 0 8px; }
+.thead { background: linear-gradient(180deg, #ffe7a6, #f7c75a); border-radius: 12px; height: 30px; font-size: 12px; font-weight: 900; color: var(--head); text-align: center; }
+.thead span:nth-child(2) { text-align: left; }
+.list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; padding-right: 2px; }
+.row { background: #fff8ea; border-radius: 14px; height: 44px; font-weight: 900; }
+.row.me { background: linear-gradient(90deg, #fff1b8, #ffd76a); outline: 2px solid #f5a623; }
+.row.ghost { opacity: .55; outline: 2px dashed #f5a623; background: #fff8ea; }
+.rk { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; background: #6f86a6; margin: auto; }
+.rk.r1 { background: #f5b800; } .rk.r2 { background: #a7b4c4; } .rk.r3 { background: #cd7f32; }
+.nm { font-size: 14px; color: var(--brown); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm small { display: inline-block; font-size: 10px; color: #fff; background: #2fbf8f; border-radius: 6px; padding: 0 4px; margin-left: 4px; vertical-align: 2px; }
+.c-s { color: var(--simple); text-align: center; font-size: 14px; } .c-h { color: var(--hard); text-align: center; font-size: 14px; }
+.c-t { color: var(--total); text-align: center; font-size: 16px; -webkit-text-stroke: .6px #965a00; paint-order: stroke; }
+.c-st { color: #d38b00; text-align: center; font-size: 13px; }
+.sample { text-align: center; font-size: 11px; color: rgba(255,255,255,.85); font-weight: 700; }
+
+/* ---------- 右侧说明 ---------- */
+.doc { width: 640px; max-width: 100%; background: #fff; border-radius: 18px; padding: 20px 24px 26px; line-height: 1.65; font-size: 13.5px; }
+.doc p { color: #33404d; } .doc .muted { color: var(--soft); }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 4px; font-size: 13px; }
+th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+th { background: #f5f8fb; }
+.tag { display: inline-block; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 0 6px; }
+.tag.now { background: #ffe4df; color: #c0392b; } .tag.new { background: #dff5ec; color: #1f8a63; } .tag.srv { background: #e7efff; color: #2b5d99; }
+.sandbox { background: #f6faff; border: 1px solid #dbe7f5; border-radius: 14px; padding: 12px 14px; margin-top: 8px; }
+.sandbox table td input[type=number] { width: 62px; }
+.sandbox .res { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.pill { border-radius: 999px; padding: 3px 10px; font-weight: 800; font-size: 12px; background: #eef3f8; }
+.pill.ok { background: #dff5ec; color: #1f8a63; } .pill.no { background: #ffe9e6; color: #c0392b; } .pill.gold { background: #fff1c9; color: #9a6400; }
+button.act { border: 0; border-radius: 8px; padding: 5px 10px; background: #2b5d99; color: #fff; font-weight: 700; cursor: pointer; }
+code { background: #f1f4f8; border-radius: 4px; padding: 0 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ======================================================== 手机：新规则下的榜单 -->
+<div class="phone"><div class="screen">
+  <div class="top"><div class="back">←</div><div class="title">排行榜</div></div>
+  <div class="card">
+    <div class="tabs">
+      <div class="tab on" data-tab="total">总榜</div>
+      <div class="tab" data-tab="level">关卡榜</div>
+      <div class="tab" data-tab="friend">好友榜</div>
+    </div>
+    <div class="sub" id="sub"></div>
+    <div class="mine" id="mine"></div>
+    <div class="hintbar" id="hintbar"></div>
+    <div class="thead" id="thead"></div>
+    <div class="list" id="list"></div>
+    <div class="sample" id="sample"></div>
+  </div>
+</div></div>
+
+<!-- ======================================================== 规则说明 + 沙盘 -->
+<div class="doc">
+  <h1>排行榜规则方案（产品原型）</h1>
+  <p class="muted">2026-10-25 · 左边手机按本页规则实时计算；在下面「沙盘」里改成绩，榜单 / 我的成绩 / 上榜状态 / 荣誉档位会跟着变。</p>
+
+  <h2>一、现状评估（读代码得出的问题）</h2>
+  <table>
+    <tr><th style="width:26%">位置</th><th>现在怎么算</th><th style="width:30%">问题</th></tr>
+    <tr><td>总分榜·我的总分</td><td>两种模式所有关卡「个人最高分」相加，<b>含续命局</b></td><td><span class="tag now">口径冲突</span> 关卡榜不收续命局，总榜却收；续命 +60 秒可直接刷总分</td></tr>
+    <tr><td>总分榜·别人</td><td>100 个模拟玩家，总分 380~980 随机</td><td><span class="tag now">量级不对</span> 实际 1 关只有 5~15 分，60 关满打也就 ~600；新玩家永远垫底，看着像假榜</td></tr>
+    <tr><td>总分榜·名次</td><td>排序后直接 1、2、3… 编号</td><td><span class="tag now">并列不一致</span> 关卡榜同分同名次（1,1,3），总榜不并列</td></tr>
+    <tr><td>关卡榜</td><td>≥3★ 且未续命才上榜，按本关上榜最高分排</td><td>规则合理；但模拟玩家全部 ≥3★ 线，真实玩家的榜单还没接</td></tr>
+    <tr><td>荣誉档位</td><td>超神 = 名次 ≤100 且总人数 &gt;100；王者 = 超越 ≥90%</td><td><span class="tag now">数学问题</span> 101 人时上榜≈必得超神；总人数 &lt;1001 时王者<b>不可能</b>出现（代码注释里已记录）</td></tr>
+    <tr><td>服务端 <code>/rank/global</code></td><td>只收<b>简单模式</b>上报；总分 = 各关最高分和；排序 总分↓ 总星↓</td><td><span class="tag now">两边对不上</span> 客户端总榜算两种模式，服务端只算简单；续命局分数也照收</td></tr>
+    <tr><td>好友榜（微信 KV）</td><td>两模式总分 + 总星</td><td>和服务端口径又不同；三个榜三套数</td></tr>
+  </table>
+
+  <h2>二、新规则（建议）</h2>
+  <h3>1. 三个数字的定义 —— 全部只认「有效成绩」</h3>
+  <table>
+    <tr><th style="width:22%">名词</th><th>定义</th></tr>
+    <tr><td><b>有效成绩</b></td><td>没有续命、且至少拿到 1★ 的一局。续命局照常通关、照常解锁下一关、照常记个人最高分（自己看），但<b>不进任何排行</b>。</td></tr>
+    <tr><td><b>关卡分</b></td><td>某关某模式的「有效成绩最高分」。</td></tr>
+    <tr><td><b>总积分</b></td><td>Σ 简单关卡分 + Σ 困难关卡分 × <b>1.5</b>（向下取整）。困难加权：困难要先三星简单才能开、规则更难，给 1.5 倍让它值得打。</td></tr>
+    <tr><td><b>总星数</b></td><td>Σ 每关每模式的最高星级。上限 60 关 × 3★ × 2 模式 = <b>360★</b>；续命局按规则记 1★，可以计入（星数是收集进度，不是竞技分）。</td></tr>
+  </table>
+
+  <h3>2. 上榜条件</h3>
+  <table>
+    <tr><th style="width:22%">榜</th><th>上榜条件</th><th style="width:34%">排序（同上则并列同名次）</th></tr>
+    <tr><td>总榜</td><td>总积分 &gt; 0（至少有一局有效成绩）</td><td>总积分↓ → 总星数↓ → 先达到者优先</td></tr>
+    <tr><td>关卡榜</td><td>本关本模式有<b>≥3★ 的有效成绩</b>（沿用策划《通关及排名》）</td><td>关卡分↓ → 先达到者优先</td></tr>
+    <tr><td>好友榜</td><td>总积分 &gt; 0</td><td>与总榜同口径（微信 KV 写同一套数）</td></tr>
+  </table>
+  <p>名次统一用「竞赛排名」：同分同名次、下一名跳号（1, 1, 3）。榜单只展示前 100 名（含并列）；没进前 100 的，「我的成绩」里显示真实名次或「100+」，并给出<b>距上一名 / 距上榜还差多少</b> —— 这是让玩家再来一局的钩子。</p>
+
+  <h3>3. 荣誉档位（结算弹窗）—— 改成按百分比，人少人多都成立</h3>
+  <table>
+    <tr><th style="width:18%">档位</th><th>条件（本关本模式，有效成绩 ≥3★ 才评）</th></tr>
+    <tr><td>超神 👑</td><td>名次在前 <b>1%</b>，或名次 ≤ 10（人少时保底）</td></tr>
+    <tr><td>王者 🏆</td><td>名次在前 <b>10%</b></td></tr>
+    <tr><td>优秀 ⭐</td><td>其余通关（含 1★ / 2★ / 续命局）</td></tr>
+  </table>
+
+  <h3>4. 数据来源与「示例数据」</h3>
+  <p><span class="tag srv">服务端为准</span> 登录后榜单全部来自服务端；离线 / 未登录时显示本机成绩 + 示例对手，并在榜底标明「示例数据，联网后显示真实排名」，不再冒充真榜。示例对手的分数按真实星线生成（每关 3★ 线上下浮动），量级与真实玩家一致。</p>
+
+  <h3>5. 需要服务端配合的改动</h3>
+  <table>
+    <tr><th style="width:36%">接口</th><th>改动</th></tr>
+    <tr><td><code>POST /game/api/level/result</code></td><td>新增 <code>mode</code>（normal/nightmare）、<code>revived</code>；困难不再按关号偏移上报（现在被关卡守卫拒）；续命局只更新进度与星数，不更新关卡分</td></tr>
+    <tr><td><code>game_progress</code></td><td>拆 <code>score_normal / score_hard / total_score(加权) / total_stars / reach_time</code>，排行索引 (total_score, total_stars, reach_time)</td></tr>
+    <tr><td><code>GET /game/api/rank/global</code></td><td>按新排序，返回 rank（竞赛排名）、nickname、avatar、score_normal、score_hard、total、stars</td></tr>
+    <tr><td><code>GET /game/api/rank/level?level=&amp;mode=</code></td><td><span class="tag new">新增</span> 关卡榜前 100 + 我的名次、总人数（荣誉档位用）</td></tr>
+    <tr><td><code>GET /game/api/rank/me</code></td><td>补「距上一名还差多少分」</td></tr>
+  </table>
+
+  <h2>三、沙盘：改我的成绩，看左边怎么变</h2>
+  <div class="sandbox">
+    <table id="sbx">
+      <tr><th>关卡</th><th>星线</th><th>简单得分</th><th>简单续命</th><th>困难得分</th><th>困难续命</th><th>结果</th></tr>
+    </table>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="act" data-preset="new">新玩家（只打第 1 关）</button>
+      <button class="act" data-preset="mid">中段玩家</button>
+      <button class="act" data-preset="revive">靠续命刷分</button>
+      <button class="act" data-preset="hard">困难高手</button>
+    </div>
+    <div class="res" id="res"></div>
+  </div>
+</div>
+
+<script>
+/* ============ 规则（与右侧文档一一对应，正式实现时搬到 核心/rank.ts） ============ */
+const LINES = { 1: [1, 3, 5], 2: [2, 4, 6], 3: [3, 5, 7], 4: [3, 5, 7], 5: [3, 5, 7], 6: [3, 5, 7] };
+const LEVELS = Object.keys(LINES).map(Number);
+const HARD_WEIGHT = 1.5;
+const BOARD_MIN_STARS = 3;
+const TOP_N = 100;
+
+const starsOf = (score, [s1, s2, s3]) => (score >= s3 ? 3 : score >= s2 ? 2 : score >= s1 ? 1 : 0);
+/** 一局 → { stars 记进度, valid 是否有效成绩 } */
+function judge(play, line) {
+  if (!play || play.score <= 0) return { stars: 0, valid: false, boardOk: false };
+  const raw = starsOf(play.score, line);
+  if (raw === 0) return { stars: 0, valid: false, boardOk: false };
+  const stars = play.revived ? 1 : raw;          // 续命局按规则记 1★
+  const valid = !play.revived;                    // 续命局不进排行
+  return { stars, valid, boardOk: valid && raw >= BOARD_MIN_STARS };
+}
+/** 玩家汇总：总积分 / 总星 / 每关关卡分 */
+function summarize(plays) {
+  let sN = 0, sH = 0, stars = 0;
+  const levelScore = {};
+  for (const lv of LEVELS) {
+    for (const mode of ['normal', 'hard']) {
+      const p = plays[mode][lv];
+      const j = judge(p, LINES[lv]);
+      stars += j.stars;
+      if (j.valid) { if (mode === 'normal') sN += p.score; else sH += p.score; }
+      levelScore[mode + lv] = j.boardOk ? p.score : 0;
+    }
+  }
+  return { sN, sH, total: sN + Math.floor(sH * HARD_WEIGHT), stars, levelScore };
+}
+/** 竞赛排名：同分同名次，跳号 */
+function rankAll(rows, keys) {
+  rows.sort((a, b) => { for (const k of keys) if (b[k] !== a[k]) return b[k] - a[k]; return a.reach - b.reach; });
+  rows.forEach((r, i) => {
+    const prev = rows[i - 1];
+    r.rank = prev && keys.every((k) => prev[k] === r[k]) ? prev.rank : i + 1;
+  });
+  return rows;
+}
+/** 荣誉档位（本关本模式） */
+function honor(rank, total) {
+  if (!rank) return '优秀';
+  if (rank <= 10 || rank <= Math.ceil(total * 0.01)) return '超神';
+  if (rank <= Math.ceil(total * 0.10)) return '王者';
+  return '优秀';
+}
+
+/* ============ 示例对手：按真实星线生成（确定性） ============ */
+let seed = 20261025;
+const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const HEAD = ['软糯', '元气', '抱抱', '咕噜', '懒懒', '奶盖', '甜心', '小只', '月光', '薄荷'];
+const TAIL = ['布丁', '团子', '豆豆', '柚子', '芝麻', '花卷', '包子', '汤圆', '奶糖', '年糕'];
+const RIVALS = [];
+for (let i = 0; i < 120; i++) {
+  const plays = { normal: {}, hard: {} };
+  const reach = 1 + Math.floor(rnd() * LEVELS.length);           // 打到第几关
+  const skill = rnd();
+  for (const lv of LEVELS) {
+    if (lv > reach) break;
+    const [s1, , s3] = LINES[lv];
+    plays.normal[lv] = { score: Math.max(s1, Math.round(s3 * (0.6 + skill * 0.8) + (rnd() * 2 - 1))), revived: rnd() < 0.08 };
+    if (skill > 0.6 && rnd() < 0.5) plays.hard[lv] = { score: Math.max(s1, Math.round(s3 * (0.7 + skill * 0.6))), revived: false };
+  }
+  RIVALS.push({ name: HEAD[i % 10] + TAIL[Math.floor(i / 10) % 10] + (i >= 100 ? i - 99 : ''), plays, reach: 1000 + i });
+}
+
+/* ============ 我的成绩（沙盘） ============ */
+const ME = { normal: {}, hard: {} };
+const PRESETS = {
+  new: { normal: { 1: [4, false] }, hard: {} },
+  mid: { normal: { 1: [6, false], 2: [7, false], 3: [8, false], 4: [5, false] }, hard: {} },
+  revive: { normal: { 1: [5, false], 2: [3, false], 3: [12, true], 4: [11, true] }, hard: {} },
+  hard: { normal: { 1: [6, false], 2: [8, false], 3: [9, false], 4: [9, false], 5: [8, false] }, hard: { 1: [6, false], 2: [7, false] } },
+};
+function applyPreset(name) {
+  ME.normal = {}; ME.hard = {};
+  for (const m of ['normal', 'hard']) for (const [lv, [score, revived]] of Object.entries(PRESETS[name][m])) ME[m][lv] = { score, revived };
+  buildSandbox(); render();
+}
+
+/* ============ 渲染 ============ */
+let tab = 'total', subLevel = 3, subMode = 'normal';
+const $ = (id) => document.getElementById(id);
+
+function boardRows() {
+  const me = summarize(ME);
+  const all = RIVALS.map((r) => ({ ...summarize(r.plays), name: r.name, reach: r.reach, mine: false }));
+  all.push({ ...me, name: '我（拼图王）', reach: 999, mine: true });
+  if (tab === 'level') {
+    const key = subMode + subLevel;
+    const rows = all.map((r) => ({ ...r, lv: r.levelScore[key] })).filter((r) => r.lv > 0);
+    rankAll(rows, ['lv']);
+    return { rows, me, meRow: rows.find((r) => r.mine), total: rows.length, key };
+  }
+  const rows = all.filter((r) => r.total > 0);
+  rankAll(rows, ['total', 'stars']);
+  if (tab === 'friend') {
+    const friends = rows.filter((r, i) => r.mine || i % 9 === 0).map((r) => ({ ...r }));
+    rankAll(friends, ['total', 'stars']);
+    return { rows: friends, me, meRow: friends.find((r) => r.mine), total: friends.length };
+  }
+  return { rows, me, meRow: rows.find((r) => r.mine), total: rows.length };
+}
+
+function render() {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === tab));
+  const { rows, me, meRow, total, key } = boardRows();
+  const isLevel = tab === 'level';
+
+  $('sub').innerHTML = isLevel
+    ? `<button data-lv="-1">◀</button>第 ${subLevel} 关<button data-lv="1">▶</button>
+       <button data-mode="normal" class="${subMode === 'normal' ? 'on' : ''}">简单</button>
+       <button data-mode="hard" class="${subMode === 'hard' ? 'on' : ''}">困难</button>`
+    : tab === 'friend' ? '微信好友 · 与总榜同口径' : `全服 ${total} 人上榜`;
+
+  const myRank = meRow ? (meRow.rank > TOP_N ? `${meRow.rank}` : `${meRow.rank}`) : '未上榜';
+  const myScore = isLevel ? (me.levelScore[key] || 0) : me.total;
+  $('mine').innerHTML = `
+    <div><div class="k">我的名次</div><div class="v ${meRow ? '' : 'small'}">${myRank}</div></div>
+    <div><div class="k">${isLevel ? '本关分' : '总积分'}</div><div class="v">${myScore}</div></div>
+    <div><div class="k">总星数</div><div class="v">⭐${me.stars}<span style="font-size:11px">/360</span></div></div>`;
+
+  // 钩子：距上一名 / 距上榜
+  let hint;
+  if (!meRow) {
+    if (isLevel) {
+      const line = LINES[subLevel][2];
+      hint = `本关拿到 <b>3★（${line} 分）</b>且不续命即可上榜`;
+    } else hint = '打出一局不续命的通关成绩即可上榜';
+  } else {
+    const ahead = rows.filter((r) => r.rank < meRow.rank).pop();
+    const field = isLevel ? 'lv' : 'total';
+    hint = ahead ? `距上一名「${ahead.name}」还差 <b>${ahead[field] - meRow[field] + 1}</b> 分` : '你是第 1 名，保持住！';
+    if (isLevel) hint += `　·　荣誉：<b>${honor(meRow.rank, total)}</b>`;
+  }
+  $('hintbar').innerHTML = '💡 ' + hint;
+
+  $('thead').innerHTML = isLevel
+    ? '<span>名次</span><span>昵称</span><span></span><span>星</span><span>本关分</span>'
+    : '<span>名次</span><span>昵称</span><span>简单</span><span>困难</span><span>积分</span>';
+
+  const shown = rows.filter((r) => r.rank <= TOP_N);
+  let html = shown.map((r) => rowHtml(r, isLevel)).join('');
+  if (meRow && meRow.rank > TOP_N) html += rowHtml(meRow, isLevel);
+  if (!meRow) html += `<div class="row ghost"><span><span class="rk">-</span></span><span class="nm">我（拼图王）</span><span></span><span></span><span class="c-t">-</span></div>`;
+  $('list').innerHTML = html;
+  const mineEl = $('list').querySelector('.row.me');
+  if (mineEl) mineEl.scrollIntoView({ block: 'center' });
+  $('sample').textContent = '示例数据 · 联网后显示真实排名';
+  renderResult(me);
+}
+
+function rowHtml(r, isLevel) {
+  const cls = r.rank <= 3 ? ` r${r.rank}` : '';
+  const tie = r.tie ? '' : '';
+  const nm = `${r.name}${r.mine ? '<small>我</small>' : ''}`;
+  const tail = isLevel
+    ? `<span></span><span class="c-st">${'★'.repeat(3)}</span><span class="c-t">${r.lv}</span>`
+    : `<span class="c-s">${r.sN}</span><span class="c-h">${r.sH}</span><span class="c-t">${r.total}</span>`;
+  return `<div class="row${r.mine ? ' me' : ''}"><span><span class="rk${cls}">${r.rank}</span></span><span class="nm">${nm}</span>${tail}${tie}</div>`;
+}
+
+function buildSandbox() {
+  const t = $('sbx');
+  t.querySelectorAll('tr.lv').forEach((x) => x.remove());
+  for (const lv of LEVELS) {
+    const tr = document.createElement('tr');
+    tr.className = 'lv';
+    const n = ME.normal[lv] || { score: 0, revived: false };
+    const h = ME.hard[lv] || { score: 0, revived: false };
+    tr.innerHTML = `<td>第 ${lv} 关</td><td>${LINES[lv].join(' / ')}</td>
+      <td><input type="number" min="0" max="30" value="${n.score}" data-m="normal" data-lv="${lv}" data-f="score"></td>
+      <td><input type="checkbox" ${n.revived ? 'checked' : ''} data-m="normal" data-lv="${lv}" data-f="revived"></td>
+      <td><input type="number" min="0" max="30" value="${h.score}" data-m="hard" data-lv="${lv}" data-f="score"></td>
+      <td><input type="checkbox" ${h.revived ? 'checked' : ''} data-m="hard" data-lv="${lv}" data-f="revived"></td>
+      <td class="r" data-lv="${lv}"></td>`;
+    t.appendChild(tr);
+  }
+}
+
+function renderResult(me) {
+  for (const td of document.querySelectorAll('#sbx td.r')) {
+    const lv = Number(td.dataset.lv);
+    const parts = [];
+    for (const [m, label] of [['normal', '简'], ['hard', '困']]) {
+      const j = judge(ME[m][lv], LINES[lv]);
+      if (!ME[m][lv] || !ME[m][lv].score) continue;
+      parts.push(`${label}${'★'.repeat(j.stars) || '未通关'}${j.valid ? '' : '（续命/未过：不计榜）'}${j.boardOk ? ' ✓关卡榜' : ''}`);
+    }
+    td.textContent = parts.join('　') || '—';
+  }
+  $('res').innerHTML = `
+    <span class="pill">简单有效分 ${me.sN}</span>
+    <span class="pill">困难有效分 ${me.sH} × ${HARD_WEIGHT}</span>
+    <span class="pill gold">总积分 ${me.total}</span>
+    <span class="pill gold">总星数 ${me.stars} / 360</span>
+    <span class="pill ${me.total > 0 ? 'ok' : 'no'}">${me.total > 0 ? '已上总榜' : '未上总榜'}</span>`;
+}
+
+/* ============ 事件 ============ */
+document.querySelector('.tabs').addEventListener('click', (e) => { const t = e.target.dataset.tab; if (t) { tab = t; render(); } });
+$('sub').addEventListener('click', (e) => {
+  const d = e.target.dataset;
+  if (d.lv) subLevel = Math.min(LEVELS.length, Math.max(1, subLevel + Number(d.lv)));
+  if (d.mode) subMode = d.mode;
+  render();
+});
+$('sbx').addEventListener('input', (e) => {
+  const d = e.target.dataset;
+  if (!d.m) return;
+  const cur = ME[d.m][d.lv] || { score: 0, revived: false };
+  if (d.f === 'score') cur.score = Math.max(0, Number(e.target.value) || 0);
+  else cur.revived = e.target.checked;
+  ME[d.m][d.lv] = cur;
+  render();
+});
+document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+
+applyPreset('mid');
+</script>
+</body>
+</html>

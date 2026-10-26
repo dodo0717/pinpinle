@@ -8,11 +8,17 @@
  *
  * 本文件由 tools/build-minigame.ts 之外手工维护（不参与 TS 剥离），纯 JS。
  */
+import './polyfill.js';   // 必须第一个：真机缺 performance / rAF / globalThis（2026-10-26 黑屏）
 import './src/runtime/asset-ext.js';
-import { Renderer, Node, UITransform, Layers } from './src/runtime/cc.js';
+import { Renderer, Node, UITransform, Layers, registerFont } from './src/runtime/cc.js';
 import { MapBootstrap } from './src/scripts/scenes/MapBootstrap.js';
 
 const WX = typeof wx !== 'undefined';
+
+// 对局三主题的自带字体（子集化，见 tools/subset-fonts.py）。别名与 玩法/theme.ts 的
+// FONT_CANDY / FONT_HAND 对应；加载失败自动落到系统字体，不挡启动
+registerFont('PPCandy', WX ? 'fonts/pp-candy.ttf' : './fonts/pp-candy.ttf');
+registerFont('PPHand', WX ? 'fonts/pp-hand.ttf' : './fonts/pp-hand.ttf');
 let canvas;
 if (WX) {
   canvas = wx.createCanvas();   // 首个 createCanvas 即全屏主画布

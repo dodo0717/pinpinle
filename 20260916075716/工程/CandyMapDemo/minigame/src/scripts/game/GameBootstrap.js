@@ -12,7 +12,7 @@
  */
 
 import {
-  _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
+  _decorator, Component, Node, UITransform, Vec3, Vec2, Layers,
   view, ResolutionPolicy, game, Game, EventTouch, input, Input, Camera, Canvas, director,
 } from '../../runtime/cc.js';
 import { BoardView, ANIM, GAP } from './BoardView.js';
@@ -23,14 +23,21 @@ import { GuideBar } from './guide.js';
 import { GS } from './state.js';
 import { syncFriendRank } from './wxFriend.js';
 import { cloudSync, REPORT_MODES } from './cloud.js';
-import { currentTheme, setThemeForLevel, onThemeChanged } from './theme.js';
+import { setThemeForLevel, onThemeChanged, currentTheme } from './theme.js';
 import { showThemeWin, showThemeFail } from './themeResult.js';
-import { showComboWord, ensureBoardHint, showThemeGuideOnce } from './themeExtras.js';
-import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text.js';
+import { showComboWord, showThemeGuideOnce } from './themeExtras.js';
+import { ThemeHud, buildThemeBg,                } from './themeHud.js';
+import { screenH, screenInsets } from './paint.js';
+import { WebHud, webLayout } from './webHud.js';
+import { showWebResult,                } from './webResult.js';
+import {
+  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD,
+  WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
+} from './text.js';
 import { unlockedImageIds } from './meta.js';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
-  settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
+  settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
   TOTAL_LEVELS,
                                                                                 
                                                                     
@@ -40,8 +47,12 @@ const { ccclass, property } = _decorator;
 
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
-const BOARD_TOP = 780;
-const BOARD_BOTTOM = -640;
+/** 棋盘左右留白（屏幕边 → 底板外沿） */
+const BOARD_SIDE = 24;
+/** 第 1 关（web 原型）棋盘目标占屏宽比 —— web main.ts 的 BOARD_FILL */
+const WEB_BOARD_FILL = 0.98;
+/** 单格上限：3×4 的早期关卡格子太大反而显得粗糙 */
+const CELL_MAX = 236;
 /** 小于这个位移视为点击（画布 px） */
 const TAP_SLOP = 14;
 /** 续命加时（秒） */
@@ -59,18 +70,17 @@ export class GameBootstrap extends Component {
           toast             = null ;
           audio            = null ;
           guide           = null ;
-  /** 主题化的对局背景（全屏渐变，重建于 applyThemeVisuals） */
-          bgG                  = null;
-  /** HUD 节点（主题化重建） */
-          hudNode              = null;
+  /** 主题化的对局背景（全屏，重建于 applyThemeVisuals） */
+          bgNode              = null;
+  /** 主题 HUD（顶栏 + 星线 + 底栏 + 提示键，重建于 applyThemeVisuals） */
+          hud                  = null;
+  /** 纵向排版（按可视高度 + 安全区算一次） */
+          L            = null ;
+  /** 棋盘可用区的上下沿（设计坐标，屏幕中心为原点） */
+          boardTop = 0;
+          boardBottom = 0;
   /** 最近一次 view.build 的参数（主题切换时按它重建棋盘） */
           boardSpec                                                      = null;
-  /** 三星插座 Graphics（updateStarVisuals 更新颜色） */
-          starSockets             = [];
-  /** 星线进度填充 Graphics（updateStarVisuals 更新宽度） */
-          starLineFills             = [];
-  /** 计时圆环前景弧（updateTimerRing 更新） */
-          timerRingFg                  = null;
 
           engine               = null ;
           rng      = null ;
@@ -103,9 +113,8 @@ export class GameBootstrap extends Component {
           cam                = null;
 
   /* ---------------------------------------------------------------- HUD */
-          hudLevel        = null ;
-          hudTime        = null ;
-          hudScore        = null ;
+  /** 第 1 关（web 原型）HUD —— 与三主题 ThemeHud 二选一 */
+          webHud                = null;
           hintTimer                                       = null;
           guideStep = 0;
   /** 进关时的图鉴已解锁数，用来只播报「本关新解锁的」 */
@@ -115,19 +124,19 @@ export class GameBootstrap extends Component {
 
   onLoad()       {
     view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
+    this.measureLayout();
 
     const host = new Node('BoardHost');
     host.parent = this.node;
     host.layer = Layers.Enum.UI_2D;
-    host.addComponent(UITransform).setContentSize(DESIGN_W, BOARD_TOP - BOARD_BOTTOM);
-    host.setPosition(0, (BOARD_TOP + BOARD_BOTTOM) / 2);
+    host.addComponent(UITransform).setContentSize(DESIGN_W, this.boardTop - this.boardBottom);
+    host.setPosition(0, (this.boardTop + this.boardBottom) / 2);
     this.view = host.addComponent(BoardView);
 
     this.dialog = this.mount('Dialog', GameDialog);
     this.toast = this.mount('Toast', ToastLayer);
     this.audio = this.mount('Audio', GameAudio);
     this.guide = this.mount('Guide', GuideBar);
-    this.buildHud();
     this.applyThemeVisuals();
     // 三主题切换（对局内右上角按钮触发）：背景 / HUD / 棋盘底板与融合环全部重建
     onThemeChanged(() => this.applyThemeVisuals());
@@ -156,11 +165,32 @@ export class GameBootstrap extends Component {
     if (this.autoStart) this.startLevel(this.levelIndex);
   }
 
+  update(dt        )       {
+    this.hud?.tick(dt);
+  }
+
+  /**
+   * 纵向排版：顶部让出状态栏 + 微信胶囊那一行（返回键放这一行），
+   * 下面依次是 HUD 行、星线行；底部是底栏 + 操作提示；中间全给棋盘。
+   * 长屏手机（可视高 > 1920）多出来的高度自然落到棋盘区，棋盘居中。
+   */
+          measureLayout()       {
+    const H = screenH();
+    const ins = screenInsets();
+    const hudY = ins.contentTop - 112;
+    const goalY = hudY - 172;
+    const footerY = ins.bottom + 58;
+    const hintY = footerY + 104;
+    this.L = { W: DESIGN_W, H, navY: ins.navY, hudY, goalY, hintY, footerY };
+    this.boardTop = goalY - 66;
+    this.boardBottom = hintY + 40;
+  }
+
           mount                     (name        , cls             )    {
     const n = new Node(name);
     n.parent = this.node;
     n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
+    n.addComponent(UITransform).setContentSize(DESIGN_W, screenH());
     const c = n.addComponent(cls);
     n.setSiblingIndex(this.node.children.length - 1);
     return c;
@@ -254,16 +284,12 @@ export class GameBootstrap extends Component {
     this.clearHint();
 
     // 关卡绑定主题：第 1/2/3/4 关 → 糖果/果冻/手账/糖果（循环），进关即换皮
-    setThemeForLevel(level);
-
-    // 棋盘下方的常驻操作提示（主题文案）
-    ensureBoardHint(this.node);
-    // 首次进关弹视觉指引（三步说明 + 知道了按钮；第二次起不再弹）
-    showThemeGuideOnce(this.node, () => {});
-
+    // （levelIndex 先改：换皮回调重建 HUD 时要读到新关号）
     const cfgs = buildLevelConfigs(from?.mode ?? GS.mode);
     this.cfg = cfgs[level - 1] ?? cfgs[0] ;
     this.levelIndex = level;
+    setThemeForLevel(level);
+    this.hud?.setLevel(MODE_LABEL[from?.mode ?? GS.mode], level);
 
     if (from) {
       this.rng = Rng.restore(from.rngState);
@@ -337,19 +363,38 @@ export class GameBootstrap extends Component {
     GS.flush();
     this.updateHud();
     this.schedule(this.onTick, 1);
-    this.runGuide(1);
+    // 首次进关弹三步视觉指引（落盘记住，之后不再弹）；它关掉之后才出引导条第 1 步
+    if (this.isClassic) { if (level === 1) this.webGuide('swap'); }
+    else showThemeGuideOnce(this.node, () => this.runGuide(1));
 
     if (from) {
       this.toast.show(SAVE.resumed(from.level, fmtMMSS(this.timeLeft), this.started), 2600);
     }
   }
 
+          get isClassic()          {
+    return currentTheme().id === 'classic';
+  }
+
           layout()       {
     const rows = this.cfg.rows;
     const cols = this.cfg.cols;
-    const availW = DESIGN_W - 64;
-    const availH = BOARD_TOP - BOARD_BOTTOM - 24;
-    const cell = Math.floor(Math.min((availW - GAP * (cols - 1)) / cols, (availH - GAP * (rows - 1)) / rows));
+    this.placeBoardHost();
+    let cell        ;
+    if (this.isClassic) {
+      // web 原型：横向铺满金边内沿（BOARD_FILL × 屏宽），纵向受棋盘区高度限制
+      const wl = webLayout();
+      const byW = (WEB_BOARD_FILL * DESIGN_W - GAP * (cols - 1)) / cols;
+      const maxW = (wl.innerW - 2 - GAP * (cols - 1)) / cols;
+      const maxH = (wl.boardTop - wl.boardBottom - 2 - GAP * (rows - 1)) / rows;
+      cell = Math.max(36, Math.floor(Math.min(byW, maxW, maxH)));
+    } else {
+      // 底板外边距 + 碎片白边都在格子外面，按它们扣掉
+      const frame = BoardView.PAD + BoardView.EDGE;
+      const availW = DESIGN_W - 2 * (BOARD_SIDE + frame);
+      const availH = this.boardTop - this.boardBottom - 2 * frame;
+      cell = Math.min(CELL_MAX, Math.floor(Math.min((availW - GAP * (cols - 1)) / cols, (availH - GAP * (rows - 1)) / rows)));
+    }
     this.boardSpec = { rows, cols, cell };
     this.view.build(rows, cols, cell);
   }
@@ -514,6 +559,10 @@ export class GameBootstrap extends Component {
 
     if (!outcome.accepted) {
       this.swapMisses += 1;
+      if (this.isClassic && this.swapMisses >= 2) {
+        this.webGuide('hint4');
+        this.showHint();
+      }
       this.view.playReject(this.dragCells, intent.dc * 12, -intent.dr * 12);
       this.view.playBoardReject();
       this.scheduleOnce(() => { this.busy = false; }, ANIM.reject);
@@ -562,9 +611,10 @@ export class GameBootstrap extends Component {
             this.view.setMergePhase(st.eliminatedCells, 'off');
             this.audio.play('eliminate');
             this.view.playVanish(st.eliminatedCells);
-            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`);
+            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`, st.eliminatedCells);
             this.chainCount++;
-            if (this.chainCount >= 2) showComboWord(this.node, this.chainCount);
+            if (this.chainCount >= 2 && !this.isClassic) showComboWord(this.node, this.chainCount, this.boardTop - 200);
+            this.updateHud();
             this.eliminatedOnce = true;
             this.runGuide(4);
             this.scheduleOnce(() => this.playCollapse(st), ANIM.vanish);
@@ -716,6 +766,7 @@ export class GameBootstrap extends Component {
       if (REPORT_MODES.includes(GS.mode)) {
         void cloudSync()?.report({
           level: outcome.level, win: true, stars: settlement.stars, score: outcome.score,
+          mode: GS.mode, revived: outcome.revived,
         });
       }
       this.audio.play('win');
@@ -752,27 +803,81 @@ export class GameBootstrap extends Component {
 
     this.audio.play(honor.tier === 'god' ? 'honorGod' : honor.tier === 'king' ? 'honorKing' : 'honorPass');
 
-    const normal = GS.data.progress.normal;
-    const nightmare = GS.data.progress.nightmare;
-    let total = 0;
-    for (const p of [normal, nightmare]) {
-      for (const key of Object.keys(p.levels)) {
-        const level = Number(key);
-        if (Number.isFinite(level)) total += recordOf(p, level).personalBest;
-      }
+    if (this.isClassic) {
+      this.showWebHonor(honor, settlement.stars);
+      return;
     }
-    const stickers = Math.max(1, Math.floor(outcome.score / 300));
 
+    // 累计 = 总积分（与排行榜同一口径，核心/rank.ts）
+    const total = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare).total;
     showThemeWin(this.node, {
       stars: settlement.stars,
       score: outcome.score,
-      stickers,
+      stickers: this.engine.eliminations,
       totalScore: total,
       isNewBest: boardBest === outcome.score && outcome.score > 0,
+      level: this.levelIndex,
+      modeLabel: MODE_LABEL[GS.mode],
     }, {
       onNext: () => this.nextLevel(),
       onBack: () => this.exitToHome(),
     });
+  }
+
+  /**
+   * 第 1 关通关吊牌（web showHonorDialog 同口径）：
+   *   超神 👑 —— 下一关 /（再战本关、查看排行榜）；王者 🏆 / 优秀 ⭐ —— 下一关 / 再战本关。
+   *   分数 = 本模式本关历史最高分，标签「简单分数 / 困难分数」。
+   */
+          showWebHonor(honor                                  , stars        )       {
+    const tier = honor.tier;
+    const H = WEB_HONOR;
+    const title = tier === 'god' ? H.god.title : tier === 'king' ? H.king.title : H.pass.title;
+    const desc = tier === 'god' ? H.god.desc : tier === 'king' ? H.king.desc(honor.percentText) : H.pass.desc(stars);
+    const sub = tier === 'god' ? H.god.sub(honor.stats.rank) : tier === 'king' ? H.king.sub : H.pass.sub;
+    const hasNext = this.levelIndex < TOTAL_LEVELS;
+    const next            = hasNext
+      ? { label: H.btnNext, primary: true, onClick: () => this.nextLevel() }
+      : { label: H.btnHome, primary: true, onClick: () => { this.toast.show(H.lastLevelToast, 2600); this.exitToHome(); } };
+    const retry = this.costButton(H.btnRetry, H.noStamina, () => this.restart());
+    const rows                = [[next]];
+    if (tier === 'god') {
+      const best = recordOf(GS.progress, this.levelIndex).boardBest;
+      rows.push([retry, { label: H.btnLeaderboard, onClick: () => this.showBoardDialog(best) }]);
+    } else {
+      rows.push([retry]);
+    }
+    if (this.levelIndex === 1) this.webGuide('clear');
+    showWebResult(this.node, {
+      mode: 'win',
+      icon: tier === 'pass' ? undefined : H[tier].icon,
+      stars: tier === 'pass' ? stars : undefined,
+      title,
+      sub: desc,
+      scoreLabel: webScoreLabel(MODE_LABEL[GS.mode]),
+      score: recordOf(GS.progress, this.levelIndex).personalBest,
+      hint: sub,
+      rows,
+      onHome: () => this.exitToHome(),
+      toast: (t) => this.toast.show(t, 2600),
+    });
+  }
+
+  /** 要扣体力的按钮：体力为 0 时置灰（仍可点，点了提示）—— web costButton */
+          costButton(label        , hint        , run            )            {
+    return { label, dim: GS.stamina.available <= 0, disabledHint: hint, onClick: run };
+  }
+
+  /** 第 1 关「看广告 +1 体力」（失败吊牌上的次按钮），看完把失败吊牌还回去 */
+          watchStaminaAd(back            )       {
+    if (GS.stamina.available >= GS.staminaMax) { this.toast.show(ADS.staminaFull, 1800); back(); return; }
+    if (GS.adStaminaLeft <= 0) { this.toast.show(ADS.dailyLimit, 2600); back(); return; }
+    this.toast.show('广告播放中…', 1200);
+    this.scheduleOnce(() => {
+      GS.recordAd();
+      if (GS.gainStamina(1)) this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 2200);
+      back();
+    }, 1.2);
   }
 
   /** 排行榜（灰盒 100 人 + 本机） */
@@ -787,21 +892,85 @@ export class GameBootstrap extends Component {
     this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
   }
 
-  /** 失败弹窗 —— 主题化（差多少分到第 1 星 + 续命/放弃） */
+  /** 最终失败（续命已用 / 离线超时）—— 只给「再来一局 / 回地图」 */
           showFailDialog(outcome              )       {
-    const need = this.cfg.star1 - outcome.score;
-    showThemeFail(this.node, Math.max(0, need), () => this.watchRevive(), () => this.exitToHome());
+    if (this.isClassic) {
+      // web showFailDialog：💡 + 差一点就成功了 + 分数卡 + 还差 N 组；重试 / 看广告+1体力 / 返回主页
+      const gap = Math.max(1, outcome.star1 - outcome.score);
+      const detail           = [WEB_FAIL.gap(gap)];
+      if (this.revivedUsed) detail.push(`💡 ${WEB_FAIL.reviveUsed}`);
+      if (this.offlineSettle) detail.push(`💡 ${WEB_FAIL.offline}`);
+      const build = ()       => {
+        showWebResult(this.node, {
+          mode: 'lose',
+          icon: '💡',
+          title: WEB_FAIL.title,
+          scoreLabel: webScoreLabel(MODE_LABEL[GS.mode]),
+          score: recordOf(GS.progress, this.levelIndex).personalBest,
+          note: detail.join('   '),
+          rows: [
+            [{ ...this.costButton(WEB_FAIL.btnRetry, WEB_HONOR.noStamina, () => this.restart()), primary: true }],
+            [
+              { label: WEB_FAIL.btnAdStamina, onClick: () => this.watchStaminaAd(build) },
+              { label: WEB_FAIL.btnHome, onClick: () => this.exitToHome() },
+            ],
+          ],
+          onHome: () => this.exitToHome(),
+          toast: (t) => this.toast.show(t, 2600),
+        });
+      };
+      build();
+      return;
+    }
+    const need = Math.max(0, this.cfg.star1 - outcome.score);
+    showThemeFail(this.node, { need, canRevive: false, reviveSec: REVIVE_SECONDS }, {
+      onRevive: () => {},
+      onGiveUp: () => this.exitToHome(),
+      onRetry: () => this.restart(),
+    });
   }
 
-  /** 续命弹窗 —— 主题化（失败弹窗的续命变体） */
+  /**
+   * 未达星线、还能续命 —— 失败页带续命入口（10 秒倒计时，走完视同放弃）。
+   * 10-25 修：原来 need 恒传 0，文案显示「就差 0 分」。
+   */
           showReviveDialog()       {
-    showThemeFail(this.node, 0, () => this.watchRevive(), () => this.giveUp());
+    if (this.isClassic) {
+      // web showReviveDialog：⏰ 时间到 / 要再试一次吗？/ 分数卡 + 还差 N 组就能通关；看广告 +1分钟 / ❌ 放弃
+      const o = this.pendingOutcome;
+      const gap = Math.max(1, this.cfg.star1 - (o?.score ?? this.engine.score));
+      showWebResult(this.node, {
+        mode: 'lose',
+        icon: '⏰',
+        title: WEB_REVIVE.title,
+        sub: WEB_REVIVE.ask,
+        scoreLabel: webScoreLabel(MODE_LABEL[GS.mode]),
+        score: recordOf(GS.progress, this.levelIndex).personalBest,
+        hint: WEB_REVIVE.gap(gap),
+        rows: [
+          [{ label: WEB_REVIVE.btnAd, primary: true, onClick: () => this.watchRevive() }],
+          [{ label: WEB_REVIVE.btnGiveUp, onClick: () => this.giveUp() }],
+        ],
+        onHome: () => this.exitToHome(),
+        toast: (t) => this.toast.show(t, 2600),
+      });
+      return;
+    }
+    const o = this.pendingOutcome;
+    const need = Math.max(0, this.cfg.star1 - (o?.score ?? this.engine.score));
+    showThemeFail(this.node, { need, canRevive: true, reviveSec: REVIVE_SECONDS }, {
+      onRevive: () => this.watchRevive(),
+      onGiveUp: () => this.giveUp(),
+      onRetry: () => this.restart(),
+    });
   }
 
   /** 广告续命（本地模拟：1.2 秒「观看」） */
           watchRevive()       {
     if (GS.adStaminaLeft <= 0) {
+      // 弹窗已经关了：不能停在一个既没结算也没弹窗的盘面上，按最终失败处理
       this.toast.show(ADS.dailyLimit, 2600);
+      this.giveUp();
       return;
     }
     GS.recordAd();
@@ -823,12 +992,14 @@ export class GameBootstrap extends Component {
     this.syncSession();
     GS.flush();
     this.schedule(this.onTick, 1);
-    this.toast.show(REVIVE.gained(REVIVE_SECONDS), 1800);
+    this.toast.show(this.isClassic ? WEB_REVIVE.granted : REVIVE.gained(REVIVE_SECONDS), this.isClassic ? 2600 : 1800);
   }
 
+  /** 放弃续命 → 出最终失败页（再来一局 / 回地图） */
           giveUp()       {
     const o = this.pendingOutcome;
     this.pendingOutcome = null;
+    this.audio.play('fail');
     if (o) this.showFailDialog(o);
     else this.exitToHome();
   }
@@ -886,91 +1057,19 @@ export class GameBootstrap extends Component {
   /* ================================================================ HUD */
 
           updateHud()       {
-    if (!this.hudTime) return;
-    this.hudLevel.string = `${currentTheme().copy.modeLabel} · 第 ${this.levelIndex} 关`;
-    this.hudTime.string = fmtMMSS(this.timeLeft);
-    this.hudScore.string = `${this.engine ? this.engine.score : 0}`;
-    // 颜色即信息：剩 1 分钟转橙、剩 10 秒转红（原版 #hud-timer.warn / .danger）
-    this.hudTime.color = this.timeLeft <= 10
-      ? new Color(226, 68, 68, 255)
-      : this.timeLeft <= 60
-        ? new Color(240, 150, 40, 255)
-        : currentTheme().hudAccent;
-    // 三星插座 + 星线进度 + 计时环（照抄原型 A）
-    this.updateStarVisuals();
-    this.updateTimerRing();
-  }
-
-  /** 三星插座 + 星线进度（照抄原型 A 的 star-socket + goal .tick） */
-          updateStarVisuals()       {
-    if (!this.engine || !this.cfg) return;
-    const score = this.engine.score;
-    const lines = [this.cfg.star1, this.cfg.star2, this.cfg.star3];
-    // 星插座
-    for (let i = 0; i < 3; i++) {
-      const g = this.starSockets[i];
-      if (!g || !g.isValid) continue;
-      const earned = score >= lines[i];
-      g.clear();
-      if (earned) {
-        g.fillColor = new Color(255, 229, 138);
-        g.circle(0, 0, 61);
-        g.fill();
-        g.fillColor = new Color(255, 201, 60);
-        g.circle(0, -3, 56);
-        g.fill();
-      } else {
-        g.fillColor = new Color(87, 53, 142);
-        g.circle(0, 0, 61);
-        g.fill();
-        g.fillColor = new Color(69, 39, 111);
-        g.circle(0, 0, 56);
-        g.fill();
-      }
-      // 星形字符
-      const label = g.node.getChildByName('Star');
-      if (label) {
-        const l = label.getComponent(Label);
-        if (l) {
-          l.color = earned ? new Color(255, 255, 255) : new Color(120, 90, 160);
-          l.string = '★';
-        }
-      }
+    if (this.webHud) {
+      if (this.engine) this.webHud.update(this.engine.score, this.cfg.star1, this.timeLeft);
+      return;
     }
-    // 星线进度
-    for (let i = 0; i < 3; i++) {
-      const g = this.starLineFills[i];
-      if (!g || !g.isValid) continue;
-      const pct = Math.min(100, score / lines[i] * 100);
-      const w = (pct / 100) * 200;
-      g.clear();
-      if (w > 0) {
-        g.fillColor = score >= lines[i]
-          ? new Color(255, 201, 60)
-          : new Color(255, 178, 94);
-        g.roundRect(-100, -14, w, 28, 14);
-        g.fill();
-      }
-    }
-  }
-
-  /** 计时圆环进度弧（照抄原型 A 的 timer-ring） */
-          updateTimerRing()       {
-    if (!this.timerRingFg || !this.timerRingFg.isValid) return;
-    const g = this.timerRingFg;
-    const total = this.cfg?.timeLimit ?? 180;
-    const pct = Math.max(0, Math.min(1, this.timeLeft / total));
-    const circumference = 2 * Math.PI * 82;
-    const arcLen = circumference * pct;
-    g.clear();
-    if (arcLen > 1) {
-      g.lineWidth = 12;
-      g.strokeColor = this.timeLeft <= 10
-        ? new Color(255, 91, 77)
-        : new Color(255, 201, 60);
-      g.arc(0, 0, 82, -Math.PI / 2, -Math.PI / 2 + arcLen / 82);
-      g.stroke();
-    }
+    if (!this.hud || !this.engine) return;
+    this.hud.update({
+      score: this.engine.score,
+      lines: [this.cfg.star1, this.cfg.star2, this.cfg.star3],
+      timeLeft: this.timeLeft,
+      timeLimit: this.cfg.timeLimit,
+      stamina: GS.stamina.available,
+      staminaMax: GS.staminaMax,
+    });
   }
 
   /** 提示：高亮当前最优可拼组（原版 2.6s 后自动撤销） */
@@ -989,218 +1088,95 @@ export class GameBootstrap extends Component {
   }
 
   /**
-   * HUD —— 照抄原型 A（糖果嘉年华）的排版：
-   *   左：木牌分数卡（分数标签 + 数值）    中：三星插座（圆底 + ★）    右：金色计时圆环
-   *   下方：星线进度（三段圆角条 + 当前目标数字）
-   *   底栏：模式标签胶囊（左） + 体力胶囊（右）
+   * 主题落地：全屏背景 + HUD（themeHud.ts 按主题三套排版）+ 棋盘（底板 / 碎片底卡 / 融合环）。
+   * 首次 onLoad 调一次，之后每次换主题调一次 —— 只换皮，引擎与盘面数据不动。
    */
-          buildHud()       {
-    if (this.hudNode) this.hudNode.destroy();
-    const t = currentTheme();
-    const hud = new Node('Hud');
-    hud.parent = this.node;
-    hud.layer = Layers.Enum.UI_2D;
-    hud.addComponent(UITransform).setContentSize(DESIGN_W, 200);
-    hud.setPosition(0, 840);
-    this.hudNode = hud;
-
-    // ========== 左：木牌分数卡 ==========
-    const scorePlank = new Node('ScorePlank');
-    scorePlank.parent = hud;
-    scorePlank.layer = Layers.Enum.UI_2D;
-    scorePlank.addComponent(UITransform).setContentSize(300, 130);
-    scorePlank.setPosition(-350, 30);
-    const spg = scorePlank.addComponent(Graphics);
-    // 木牌（深底 + 浅面 + 边框 + 投影，照抄 .plank 样式）
-    spg.fillColor = new Color(107, 63, 24); // wood-edge
-    spg.roundRect(-150, -65, 300, 130, 16);
-    spg.fill();
-    spg.fillColor = new Color(169, 113, 59); // wood
-    spg.roundRect(-146, -55, 292, 116, 14);
-    spg.fill();
-    spg.fillColor = new Color(139, 90, 43); // wood-dark（下沿）
-    spg.roundRect(-146, -55, 292, 50, 14);
-    spg.fill();
-    // 「分数」标签
-    const capL = this.hudText(scorePlank, 22, 0, 38, 200, new Color(255, 223, 176));
-    capL.string = '分数';
-    // 分数数值
-    this.hudScore = this.hudText(scorePlank, 48, 0, -12, 260, new Color(255, 255, 255));
-    this.hudScore.string = '0';
-
-    // ========== 中：三星插座 ==========
-    this.starSockets = [];
-    for (let i = 0; i < 3; i++) {
-      const sock = new Node(`Sock${i}`);
-      sock.parent = hud;
-      sock.layer = Layers.Enum.UI_2D;
-      sock.addComponent(UITransform).setContentSize(130, 130);
-      sock.setPosition((i - 1) * 140, 30);
-      const g = sock.addComponent(Graphics);
-      this.starSockets.push(g);
-      // ★ 字符
-      const star = new Node('Star');
-      star.parent = sock;
-      star.layer = Layers.Enum.UI_2D;
-      star.addComponent(UITransform).setContentSize(130, 130);
-      const sl = star.addComponent(Label);
-      sl.fontSize = 56;
-      sl.lineHeight = 60;
-      sl.string = '★';
-      sl.color = new Color(120, 90, 160);
+          applyThemeVisuals()       {
+    if (this.bgNode?.isValid) this.bgNode.destroy();
+    this.bgNode = null;
+    this.hud?.destroy();
+    this.hud = null;
+    this.webHud?.destroy();
+    this.webHud = null;
+    this.view.floatTarget = null;
+    this.guide.setWeb(this.isClassic);
+    if (this.isClassic) {
+      // 第 1 关：web 原型（奶油底 + 深蓝金边卡片 + 天空蓝计分条），没有提示键（web 改为拖错两次自动圈出）
+      this.webHud = new WebHud(this.node, () => this.exitToHome());
+      this.webHud.root.setSiblingIndex(0);
+      this.guide.setY(-screenH() / 2 + 300 + 65);
+      this.rebuildBoard();
+      this.bindFloatTarget();
+      this.updateHud();
+      return;
     }
+    this.guide.setY(this.L.hintY + 30);
+    this.bgNode = buildThemeBg(this.node, DESIGN_W, this.L.H);
+    this.hud = new ThemeHud(this.node, this.L, {
+      onBack: () => this.exitToHome(),
+      onHint: () => this.showHint(),
+    });
+    // HUD 在棋盘之下、弹窗 / 提示条之上（棋盘拖动时的碎片要盖住 HUD 阴影）
+    this.hud.root.setSiblingIndex(1);
+    this.hud.setLevel(MODE_LABEL[GS.mode], this.levelIndex);
+    this.rebuildBoard();
+    this.updateHud();
+  }
 
-    // ========== 右：金色计时圆环 ==========
-    const timerWrap = new Node('TimerWrap');
-    timerWrap.parent = hud;
-    timerWrap.layer = Layers.Enum.UI_2D;
-    timerWrap.addComponent(UITransform).setContentSize(190, 190);
-    timerWrap.setPosition(350, 30);
-    // 背景圆
-    const tbg = timerWrap.addComponent(Graphics);
-    tbg.lineWidth = 12;
-    tbg.strokeColor = new Color(0, 0, 0, 80);
-    tbg.circle(0, 0, 82);
-    tbg.stroke();
-    // 前景进度弧（updateTimerRing 更新）
-    const tfg = new Node('TimerFg');
-    tfg.parent = timerWrap;
-    tfg.layer = Layers.Enum.UI_2D;
-    tfg.addComponent(UITransform).setContentSize(190, 190);
-    this.timerRingFg = tfg.addComponent(Graphics);
-    // 数字
-    this.hudTime = this.hudText(timerWrap, 40, 0, 0, 160, t.hudAccent);
-    this.hudTime.string = '03:00';
+  /** web 原型的得分飘字要真的落到 HUD 分数上（落点 = 分数面板中心，换算到棋盘本地坐标） */
+          bindFloatTarget()       {
+    if (!this.webHud) return;
+    const a = this.webHud.scoreAnchor;
+    const host = this.view.node.getPosition();
+    this.view.floatTarget = new Vec3(a.x - host.x, a.y - host.y, 0);
+    const hud = this.webHud;
+    this.view.onFloatLand = () => hud.bump();
+  }
 
-    // ========== 星线进度（HUD 下方） ==========
-    const goalRow = new Node('GoalRow');
-    goalRow.parent = hud;
-    goalRow.layer = Layers.Enum.UI_2D;
-    goalRow.addComponent(UITransform).setContentSize(DESIGN_W - 80, 34);
-    goalRow.setPosition(0, -60);
-    // 「★线」标签
-    const gl = this.hudText(goalRow, 20, -(DESIGN_W - 80) / 2 + 30, 0, 60, new Color(255, 233, 199));
-    gl.string = '★线';
-    // 三段进度条
-    this.starLineFills = [];
-    for (let i = 0; i < 3; i++) {
-      const seg = new Node(`Seg${i}`);
-      seg.parent = goalRow;
-      seg.layer = Layers.Enum.UI_2D;
-      seg.addComponent(UITransform).setContentSize(210, 28);
-      seg.setPosition(-160 + i * 220, 0);
-      // 背景槽
-      const bgG = seg.addComponent(Graphics);
-      bgG.fillColor = new Color(0, 0, 0, 80);
-      bgG.roundRect(-105, -14, 210, 28, 14);
-      bgG.fill();
-      // 前景填充（updateStarVisuals 更新宽度）
-      const fgN = new Node('Fill');
-      fgN.parent = seg;
-      fgN.layer = Layers.Enum.UI_2D;
-      fgN.addComponent(UITransform).setContentSize(200, 28);
-      const fgG = fgN.addComponent(Graphics);
-      this.starLineFills.push(fgG);
-    }
-
-    // ========== 底栏 ==========
-    // 模式标签（粉色胶囊，左）
-    this.hudLevel = this.hudText(hud, 26, -380, -60, 420, new Color(255, 255, 255));
-    this.hudLevel.string = `${t.copy.modeLabel} · 第 ${this.levelIndex} 关`;
-    // 体力胶囊（右）
-    const energy = new Node('Energy');
-    energy.parent = hud;
-    energy.layer = Layers.Enum.UI_2D;
-    energy.addComponent(UITransform).setContentSize(280, 56);
-    energy.setPosition(350, -60);
-    const eg = energy.addComponent(Graphics);
-    eg.fillColor = new Color(0, 0, 0, 80);
-    eg.roundRect(-140, -28, 280, 56, 28);
-    eg.fill();
-    const el = this.hudText(energy, 28, 0, 0, 220, new Color(255, 255, 255));
-    el.string = `💛 ${GS.stamina.available}/${GS.staminaMax}`;
-
-    // ========== 返回按钮（左上角） ==========
-    const back = this.hudButton(hud, 'BtnBack', -480, 30, 100, 80, t.backFill, '返回', 24);
-    back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
-
-    // ========== 提示按钮（棋盘下方） ==========
-    const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, t.hintFill, '提示', 32);
-    hint.on(Node.EventType.TOUCH_END, () => this.showHint(), this);
+  /** 棋盘宿主节点的位置 / 尺寸：原样式固定区域，三主题按排版算 */
+          placeBoardHost()       {
+    const wl = this.isClassic ? webLayout() : null;
+    const top = wl ? wl.boardTop : this.boardTop;
+    const bottom = wl ? wl.boardBottom : this.boardBottom;
+    const n = this.view.node;
+    n.getComponent(UITransform) .setContentSize(DESIGN_W, top - bottom);
+    n.setPosition(0, (top + bottom) / 2);
   }
 
   /**
-   * 主题落地：全屏背景渐变 + HUD + 棋盘（底板 / 融合环配色）。
-   * 首次 onLoad 调一次，之后每次切换主题调一次 —— 只换皮，引擎与盘面数据不动。
+   * 按当前主题重排并重建棋盘视图（换主题用）；尚未开局时跳过。
+   * 原样式与三主题的格子尺寸 / 棋盘区不同，所以走 layout() 整盘重排。
    */
-          applyThemeVisuals()       {
-    const t = currentTheme();
-    // ---- 背景（重建）----
-    if (this.bgG) this.bgG.node.destroy();
-    const bgNode = new Node('ThemeBg');
-    bgNode.parent = this.node;
-    bgNode.layer = Layers.Enum.UI_2D;
-    bgNode.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
-    this.bgG = bgNode.addComponent(Graphics);
-    const N = 16;
-    for (let i = 0; i < N; i++) {
-      const k = i / (N - 1);
-      this.bgG.fillColor = new Color(
-        Math.round(t.bgTop.r + (t.bgBottom.r - t.bgTop.r) * k),
-        Math.round(t.bgTop.g + (t.bgBottom.g - t.bgTop.g) * k),
-        Math.round(t.bgTop.b + (t.bgBottom.b - t.bgTop.b) * k),
-      );
-      const bandH = DESIGN_H / N + 2;
-      this.bgG.rect(-DESIGN_W / 2, DESIGN_H / 2 - (i + 1) * bandH + 1, DESIGN_W, bandH);
-      this.bgG.fill();
-    }
-    bgNode.setSiblingIndex(0);   // 垫在所有层之下（棋盘 / HUD / 弹窗之上于它）
-    // ---- HUD ----
-    this.buildHud();
-    // ---- 棋盘（底板 + 融合环配色随主题重建；贴图与盘面数据重放）----
-    this.rebuildBoard();
-  }
-
-  /** 按最近一次的棋盘规格重建视图（主题切换用）；尚未开局时跳过 */
           rebuildBoard()       {
     if (!this.boardSpec || !this.engine) return;
-    const { rows, cols, cell } = this.boardSpec;
-    this.view.build(rows, cols, cell);
+    // 进关换皮时 cfg 已是新关、engine 还是上一关：盘面尺寸对不上就不重放（beginLevel 随后会整盘重建）
+    if (this.engine.board.size !== this.cfg.rows * this.cfg.cols) return;
+    this.layout();
     this.view.setCells(this.engine.board.toArray());
     this.view.applyMerge(computeMergeDisplay(this.engine.board));
-  }
-
-          hudText(parent      , size        , x        , y        , w        , color       )        {
-    const n = new Node('Txt');
-    n.parent = parent;
-    n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(w, size + 10);
-    n.setPosition(x, y);
-    const l = n.addComponent(Label);
-    l.fontSize = size;
-    l.lineHeight = size + 8;
-    l.color = color;
-    return l;
-  }
-
-          hudButton(parent      , name        , x        , y        , w        , h        , color       , text        , size        )       {
-    const n = new Node(name);
-    n.parent = parent;
-    n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(w, h);
-    n.setPosition(x, y);
-    const g = n.addComponent(Graphics);
-    g.fillColor = color;
-    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
-    g.fill();
-    const l = this.hudText(n, size, 0, 0, w, new Color(255, 255, 255));
-    l.string = text;
-    return n;
+    this.bindFloatTarget();
   }
 
   /* ================================================================ 引导（§14 五步） */
 
+  /**
+   * 第 1 关的引导按 web 原型走（文案 / 时机同 web main.ts 的 showGuide）：
+   * swap 进关 → hint4 拖错两次 → eliminate 首次消除 → refill 首次补位 → clear 首次通关（走完落盘）。
+   */
+          webGuide(step                        )       {
+    if (GS.guideDone || this.webGuideSeen.has(step)) return;
+    this.webGuideSeen.add(step);
+    this.guide.show(WEB_GUIDE[step]);
+    if (step === 'clear') GS.finishGuide();
+  }
+          webGuideSeen = new Set        ();
+
           runGuide(step        )       {
+    if (this.isClassic) {
+      if (step === 4) this.webGuide('eliminate');
+      else if (step === 5) this.webGuide('refill');
+      return;
+    }
     if (GS.guideDone || step <= this.guideStep) return;
     this.guideStep = step;
     const text = [GUIDE.step1, GUIDE.step2, GUIDE.step3, GUIDE.step4, GUIDE.step5][step - 1];

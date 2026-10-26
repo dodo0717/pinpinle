@@ -80,7 +80,7 @@ describe('save —— 往返一致与出厂值', () => {
     data.meta.adStaminaUsed = 2;
     data.meta.settings.bgm = false;
     data.progress.normal.unlocked = 4;
-    data.progress.normal.levels[3] = { stars: 2, personalBest: 210, boardBest: 180 };
+    data.progress.normal.levels[3] = { stars: 2, personalBest: 210, boardBest: 180, validBest: 200 };
     data.session = realSession(1, { score: 1, timeLeft: 77, started: true });
 
     const result = parseSave(serializeSave(data), fresh(), LIMITS, T0);
@@ -88,6 +88,24 @@ describe('save —— 往返一致与出厂值', () => {
     assert.equal(result.discarded, false);
     assert.equal(result.recovered, false, `不该有修复项：${result.issues.join('；')}`);
     assert.deepEqual(result.data, data);
+  });
+
+  it('老存档没有 validBest：按个人最高分迁移，且不低于上榜分（2026-10-25）', () => {
+    const data = fresh();
+    const raw = JSON.parse(serializeSave(data));
+    raw.progress.normal.levels = { 2: { stars: 2, personalBest: 40, boardBest: 0 }, 3: { stars: 3, personalBest: 9, boardBest: 9 } };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.levels[2]?.validBest, 40);
+    assert.equal(result.data.progress.normal.levels[3]?.validBest, 9);
+    assert.equal(result.recovered, false, '迁移不算修复，不该弹「存档已修复」');
+  });
+
+  it('老存档 unlocked 小于出厂解锁数 → 读档抬到出厂值（2026-10-26 真机只显示 1、2 关）', () => {
+    const raw = JSON.parse(serializeSave(fresh()));
+    raw.progress.normal.unlocked = 2;
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 4);
+    assert.equal(result.recovered, false, '兜底不算修复');
   });
 
   it('出厂值：满体力 / 前 4 关解锁（2026-10-24 临时口径）/ 无断点 / 两种模式都有进度', () => {
@@ -150,7 +168,7 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
     assert.equal(result.discarded, false, '字段级问题不该作废整档');
     assert.equal(result.recovered, true);
     const normal = result.data.progress.normal;
-    assert.equal(normal.unlocked, 1, 'unlocked=999 越界，应退回第 1 关');
+    assert.equal(normal.unlocked, 4, 'unlocked=999 越界，退回第 1 关后按出厂解锁数（4）兜底');
     assert.deepEqual(normal.levels[999], undefined, '越界关卡记录应被丢弃');
     assert.equal(normal.levels[1]?.stars, 0, '星级 9 应被夹到 0');
     assert.equal(normal.levels[1]?.personalBest, 0, '负分应被夹到 0');
@@ -219,7 +237,7 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
       session: null,
     };
     const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
-    assert.equal(result.data.progress.normal.unlocked, 2, '只有第 1 关真正通关，进度应停在第 2 关');
+    assert.equal(result.data.progress.normal.unlocked, 4, '坏记录不抬进度：只按出厂解锁数（4）兜底，不会抬到 31 / 61');
   });
 
   it('元系统越界：体力 / 广告次数 / 恢复时间戳 / 开关类型都被降级', () => {

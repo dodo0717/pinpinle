@@ -103,7 +103,7 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
   it('拿到 3★ 的普通局同时更新两个最高分', () => {
     const s = settleLevel(outcome({ score: 9 }))!;
     const rec = applySettlement(undefined, outcome({ score: 9 }), s);
-    assert.deepStrictEqual(rec, { stars: 3, personalBest: 9, boardBest: 9 });
+    assert.deepStrictEqual(rec, { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 });
   });
 
   it('1★ / 2★ 成绩不上榜（《通关及排名》2026-09-12：上榜门槛 = 3★）', () => {
@@ -133,10 +133,18 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
     assert.strictEqual(rec.personalBest, 11, '个人最高分应该被刷新');
     assert.strictEqual(rec.boardBest, 8, '续命局不得抬高中上榜分');
     assert.strictEqual(rec.stars, 2, '历史星级只增不减');
+    assert.strictEqual(rec.validBest, 8, '续命局也不进有效分（总榜只认它，2026-10-25）');
+  });
+
+  it('有效分：1★ / 2★ 的未续命局照样计入（总榜口径），续命局不计', () => {
+    const one = settleLevel(outcome({ score: 5 }))!;
+    assert.strictEqual(applySettlement(undefined, outcome({ score: 5 }), one).validBest, 5);
+    const rv = settleLevel(outcome({ score: 11, revived: true }))!;
+    assert.strictEqual(applySettlement(undefined, outcome({ score: 11, revived: true }), rv).validBest, 0);
   });
 
   it('分数变低不会把记录改小', () => {
-    const before = { stars: 3, personalBest: 12, boardBest: 12 };
+    const before = { stars: 3, personalBest: 12, boardBest: 12, validBest: 12 };
     const s = settleLevel(outcome({ score: 5 }), before)!;
     const rec = applySettlement(before, outcome({ score: 5 }), s);
     assert.deepStrictEqual(rec, before);
@@ -194,7 +202,7 @@ describe('M4 · 关卡解锁（§7.3.3）', () => {
   });
 
   it('recordOf 对没打过的关卡返回全 0，不返回 undefined', () => {
-    assert.deepStrictEqual(recordOf(fresh(), 42), { stars: 0, personalBest: 0, boardBest: 0 });
+    assert.deepStrictEqual(recordOf(fresh(), 42), { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 });
   });
 });
 

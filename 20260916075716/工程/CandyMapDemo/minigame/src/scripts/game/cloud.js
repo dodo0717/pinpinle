@@ -34,7 +34,8 @@ const TOKEN_KEY = 'pinpin.cloud.token';
 const QUEUE_KEY = 'pinpin.cloud.queue';
 
 /** v1 上报的模式（见文件头「关卡守卫」说明） */
-export const REPORT_MODES                      = ['normal'];
+// 2026-10-26：服务端已按模式分开记分（ProgressMerge hard 分支 + game_level_best.mode），困难模式放开上报
+export const REPORT_MODES                      = ['normal', 'nightmare'];
 
 /** 一条结算上报（离线队列里也用它，附 ts） */
                                    
@@ -42,6 +43,9 @@ export const REPORT_MODES                      = ['normal'];
                
                 
                 
+                                                              
+                  
+                    
                  
                       
               
@@ -61,6 +65,8 @@ export const REPORT_MODES                      = ['normal'];
                       
                                 
                                
+                                                              
+                                 
  
 
 function asCloudShape(raw         )                    {
@@ -68,7 +74,12 @@ function asCloudShape(raw         )                    {
   const stars = (raw                       ).stars;
   const best = (raw                      ).best;
   if (!stars || typeof stars !== 'object' || !best || typeof best !== 'object') return null;
-  return { stars: stars                          , best: best                           };
+  const valid = (raw                       ).valid;
+  return {
+    stars: stars                          ,
+    best: best                          ,
+    valid: valid && typeof valid === 'object' ? (valid                          ) : undefined,
+  };
 }
 
 function clampInt(v         , lo        , hi        )         {
@@ -93,9 +104,12 @@ export function mergeCloudProgress(local              , cloud         )         
     const rec = recordOf(local, level);
     const stars = Math.max(rec.stars, clampInt(c.stars[key], 0, 3));
     const personalBest = Math.max(rec.personalBest, Math.max(0, Math.floor(Number(c.best[key]) || 0)));
-    if (stars === rec.stars && personalBest === rec.personalBest) continue;
+    const validBest = c.valid
+      ? Math.min(personalBest, Math.max(rec.validBest, Math.max(0, Math.floor(Number(c.valid[key]) || 0))))
+      : rec.validBest;
+    if (stars === rec.stars && personalBest === rec.personalBest && validBest === rec.validBest) continue;
     changed = true;
-    levels[level] = { ...rec, stars, personalBest };
+    levels[level] = { ...rec, stars, personalBest, validBest };
   }
   let maxCleared = 0;
   for (const key of Object.keys(levels)) {
@@ -119,12 +133,15 @@ export function cloudDiff(local              , cloud         )                  
   const out                     = [];
   for (const key of Object.keys(local.levels)) {
     const level = Number(key);
-    const rec = local.levels[level];
-    if (!rec || level < 1 || level > TOTAL_LEVELS) continue;
+    if (!local.levels[level] || level < 1 || level > TOTAL_LEVELS) continue;
+    // 走 recordOf：没经过读档迁移的老记录（缺 validBest）在这里补齐
+    const rec = recordOf(local, level);
+    // 补推的是「有效成绩」：老服务端的 best 也只该被有效成绩抬高（续命局分数不进排行）
+    const cloudValid = c?.valid ?? cloudBest;
     const better = rec.stars > (Number(cloudStars[key]) || 0)
-      || rec.personalBest > (Number(cloudBest[key]) || 0);
+      || rec.validBest > (Number(cloudValid[key]) || 0);
     if (!better) continue;
-    out.push({ level, win: true, stars: rec.stars, score: rec.personalBest });
+    out.push({ level, win: true, stars: rec.stars, score: rec.validBest, mode: local.mode, revived: false });
   }
   return out.sort((a, b) => a.level - b.level);
 }
@@ -262,6 +279,7 @@ export class CloudSync {
         header: { 'Wx-Authorization': `Bearer ${this.token}` },
         data: {
           level: item.level, win: item.win, stars: item.stars, score: item.score,
+          mode: item.mode ?? 'normal', revived: !!item.revived,
           moves: item.moves, durationMs: item.durationMs,
         },
       });

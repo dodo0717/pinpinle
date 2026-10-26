@@ -52,11 +52,20 @@ export const PANEL = {
   colTotal: '总分',
   level: (level        ) => `第 ${level} 关`,
   mineRankLabel: '我的排名',
-  mineScoreLabel: '累计总分',
+  mineScoreLabel: '总积分',
   mineLevelScoreLabel: '本关最高分',
   mineStarsLabel: '累计星数',
   rankValue: (rank        ) => (rank > 0 ? `${rank}` : '未上榜'),
   starsValue: (stars        ) => `⭐${stars}`,
+  /** 2026-10-25 排行榜新规：我的成绩下方的「再来一局」提示 */
+  hintAhead: (name        , score        ) => `距上一名「${name}」还差 ${score} 分`,
+  hintAheadStars: (name        , stars        ) => `和「${name}」同分，再多 ${stars} 颗星就能超过`,
+  hintFirst: '你是第 1 名，保持住！',
+  hintJoinTotal: '打出一局不续命的通关成绩即可上榜',
+  hintJoinLevel: (score        ) => `本关拿到 3★（${score} 分）且不续命即可上榜`,
+  sampleNote: '示例数据 · 联网后显示真实排名',
+  liveTotal: '全服实时排名',
+  liveLevel: (n        ) => `本关 ${n} 人上榜 · 实时排名`,
   page: (page        , pages        ) => `第 ${page} / ${pages} 页`,
   prevPage: '◀ 上一页',
   nextPage: '下一页 ▶',
@@ -188,4 +197,55 @@ export const MOVE = {
   notAdjacent: '困难模式只能一次挪一格',
   blocked: '这个方向被挡住了',
   noSpace: '那边没有空位',
+}         ;
+
+/* ---------------------------------------------------------------- 第 1 关（web 原型同款，2026-10-25）
+ * 照抄 web/ui/text.ts 的 HONOR / FAIL / REVIVE / GUIDE —— 第 1 关的结算吊牌与引导按 web 原型走。
+ */
+
+export const WEB_HONOR = {
+  god: { icon: '👑', title: '恭喜，得分超神！', desc: '您的分数进入了百强。', sub: (rank        ) => `本关第 ${rank} 名` },
+  king: {
+    icon: '🏆',
+    title: '恭喜，得分王者！',
+    desc: (percent        ) => `您的分数超越了 ${percent}% 的玩家。`,
+    sub: '再战一次，刷新您的最高分！',
+  },
+  pass: { icon: '', title: '恭喜，得分优秀', desc: (stars        ) => `您已顺利通关，获得 ${stars}星！`, sub: '继续挑战，冲击更高分数！' },
+  btnLeaderboard: '查看排行榜',
+  btnNext: '下一关',
+  btnRetry: '再战本关',
+  btnHome: '返回主页',
+  noStamina: '体力不足，请返回主页看广告或等待恢复',
+  lastLevelToast: '敬请期待下阶段新关卡',
+}         ;
+
+export const WEB_FAIL = {
+  title: '差一点就成功了',
+  gap: (gap        ) => `(还差 ${gap} 组)`,
+  btnRetry: '重试',
+  btnAdStamina: '📺 看广告 +1体力',
+  btnHome: '返回主页',
+  reviveUsed: '本局的续命机会已经用掉了',
+  offline: '离开期间倒计时已走完，本局按离开时的分数结算',
+}         ;
+
+export const WEB_REVIVE = {
+  title: '时间到',
+  gap: (gap        ) => `还差 ${gap} 组就能通关`,
+  ask: '要再试一次吗？',
+  btnAd: '📺 看广告 +1分钟',
+  btnGiveUp: '❌ 放弃',
+  granted: '续命 +60 秒，继续本局（统一记 1 星，不上排行榜）',
+}         ;
+
+/** 结算分数标签：按模式叫「简单分数」/「困难分数」 */
+export const webScoreLabel = (mode        ) => `${mode}分数`;
+
+export const WEB_GUIDE = {
+  swap: '按住拖动碎片移动位置（横竖斜都行），拼好的一整片会一起走',
+  hint4: '这 4 块可以拼成一张图',
+  eliminate: '凑齐4块 → 拼成2×2 → 消除！',
+  refill: '消除后自动补位',
+  clear: '通关解锁新表情！',
 }         ;

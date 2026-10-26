@@ -2,7 +2,8 @@ import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, 
 const { ccclass } = _decorator;
                                                 
 import { pieceGeometry, QUADRANT_PX,                         } from './geometry.js';
-import { currentTheme } from './theme.js';
+import { currentTheme, P_CANDY, P_CLEAN, P_JOURNAL } from './theme.js';
+import { alpha, fillV, shadow, dash, setSpriteRadii, styleText, rrect4 } from './paint.js';
 
 /** 得分飘字时长（秒）—— 原版 FLOAT_MS = 500，与消除并行 */
 const FLOAT_SEC = 0.5;
@@ -51,6 +52,8 @@ const PHASE = {
              
                                          
              
+                                               
+                 
              
                        
                  
@@ -101,7 +104,12 @@ export class BoardView extends Component {
     const originY = totalH / 2 - cellSize / 2;
 
     // 主题化底板（最先画 = 垫在所有格子之下）：糖果=木桌 / 果冻=白卡 / 手账=贴纸页
-    this.buildPanel(totalW, totalH);
+    // 第 1 关（classic = web 原型）：透明底 + 极淡白边（web #board），无格槽
+    if (this.classic) this.buildWebFrame(totalW, totalH);
+    else {
+      this.buildPanel(totalW, totalH);
+      this.buildSockets(originX, originY, step);
+    }
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -110,16 +118,27 @@ export class BoardView extends Component {
         root.layer = Layers.Enum.UI_2D;
         root.addComponent(UITransform).setContentSize(cellSize, cellSize);
         root.setPosition(originX + c * step, originY - r * step);
+        // 底卡先建 = 画在贴图下面
+        const cardN = new Node('Card');
+        cardN.parent = root;
+        cardN.layer = Layers.Enum.UI_2D;
+        cardN.addComponent(UITransform).setContentSize(cellSize, cellSize);
+        const card = cardN.addComponent(Graphics);
         const face = new Node('Face');
         face.parent = root;
         face.layer = Layers.Enum.UI_2D;
         face.addComponent(UITransform).setContentSize(cellSize, cellSize);
         const sp = face.addComponent(Sprite);
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
-        const op = face.addComponent(UIOpacity);
+        const rr = this.pieceRadius;
+        setSpriteRadii(sp, [rr, rr, rr, rr]);
+        // 透明度挂在 root：底卡和贴图一起淡入（挂 face 的话补位时白边先冒出来）
+        const op = root.addComponent(UIOpacity);
         const ring = this.buildRing(face, cellSize);
         const p = new Vec3(originX + c * step, originY - r * step, 0);
-        this.cells.push({ root, face, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
+        const ref          = { root, face, card, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y };
+        this.cells.push(ref);
+        this.drawCard(ref);
       }
     }
   }
@@ -129,9 +148,41 @@ export class BoardView extends Component {
    * candy：木桌渐变 + 深描边 + 厚投影；clean：白卡圆角 + 细描边；
    * journal：奶白纸面 + 棕细框（手账的贴纸页）。
    */
+  /** 碎片圆角（按主题；融合侧会清零） */
+          get pieceRadius()         {
+    const id = currentTheme().id;
+    return id === 'classic' ? 14 : id === 'journal' ? 18 : id === 'clean' ? 26 : 24;
+  }
+
+  /** 原样式（第 1 关）：三主题之前的棋盘外观 */
+          get classic()          {
+    return currentTheme().id === 'classic';
+  }
+
+  /** web #board：透明底，1px rgba(255,255,255,.12) 边，圆角 44 */
+          buildWebFrame(totalW        , totalH        )       {
+    const n = new Node('WebFrame');
+    n.parent = this.node;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(totalW + 4, totalH + 4);
+    const g = n.addComponent(Graphics);
+    g.lineWidth = 1;
+    g.strokeColor = new Color(255, 255, 255, 31);
+    g.roundRect(-totalW / 2 - 2, -totalH / 2 - 2, totalW + 4, totalH + 4, 44);
+    g.stroke();
+  }
+
+  /** web 原型的得分飘字落点（棋盘本地坐标；null = 原地上飘） */
+  floatTarget              = null;
+  /** 飘字落到分数上那一刻的回调（HUD 分数弹一下） */
+  onFloatLand                      = null;
+
+  /** 底板外边距（棋盘四周留出的木框 / 白卡边） */
+  static          PAD = 30;
+
           buildPanel(totalW        , totalH        )       {
     const t = currentTheme();
-    const pad = 34;
+    const pad = BoardView.PAD;
     const w = totalW + pad * 2;
     const h = totalH + pad * 2;
     const n = new Node('Panel');
@@ -139,30 +190,159 @@ export class BoardView extends Component {
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(w, h);
     const g = n.addComponent(Graphics);
-    // 投影 / 厚边（candy 木桌的分量感）
-    g.fillColor = new Color(0, 0, 0, 36);
-    g.roundRect(-w / 2, -h / 2 - 10, w, h, 30);
-    g.fill();
-    // 主体：上浅下深两层
-    g.fillColor = t.panelFillB;
-    g.roundRect(-w / 2, -h / 2, w, h, 28);
-    g.fill();
-    g.fillColor = t.panelFillA;
-    g.roundRect(-w / 2 + 4, -h / 2 + h * 0.36, w - 8, h * 0.64 - 4, 26);
-    g.fill();
-    // 描边
-    g.lineWidth = t.id === 'candy' ? 6 : 2;
-    g.strokeColor = t.panelBorder;
-    g.roundRect(-w / 2, -h / 2, w, h, 28);
-    g.stroke();
-    // journal：纸面加一圈细虚线内框（贴纸页的裁切线感）
-    if (t.ringSketchy) {
-      g.lineWidth = 2;
-      g.strokeColor = new Color(t.panelBorder.r, t.panelBorder.g, t.panelBorder.b, 130);
-      g.roundRect(-w / 2 + 12, -h / 2 + 12, w - 24, h - 24, 18);
+    if (t.id === 'candy') {
+      // 原型 A .board：木纹渐变 + 5px 深边 + 10px 厚底 + 大投影 + 顶部高光
+      const P = P_CANDY;
+      shadow(g, new Color(0, 0, 0, 102), 60, 0, 44);
+      g.fillColor = P.woodEdge;
+      g.roundRect(-w / 2, -h / 2 - 22, w, h, 52);
+      g.fill();
+      shadow(g, null);
+      g.roundRect(-w / 2, -h / 2, w, h, 52);
+      fillV(g, h / 2, -h / 2, P.wood, P.woodDark);
+      g.lineWidth = 12;
+      g.strokeColor = P.woodEdge;
+      g.roundRect(-w / 2, -h / 2, w, h, 52);
       g.stroke();
+      g.fillColor = new Color(255, 255, 255, 56);
+      g.roundRect(-w / 2 + 40, h / 2 - 18, w - 80, 8, 4);
+      g.fill();
+    } else if (t.id === 'clean') {
+      // 原型 B .board：纯白圆角卡 + 柔和大投影
+      shadow(g, new Color(34, 48, 63, 40), 60, 0, 26);
+      g.fillColor = P_CLEAN.card;
+      g.roundRect(-w / 2, -h / 2, w, h, 60);
+      g.fill();
+      shadow(g, null);
+    } else {
+      // 原型 C .board：奶白贴纸页 + 细棕框 + 点阵底纹 + 两角和纸胶带
+      const P = P_JOURNAL;
+      shadow(g, new Color(74, 59, 42, 46), 36, 0, 16);
+      g.fillColor = P.sheet;
+      g.roundRect(-w / 2, -h / 2, w, h, 22);
+      g.fill();
+      shadow(g, null);
+      g.lineWidth = 3;
+      g.strokeColor = P.border;
+      g.roundRect(-w / 2, -h / 2, w, h, 22);
+      g.stroke();
+      g.fillColor = P.dots;
+      for (let y = -h / 2 + 30; y < h / 2 - 10; y += 54) {
+        for (let x = -w / 2 + 30; x < w / 2 - 10; x += 54) {
+          g.circle(x, y, 3);
+          g.fill();
+        }
+      }
+      for (const [x, y, a, col] of [
+        [-w / 2 + 50, h / 2 - 6, 35, P.washiPink],
+        [w / 2 - 50, -h / 2 + 6, 35, P.washiBlue],
+      ]         ) {
+        const tn = new Node('Tape');
+        tn.parent = n;
+        tn.layer = Layers.Enum.UI_2D;
+        tn.addComponent(UITransform).setContentSize(150, 40);
+        tn.setPosition(x, y);
+        tn.angle = a;
+        const tg = tn.addComponent(Graphics);
+        tg.fillColor = alpha(col, 210);
+        tg.roundRect(-75, -19, 150, 38, 4);
+        tg.fill();
+      }
     }
   }
+
+  /**
+   * 格位底槽：candy 是木桌上挖出的暗槽、clean 是浅蓝灰格、journal 是一圈淡虚线。
+   * 碎片消除 / 掉落的空当里能看到底槽，棋盘就不会「露馅」成一块平板。
+   */
+          buildSockets(originX        , originY        , step        )       {
+    const t = currentTheme();
+    const n = new Node('Sockets');
+    n.parent = this.node;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(1, 1);
+    const g = n.addComponent(Graphics);
+    const s = this.cellSize;
+    const r = this.pieceRadius;
+    if (t.id === 'journal') {
+      g.lineWidth = 3;
+      g.strokeColor = new Color(74, 59, 42, 46);
+      dash(g, [10, 9]);
+    }
+    for (let row = 0; row < this.rows; row++) {
+      for (let col = 0; col < this.cols; col++) {
+        const x = originX + col * step - s / 2;
+        const y = originY - row * step - s / 2;
+        if (t.id === 'candy') {
+          g.fillColor = new Color(0, 0, 0, 56);
+          g.roundRect(x, y, s, s, r);
+          g.fill();
+          g.fillColor = new Color(0, 0, 0, 40);
+          g.roundRect(x + 3, y + s - 14, s - 6, 10, 5);
+          g.fill();
+        } else if (t.id === 'clean') {
+          g.fillColor = P_CLEAN.cell;
+          g.roundRect(x, y, s, s, r);
+          g.fill();
+        } else {
+          g.roundRect(x + 4, y + 4, s - 8, s - 8, r);
+          g.stroke();
+        }
+      }
+    }
+  }
+
+  /**
+   * 碎片底卡（贴纸的白边 + 投影）：画在每格 face 下面，跟着 face 一起外扩，
+   * 融合侧不留边 —— 一整组看上去就是同一张贴纸。
+   */
+          drawCard(ref         )       {
+    const g = ref.card;
+    g.clear();
+    const t = currentTheme();
+    const m = ref.geom;
+    const ext = GAP / 2;
+    const w = this.cellSize + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0);
+    const h = this.cellSize + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0);
+    const r = this.pieceRadius;
+    // web 原型：2px 白边；融合组的外沿改描蜜金（web .cell.merged --edge-color: honey）
+    const e = this.classic ? 2 : BoardView.EDGE;
+    const up = !m?.mergeUp;
+    const down = !m?.mergeDown;
+    const left = !m?.mergeLeft;
+    const right = !m?.mergeRight;
+    // 白边只长在没融合的那几侧
+    const x = -w / 2 - (left ? e : 0);
+    const y = -h / 2 - (down ? e : 0);
+    const cw = w + (left ? e : 0) + (right ? e : 0);
+    const ch = h + (up ? e : 0) + (down ? e : 0);
+    const R = r + e;
+    const radii                                   = [
+      up && left ? R : 0, up && right ? R : 0, down && right ? R : 0, down && left ? R : 0,
+    ];
+    if (t.id === 'candy') shadow(g, new Color(0, 0, 0, 90), 10, 0, 6);
+    else if (t.id === 'clean') shadow(g, new Color(34, 48, 63, 46), 12, 0, 5);
+    else if (t.id === 'classic') shadow(g, new Color(74, 59, 42, m ? 36 : 56), m ? 4 : 8, 0, m ? 1 : 3);
+    else shadow(g, new Color(74, 59, 42, 50), 8, 0, 4);
+    g.fillColor = t.id === 'classic' && m ? new Color(224, 169, 74) : new Color(255, 255, 255);
+    rrect4(g, x, y, cw, ch, radii);
+    g.fill();
+    shadow(g, null);
+    if (t.id === 'journal' && !m) {
+      // 贴纸裁切虚线（只给散块，融合后整组是一张贴纸，不再画裁切线）
+      g.lineWidth = 3;
+      g.strokeColor = new Color(74, 59, 42, 52);
+      dash(g, [9, 8]);
+      g.roundRect(x + 3, y + 3, cw - 6, ch - 6, R - 3);
+      g.stroke();
+      dash(g, []);
+    }
+    // 贴图圆角与底卡同步：融合侧是直角，接缝两边才严丝合缝
+    setSpriteRadii(ref.sp, [up && left ? r : 0, up && right ? r : 0, down && right ? r : 0, down && left ? r : 0]);
+  }
+
+  /** 碎片白边宽度 */
+  static          EDGE = 5;
 
   /**
    * 金环：融合三阶段点亮它，玩家才知道「这几块是一个整体」。
@@ -192,28 +372,43 @@ export class BoardView extends Component {
           drawRing(ref         )       {
     const g = ref.ring;
     g.clear();
+    const t = currentTheme();
     const m = ref.geom;
     const ext = GAP / 2;
-    // 外扩后的半宽 / 半高：描边要贴着「融合后」的块边，而不是原始格子边
-    const hw = (this.cellSize + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0)) / 2;
-    const hh = (this.cellSize + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0)) / 2;
-    const r = 12;
+    const e = this.classic ? 2 : BoardView.EDGE;
     const up = !m?.mergeUp;
     const down = !m?.mergeDown;
     const left = !m?.mergeLeft;
     const right = !m?.mergeRight;
+    // 描边贴着底卡外沿（未融合侧含白边），而不是原始格子边。
+    // 注意 ring 挂在 face 下，face 已按外扩做了偏移，这里按 face 中心算
+    const L = -(this.cellSize + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0)) / 2 - (left ? e : 0);
+    const R = (this.cellSize + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0)) / 2 + (right ? e : 0);
+    const B = -(this.cellSize + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0)) / 2 - (down ? e : 0);
+    const T = (this.cellSize + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0)) / 2 + (up ? e : 0);
+    const r = this.pieceRadius + e;
 
-    if (up) this.line(g, -hw + (left ? r : 0), hh, hw - (right ? r : 0), hh);
-    if (down) this.line(g, -hw + (left ? r : 0), -hh, hw - (right ? r : 0), -hh);
-    if (left) this.line(g, -hw, hh - (up ? r : 0), -hw, -hh + (down ? r : 0));
-    if (right) this.line(g, hw, hh - (up ? r : 0), hw, -hh + (down ? r : 0));
+    g.lineWidth = t.ringWidth;
+    g.strokeColor = t.ringColor;
+    if (t.id === 'journal') dash(g, [14, 10]);
+    if (t.id === 'candy') shadow(g, alpha(P_CANDY.gold, 190), 22, 0, 0);
+    else if (t.id === 'classic') shadow(g, null);
+    else if (t.id === 'clean') shadow(g, new Color(245, 166, 35, 90), 18, 0, 6);
+    else shadow(g, new Color(214, 69, 69, 70), 12, 0, 4);
+
+    if (up) this.line(g, L + (left ? r : 0), T, R - (right ? r : 0), T);
+    if (down) this.line(g, L + (left ? r : 0), B, R - (right ? r : 0), B);
+    if (left) this.line(g, L, T - (up ? r : 0), L, B + (down ? r : 0));
+    if (right) this.line(g, R, T - (up ? r : 0), R, B + (down ? r : 0));
 
     // 圆角只在两条相邻边都存在时补（融合侧没有边，也就不该有角）
-    if (up && left) this.corner(g, -hw + r, hh, -hw, hh, -hw, hh - r);
-    if (up && right) this.corner(g, hw - r, hh, hw, hh, hw, hh - r);
-    if (down && left) this.corner(g, -hw + r, -hh, -hw, -hh, -hw, -hh + r);
-    if (down && right) this.corner(g, hw - r, -hh, hw, -hh, hw, -hh + r);
+    if (up && left) this.corner(g, L + r, T, L, T, L, T - r);
+    if (up && right) this.corner(g, R - r, T, R, T, R, T - r);
+    if (down && left) this.corner(g, L + r, B, L, B, L, B + r);
+    if (down && right) this.corner(g, R - r, B, R, B, R, B + r);
     g.stroke();
+    shadow(g, null);
+    dash(g, []);
   }
 
           line(g          , x1        , y1        , x2        , y2        )       {
@@ -355,6 +550,8 @@ export class BoardView extends Component {
     for (const d of displays) {
       const ref = this.cells[d.cellIndex];
       if (!ref) continue;
+      // 单块组没有融合边：保持「散块」外观（白边四周都在、手账裁切线在）
+      if (d.groupSize < 2) { this.drawCard(ref); continue; }
       ref.geom = {
         cellSize: this.cellSize,
         gap: GAP,
@@ -371,8 +568,15 @@ export class BoardView extends Component {
         mergeDown: d.mergeDown,
       };
       this.expand(ref, d.mergeUp, d.mergeDown, d.mergeLeft, d.mergeRight);
+      this.drawCard(ref);
       // 几何变了，纹理子矩形必须跟着重算：贴图多半已就绪，不会走异步加载回调
       this.paintFace(d.cellIndex, this.faces[d.cellIndex] ?? null);
+      // 未满 4 块的融合组常亮主题环（原型 .cell.g：金光 / 金细线 / 印章红虚线）——
+      // 玩家一眼看出「这两三块已经粘上了，再找剩下的」
+      if (d.groupSize < 4 && !this.classic) {   // web 原型靠蜜金外沿表达融合，不再套环
+        this.drawRing(ref);
+        ref.ring.node.active = true;
+      }
     }
   }
 
@@ -381,7 +585,12 @@ export class BoardView extends Component {
     const t = ref.face.getComponent(UITransform) ;
     t.setContentSize(this.cellSize, this.cellSize);
     ref.face.setPosition(0, 0, 0);
+    ref.card.node.setPosition(0, 0, 0);
     ref.geom = null;
+    ref.ring.node.active = false;
+    this.drawCard(ref);
+    const r = this.pieceRadius;
+    setSpriteRadii(ref.sp, [r, r, r, r]);
   }
 
   /**
@@ -400,6 +609,7 @@ export class BoardView extends Component {
     const dx = (right ? h / 2 : 0) - (left ? h / 2 : 0);
     const dy = (up ? h / 2 : 0) - (down ? h / 2 : 0);
     ref.face.setPosition(dx, dy, 0);
+    ref.card.node.setPosition(dx, dy, 0);
   }
 
   /**
@@ -424,29 +634,138 @@ export class BoardView extends Component {
     }
   }
 
-  /** 得分飘字：从格子位置向上飘并淡出（原版 §6.3 第五步，与消除并行 500ms） */
-  floatScore(index        , text        )       {
+  /**
+   * 得分飘字：从消除组中心向上飘并淡出（原版 §6.3 第五步，与消除并行）。
+   * 主题化：candy 金黄粗字 + 棕描边 / clean 金色粗体 / journal 印章红手写。
+   */
+  floatScore(index        , text        , indices                    )       {
     const ref = this.cells[index];
     if (!ref) return;
+    const c = this.centerOf(indices && indices.length ? indices : [index]);
+    const t = currentTheme();
     const n = new Node('Float');
     n.parent = this.node;
     n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(160, 60);
-    n.setPosition(ref.baseX, ref.baseY, 0);
+    n.addComponent(UITransform).setContentSize(320, 90);
+    n.setPosition(c.x, c.y, 0);
     const l = n.addComponent(Label);
     l.string = text;
-    l.fontSize = 34;
-    l.lineHeight = 40;
-    l.color = new Color(255, 214, 92, 255);
+    if (t.id === 'classic') {
+      // web .score-float：60px 蜜金粗字 + 白投影，从消除处飞向 HUD 分数（.5s，16% 时放到 1.3）
+      styleText(l, { font: t.font, size: 60, color: new Color(224, 169, 74), bold: true, shadow: { color: new Color(255, 255, 255), y: 2 } });
+      const op0 = n.addComponent(UIOpacity);
+      const to = this.floatTarget ?? new Vec3(c.x, c.y + 160, 0);
+      n.setScale(0.6, 0.6);
+      op0.opacity = 0;
+      tween(op0).to(FLOAT_SEC * 0.16, { opacity: 255 }).delay(FLOAT_SEC * 0.6).to(FLOAT_SEC * 0.24, { opacity: 0 }).start();
+      tween(n)
+        .to(FLOAT_SEC * 0.16, { scale: new Vec3(1.3, 1.3, 1) })
+        .to(FLOAT_SEC * 0.84, { position: to, scale: new Vec3(0.5, 0.5, 1) })
+        .call(() => { this.onFloatLand?.(); n.destroy(); })
+        .start();
+      return;
+    }
+    styleText(l, t.id === 'candy'
+      ? { font: t.font, size: 64, color: P_CANDY.goldLight, outline: new Color(138, 74, 0), outlineWidth: 5, shadow: { color: new Color(255, 160, 40, 200), blur: 16 } }
+      : t.id === 'clean'
+        ? { font: t.font, size: 54, color: P_CLEAN.gold, bold: true, outline: new Color(255, 255, 255), outlineWidth: 5 }
+        : { font: t.font, size: 60, color: P_JOURNAL.stamp, bold: true, outline: P_JOURNAL.sheet, outlineWidth: 4 });
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     const op = n.addComponent(UIOpacity);
+    if (t.id === 'journal') n.angle = 6;
 
-    tween(n).to(FLOAT_SEC, { position: new Vec3(ref.baseX, ref.baseY + 140, 0) }).start();
-    tween(op).to(FLOAT_SEC, { opacity: 0 }).call(() => n.destroy()).start();
+    n.setScale(0.6, 0.6);
+    tween(n)
+      .to(FLOAT_SEC * 0.3, { scale: new Vec3(1.15, 1.15, 1), position: new Vec3(c.x, c.y + 50, 0) })
+      .to(FLOAT_SEC * 1.1, { scale: new Vec3(1, 1, 1), position: new Vec3(c.x, c.y + 170, 0) })
+      .start();
+    tween(op).delay(FLOAT_SEC * 0.7).to(FLOAT_SEC * 0.7, { opacity: 0 }).call(() => n.destroy()).start();
+  }
+
+  /** 若干格的几何中心（本地坐标） */
+          centerOf(indices                   )                           {
+    let x = 0;
+    let y = 0;
+    let k = 0;
+    for (const i of indices) {
+      const r = this.cells[i];
+      if (!r) continue;
+      x += r.baseX; y += r.baseY; k++;
+    }
+    return k ? { x: x / k, y: y / k } : { x: 0, y: 0 };
+  }
+
+  /**
+   * 完整贴纸弹出（原型 .full-pop）：四块消失的同时，整张贴纸在 2×2 中心鼓出来再缩没，
+   * 玩家明确看到「拼成的是这张图」。按组分别弹（一次可能消多组）。
+   */
+          playFullPop(indices                   )       {
+    const byImage = new Map                  ();
+    for (const i of indices) {
+      const p = this.faces[i];
+      if (p === null || p === undefined) continue;
+      const img = Math.floor(p / 4);
+      const list = byImage.get(img) ?? [];
+      list.push(i);
+      byImage.set(img, list);
+    }
+    const t = currentTheme();
+    for (const [img, list] of Array.from(byImage.entries())) {
+      const tex = this.texCache.get(img);
+      if (!tex) continue;
+      // 同图多组时按 4 个一组切（消除组恒为 2×2，下标升序时同组的 4 格并不一定相连，
+      // 但同图同时消两组极少见，取中心近似即可）
+      for (let k = 0; k < list.length; k += 4) {
+        const part = list.slice(k, k + 4);
+        const c = this.centerOf(part);
+        const size = this.cellSize * 2 + GAP;
+        const n = new Node('FullPop');
+        n.parent = this.node;
+        n.layer = Layers.Enum.UI_2D;
+        n.addComponent(UITransform).setContentSize(size, size);
+        n.setPosition(c.x, c.y, 0);
+        // 白边贴纸底
+        const bg = n.addComponent(Graphics);
+        shadow(bg, new Color(0, 0, 0, 90), 30, 0, 16);
+        bg.fillColor = new Color(255, 255, 255);
+        bg.roundRect(-size / 2 - 10, -size / 2 - 10, size + 20, size + 20, 40);
+        bg.fill();
+        shadow(bg, null);
+        if (t.id === 'candy') {
+          bg.lineWidth = 8;
+          bg.strokeColor = P_CANDY.gold;
+          bg.roundRect(-size / 2 - 10, -size / 2 - 10, size + 20, size + 20, 40);
+          bg.stroke();
+        }
+        const pic = new Node('Pic');
+        pic.parent = n;
+        pic.layer = Layers.Enum.UI_2D;
+        pic.addComponent(UITransform).setContentSize(size, size);
+        const sp = pic.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        const sf = new SpriteFrame();
+        sf.texture = tex;
+        sf.packable = false;
+        sf.rect = new Rect(0, 0, TEX_SIZE, TEX_SIZE);
+        sp.spriteFrame = sf;
+        setSpriteRadii(sp, [32, 32, 32, 32]);
+        const op = n.addComponent(UIOpacity);
+        n.setScale(0.55, 0.55);
+        if (t.id === 'journal') n.angle = -6;
+        tween(n)
+          .to(0.18, { scale: new Vec3(1.15, 1.15, 1) })
+          .delay(0.12)
+          .to(0.22, { scale: new Vec3(0.2, 0.2, 1) })
+          .call(() => n.destroy())
+          .start();
+        tween(op).delay(0.34).to(0.16, { opacity: 0 }).start();
+      }
+    }
   }
 
   /** 消除：先鼓起一下，再缩没（原版 vanish：0→35% 鼓到 1.15，35%~100% 缩到 0） */
   playVanish(indices                   )       {
+    if (!this.classic) this.playFullPop(indices);
     for (const i of indices) {
       const ref = this.cells[i];
       if (!ref) continue;

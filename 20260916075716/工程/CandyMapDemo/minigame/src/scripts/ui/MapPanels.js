@@ -22,9 +22,14 @@ import {
 import { GS } from '../game/state.js';
 import { friendRankCanvas } from '../game/wxFriend.js';
 import { PANEL } from '../game/text.js';
-import { unlockedImageIds, COLLECTION_TOTAL, totalStars } from '../game/meta.js';
+import { profileName } from '../game/profile.js';
+import { cloudSync } from '../game/cloud.js';
+import { AvatarView } from './ProfilePanel.js';
+import { PRESET_AVATARS } from '../game/profile.js';
+import { unlockedImageIds, COLLECTION_TOTAL } from '../game/meta.js';
 import {
-  boardSnapshot, recordOf, levelStatus, mockBoardNames, Rng, STAR_LINES_BY_MODE, TOTAL_LEVELS,
+  boardSnapshot, recordOf, levelStatus, STAR_LINES_BY_MODE, TOTAL_LEVELS,
+  rankTotals, totalBoard, mockTotalRivals, gapToAhead, RANK_RULE,
   IMAGE_MOOD, IMAGE_TEXT_PLACEHOLDER, animalOf,                                  
 } from '../core/index.js';
 
@@ -71,6 +76,30 @@ const C_TOTAL = new Color(245, 184, 0);
 const C_PILL = new Color(40, 70, 120, 128);
 const C_PILL_TEXT = new Color(255, 248, 230);
 
+/**
+ * 排行榜字号（2026-10-25 优化）—— 版式与字体不动（系统字体），整页加粗、字号加大：
+ *   层级 = 标题 100 > Tab 62 > 我的成绩数值 80 > 行内总分 54 > 简单/困难 48 > 昵称 46 > 表头 38 > 说明 34
+ */
+const LB = {
+  title: 100,
+  tab: 62,
+  tabSmall: 56,
+  mineKey: 34,
+  mineValue: 80,
+  head: 38,
+  rank: 42,
+  name: 46,
+  score: 48,
+  total: 54,
+  pager: 38,
+  pill: 38,
+  challenge: 48,
+  empty: 48,
+};
+const C_MINE_KEY = new Color(214, 230, 250);
+const C_HEAD_EDGE = new Color(255, 236, 190);
+const C_PAGE_TEXT = new Color(255, 250, 236);
+
 /** 排行榜行：高 96、行距 14（web .lb-row / .lb-list gap） */
 const ROW_H = 96;
 const ROW_GAP = 14;
@@ -90,8 +119,32 @@ const CARD_SKINS = ['card-blue', 'card-pink', 'card-orange'];
                  
                
                 
+                                 
+                 
+                                                             
+                  
                 
  
+
+/**
+ * 奖杯切图里人物脸的位置（2026-10-26 按切图像素测出）：中心占切图宽 / 高的比例 + 直径占切图宽的比例。
+ * 领奖台把前 3 名的头像盖在这里。换奖杯切图要重测（docker 外的 Python 小脚本，见 git log）。
+ */
+const CUP_FACE = {
+  gold: { fx: 0.508, fy: 0.298, d: 0.36 },
+  silver: { fx: 0.51, fy: 0.287, d: 0.42 },
+  bronze: { fx: 0.489, fy: 0.305, d: 0.42 },
+}         ;
+
+/** 示例对手 / 服务端没给头像时，按名字稳定取一个预设头像 */
+function avatarOfName(name        )         {
+  return hashStr(name) % PRESET_AVATARS.length;
+}
+
+function parseAvatar(v         , name        )         {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isInteger(n) && n >= 0 && n < PRESET_AVATARS.length ? n : avatarOfName(name);
+}
 
 function lerp(a        , b        , t        )         {
   return a + (b - a) * t;
@@ -115,15 +168,6 @@ function hashStr(s        )         {
   return h;
 }
 
-/** 某模式「所有关卡本关最高分之和」（与 web main.ts totalScoreOf 同口径） */
-function totalScoreOf(progress              )         {
-  let sum = 0;
-  for (const key of Object.keys(progress.levels)) {
-    const level = Number(key);
-    if (Number.isFinite(level)) sum += recordOf(progress, level).personalBest;
-  }
-  return sum;
-}
 
 export class MapPanels {
            root      ;
@@ -135,6 +179,24 @@ export class MapPanels {
           boardPage = 0;
           colPage = 0;
           warned = new Set        ();
+  /** 正在画排行榜：文字一律加粗（图鉴 / 设置保持原样） */
+          boldText = false;
+
+  /**
+   * 服务端实时榜单（2026-10-26 接入 /rank/global、/rank/level、/rank/me）。
+   * 登录了才拉；拉到之前 / 离线 / 失败时显示本地示例数据（榜底标「示例数据」）。
+   * 「我」的分数始终用本地值（本地是真相，服务端可能还没收到刚打的那局）。
+   */
+          live   
+                
+                         
+                          
+                  
+                                                                 
+           = null;
+          liveLoading = '';
+  /** 下一次画榜单时自动翻到「我」所在那一页（打开 / 换 Tab / 换关卡 / 实时数据到达时置位，手动翻页不置位） */
+          jumpMine = true;
 
   constructor(parent      , host           ) {
     this.host = host;
@@ -158,6 +220,9 @@ export class MapPanels {
       this.boardTab = 'total';
       this.boardLevel = TOTAL_LEVELS;
       this.boardPage = 0;
+      // 每次打开都重新拉一次实时榜，并翻到我那一页
+      this.live = null;
+      this.jumpMine = true;
     } else if (kind === 'collection') {
       this.colPage = 0;
     }
@@ -204,7 +269,9 @@ export class MapPanels {
           label(
     parent      , name        , text        , size        , color       ,
     w        , h        , x = 0, y = 0,
-    opts                                                                                          = {},
+    opts   
+                                                                                                    
+      = {},
   )        {
     const n = this.node(parent, name, w, h, x, y);
     const l = n.addComponent(Label);
@@ -213,9 +280,12 @@ export class MapPanels {
     l.lineHeight = size + 8;
     l.color = color;
     l.isBold = true;
+    // 纯代码运行时只认 enableBold（isBold 在那边不生效）：排行榜要真加粗
+    if (this.boldText) (l                                    ).enableBold = true;
     l.enableWrapText = false;
     l.overflow = Label.Overflow.SHRINK;
-    l.horizontalAlign = opts.align === 'left' ? HorizontalTextAlignment.LEFT : HorizontalTextAlignment.CENTER;
+    l.horizontalAlign = opts.align === 'left' ? HorizontalTextAlignment.LEFT
+      : opts.align === 'right' ? HorizontalTextAlignment.RIGHT : HorizontalTextAlignment.CENTER;
     l.verticalAlign = VerticalTextAlignment.CENTER;
     if (opts.outline) {
       l.enableOutline = true;
@@ -288,7 +358,7 @@ export class MapPanels {
           pillButton(parent      , name        , text        , w        , h        , x        , y        , onTap            , dim         )       {
     const b = this.button(parent, name, w, h, x, y, onTap, dim);
     this.roundRect(b.addComponent(Graphics), -w / 2, -h / 2, w, h, h / 2, C_PILL);
-    this.label(b, 'Text', text, Math.round(h * 0.58), C_PILL_TEXT, w - 16, h);
+    this.label(b, 'Text', text, LB.pill, C_PILL_TEXT, w - 16, h, 0, 0, {});
   }
 
   /* ================================================================ 公共外壳：天空 + 返回钮 + 标题 */
@@ -308,7 +378,7 @@ export class MapPanels {
     const y = H / 2 - this.host.topInset - 75;
     const back = this.button(this.root, 'Back', 150, 150, -W / 2 + 44 + 75, y, () => this.host.onBack());
     this.sprite(back, 'Img', backPath, 150, 150);
-    this.label(this.root, 'Title', title, 96, C_WHITE, 560, 130, 0, y,
+    this.label(this.root, 'Title', title, this.boldText ? LB.title : 96, C_WHITE, 560, 130, 0, y,
       { outline: C_TITLE_EDGE, outlineWidth: 6, shadow: true });
     return H / 2 - this.host.topInset - 150 - 16;
   }
@@ -343,6 +413,15 @@ export class MapPanels {
   /* ================================================================ 排行榜 */
 
           renderBoard()       {
+    this.boldText = true;
+    try {
+      this.drawBoard();
+    } finally {
+      this.boldText = false;
+    }
+  }
+
+          drawBoard()       {
     const top = this.chrome(PANEL.boardTitle, `${ART}/leaderboard/back`);
     const cw = W - 54;
     const cTop = top - 22;
@@ -379,7 +458,8 @@ export class MapPanels {
         sf.texture = new Texture2D(src                               );
         sp.spriteFrame = sf;
       } else {
-        this.label(card, 'FriendNA', PANEL.friendNA, 44, new Color(219, 236, 255), cw - 120, 90, 0, areaBottom + areaH / 2);
+        this.label(card, 'FriendNA', PANEL.friendNA, LB.empty, new Color(232, 243, 255), cw - 120, 90, 0, areaBottom + areaH / 2,
+          { shadow: true });
       }
       this.cardFrame(card, cw, ch);
       return;
@@ -389,13 +469,22 @@ export class MapPanels {
       this.stepper(card, y - 37);
       y -= 74;
     }
+    this.fetchLive();
     const rows = this.boardRows();
     y -= 12;
     this.mineCard(card, inner - 20, 150, y - 75, rows);
     y -= 150 + 4;
+    // 「再来一局」提示条：距上一名 / 距上榜还差多少
+    this.hintBar(card, inner - 20, y - 6 - 30, rows);
+    y -= 6 + 60 + 4;
 
     // ---- 从下往上：(挑战本关) → 翻页；起点避开金框底边带（同图鉴 10-24 修复） ----
     let yb = -ch / 2 + this.frameBand(ch) + 12;
+    // 最底一行：示例数据说明（服务端榜单接入前，对手是本地示例数据，标清楚不冒充真榜）
+    const live = this.liveFor();
+    const note = !live ? PANEL.sampleNote : isLevel ? PANEL.liveLevel(live.total) : PANEL.liveTotal;
+    this.label(card, 'Sample', note, 26, new Color(235, 244, 255, 220), inner, 34, 0, yb + 17);
+    yb += 34 + 6;
     if (isLevel) {
       this.challenge(card, inner - 74, yb + 52);
       yb += 104 + 8;
@@ -408,7 +497,7 @@ export class MapPanels {
     const showPodium = y - yb - headBlock - PODIUM_BLOCK >= 3 * ROW_STEP - ROW_GAP;
     if (showPodium) {
       y -= 12;
-      this.podium(card, inner, y - PODIUM_H);
+      this.podium(card, inner, y - PODIUM_H, rows);
       y -= PODIUM_H;
     }
     y -= 16;
@@ -417,10 +506,17 @@ export class MapPanels {
 
     const per = Math.max(1, Math.floor((y - yb + ROW_GAP) / ROW_STEP));
     const pages = Math.max(1, Math.ceil(rows.length / per));
+    if (this.jumpMine) {
+      // 我上榜了就直接翻到我那一页（比如第 99 名 → 第 99 名所在页）；没上榜停在第 1 页
+      this.jumpMine = false;
+      const idx = rows.findIndex((r) => r.mine);
+      if (idx >= 0) this.boardPage = Math.floor(idx / per);
+    }
     this.boardPage = Math.max(0, Math.min(pages - 1, this.boardPage));
     const slice = rows.slice(this.boardPage * per, (this.boardPage + 1) * per);
     if (slice.length === 0) {
-      this.label(card, 'Empty', PANEL.empty, 52, new Color(238, 246, 255), inner, 80, 0, y - 120);
+      this.label(card, 'Empty', PANEL.empty, LB.empty, new Color(238, 246, 255), inner, 80, 0, y - 120,
+        { shadow: true });
     }
     slice.forEach((r, i) => this.boardRow(card, inner, y - ROW_H / 2 - i * ROW_STEP, r));
 
@@ -428,17 +524,43 @@ export class MapPanels {
     this.cardFrame(card, cw, ch);
   }
 
+  /** 我的成绩下方一条提示：已上榜 → 距上一名差多少；没上榜 → 怎么上榜 */
+          hintBar(card      , w        , y        , rows                )       {
+    const h = 60;
+    const box = this.node(card, 'Hint', w, h, 0, y);
+    const g = box.addComponent(Graphics);
+    this.roundRect(g, -w / 2, -h / 2, w, h, 24, new Color(255, 255, 255, 235));
+    let text        ;
+    const mine = rows.find((r) => r.mine);
+    if (!mine) {
+      const line = STAR_LINES_BY_MODE[GS.mode]?.[this.boardLevel];
+      text = this.boardTab === 'level' ? PANEL.hintJoinLevel(line ? line[2] : 0) : PANEL.hintJoinTotal;
+    } else if (this.liveFor()?.ahead && mine.rank > RANK_RULE.topN) {
+      // 我在百名外：紧挨在前面那一名不在列表里，用服务端 /rank/me 给的差距
+      const a = this.liveFor() .ahead ;
+      text = a.score > 0 ? PANEL.hintAhead(a.name, a.score) : PANEL.hintAheadStars(a.name, a.stars);
+    } else {
+      const gap = gapToAhead(rows, (r) => r.total, (r) => r.stars ?? 0);
+      text = !gap ? PANEL.hintFirst
+        : gap.score > 0 ? PANEL.hintAhead(gap.name, gap.score) : PANEL.hintAheadStars(gap.name, gap.stars);
+    }
+    this.label(box, 'Text', '💡 ' + text, 32, new Color(43, 74, 115), w - 40, h, 0, 0);
+  }
+
           setBoardTab(tab                              )       {
     if (this.boardTab === tab) return;
     this.boardTab = tab;
     this.boardPage = 0;
+    this.jumpMine = true;
     this.render();
   }
 
           tab(parent      , text        , x        , y        , on         , onTap            , w = 340)       {
     const b = this.button(parent, 'Tab_' + text, w, 122, x, y, onTap);
     this.sprite(b, 'Bg', `${ART}/leaderboard/${on ? 'tab-on' : 'tab-off'}`, w, 122);
-    this.label(b, 'Text', text, w >= 340 ? 64 : 54, C_WHITE, w - 40, 110, 0, 4, { shadow: true });
+    // 选中 Tab 白字 + 棕描边更醒目；未选中的略小、不描边，一眼分出当前在哪个榜
+    this.label(b, 'Text', text, on ? LB.tab : LB.tabSmall, on ? C_WHITE : new Color(255, 255, 255, 225), w - 40, 110, 0, 4,
+      on ? { shadow: true, outline: new Color(120, 60, 10), outlineWidth: 3 } : { shadow: true });
   }
 
   /** 关卡榜的「◀ 第 N 关 ▶」 */
@@ -448,12 +570,13 @@ export class MapPanels {
       if (next < 1 || next > TOTAL_LEVELS) return;
       this.boardLevel = next;
       this.boardPage = 0;
+      this.jumpMine = true;
       this.render();
     };
     this.pillButton(card, 'Prev', '◀', 70, 70, -200, y, () => go(lv - 1), lv <= 1);
     const pill = this.node(card, 'Level', 280, 70, 0, y);
     this.roundRect(pill.addComponent(Graphics), -140, -35, 280, 70, 35, C_PILL);
-    this.label(pill, 'Text', PANEL.level(lv), 40, C_PILL_TEXT, 260, 70);
+    this.label(pill, 'Text', PANEL.level(lv), 38, C_PILL_TEXT, 260, 70, 0, 0, {});
     this.pillButton(card, 'Next', '▶', 70, 70, 200, y, () => go(lv + 1), lv >= TOTAL_LEVELS);
   }
 
@@ -468,25 +591,34 @@ export class MapPanels {
     g.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 42);
     g.stroke();
 
-    const stars = totalStars(GS.data.progress.normal) + totalStars(GS.data.progress.nightmare);
+    const me = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare);
+    const stars = me.stars;
     let rank        ;
     let score        ;
     let scoreLabel        ;
     if (this.boardTab === 'total') {
       const mine = rows.find((r) => r.mine);
       rank = mine ? mine.rank : 0;
-      score = totalScoreOf(GS.data.progress.normal) + totalScoreOf(GS.data.progress.nightmare);
+      score = me.total;
       scoreLabel = PANEL.mineScoreLabel;
     } else {
-      const snap = this.levelSnapshot(this.boardLevel);
-      rank = snap.myRank ?? 0;
-      score = snap.myRank != null ? snap.myBoardBest : recordOf(GS.progress, this.boardLevel).personalBest;
+      const rec = recordOf(GS.progress, this.boardLevel);
+      if (this.liveFor()) {
+        const m = rows.find((r) => r.mine);
+        rank = m ? m.rank : 0;
+        score = m ? rec.boardBest : rec.validBest;
+      } else {
+        const snap = this.levelSnapshot(this.boardLevel);
+        rank = snap.myRank ?? 0;
+        // 关卡分 = 本关有效成绩最高分；上了榜就是上榜分
+        score = snap.myRank != null ? snap.myBoardBest : rec.validBest;
+      }
       scoreLabel = PANEL.mineLevelScoreLabel;
     }
     const cells                                 = [
       [PANEL.mineRankLabel, PANEL.rankValue(rank), new Color(255, 233, 176)],
       [scoreLabel, `${score}`, new Color(255, 213, 74)],
-      [PANEL.mineStarsLabel, PANEL.starsValue(stars), new Color(255, 224, 102)],
+      [PANEL.mineStarsLabel, `${PANEL.starsValue(stars)}/${RANK_RULE.maxStars}`, new Color(255, 224, 102)],
     ];
     const cw = (w - 36) / 3;
     cells.forEach(([k, v, color], i) => {
@@ -496,14 +628,14 @@ export class MapPanels {
         g.rect(x - cw / 2 - 1.5, -h / 2 + h * 0.12, 3, h * 0.76);
         g.fill();
       }
-      this.label(box, 'K' + i, k, 30, new Color(207, 224, 245), cw - 10, 40, x, h / 2 - 34);
-      this.label(box, 'V' + i, v, 80, color, cw - 16, 96, x, -16,
+      this.label(box, 'K' + i, k, LB.mineKey, C_MINE_KEY, cw - 10, 40, x, h / 2 - 34);
+      this.label(box, 'V' + i, v, rank <= 0 && i === 0 ? 62 : LB.mineValue, color, cw - 16, 96, x, -18,
         { outline: new Color(120, 60, 0), outlineWidth: 4 });
     });
   }
 
   /** 领奖台：亚军(左) / 冠军(中, 抬高) / 季军(右) + 丝带星星装饰 */
-          podium(card      , inner        , bottom        )       {
+          podium(card      , inner        , bottom        , rows                )       {
     const left = -inner / 2;
     const right = inner / 2;
     const topY = bottom + PODIUM_H;
@@ -528,18 +660,30 @@ export class MapPanels {
     const silverX = -total / 2 + sw / 2;
     const goldX = -total / 2 + sw + 6 + gw / 2;
     const bronzeX = goldX + gw / 2 + 6 + sw / 2;
-    const item = (name        , x        , w        , baseH        , base        , cup        , cupW        , ow        , oh        , overlap        , num        )       => {
+    // 前 3 名（榜单已按名次排好；并列时按展示顺序取）
+    const top = rows.slice(0, 3);
+    const item = (
+      name        , x        , w        , baseH        , base        , cup        ,
+      cupW        , ow        , oh        , overlap        , num        , size        ,
+      face                                       , who                          ,
+    )       => {
       this.sprite(card, name + 'Base', `${ART}/leaderboard/${base}`, w, baseH, x, bottom + baseH / 2);
       const cupH = (cupW * oh) / ow;
-      this.sprite(card, name + 'Cup', `${ART}/leaderboard/${cup}`, cupW, cupH, x, bottom + baseH - overlap + cupH / 2);
-      if (num) {
-        this.label(card, name + 'Num', num, 52, new Color(255, 217, 78), 80, 60, x, bottom + 14 + 26,
-          { outline: new Color(120, 40, 0), outlineWidth: 4 });
+      const cupY = bottom + baseH - overlap + cupH / 2;
+      this.sprite(card, name + 'Cup', `${ART}/leaderboard/${cup}`, cupW, cupH, x, cupY);
+      // 把这一名的头像盖在奖杯里的人脸上（「我」跟随本机资料，含微信头像）
+      if (who) {
+        const d = Math.round(cupW * face.d);
+        const ax = x + (face.fx - 0.5) * cupW;
+        const ay = cupY + (0.5 - face.fy) * cupH;
+        new AvatarView(card, d, ax, ay, who.mine ? null : who.avatar ?? avatarOfName(who.name));
       }
+      this.label(card, name + 'Num', num, size, new Color(255, 217, 78), 80, 60, x, bottom + baseH / 2 - 2,
+        { outline: new Color(120, 40, 0), outlineWidth: 4 });
     };
-    item('Silver', silverX, sw, 77, 'podium-orange', 'cup-silver', 118, 302, 347, 5, '');
-    item('Bronze', bronzeX, sw, 77, 'podium-orange', 'cup-bronze', 118, 276, 317, 5, '');
-    item('Gold', goldX, gw, 105, 'podium-red', 'cup-gold', 170, 397, 424, 13, '1');
+    item('Silver', silverX, sw, 77, 'podium-orange', 'cup-silver', 118, 302, 347, 5, '2', 44, CUP_FACE.silver, top[1]);
+    item('Bronze', bronzeX, sw, 77, 'podium-orange', 'cup-bronze', 118, 276, 317, 5, '3', 44, CUP_FACE.bronze, top[2]);
+    item('Gold', goldX, gw, 105, 'podium-red', 'cup-gold', 170, 397, 424, 13, '1', 52, CUP_FACE.gold, top[0]);
   }
 
   /** 列中心（行内坐标）：排名 100 | 昵称 1fr | 简单 124 | 困难 124 | 总分 156，间距 12，左右内边距 34 */
@@ -557,11 +701,12 @@ export class MapPanels {
     const head = this.node(card, 'Thead', inner, 66, 0, y);
     this.sprite(head, 'Bg', `${ART}/leaderboard/header`, inner, 66);
     const c = this.columns(inner);
-    this.label(head, 'Rank', PANEL.colRank, 40, C_HEAD_TEXT, 100, 56, c.rank, 0);
-    this.label(head, 'Name', PANEL.colName, 40, C_HEAD_TEXT, c.nameW, 56, c.name + 16 + c.nameW / 2, 0, { align: 'left' });
-    this.label(head, 'Simple', PANEL.colSimple, 40, C_HEAD_TEXT, 124, 56, c.simple, 0);
-    this.label(head, 'Hard', PANEL.colHard, 40, C_HEAD_TEXT, 124, 56, c.hard, 0);
-    this.label(head, 'Total', PANEL.colTotal, 40, C_HEAD_TEXT, 156, 56, c.total, 0);
+    const ho = { outline: C_HEAD_EDGE, outlineWidth: 2 };
+    this.label(head, 'Rank', PANEL.colRank, LB.head, C_HEAD_TEXT, 100, 56, c.rank, 0, ho);
+    this.label(head, 'Name', PANEL.colName, LB.head, C_HEAD_TEXT, c.nameW, 56, c.name + 16 + c.nameW / 2, 0, { ...ho, align: 'left' });
+    this.label(head, 'Simple', PANEL.colSimple, LB.head, C_HEAD_TEXT, 124, 56, c.simple, 0, ho);
+    this.label(head, 'Hard', PANEL.colHard, LB.head, C_HEAD_TEXT, 124, 56, c.hard, 0, ho);
+    this.label(head, 'Total', PANEL.colTotal, LB.head, C_HEAD_TEXT, 156, 56, c.total, 0, ho);
   }
 
           boardRow(card      , inner        , y        , r              )       {
@@ -576,19 +721,23 @@ export class MapPanels {
       g.fillColor = new Color(111, 134, 166);
       g.circle(0, 0, 38);
       g.fill();
-      this.label(badge, 'N', String(r.rank), 40, C_WHITE, 76, 60);
+      this.label(badge, 'N', String(r.rank), r.rank >= 100 ? 32 : LB.rank, C_WHITE, 76, 60, 0, 0, {});
     }
     this.sprite(row, 'Avatar', `${ART}/leaderboard/avatar-${(hashStr(r.name) % 3) + 1}`, 76, 76, c.name + 38, 0);
-    this.label(row, 'Name', r.name, 44, C_BROWN_TEXT, c.nameW - 90, 70, c.name + 90 + (c.nameW - 90) / 2, 0, { align: 'left' });
-    this.label(row, 'Simple', String(r.simple), 46, C_SIMPLE, 124, 70, c.simple, 0);
-    this.label(row, 'Hard', String(r.hard), 46, C_HARD, 124, 70, c.hard, 0);
-    this.label(row, 'Total', String(r.total), 52, C_TOTAL, 156, 70, c.total, 0,
-      { outline: new Color(150, 90, 0), outlineWidth: 2 });
+    // 「我」那行昵称用更深的棕色
+    this.label(row, 'Name', r.name, LB.name, r.mine ? new Color(120, 52, 0) : C_BROWN_TEXT, c.nameW - 90, 70,
+      c.name + 90 + (c.nameW - 90) / 2, 0, { align: 'left' });
+    // 分数：白色细描边，压在浅色行底上不发糊
+    const sc = { outline: new Color(255, 255, 255, 230), outlineWidth: 2 };
+    this.label(row, 'Simple', String(r.simple), LB.score, C_SIMPLE, 124, 70, c.simple, 0, sc);
+    this.label(row, 'Hard', String(r.hard), LB.score, C_HARD, 124, 70, c.hard, 0, sc);
+    this.label(row, 'Total', String(r.total), LB.total, C_TOTAL, 156, 70, c.total, 0,
+      { outline: new Color(150, 90, 0), outlineWidth: 3 });
   }
 
           pager(card      , y        , page        , pages        , go                     )       {
     this.pillButton(card, 'PrevPage', PANEL.prevPage, 240, 66, -300, y, () => { if (page > 0) go(page - 1); }, page <= 0);
-    this.label(card, 'PageLabel', PANEL.page(page + 1, pages), 40, C_PILL_TEXT, 300, 60, 0, y);
+    this.label(card, 'PageLabel', PANEL.page(page + 1, pages), LB.pager, C_PAGE_TEXT, 300, 60, 0, y, { shadow: true });
     this.pillButton(card, 'NextPage', PANEL.nextPage, 240, 66, 300, y, () => { if (page < pages - 1) go(page + 1); }, page >= pages - 1);
   }
 
@@ -603,7 +752,8 @@ export class MapPanels {
       else this.host.toast(hint, 2200);
     }, !ok);
     this.sprite(b, 'Bg', `${ART}/leaderboard/tab-on`, w, 104);
-    this.label(b, 'Text', PANEL.challenge, 46, C_WHITE, w - 60, 90, 0, 4, { shadow: true });
+    this.label(b, 'Text', PANEL.challenge, LB.challenge, C_WHITE, w - 60, 90, 0, 4,
+      { shadow: true, outline: new Color(120, 60, 10), outlineWidth: 3 });
   }
 
           levelSnapshot(level        ) {
@@ -611,37 +761,124 @@ export class MapPanels {
     return boardSnapshot(level, { star1: line[0], star2: line[1], star3: line[2] }, recordOf(GS.progress, level).boardBest);
   }
 
+  /**
+   * 榜单行（规则见 核心/rank.ts）：
+   *   总榜：示例对手 + 我（总积分 > 0 才上榜），总积分↓ → 总星数↓，竞赛排名；只展示前 100（含并列），
+   *         我在 100 名外时把我那一行接在最后（名次照实显示）。
+   *   关卡榜：本关本模式 ≥3★ 有效成绩，按上榜分排；「我」那行的简单 / 困难列是两种模式各自的上榜分。
+   */
           boardRows()                 {
     const normal = GS.data.progress.normal;
     const nightmare = GS.data.progress.nightmare;
+    const live = this.liveFor();
+    if (live) return live.rows;
     if (this.boardTab === 'total') {
-      // 总分榜：100 名模拟玩家（本地确定性数据，与 web buildTotalBoard 同一种子）+ 我（真实分模式累计分）
-      const rng = new Rng(20260914);
-      const rows                 = mockBoardNames(1).map((name) => {
-        const total = 380 + rng.int(600);
-        const simple = Math.round(total * 0.6);
-        return { rank: 0, name, simple, hard: total - simple, total, mine: false };
-      });
-      const simple = totalScoreOf(normal);
-      const hard = totalScoreOf(nightmare);
-      // 0 分不上榜，与关卡榜「未上榜」口径一致
-      if (simple + hard > 0) rows.push({ rank: 0, name: '我', simple, hard, total: simple + hard, mine: true });
-      rows.sort((a, b) => b.total - a.total);
-      rows.forEach((r, i) => { r.rank = i + 1; });
-      return rows;
+      const me = rankTotals(normal, nightmare);
+      const { rows, mine } = totalBoard(me, profileName(), mockTotalRivals());
+      const shown = rows.filter((r) => r.rank <= RANK_RULE.topN);
+      if (mine && mine.rank > RANK_RULE.topN) shown.push(mine);
+      return shown.map((r) => ({
+        rank: r.rank, name: r.name, simple: r.simple, hard: r.hard, total: r.total, stars: r.stars, mine: r.mine,
+        avatar: r.mine ? undefined : avatarOfName(r.name),
+      }));
     }
-    // 关卡榜：模拟玩家只有当前模式那一列有分；我取两套进度表的真实最高分
     const level = this.boardLevel;
     const mode           = GS.mode;
     return this.levelSnapshot(level).rows.map((r) => {
       if (r.mine) {
-        const s = recordOf(normal, level).personalBest;
-        const h = recordOf(nightmare, level).personalBest;
-        return { rank: r.rank, name: '我', simple: s, hard: h, total: s + h, mine: true };
+        const sb = recordOf(normal, level).boardBest;
+        const hb = recordOf(nightmare, level).boardBest;
+        return { rank: r.rank, name: profileName(), simple: sb, hard: hb, total: r.score, mine: true };
       }
       const inSimple = mode === 'normal';
-      return { rank: r.rank, name: r.name, simple: inSimple ? r.score : 0, hard: inSimple ? 0 : r.score, total: r.score, mine: false };
+      return {
+        rank: r.rank, name: r.name, simple: inSimple ? r.score : 0, hard: inSimple ? 0 : r.score, total: r.score,
+        mine: false, avatar: avatarOfName(r.name),
+      };
     });
+  }
+
+
+  /* ---------------------------------------------------------------- 实时榜单 */
+
+          liveKey()         {
+    return this.boardTab === 'level' ? `level:${this.boardLevel}:${GS.mode}` : 'total';
+  }
+
+  /** 当前 Tab 对应的实时数据（没有 / 不是这个 Tab 的返回 null） */
+          liveFor()                                        {
+    return this.live && this.live.key === this.liveKey() ? this.live : null;
+  }
+
+  /** 拉当前 Tab 的实时榜（已登录才拉，同一个 Tab 不重复拉）；拉到后重画 */
+          fetchLive()       {
+    const cloud = cloudSync();
+    if (!cloud?.loggedIn || this.boardTab === 'friend') return;
+    const key = this.liveKey();
+    if (this.liveFor() || this.liveLoading === key) return;
+    this.liveLoading = key;
+    const isLevel = this.boardTab === 'level';
+    const level = this.boardLevel;
+    const mode = GS.mode;
+    void (async () => {
+      const res = isLevel
+        ? await cloud.api('GET', `/game/api/rank/level?level=${level}&mode=${mode}&limit=${RANK_RULE.topN}`)
+        : await cloud.api('GET', `/game/api/rank/global?limit=${RANK_RULE.topN}`);
+      const me = isLevel ? null : await cloud.api('GET', '/game/api/rank/me');
+      if (this.liveLoading === key) this.liveLoading = '';
+      if (!res || res.code !== 200 || !Array.isArray(res.data)) return;   // 失败：继续显示示例数据
+      this.live = this.buildLive(key, isLevel, mode, level, res, me);
+      this.jumpMine = true;
+      if (this.kind === 'board' && this.liveKey() === key) this.render();
+    })();
+  }
+
+          buildLive(
+    key        , isLevel         , mode          , level        ,
+    res                         , me                                ,
+  )                                 {
+    const num = (v         )         => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
+    const myName = profileName();
+    const meData = me && me.code === 200 && me.data && typeof me.data === 'object' ? me.data                            : null;
+    const myRankRaw = isLevel ? res.myRank : meData && num(meData.totalScore) > 0 ? meData.rank : null;
+    const myRank = myRankRaw == null ? null : num(myRankRaw) || null;
+    const rows                 = (res.data                                  ).map((r) => {
+      const name = typeof r.nickname === 'string' && r.nickname ? r.nickname : '玩家';
+      if (isLevel) {
+        const sc = num(r.levelScore);
+        const hard = mode === 'nightmare';
+        return {
+          rank: num(r.rank), name, simple: hard ? 0 : sc, hard: hard ? sc : 0, total: sc, stars: num(r.totalStars),
+          mine: false, avatar: parseAvatar(r.avatar, name),
+        };
+      }
+      return {
+        rank: num(r.rank), name, simple: num(r.scoreNormal), hard: num(r.scoreHard),
+        total: num(r.totalScore), stars: num(r.totalStars), mine: false, avatar: parseAvatar(r.avatar, name),
+      };
+    });
+    // 认出「我」那一行：名次相同且昵称一致（服务端没收到昵称时显示「玩家」，也认）
+    const n = GS.data.progress.normal;
+    const h = GS.data.progress.nightmare;
+    const local = rankTotals(n, h);
+    if (myRank != null) {
+      const hit = rows.find((r) => r.rank === myRank && (r.name === myName || r.name === '玩家'));
+      if (hit) {
+        hit.mine = true;
+        hit.name = myName;
+        hit.avatar = undefined;   // 我的头像跟随本机资料（可能是微信头像）
+      } else {
+        // 百名外：把我接在最后（名次照服务端，分数用本地）
+        const rec = recordOf(GS.progress, level);
+        rows.push(isLevel
+          ? { rank: myRank, name: myName, simple: mode === 'nightmare' ? 0 : rec.boardBest, hard: mode === 'nightmare' ? rec.boardBest : 0, total: rec.boardBest, mine: true }
+          : { rank: myRank, name: myName, simple: local.simple, hard: local.hard, total: local.total, stars: local.stars, mine: true });
+      }
+    }
+    const ahead = meData && typeof meData.aheadName === 'string'
+      ? { name: meData.aheadName          , score: num(meData.aheadScore), stars: num(meData.aheadStars) }
+      : null;
+    return { key, rows, myRank, total: isLevel ? num(res.total) : rows.length, ahead };
   }
 
   /* ================================================================ 图鉴 */

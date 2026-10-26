@@ -19,4 +19,5 @@ export * from './config.js';
 export * from './engine.js';
 export * from './progress.js';
 export * from './honor.js';
+export * from './rank.js';
 export * from './save.js';

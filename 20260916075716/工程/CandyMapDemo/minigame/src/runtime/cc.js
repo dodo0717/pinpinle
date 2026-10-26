@@ -13,6 +13,24 @@
 /** 微信小游戏全局对象（浏览器里为 null） */
 const WX = typeof wx !== 'undefined' ? wx : null;
 
+/* ---------- 真机全局补丁（2026-10-26：扫码进入黑屏） ----------
+ * 微信开发者工具里有浏览器全局 `performance` / `requestAnimationFrame`，真机（尤其 iOS）
+ * 不保证有：MapBootstrap.onLoad 里第一句 performance.now() 就抛错，渲染循环根本没启动 → 全黑。
+ * 这里在任何业务代码之前补上：优先用 wx.getPerformance()，再退回 Date.now()。 */
+(function polyfillGlobals() {
+  const g = typeof globalThis !== 'undefined' ? globalThis : (typeof GameGlobal !== 'undefined' ? GameGlobal : null);
+  if (!g) return;
+  if (!g.performance || typeof g.performance.now !== 'function') {
+    // 只拿来算时间差：Date.now() 精度够用（wx.getPerformance 各端单位不一，不用它）
+    const ms0 = Date.now();
+    g.performance = { now: () => Date.now() - ms0 };
+  }
+  if (typeof g.requestAnimationFrame !== 'function') {
+    g.requestAnimationFrame = (cb) => setTimeout(() => cb(g.performance.now()), 16);
+    g.cancelAnimationFrame = (id) => clearTimeout(id);
+  }
+})();
+
 /* ---------- 基础值类型 ---------- */
 export class Color {
   constructor(r = 0, g = 0, b = 0, a = 255) { this.r = r; this.g = g; this.b = b; this.a = a === undefined ? 255 : a; }
@@ -117,6 +135,8 @@ export class Texture2D {
   }
 }
 
+Texture2D.__ccKind = 'Texture2D';
+
 export class SpriteFrame {
   constructor() { this.texture = null; this.rect = null; this.packable = false; }
 }
@@ -125,9 +145,13 @@ export class SpriteFrame {
  * 布局 / 配置类资源（HomeHUD 用它读 layout/home_hud.json）。
  * 真引擎里是 `cc.JsonAsset`，预览里只要把 JSON 原样带出来即可。
  */
+SpriteFrame.__ccKind = 'SpriteFrame';
+
 export class JsonAsset {
   constructor(json) { this.json = json; }
 }
+JsonAsset.__ccKind = 'JsonAsset';
+
 
 /**
  * 资源表根。浏览器走 HTTP（serve.mjs 服务 assets/resources/）；小游戏走**远程**素材
@@ -155,9 +179,10 @@ export const resources = {
   load(path, type, cb) {
     // 音频：小游戏里素材已随包拷到 assets/audio/*.wav，直接给出可播的 AudioClip；
     // 浏览器预览不放声音（也不该在预览里放），回错误即可。
-    // 用 `type.name` 而不是 `type === AudioClip`，因为 AudioClip 定义在文件末尾，
-    // class 不提升，直接引用会踩 TDZ。
-    const name = type && type.name;
+    // ⚠️ 2026-10-26：不能用 `type.name`（类名）判断 —— 上传时代码会被压缩，类名被改成 `t` / `e`，
+    // 真机上音频被当成图片去加载（请求 audio/xxx.webp），贴图也拿不到 Texture2D。
+    // 改用每个类上手工挂的 `__ccKind` 标记（字符串常量，压缩不会动）。
+    const name = type && type.__ccKind;
     if (name === 'AudioClip') {
       if (WX) {
         const base = RES_BASE + String(path).replace(/\/(texture|spriteFrame)$/, '');
@@ -310,6 +335,21 @@ export class Graphics extends Component {
   arc(x, y, r, a1, a2, ccw) { this.cmds.push({ t: 'arc', x, y, r, a1, a2, ccw: !!ccw }); return this; }
   fill() { this.cmds.push({ t: 'fill', c: new Color(this.fillColor.r, this.fillColor.g, this.fillColor.b, this.fillColor.a) }); return this; }
   stroke() { this.cmds.push({ t: 'stroke', c: new Color(this.strokeColor.r, this.strokeColor.g, this.strokeColor.b, this.strokeColor.a), w: this.lineWidth }); return this; }
+
+  /* ---- 以下是纯代码运行时的扩展（真 Cocos 没有）：源码侧经 玩法/paint.ts 鸭子类型调用，
+   *      Cocos 里不存在时自动退回纯色填充 / 无投影 / 实线 ---- */
+  /** 线性渐变填充当前路径。stops: [[0~1, Color], ...]，坐标为本地 y-up */
+  fillLinear(x0, y0, x1, y1, stops) { this.cmds.push({ t: 'gfill', k: 'lin', a: [x0, y0, x1, y1], stops: cloneStops(stops) }); return this; }
+  /** 径向渐变填充当前路径（内圆 → 外圆） */
+  fillRadial(x0, y0, r0, x1, y1, r1, stops) { this.cmds.push({ t: 'gfill', k: 'rad', a: [x0, y0, r0, x1, y1, r1], stops: cloneStops(stops) }); return this; }
+  /** 之后的填充/描边带投影（设计 px；oy 为正 = 向下）。传 null 关闭 */
+  setShadow(color, blur = 0, ox = 0, oy = 0) { this.cmds.push({ t: 'shadow', c: color ? new Color(color.r, color.g, color.b, color.a) : null, blur, ox, oy }); return this; }
+  /** 之后的描边用虚线（本地单位）；空数组 = 实线 */
+  setDash(arr) { this.cmds.push({ t: 'dash', arr: (arr || []).slice() }); return this; }
+}
+
+function cloneStops(stops) {
+  return (stops || []).map(([t, c]) => [t, new Color(c.r, c.g, c.b, c.a)]);
 }
 
 /* ---------- 节点 ---------- */
@@ -347,6 +387,10 @@ export class Node {
 
   setPosition(x, y, z) { this._x = x; this._y = y; if (z !== undefined) this._z = z; }
   getPosition() { return new Vec3(this._x, this._y, this._z); }
+  /** 真引擎的 node.position（BoardView.playBoardReject 读它；缺了会抛错，doMove 的 busy 永远不复位 → 棋盘卡死） */
+  get position() { return new Vec3(this._x, this._y, this._z); }
+  get scale() { return new Vec3(this._sx, this._sy, 1); }
+  get activeInHierarchy() { return this.isActiveInHierarchy(); }
   setScale(x, y) { this._sx = x; this._sy = y === undefined ? x : y; }
   setSiblingIndex(i) {
     if (!this._parent) return;
@@ -400,7 +444,11 @@ export class Node {
   emit(type, ...args) {
     const arr = this._listeners.get(type);
     if (!arr) return;
-    for (const e of arr.slice()) e.cb.apply(e.thisArg || this, args);
+    // 一个监听抛错不能拖垮整条冒泡链（2026-10-25：点关卡「没反应」就是这种表现 ——
+    // 珠子上的监听一旦抛错，地图的 TOUCH_END 永远收不到，弹窗打不开、也没有任何提示）
+    for (const e of arr.slice()) {
+      try { e.cb.apply(e.thisArg || this, args); } catch (err) { reportError(`触摸 ${type} @${this.name}`, err); }
+    }
   }
 
   /**
@@ -423,6 +471,38 @@ export class Node {
     while (n) { if (!n.active) return false; n = n._parent; }
     return true;
   }
+}
+
+/* ---------- 运行时错误上屏 ----------
+ * 微信开发者工具 / 真机里看不到控制台时，错误直接画在屏幕顶部一条红底文字上（点一下消失），
+ * 截图就能看到是哪一行出的错。同一条错误只记一次。 */
+const RUNTIME_ERRORS = [];
+export function reportError(where, err) {
+  const msg = `${where}: ${err && err.message ? err.message : String(err)}`;
+  const top = err && err.stack ? String(err.stack).split('\n').slice(1, 3).map((l) => l.trim()).join(' <- ') : '';
+  console.error('[runtime] ' + msg, err && err.stack ? err.stack : '');
+  if (RUNTIME_ERRORS.some((e) => e.msg === msg)) return;
+  RUNTIME_ERRORS.push({ msg, top });
+  if (RUNTIME_ERRORS.length > 3) RUNTIME_ERRORS.shift();
+}
+export function runtimeErrors() { return RUNTIME_ERRORS.slice(); }
+function drawErrors(ctx, W) {
+  if (!RUNTIME_ERRORS.length) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const fs = Math.max(12, Math.round(W / 40));
+  const lines = [];
+  for (const e of RUNTIME_ERRORS) { lines.push(e.msg); if (e.top) lines.push('   ' + e.top); }
+  lines.push('（点这里关闭；截图发给开发即可）');
+  const h = (lines.length + 0.6) * fs * 1.3;
+  ctx.globalAlpha = 1;
+  ctx.shadowColor = 'rgba(0,0,0,0)';
+  ctx.fillStyle = 'rgba(160,20,20,0.92)';
+  ctx.fillRect(0, 0, W, h);
+  ctx.fillStyle = '#fff';
+  ctx.font = `${fs}px monospace`;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  lines.forEach((l, i) => ctx.fillText(l.slice(0, 120), fs * 0.5, fs * 0.4 + i * fs * 1.3));
 }
 
 /* ---------- tween ---------- */
@@ -517,6 +597,26 @@ function drawSprite(ctx, node, sp) {
   ctx.save();
   ctx.scale(1, -1); // 抵消外层的 y 翻转，保证贴图正立
   ctx.globalAlpha *= (sp.color ? sp.color.a : 255) / 255;
+  // 纯代码运行时扩展：四角各自的圆角裁切 [左上, 右上, 右下, 左下]（玩法/paint.ts setSpriteRadii）。
+  // 融合块只在「两条邻边都没融合」的角上留圆角，接缝两侧才是直角、拼起来不缺角
+  const rad = sp.radii;
+  if (rad && (rad[0] || rad[1] || rad[2] || rad[3])) {
+    const x = -w / 2, y = -h / 2;
+    const m = Math.min(w, h) / 2;
+    const [tl, tr, br, bl] = rad.map((v) => Math.max(0, Math.min(v || 0, m)));
+    ctx.beginPath();
+    ctx.moveTo(x + tl, y);
+    ctx.lineTo(x + w - tr, y);
+    if (tr) ctx.arcTo(x + w, y, x + w, y + tr, tr); else ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + h - br);
+    if (br) ctx.arcTo(x + w, y + h, x + w - br, y + h, br); else ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + bl, y + h);
+    if (bl) ctx.arcTo(x, y + h, x, y + h - bl, bl); else ctx.lineTo(x, y + h);
+    ctx.lineTo(x, y + tl);
+    if (tl) ctx.arcTo(x, y, x + tl, y, tl); else ctx.lineTo(x, y);
+    ctx.closePath();
+    ctx.clip();
+  }
   try {
     if (r) ctx.drawImage(img, r.x, r.y, r.width, r.height, -w / 2, -h / 2, w, h);
     else ctx.drawImage(img, -w / 2, -h / 2, w, h);
@@ -524,26 +624,92 @@ function drawSprite(ctx, node, sp) {
   ctx.restore();
 }
 
+/** 当前帧「设计 px → 画布物理 px」的倍率：canvas 的 shadowBlur / shadowOffset 不吃变换矩阵，要手动乘 */
+let RENDER_SCALE = 1;
+
+/** 圆角矩形路径：微信低版本 / 旧内核没有 ctx.roundRect，缺了整块底板都画不出来 */
+function rrectPath(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') { ctx.roundRect(x, y, w, h, r); return; }
+  const rr = Math.max(0, Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2));
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx.lineTo(x + rr, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx.lineTo(x, y + rr);
+  ctx.arcTo(x, y, x + rr, y, rr);
+  ctx.closePath();
+}
+
+/** 渐变；环境不支持（旧内核 / 测试桩）时退回首尾色的中间色，不让一帧抛错 */
+function makeGradient(ctx, c) {
+  const a = c.a;
+  let gr = null;
+  try {
+    gr = c.k === 'lin'
+      ? ctx.createLinearGradient(a[0], a[1], a[2], a[3])
+      : ctx.createRadialGradient(a[0], a[1], a[2], a[3], a[4], a[5]);
+  } catch { gr = null; }
+  if (!gr || typeof gr.addColorStop !== 'function') {
+    const s0 = c.stops[0][1];
+    const s1 = c.stops[c.stops.length - 1][1];
+    return new Color((s0.r + s1.r) >> 1, (s0.g + s1.g) >> 1, (s0.b + s1.b) >> 1, (s0.a + s1.a) >> 1).toString();
+  }
+  for (const [t, col] of c.stops) gr.addColorStop(Math.max(0, Math.min(1, t)), col.toString());
+  return gr;
+}
+
+/**
+ * 路径语义（2026-10-25 修）：fill / stroke 之后，**下一条路径命令开一条新路径**。
+ *
+ * 之前整串命令共用一条路径 —— `画阴影 → fill → 画主体 → fill` 时第二次 fill
+ * 会把阴影也重涂成主体色，所有「投影 / 底边 / 双层」写法在小游戏里全部失效
+ * （HUD 木牌、棋盘底板、按钮底边都只剩一层平涂）。紧跟着的 fill → stroke
+ * 仍然作用于同一条路径（「填完再描边」的写法不受影响），与 Cocos Graphics 一致。
+ */
 function drawGraphics(ctx, g) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
+  let fresh = false;   // 上一条是 fill/stroke → 下一条路径命令前要 beginPath
+  const path = () => { if (fresh) { ctx.beginPath(); fresh = false; } };
   for (const c of g.cmds) {
     switch (c.t) {
-      case 'moveTo': ctx.moveTo(c.x, c.y); break;
-      case 'lineTo': ctx.lineTo(c.x, c.y); break;
-      case 'bezier': ctx.bezierCurveTo(c.a, c.b, c.c, c.d, c.e, c.f); break;
-      case 'quad': ctx.quadraticCurveTo(c.a, c.b, c.c, c.d); break;
+      case 'moveTo': path(); ctx.moveTo(c.x, c.y); break;
+      case 'lineTo': path(); ctx.lineTo(c.x, c.y); break;
+      case 'bezier': path(); ctx.bezierCurveTo(c.a, c.b, c.c, c.d, c.e, c.f); break;
+      case 'quad': path(); ctx.quadraticCurveTo(c.a, c.b, c.c, c.d); break;
       case 'close': ctx.closePath(); break;
-      case 'rect': ctx.rect(c.x, c.y, c.w, c.h); break;
-      case 'rrect': ctx.roundRect(c.x, c.y, c.w, c.h, c.r); break;
-      case 'circle': ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); break;
-      case 'ellipse': ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI * 2); break;
-      case 'arc': ctx.arc(c.x, c.y, c.r, c.a1, c.a2, !!c.ccw); break;
-      case 'fill': ctx.fillStyle = c.c.toString(); ctx.fill(); break;
-      case 'stroke': ctx.lineWidth = c.w; ctx.strokeStyle = c.c.toString(); ctx.stroke(); break;
+      case 'rect': path(); ctx.rect(c.x, c.y, c.w, c.h); break;
+      case 'rrect': path(); rrectPath(ctx, c.x, c.y, c.w, c.h, c.r); break;
+      case 'circle': path(); ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); break;
+      case 'ellipse':
+        path();
+        if (typeof ctx.ellipse === 'function') { ctx.moveTo(c.x + c.rx, c.y); ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI * 2); }
+        else { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, c.ry / (c.rx || 1)); ctx.moveTo(c.rx, 0); ctx.arc(0, 0, c.rx, 0, Math.PI * 2); ctx.restore(); }
+        break;
+      case 'arc': path(); ctx.arc(c.x, c.y, c.r, c.a1, c.a2, !!c.ccw); break;
+      case 'fill': ctx.fillStyle = c.c.toString(); ctx.fill(); fresh = true; break;
+      case 'gfill': ctx.fillStyle = makeGradient(ctx, c); ctx.fill(); fresh = true; break;
+      case 'stroke': ctx.lineWidth = c.w; ctx.strokeStyle = c.c.toString(); ctx.stroke(); fresh = true; break;
+      case 'shadow':
+        if (c.c) {
+          ctx.shadowColor = c.c.toString();
+          ctx.shadowBlur = c.blur * RENDER_SCALE;
+          ctx.shadowOffsetX = c.ox * RENDER_SCALE;
+          ctx.shadowOffsetY = c.oy * RENDER_SCALE;   // 投影偏移不吃变换矩阵：画布 y 向下，oy 为正 = 向下
+        } else {
+          ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+        }
+        break;
+      case 'dash': if (typeof ctx.setLineDash === 'function') ctx.setLineDash(c.arr); break;
     }
   }
+  // 状态不外溢到同节点的 Label / 子节点
+  ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  if (typeof ctx.setLineDash === 'function') ctx.setLineDash([]);
 }
 
 function drawLabel(ctx, node, lb) {
@@ -554,8 +720,52 @@ function drawLabel(ctx, node, lb) {
   ctx.save();
   ctx.scale(1, -1); // 文字不受 y 翻转影响
   ctx.fillStyle = lb.color.toString();
-  ctx.font = `${lb.enableBold ? '700 ' : ''}${lb.fontSize}px ${(lb.font && lb.font.family) || lb.fontFamily}`;
+  // 只认 enableBold（isBold 地图层全开着，那套排版是按不加粗调的，这里不去动它）
+  const style = `${lb.isItalic ? 'italic ' : ''}${lb.enableBold ? '700 ' : ''}`;
+  const family = resolveFamily((lb.font && lb.font.family) || lb.fontFamily);
+  let size = lb.fontSize;
+  ctx.font = `${style}${size}px ${family}`;
+  // Label.Overflow.SHRINK（=2）：最宽的一行超出节点宽度就整体缩字（与 Cocos 同语义，只缩不放大）。
+  // 之前只记值不缩：排行榜长昵称 / 「未上榜」换了字体后会冲出格子
+  if (lb.overflow === 2 && w > 0) {
+    let widest = 0;
+    for (const line of String(lb.string).split('\n')) widest = Math.max(widest, ctx.measureText(line).width);
+    const pad = lb.enableOutline ? (lb.outlineWidth || 0) * 2 : 0;
+    if (widest + pad > w) {
+      size = Math.max(8, Math.floor(size * (w - pad) / widest));
+      ctx.font = `${style}${size}px ${family}`;
+    }
+  }
   ctx.textBaseline = 'middle';
+  // 描边 / 投影（Cocos Label 同名属性：enableOutline/outlineColor/outlineWidth、
+  // enableShadow/shadowColor/shadowOffset(y 向上)/shadowBlur）。之前 shim 不认，地图和对局里
+  // 所有游戏字风的描边、投影都是丢的
+  const outline = lb.enableOutline && lb.outlineColor && (lb.outlineWidth || 0) > 0;
+  const shadow = lb.enableShadow && lb.shadowColor;
+  const applyShadow = (on) => {
+    if (on && shadow) {
+      const o = lb.shadowOffset || { x: 0, y: 0 };
+      ctx.shadowColor = lb.shadowColor.toString();
+      ctx.shadowBlur = (lb.shadowBlur || 0) * RENDER_SCALE;
+      ctx.shadowOffsetX = (o.x || 0) * RENDER_SCALE;
+      ctx.shadowOffsetY = -(o.y || 0) * RENDER_SCALE;
+    } else {
+      ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    }
+  };
+  const paintLine = (line, x, y) => {
+    if (outline) {
+      applyShadow(true);
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = lb.outlineWidth * 2;
+      ctx.strokeStyle = lb.outlineColor.toString();
+      ctx.strokeText(line, x, y);
+      applyShadow(false);
+    } else {
+      applyShadow(true);
+    }
+    ctx.fillText(line, x, y);
+  };
   const lines = String(lb.string).split('\n');
   const lh = lb.lineHeight || lb.fontSize + 6;
   let x = 0;
@@ -566,8 +776,39 @@ function drawLabel(ctx, node, lb) {
   let y = lb.verticalAlign === VerticalTextAlignment.TOP ? -h / 2 + lh / 2
     : lb.verticalAlign === VerticalTextAlignment.BOTTOM ? h / 2 - total + lh / 2
       : -total / 2 + lh / 2;
-  for (const line of lines) { ctx.fillText(line, x, y); y += lh; }
+  for (const line of lines) { paintLine(line, x, y); y += lh; }
   ctx.restore();
+}
+
+/* ---------- 自带字体（纯代码运行时扩展） ----------
+ * 源码里 Label.fontFamily 写别名（如 `"PPCandy"`），这里登记「别名 → 真实字族名」：
+ *   - 微信：wx.loadFont(包内路径) 返回系统分配的字族名，必须用它，别名无效；
+ *   - 浏览器：FontFace 直接按别名注册。
+ * 加载前 / 加载失败时别名查不到，canvas 自动落到后面的系统字体，不会空白。 */
+const FONT_ALIAS = new Map();
+
+function resolveFamily(family) {
+  if (!FONT_ALIAS.size || !family) return family;
+  let out = family;
+  for (const [alias, real] of FONT_ALIAS) out = out.split(`"${alias}"`).join(`"${real}"`);
+  return out;
+}
+
+/** 登记一款包内字体。path 相对小游戏包根 / 浏览器页面；返回 Promise<是否成功> */
+export function registerFont(alias, path) {
+  try {
+    if (WX) {
+      if (typeof WX.loadFont !== 'function') return Promise.resolve(false);
+      const real = WX.loadFont(path);
+      if (real) FONT_ALIAS.set(alias, real);
+      return Promise.resolve(!!real);
+    }
+    if (typeof FontFace === 'undefined' || typeof document === 'undefined') return Promise.resolve(false);
+    const face = new FontFace(alias, `url(${path})`);
+    return face.load().then((f) => { document.fonts.add(f); FONT_ALIAS.set(alias, alias); return true; }, () => false);
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 function drawNode(ctx, node) {
@@ -657,10 +898,15 @@ export class Renderer {
   }
 
   start() {
-    this.mount();
+    // 首次 mount 抛错（某个组件 onLoad 出错）也必须把循环跑起来：
+    // 否则就是「黑屏且没有任何提示」—— 2026-10-26 真机扫码黑屏就是这样。错误画在屏幕顶部红条上
+    try { this.mount(); } catch (e) { reportError('启动', e); }
     this._last = performance.now();
-    const loop = (now) => {
-      const dt = Math.min(0.05, (now - this._last) / 1000);
+    // 不用 rAF 回调传进来的时间戳：真机上它和 performance.now() 不一定同一个时间基准，
+    // 第一帧就会算出负的 / 巨大的 dt。统一用自己的时钟，并夹在 [0, 50ms]
+    const loop = () => {
+      const now = performance.now();
+      const dt = Math.max(0, Math.min(0.05, (now - this._last) / 1000));
       this._last = now;
       try {
         // 每帧补一次生命周期：节点经常是在别的组件 onLoad 里动态创建的
@@ -673,6 +919,7 @@ export class Renderer {
       } catch (e) {
         // 一帧抛错不能弄死整个循环（死了就是永远半张图/黑屏），打出来继续跑
         if (!this._errLogged) { this._errLogged = true; console.error('[renderer] 帧异常:', e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e); }
+        reportError('帧', e);
       }
       requestAnimationFrame(loop);
     };
@@ -695,9 +942,11 @@ export class Renderer {
     ctx.fillRect(0, 0, W, H);
     const s = W / view._w;
     this.scale = s;
+    RENDER_SCALE = s;
     ctx.setTransform(s, 0, 0, -s, W / 2, H / 2);
     ctx.globalAlpha = 1;
     drawNode(ctx, this.root);
+    drawErrors(ctx, W);
   }
 
   /** 屏幕坐标 → 设计坐标（原点在中心，y 向上）。浏览器按画布矩形换算；小游戏按逻辑窗口换算 */
@@ -786,6 +1035,8 @@ export class Renderer {
     WX.onTouchStart((e) => {
       const t = e.touches && e.touches[0];
       if (!t) return;
+      // 点顶部错误条 = 关掉它
+      if (RUNTIME_ERRORS.length && t.clientY < 90) { RUNTIME_ERRORS.length = 0; return; }
       this._touchId = t.identifier;
       const hit = pick(t.clientX, t.clientY);
       if (!hit.node) return;
@@ -930,6 +1181,8 @@ export class AudioClip {
     this.duration = 0;
   }
 }
+AudioClip.__ccKind = 'AudioClip';
+
 
 export class AudioSource extends Component {
   constructor() {

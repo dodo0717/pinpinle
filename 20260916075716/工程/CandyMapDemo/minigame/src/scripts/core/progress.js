@@ -35,6 +35,12 @@
                                                    
      
                     
+     
+                                                          
+                                                       
+                                                              
+     
+                    
  
 
 /**
@@ -143,7 +149,8 @@ export function applySettlement(
   outcome              ,
   settlement                 ,
 )              {
-  const rec              = before ?? { stars: 0, personalBest: 0, boardBest: 0 };
+  const rec              = before ?? { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
+  const prevValid = typeof rec.validBest === 'number' ? rec.validBest : rec.personalBest;
   return {
     stars: Math.max(rec.stars, settlement.stars),
     personalBest: Math.max(rec.personalBest, outcome.score),
@@ -151,15 +158,23 @@ export function applySettlement(
     boardBest: boardEligible(outcome, settlement.stars)
       ? Math.max(rec.boardBest, outcome.score)
       : rec.boardBest,
+    // 有效成绩：未续命（能走到这里已保证 ≥1★）
+    // 老记录没有 validBest（commitSettlement 直接传 data.levels[x]，不经 recordOf 迁移）→ 按个人最高分兜底
+    validBest: outcome.revived ? prevValid : Math.max(prevValid, outcome.score),
   };
 }
 
 /* ------------------------------------------------------------------ 进度 */
 
+/**
+ * 出厂就解锁的关卡数（2026-10-24：用户要求第 2/3/4 关默认可玩，三套对局主题对比用）。
+ * 读档时也按它兜底（2026-10-26：老存档 unlocked=2 的真机只显示 1、2 关）。
+ * 正式上线前视产品口径改回 1；服务端 sys_config `game.level.initialUnlocked` 要同步改。
+ */
+export const INITIAL_UNLOCKED = 4;
+
 export function createProgress(mode          )               {
-  // 2026-10-24：初始 unlocked 1→4 —— 用户要求第 2/3/4 关默认可玩
-  // （三套对局主题在不同图池上对比效果用）。正式上线前视产品口径改回 1。
-  return { mode, unlocked: 4, levels: {} };
+  return { mode, unlocked: INITIAL_UNLOCKED, levels: {} };
 }
 
 /** 查询关卡状态（§7.3.3） */
@@ -170,7 +185,10 @@ export function levelStatus(data              , level        )              {
 
 /** 取某关记录（没有就返回全 0，调用方不用到处判空） */
 export function recordOf(data              , level        )              {
-  return data.levels[level] ?? { stars: 0, personalBest: 0, boardBest: 0 };
+  const r = data.levels[level];
+  if (!r) return { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
+  // 内存里可能还有没经过 save.ts 迁移的老记录（云同步合并出来的等）：缺字段按个人最高分兜底
+  return typeof r.validBest === 'number' ? r : { ...r, validBest: r.personalBest };
 }
 
 /**

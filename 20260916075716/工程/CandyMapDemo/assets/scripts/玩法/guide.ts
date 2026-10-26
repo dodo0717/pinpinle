@@ -9,7 +9,7 @@
 import { _decorator, Component, Node, Graphics, UITransform, Label, Color, Layers, HorizontalTextAlignment, VerticalTextAlignment, UIOpacity, tween } from 'cc';
 const { ccclass } = _decorator;
 
-const BAR_W = 880;
+const BAR_W = 968;   // web .guide left/right 56
 const BAR_H = 130;
 const BAR_Y = -560;
 
@@ -27,13 +27,10 @@ export class GuideBar extends Component {
     this.bar.parent = this.node;
     this.bar.layer = Layers.Enum.UI_2D;
     this.bar.addComponent(UITransform).setContentSize(BAR_W, BAR_H);
-    this.bar.setPosition(0, BAR_Y);
+    this.bar.setPosition(0, this.y);
     this.bar.active = false;
 
-    const g = this.bar.addComponent(Graphics);
-    g.fillColor = new Color(255, 176, 62, 245);
-    g.roundRect(-BAR_W / 2, -BAR_H / 2, BAR_W, BAR_H, 28);
-    g.fill();
+    this.bar.addComponent(Graphics);
 
     const tn = new Node('Text');
     tn.parent = this.bar;
@@ -46,8 +43,39 @@ export class GuideBar extends Component {
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     l.verticalAlign = VerticalTextAlignment.CENTER;
     this.label = l;
+    this.paintBar();
 
     this.op = this.bar.addComponent(UIOpacity);
+  }
+
+  /** 纵向位置跟着对局排版走（长屏时棋盘下沿会变） */
+  setY(y: number): void {
+    this.y = y;
+    if (this.bar) this.bar.setPosition(0, y);
+  }
+  private y = BAR_Y;
+
+  /**
+   * 第 1 关按 web 原型画（web .guide：深棕 rgba(74,59,42,.94)、圆角 32、36px 粗白字）；
+   * 其他关保持原来的橙色条。
+   */
+  setWeb(on: boolean): void {
+    this.web = on;
+    if (this.bar) this.paintBar();
+  }
+  private web = false;
+
+  private paintBar(): void {
+    const g = this.bar.getComponent(Graphics)!;
+    g.clear();
+    g.fillColor = this.web ? new Color(74, 59, 42, 240) : new Color(255, 176, 62, 245);
+    g.roundRect(-BAR_W / 2, -BAR_H / 2, BAR_W, BAR_H, this.web ? 32 : 28);
+    g.fill();
+    if (this.label) {
+      this.label.fontSize = this.web ? 36 : 30;
+      this.label.lineHeight = this.web ? 46 : 40;
+      (this.label as Label & { enableBold?: boolean }).enableBold = this.web;
+    }
   }
 
   onDestroy(): void {
