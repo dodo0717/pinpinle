@@ -42,7 +42,7 @@ import {
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
   TOTAL_LEVELS, createTally, addElimination, onRevive, newlyEarned, starsFor,
   startDailyPlay, finishDailyPlay, dailyPlaysLeft, dailyLevel, dailySeed, dayKeyOf, DAILY_CLEAR_STAMINA,
-  useReviveTicket,
+  useReviveTicket, SCORE_RULE,
                                                                                                   
                                                                     
 } from '../core/index.js';
@@ -678,7 +678,11 @@ export class GameBootstrap extends Component {
             this.audio.play('eliminate');
             this.view.playVanish(st.eliminatedCells);
             // 第 1 关（classic）HUD 是「组数 / 1★ 线」翻牌，飘 +1；主题关飘本组排行分
-            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, this.isClassic ? '+1' : `+${gained}`, st.eliminatedCells);
+            if (gained > 0) {
+              // 速度分占满额的比例 → 飘字热度（评审 P2-1）
+              const heat = (gained - SCORE_RULE.base) / SCORE_RULE.speedMax;
+              this.view.floatScore(st.eliminatedCells[0] ?? 0, this.isClassic ? '+1' : `+${gained}`, st.eliminatedCells, heat);
+            }
             this.chainCount++;
             if (this.chainCount >= 2 && !this.isClassic) showComboWord(this.node, this.chainCount, this.boardTop - 200);
             this.updateHud();

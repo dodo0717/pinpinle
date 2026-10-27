@@ -638,8 +638,11 @@ export class BoardView extends Component {
   /**
    * 得分飘字：从消除组中心向上飘并淡出（原版 §6.3 第五步，与消除并行）。
    * 主题化：candy 金黄粗字 + 棕描边 / clean 金色粗体 / journal 印章红手写。
+   *
+   * `heat` 0~1（2026-10-27 评审 P2-1）：这一组的速度分占满额的比例。越快飘字越大、颜色越暖，
+   * 让「拼得快多拿分」看得见。classic 样式不用它。
    */
-  floatScore(index: number, text: string, indices?: readonly number[]): void {
+  floatScore(index: number, text: string, indices?: readonly number[], heat = 0): void {
     const ref = this.cells[index];
     if (!ref) return;
     const c = this.centerOf(indices && indices.length ? indices : [index]);
@@ -672,13 +675,21 @@ export class BoardView extends Component {
         ? { font: t.font, size: 54, color: P_CLEAN.gold, bold: true, outline: new Color(255, 255, 255), outlineWidth: 5 }
         : { font: t.font, size: 60, color: P_JOURNAL.stamp, bold: true, outline: P_JOURNAL.sheet, outlineWidth: 4 });
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
+    // 快消：字更大、往橙红偏（三套主题共用同一个暖色目标）
+    const h = Math.max(0, Math.min(1, heat));
+    if (h > 0) {
+      const base = l.color;
+      const mix = (a: number, b: number): number => Math.round(a + (b - a) * h * 0.7);
+      l.color = new Color(mix(base.r, 255), mix(base.g, 96), mix(base.b, 40), base.a);
+    }
+    const k = 1 + 0.35 * h;
     const op = n.addComponent(UIOpacity);
     if (t.id === 'journal') n.angle = 6;
 
-    n.setScale(0.6, 0.6);
+    n.setScale(0.6 * k, 0.6 * k);
     tween(n)
-      .to(FLOAT_SEC * 0.3, { scale: new Vec3(1.15, 1.15, 1), position: new Vec3(c.x, c.y + 50, 0) })
-      .to(FLOAT_SEC * 1.1, { scale: new Vec3(1, 1, 1), position: new Vec3(c.x, c.y + 170, 0) })
+      .to(FLOAT_SEC * 0.3, { scale: new Vec3(1.15 * k, 1.15 * k, 1), position: new Vec3(c.x, c.y + 50, 0) })
+      .to(FLOAT_SEC * 1.1, { scale: new Vec3(k, k, 1), position: new Vec3(c.x, c.y + 170, 0) })
       .start();
     tween(op).delay(FLOAT_SEC * 0.7).to(FLOAT_SEC * 0.7, { opacity: 0 }).call(() => n.destroy()).start();
   }
@@ -753,13 +764,15 @@ export class BoardView extends Component {
         const op = n.addComponent(UIOpacity);
         n.setScale(0.55, 0.55);
         if (t.id === 'journal') n.angle = -6;
+        // 2026-10-27 评审 P2-1：放大 0.25 秒 → 回弹到 1.0 → 停一下再缩没，「拼成了」的停顿更明显
         tween(n)
-          .to(0.18, { scale: new Vec3(1.15, 1.15, 1) })
-          .delay(0.12)
-          .to(0.22, { scale: new Vec3(0.2, 0.2, 1) })
+          .to(0.25, { scale: new Vec3(1.18, 1.18, 1) })
+          .to(0.1, { scale: new Vec3(1, 1, 1) })
+          .delay(0.08)
+          .to(0.2, { scale: new Vec3(0.2, 0.2, 1) })
           .call(() => n.destroy())
           .start();
-        tween(op).delay(0.34).to(0.16, { opacity: 0 }).start();
+        tween(op).delay(0.45).to(0.18, { opacity: 0 }).start();
       }
     }
   }

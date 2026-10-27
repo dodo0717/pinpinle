@@ -271,22 +271,7 @@ function winCandy(parent      , t           , info         , cb                 
   const cy = 40;
 
   // 金光爆发（卡片后面）
-  const burst = mkGfx(ov.root, 'Burst', 700, 700, 0, cy + 400);
-  burst.fillColor = alpha(P.gold, 230);
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    const L = i % 2 ? 260 : 340;
-    burst.moveTo(Math.cos(a - 0.09) * 60, Math.sin(a - 0.09) * 60);
-    burst.lineTo(Math.cos(a) * L, Math.sin(a) * L);
-    burst.lineTo(Math.cos(a + 0.09) * 60, Math.sin(a + 0.09) * 60);
-    burst.close();
-    burst.fill();
-  }
-  const bop = burst.node.addComponent(UIOpacity);
-  bop.opacity = 0;
-  burst.node.setScale(0.3, 0.3);
-  tween(bop).delay(0.8).to(0.05, { opacity: 255 }).to(0.75, { opacity: 0 }).start();
-  tween(burst.node).delay(0.8).to(0.8, { scale: new Vec3(1.6, 1.6, 1), angle: 28 }).start();
+  goldBurst(ov.root, cy + 400, P.gold, 0.8);
 
   // 卡片
   const card = mkNode(ov.root, 'Card', W, H, 0, cy);
@@ -365,10 +350,48 @@ function winCandy(parent      , t           , info         , cb                 
   return ov.root;
 }
 
-function confetti(parent      )       {
+/**
+ * 金光爆发：12 道光芒从中心放大淡出（原只在糖果主题，2026-10-27 评审 P2-1 抽出来三套共用）。
+ * `delay` 对齐各主题星星落下的时刻。
+ */
+function goldBurst(parent      , y        , color       , delay        )       {
+  const burst = mkGfx(parent, 'Burst', 700, 700, 0, y);
+  burst.fillColor = alpha(color, 230);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const L = i % 2 ? 260 : 340;
+    burst.moveTo(Math.cos(a - 0.09) * 60, Math.sin(a - 0.09) * 60);
+    burst.lineTo(Math.cos(a) * L, Math.sin(a) * L);
+    burst.lineTo(Math.cos(a + 0.09) * 60, Math.sin(a + 0.09) * 60);
+    burst.close();
+    burst.fill();
+  }
+  const bop = burst.node.addComponent(UIOpacity);
+  bop.opacity = 0;
+  burst.node.setScale(0.3, 0.3);
+  tween(bop).delay(delay).to(0.05, { opacity: 255 }).to(0.75, { opacity: 0 }).start();
+  tween(burst.node).delay(delay).to(0.8, { scale: new Vec3(1.6, 1.6, 1), angle: 28 }).start();
+}
+
+/**
+ * 低端机减半彩带（评审 P2-1）：微信 benchmarkLevel 1~50，越小越差；拿不到按中端处理。
+ * -1 / 0 是「无法判断」，也按中端。
+ */
+function confettiCount()         {
+  try {
+    const wx = (globalThis                ).wx;
+    const info = wx?.getSystemInfoSync?.();
+    const lv = Number(info?.benchmarkLevel);
+    if (Number.isFinite(lv) && lv > 0 && lv < 15) return 30;
+  } catch { /* 拿不到按默认 */ }
+  return 60;
+}
+
+function confetti(parent      , palette          )       {
   const H = screenH();
-  const cols = [P_CANDY.gold, P_CANDY.candy, P_CANDY.go, new Color(110, 200, 255), new Color(255, 255, 255), new Color(190, 140, 255)];
-  for (let i = 0; i < 60; i++) {
+  const cols = palette ?? [P_CANDY.gold, P_CANDY.candy, P_CANDY.go, new Color(110, 200, 255), new Color(255, 255, 255), new Color(190, 140, 255)];
+  const count = confettiCount();
+  for (let i = 0; i < count; i++) {
     const w = 22 + Math.random() * 14;
     const h = 34 + Math.random() * 16;
     const x = -520 + Math.random() * 1040;
@@ -546,6 +569,11 @@ function winClean(parent      , t           , info         , cb                 
   tally(sh, t, info, top - 700, 740);
   button(sh, t, 'primary', t.copy.nextLevel, 0, top - 960, 940, 150, () => ov.close(cb.onNext));
   button(sh, t, 'ghost', t.copy.backToMap, 0, top - 1110, 940, 110, () => ov.close(cb.onBack));
+  // 3★ 庆祝（评审 P2-1）：光芒在三星弧后面放大，彩带用果冻配色
+  if (info.stars >= 3) {
+    goldBurst(ov.root, top - 330, P.goldLight, 1.1);
+    confetti(ov.root, [P.gold, P.goldLight, P.mint, P.mintSoft, new Color(255, 255, 255)]);
+  }
   return ov.root;
 }
 
@@ -706,6 +734,11 @@ function winJournal(parent      , t           , info         , cb               
   const bw2 = (pw - 26) / 2;
   button(card, t, 'ghost', t.copy.backToMap, -bw2 / 2 - 13, by, bw2, 132, () => ov.close(cb.onBack));
   button(card, t, 'primary', t.copy.nextLevel, bw2 / 2 + 13, by, bw2, 132, () => ov.close(cb.onNext));
+  // 3★ 庆祝（评审 P2-1）：印章盖下时金光一闪，彩带用和纸胶带的颜色
+  if (info.stars >= 3) {
+    goldBurst(ov.root, 200, new Color(255, 214, 120), 0.95);
+    confetti(ov.root, [P.washiPink, P.washiBlue, P.stamp, P.paperDeep, new Color(255, 214, 120)]);
+  }
   return ov.root;
 }
 
