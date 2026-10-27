@@ -174,6 +174,50 @@ export const SAVE = {
   sessionDropped: (level: number) => `上次的第 ${level} 关素材尚未补齐，断点已作废`,
 } as const;
 
+/** 回访系统（2026-10-27 评审 P1-6）：每日挑战 / 签到 / 回流 / 续命券 */
+export const DAILY = {
+  label: '每日挑战',
+  entry: '每日挑战',
+  noPlays: '今天的 3 次挑战已用完，明天再来',
+  playsLeft: (n: number) => `今日还可挑战 ${n} 次`,
+  resultTitle: '每日挑战',
+  resultLine: (points: number, best: number) => `本局 ${points} 分 · 今日最好 ${best} 分`,
+  cleared: '挑战成功！',
+  failed: '没够到 1★，换个思路再来',
+  firstClear: (n: number) => `今日首次通关，体力 +${n}`,
+  again: '再挑战一次',
+  back: '回地图',
+  boardTodo: '每日排行榜即将开放',
+} as const;
+
+export const CHECKIN = {
+  entry: '签到',
+  title: '7 日签到',
+  dayLabel: (d: number) => `第 ${d} 天`,
+  done: '今天已经签到啦，明天再来',
+  btn: '签到领取',
+  close: '稍后',
+  got: (text: string) => `签到成功：${text}`,
+  rewardText: (r: { stamina?: number; reviveTickets?: number; gold?: number }) =>
+    [r.stamina ? `体力 +${r.stamina}` : '', r.reviveTickets ? `续命券 +${r.reviveTickets}` : '', r.gold ? `金卡 +${r.gold}` : '']
+      .filter(Boolean).join('、'),
+  note: '断签不清零，第 7 天领金卡大奖',
+  remind: '🔔 开启提醒',
+  remindOk: '已开启提醒，体力回满会通知你',
+  remindNA: '提醒功能即将开放',
+  tickets: (n: number) => `续命券 ${n} 张（续命时优先使用）`,
+} as const;
+
+export const COMEBACK = {
+  title: '欢迎回来！',
+  lines: ['好久不见，送你一份回归礼包：', '体力补满 + 续命券 ×1'],
+  btn: '收下',
+} as const;
+
+export const TICKET = {
+  used: (left: number) => `已使用续命券（剩 ${left} 张）`,
+} as const;
+
 export const ADS = {
   staminaFull: `体力已满（上限 ${STAMINA_MAX}）`,
   dailyLimit: `今日加体力次数已用完（${AD_STAMINA_DAILY_MAX} 次）`,

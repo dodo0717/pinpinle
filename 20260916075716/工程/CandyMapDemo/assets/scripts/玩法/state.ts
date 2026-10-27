@@ -135,6 +135,7 @@ class GameState {
       adReviveUsed: this.meta.adReviveUsed,
       settings: { ...this.meta.settings },
       guideDone: this.meta.guideDone,
+      retention: { ...this.meta.retention },
     };
     this.data.savedAt = Date.now();
   }
@@ -277,6 +278,7 @@ function metaFromSnapshot(data: SaveData, now: number): MetaState {
     adReviveUsed: m?.adReviveUsed ?? 0,
     settings: m?.settings ?? base.settings,
     guideDone: m?.guideDone ?? false,
+    retention: m?.retention ? { ...m.retention } : base.retention,
   };
 }
 

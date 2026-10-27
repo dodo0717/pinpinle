@@ -26,15 +26,18 @@ export function hardThreeStarLevels(nightmare              )         {
   return n;
 }
 
-/** 金卡张数 = min(已解锁普通卡张数, 困难 3★ 关数) */
-export function goldCardCount(ownedCards        , nightmare              )         {
-  return Math.max(0, Math.min(ownedCards, hardThreeStarLevels(nightmare)));
+/**
+ * 金卡张数 = min(已解锁普通卡张数, 困难 3★ 关数 + bonus)。
+ * `bonus`：7 日签到第 7 天送的金卡（核心/retention.ts `bonusGold`），同样只能升级已解锁的卡。
+ */
+export function goldCardCount(ownedCards        , nightmare              , bonus = 0)         {
+  return Math.max(0, Math.min(ownedCards, hardThreeStarLevels(nightmare) + Math.max(0, bonus)));
 }
 
 /** 已升金的图 ID：已解锁卡（按图号升序）里的前 N 张 */
-export function goldCardIds(ownedIds                   , nightmare              )           {
+export function goldCardIds(ownedIds                   , nightmare              , bonus = 0)           {
   const sorted = ownedIds.slice().sort((a, b) => a - b);
-  return sorted.slice(0, goldCardCount(sorted.length, nightmare));
+  return sorted.slice(0, goldCardCount(sorted.length, nightmare, bonus));
 }
 
 /* ------------------------------------------------------------------ 章节宝箱 */

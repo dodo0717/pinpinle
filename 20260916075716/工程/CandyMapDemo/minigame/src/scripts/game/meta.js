@@ -10,8 +10,10 @@ import {
   LEVEL_REWARD_CONFIG,
   REWARD_LEVELS,
   STAMINA_MAX,
+  createRetention,
                     
                
+                      
 } from '../core/index.js';
 
 /** 秒 → mm:ss（原在 web/ui/dom.ts，纯函数，随模块搬过来） */
@@ -60,6 +62,8 @@ export const AD_STAMINA_GAIN = 2;
                      
                           
                      
+                                                   
+                            
      
                                                            
                                          
@@ -87,6 +91,7 @@ export function createMeta(now        )            {
     adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
+    retention: createRetention(),
   };
 }
 

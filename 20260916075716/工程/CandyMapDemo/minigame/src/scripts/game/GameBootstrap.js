@@ -23,7 +23,7 @@ import { GuideBar } from './guide.js';
 import { GS } from './state.js';
 import { showRewardedAd } from './ads.js';
 import { track } from './analytics.js';
-import { syncFriendRank } from './wxFriend.js';
+import { syncFriendRank, setShareChallenge } from './wxFriend.js';
 import { cloudSync, REPORT_MODES } from './cloud.js';
 import { setThemeForLevel, onThemeChanged, currentTheme } from './theme.js';
 import { showThemeWin, showThemeFail } from './themeResult.js';
@@ -33,14 +33,16 @@ import { screenH, screenInsets } from './paint.js';
 import { WebHud, webLayout } from './webHud.js';
 import { showWebResult,                } from './webResult.js';
 import {
-  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL,
+  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL, DAILY, TICKET,
   WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
 } from './text.js';
 import { unlockedImageIds, AD_STAMINA_GAIN } from './meta.js';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS, createTally, addElimination, onRevive, newlyEarned,
+  TOTAL_LEVELS, createTally, addElimination, onRevive, newlyEarned, starsFor,
+  startDailyPlay, finishDailyPlay, dailyPlaysLeft, dailyLevel, dailySeed, dayKeyOf, DAILY_CLEAR_STAMINA,
+  useReviveTicket,
                                                                                                   
                                                                     
 } from '../core/index.js';
@@ -90,6 +92,8 @@ export class GameBootstrap extends Component {
 
   /* ---------------------------------------------------------------- 局内现场 */
           timeLeft = 0;
+  /** 本局是每日挑战（startDaily 开的）：不耗体力、不写进度 / 断点、不续命 */
+          daily = false;
   /** 本局排行分计分器（2026-10-27 评审 P1-1，核心/scoring.ts）；判星仍看 engine.score（组数） */
           tally              = createTally(0);
           started = false;
@@ -239,6 +243,7 @@ export class GameBootstrap extends Component {
    * 入场费在退出前已经转正过一次了，再扣一次等于玩一局花两颗。
    */
   startLevel(level        )       {
+    this.daily = false;
     const lv = Math.min(Math.max(level, 1), TOTAL_LEVELS);
     const s = GS.session;
     if (s && s.level === lv) {
@@ -251,6 +256,54 @@ export class GameBootstrap extends Component {
       this.toast.show(SAVE.discarded(s.level), 1800);
     }
     this.beginLevel(lv, null);
+  }
+
+  /**
+   * 每日挑战（2026-10-27 评审 P1-6，核心/retention.ts）：
+   * 日期作种子固定开局、不耗体力、不写关卡进度 / 断点、不能续命；每天最多 3 次，当天首次通关送体力。
+   * 返回是否开成（次数用完 false，已 toast）。
+   */
+  startDaily()          {
+    const r = GS.meta.retention;
+    if (!startDailyPlay(r, Date.now())) {
+      this.toast.show(DAILY.noPlays, 2400);
+      return false;
+    }
+    GS.markDirty();
+    // 正常关卡的断点与每日挑战不共存：同「换了关」一样作废
+    const s = GS.session;
+    if (s) {
+      GS.setSession(null);
+      this.toast.show(SAVE.discarded(s.level), 1800);
+    }
+    this.daily = true;
+    this.beginLevel(dailyLevel(dayKeyOf(Date.now())), null);
+    return true;
+  }
+
+  /** 每日挑战结算：只记今日最好 + 首次通关体力，不碰关卡进度 / 排行 / 云同步 */
+          finishDaily(outcome              )       {
+    const r = GS.meta.retention;
+    const now = Date.now();
+    const cleared = starsFor(outcome.score, outcome.star1, outcome.star2, outcome.star3) >= 1;
+    const first = finishDailyPlay(r, now, cleared, outcome.points);
+    if (first && GS.gainStamina(DAILY_CLEAR_STAMINA)) this.toast.show(DAILY.firstClear(DAILY_CLEAR_STAMINA), 2600);
+    GS.markDirty();
+    GS.flush();
+    track('level_end', {
+      level: outcome.level, mode: 'daily', result: cleared ? 'win' : 'fail',
+      stars: cleared ? 1 : 0, groups: outcome.score, time_left: 0, revived: false,
+    });
+    this.audio.play(cleared ? 'win' : 'fail');
+    const left = dailyPlaysLeft(r, now);
+    this.dialog.show(
+      DAILY.resultTitle,
+      [cleared ? DAILY.cleared : DAILY.failed, DAILY.resultLine(outcome.points, r.dailyBest), DAILY.playsLeft(left), DAILY.boardTodo],
+      [
+        { text: DAILY.back, onClick: () => this.exitToHome() },
+        { text: DAILY.again, onClick: () => this.restart(), primary: true, disabled: left <= 0 },
+      ],
+    );
   }
 
           offerResume(s              )       {
@@ -289,11 +342,12 @@ export class GameBootstrap extends Component {
 
     // 关卡绑定主题：第 1/2/3/4 关 → 糖果/果冻/手账/糖果（循环），进关即换皮
     // （levelIndex 先改：换皮回调重建 HUD 时要读到新关号）
-    const cfgs = buildLevelConfigs(from?.mode ?? GS.mode);
+    // 每日挑战一律按简单模式的配置（所有人同一盘，与玩家当前模式无关）
+    const cfgs = buildLevelConfigs(this.daily ? 'normal' : (from?.mode ?? GS.mode));
     this.cfg = cfgs[level - 1] ?? cfgs[0] ;
     this.levelIndex = level;
     setThemeForLevel(level);
-    this.hud?.setLevel(MODE_LABEL[from?.mode ?? GS.mode], level);
+    this.hud?.setLevel(this.daily ? DAILY.label : MODE_LABEL[from?.mode ?? GS.mode], level);
 
     if (from) {
       this.rng = Rng.restore(from.rngState);
@@ -312,8 +366,8 @@ export class GameBootstrap extends Component {
       this.eliminatedOnce = from.eliminatedOnce;
       this.started = from.started;
     } else {
-      // 入场计费（§12.4 第一步）
-      const pre = GS.preDeduct();
+      // 入场计费（§12.4 第一步）；每日挑战不耗体力
+      const pre = this.daily ? { ok: true          } : GS.preDeduct();
       if (!pre.ok) {
         // 已经预扣过说明上一局没走完退出流程，这里把那颗退回去再重扣，不让玩家白花
         if (pre.reason === 'already-pending') {
@@ -326,7 +380,8 @@ export class GameBootstrap extends Component {
           return;
         }
       }
-      this.levelSeed = Date.now() % 0xffffffff;
+      // 每日挑战：日期作种子，同一天所有人、每一次都是同一盘
+      this.levelSeed = this.daily ? dailySeed(dayKeyOf(Date.now())) : Date.now() % 0xffffffff;
       this.rng = new Rng(this.levelSeed);
       this.engine = new PuzzleEngine(this.cfg, this.rng);
       this.timeLeft = this.cfg.timeLimit;
@@ -364,8 +419,8 @@ export class GameBootstrap extends Component {
       this.view.playDropIn();
       this.setPaused(false);
       // 渲染完成 → 入场费转正（§12.4 第二步）
-      GS.confirmStamina();
-      track('level_start', { level, mode: GS.mode });
+      if (!this.daily) GS.confirmStamina();
+      track('level_start', { level, mode: this.daily ? 'daily' : GS.mode });
     }
 
     this.syncSession();
@@ -759,6 +814,11 @@ export class GameBootstrap extends Component {
       star3: this.cfg.star3,
       revived: this.revived,
     };
+    // 每日挑战：不续命、不写关卡进度，单独结算
+    if (this.daily) {
+      this.finishDaily(outcome);
+      return;
+    }
     const before = recordOf(GS.progress, this.levelIndex);
     const settlement = settleLevel(outcome, before);
 
@@ -800,6 +860,8 @@ export class GameBootstrap extends Component {
           mode: GS.mode, revived: outcome.revived,
         });
       }
+      // 之后右上角转发变成挑战式文案，卡片带关卡号（评审 P2-2）
+      setShareChallenge(this.levelIndex, settlement.stars);
       this.audio.play('win');
       this.announceUnlocks(next);
       this.showHonorDialog(outcome, settlement, after.boardBest);
@@ -1008,6 +1070,13 @@ export class GameBootstrap extends Component {
    * 续命额度与加体力分开计数（2026-10-26 评审 P0-2）。
    */
           watchRevive()       {
+    // 有续命券（签到 / 回流礼包送的）先用券，不用看广告
+    if (useReviveTicket(GS.meta.retention)) {
+      GS.markDirty();
+      this.toast.show(TICKET.used(GS.meta.retention.reviveTickets), 2000);
+      this.revive();
+      return;
+    }
     if (GS.adReviveLeft <= 0) {
       // 弹窗已经关了：不能停在一个既没结算也没弹窗的盘面上，按最终失败处理
       this.toast.show(ADS.reviveLimit, 2600);
@@ -1055,6 +1124,11 @@ export class GameBootstrap extends Component {
   /* ================================================================ 关卡流转 */
 
           restart()       {
+    // 每日挑战「再来一次」要扣当天次数，走同一个入口
+    if (this.daily) {
+      if (!this.startDaily()) this.exitToHome();
+      return;
+    }
     const lv = this.levelIndex;
     GS.setSession(null);
     this.beginLevel(lv, null);
@@ -1242,7 +1316,8 @@ export class GameBootstrap extends Component {
   /* ================================================================ 存档 */
 
           syncSession()       {
-    if (!this.engine || this.finished) return;
+    // 每日挑战不落断点：切后台回来就是新的一局（不耗体力，丢了也不心疼；断点会和正常关卡串）
+    if (!this.engine || this.finished || this.daily) return;
     const s               = {
       mode: GS.mode,
       level: this.levelIndex,

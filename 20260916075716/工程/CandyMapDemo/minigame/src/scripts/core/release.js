@@ -29,6 +29,17 @@ export const RELEASE_PROFILE                 = 'test';
                      
  
 
+/**
+ * ⚠️ 待填：订阅消息模板 ID（微信后台「订阅消息」申请，2026-10-27 评审 P1-6）。
+ * 空串 = 不弹订阅框。推送要服务端定时任务，尚未实现（见延后清单）。
+ */
+export const SUBSCRIBE_TEMPLATES = {
+  /** 体力回满提醒 */
+  stamina: '',
+  /** 每日挑战刷新提醒 */
+  daily: '',
+}         ;
+
 /** ⚠️ 待填：流量主开通后把广告位 ID 填到这里（测试 / 正式可以用同一个） */
 const REWARDED_AD_UNIT_ID = '';
 

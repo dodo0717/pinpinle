@@ -11,9 +11,10 @@ import { ToastLayer } from '../game/toast.js';
 import { GS } from '../game/state.js';
 import { showRewardedAd, preloadAds } from '../game/ads.js';
 import { AD_STAMINA_GAIN } from '../game/meta.js';
-import { syncFriendRank, enableShare, getInviter, reportInviter } from '../game/wxFriend.js';
+import { syncFriendRank, enableShare, getInviter, reportInviter, getLaunchLevel } from '../game/wxFriend.js';
+import { requestReminders } from '../game/subscribe.js';
 import { cloudSync,                } from '../game/cloud.js';
-import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL } from '../game/text.js';
+import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL, DAILY, CHECKIN, COMEBACK } from '../game/text.js';
 import { HEALTH_ADVICE, AGE_TIP_LINES, USER_AGREEMENT_LINES, openPrivacyContract } from '../game/privacy.js';
 import { MapPanels } from '../ui/MapPanels.js';
 import { AvatarView, ProfilePanel } from '../ui/ProfilePanel.js';
@@ -25,6 +26,7 @@ import { LEVELS_BY_ART } from './levelTable.js';
 import {
     levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
     ownedRewards, CHESTS,
+    canCheckin, checkin, nextCheckinIndex, CHECKIN_REWARDS, dailyPlaysLeft, DAILY_MAX_PLAYS, onLogin,
                                     
 } from '../core/index.js';
 const { ccclass } = _decorator;
@@ -290,6 +292,7 @@ export class MapBootstrap extends Component {
         this.buildMap();
         this.buildTopbar();
         this.buildWorldNav();
+        this.buildRetentionEntries();
         this.buildPager();
         this.buildPanels();
         this.buildTabbar();
@@ -1014,6 +1017,8 @@ export class MapBootstrap extends Component {
             onTick() {
         GS.tick();
         this.refreshTopbar();
+        // 跨天时每日挑战次数要刷新（rollDaily 在 dailyPlaysLeft 里做）
+        this.refreshRetentionEntries();
     }
 
     /** 顶栏：体力数字 + 恢复倒计时（满格不显示倒计时） */
@@ -1496,6 +1501,7 @@ export class MapBootstrap extends Component {
             this.loading.destroy();
             this.loading = null;
             this.loadingOpacity = null;
+            this.afterLoading();
         }
     }
 
@@ -1523,6 +1529,127 @@ export class MapBootstrap extends Component {
         }
         this.gameNode = g;
         return g;
+    }
+
+    /* ================================================================ 回访入口（评审 P1-6） */
+
+    /**
+     * 首页左侧两个圆钮：每日挑战 / 签到（代码绘制占位，美术图见延后清单）。
+     * 叠在左侧「上一个世界」圆钮上方，避开右侧翻页钮。
+     */
+            buildRetentionEntries() {
+        const r = 55;
+        const x = -DESIGN_W / 2 + 22 + 59;
+        const navY = this.tabbarTop() + 40 + 59;
+        const make = (name        , glyph        , text        , y        , onTap            )        => {
+            const n = this.makeButton(this.node, name, r * 2, r * 2 + 40, x, y, onTap);
+            this.paintGoldCircle(n.addComponent(Graphics), r);
+            this.makeLabel(n, 'Glyph', glyph, 56, C_WHITE, r * 2, r * 2, 0, 4);
+            return this.makeLabel(n, 'Text', text, 26, C_WHITE, 200, 36, 0, -r - 22, { shadow: true });
+        };
+        this.dailyEntryLabel = make('DailyEntry', '🏆', DAILY.entry, navY + 59 + 70 + r, () => this.enterDaily());
+        make('CheckinEntry', '📅', CHECKIN.entry, navY + 59 + 70 + r + 160, () => this.showCheckin(true));
+        this.refreshRetentionEntries();
+    }
+
+            dailyEntryLabel               = null;
+
+            refreshRetentionEntries() {
+        if (!this.dailyEntryLabel?.isValid) return;
+        const left = dailyPlaysLeft(GS.meta.retention, Date.now());
+        this.dailyEntryLabel.string = `${DAILY.entry} ${left}/${DAILY_MAX_PLAYS}`;
+    }
+
+    /** 签到弹窗；`manual` = 玩家点入口打开（已签过也弹，显示「已签到」） */
+            showCheckin(manual         ) {
+        const r = GS.meta.retention;
+        const now = Date.now();
+        const can = canCheckin(r, now);
+        if (!can && !manual) return;
+        const today = can ? nextCheckinIndex(r) : ((r.checkinDays - 1) % CHECKIN_REWARDS.length) + 1;
+        const lines = CHECKIN_REWARDS.map((rw, i) =>
+            `${i + 1 === today ? '▶ ' : ''}${CHECKIN.dayLabel(i + 1)}：${CHECKIN.rewardText(rw)}${i + 1 < today || (!can && i + 1 === today) ? ' ✓' : ''}`);
+        lines.push(CHECKIN.note, CHECKIN.tickets(r.reviveTickets));
+        this.dialog.show(CHECKIN.title, lines, [
+            {
+                text: CHECKIN.remind,
+                // 订阅消息必须在点击回调里请求（微信规矩），所以放在按钮上
+                onClick: () => requestReminders((ok) => this.toast.show(ok ? CHECKIN.remindOk : CHECKIN.remindNA, 2200)),
+            },
+            {
+                text: can ? CHECKIN.btn : CHECKIN.done,
+                primary: can,
+                disabled: !can,
+                onClick: () => this.doCheckin(),
+            },
+        ]);
+    }
+
+            doCheckin() {
+        const got = checkin(GS.meta.retention, Date.now());
+        if (!got) return;
+        if (got.reward.stamina) GS.gainStamina(got.reward.stamina);
+        GS.markDirty();
+        GS.flush();
+        this.toast.show(CHECKIN.got(CHECKIN.rewardText(got.reward)), 2600);
+        this.refreshTopbar();
+    }
+
+    /** 每日挑战：先在地图侧判次数，免得切到对局再退回来 */
+            enterDaily() {
+        if (this.busyForInput()) return;
+        if (dailyPlaysLeft(GS.meta.retention, Date.now()) <= 0) {
+            this.toast.show(DAILY.noPlays, 2400);
+            return;
+        }
+        const game = this.gameNode?.isValid ? this.gameNode : this.ensureGameNode();
+        const gb = game?.getComponent(GameBootstrap);
+        if (!game || !gb) {
+            this.toast.show('进入关卡失败：缺少 Game 节点', 2000);
+            return;
+        }
+        // 与 enterLevel 同理：推到下一帧再切，避开触摸分发中途激活节点（2026-10-23 真机问题）
+        setTimeout(() => {
+            if (!game.isValid) return;
+            this.node.active = false;
+            game.active = true;
+            gb.scheduleOnce(() => gb.startDaily(), 0);
+        }, 0);
+    }
+
+    /**
+     * 加载页淡出后的一次性流程：回流礼包 → 当天首次签到弹窗 → 分享卡直达关卡。
+     * 放在加载完成之后，避免弹窗被加载页盖住。
+     */
+            afterLoading() {
+        const r = GS.meta.retention;
+        const now = Date.now();
+        const { comeback } = onLogin(r, now);
+        GS.markDirty();
+        if (comeback) {
+            // 回流：补满体力（续命券已在 onLogin 里记上）
+            GS.gainStamina(GS.staminaMax);
+            GS.flush();
+            this.dialog.show(COMEBACK.title, COMEBACK.lines.slice(), [
+                { text: COMEBACK.btn, primary: true, onClick: () => this.afterComeback() },
+            ]);
+            return;
+        }
+        GS.flush();
+        this.afterComeback();
+    }
+
+            afterComeback() {
+        this.refreshTopbar();
+        // 从好友分享卡进来：直接弹那一关的详情窗（没解锁就停在地图，不硬开）
+        const lv = getLaunchLevel();
+        if (lv && lv <= TOTAL_LEVELS && levelStatus(GS.progress, lv) !== 'locked') {
+            this.world = worldIndexOf(lv);
+            this.renderMap(false);
+            this.openPreview(lv);
+            return;
+        }
+        this.showCheckin(false);
     }
 
     /** 进入关卡：隐藏地图，显示兄弟节点 `Game` 并开局 */

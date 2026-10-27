@@ -102,6 +102,36 @@ let shareOpenTracked = false;
 const SHARE_TITLE = '萌宠拼拼乐，一起闯关！';
 
 /**
+ * 最近一次通关（2026-10-27 评审 P2-2）：有就用挑战式标题，卡片 query 带上关卡号，
+ * 好友从卡片打开直接弹这一关的详情窗（getLaunchLevel）。
+ */
+let lastChallenge: { level: number; stars: number } | null = null;
+
+/** 结算通关后调用：之后右上角转发就是「我第 N 关 3★，你敢来吗」 */
+export function setShareChallenge(level: number, stars: number): void {
+  lastChallenge = { level, stars };
+}
+
+function shareTitle(): string {
+  if (!lastChallenge) return SHARE_TITLE;
+  const { level, stars } = lastChallenge;
+  return stars >= 3 ? `我第 ${level} 关拿了 3★，你敢来挑战吗？` : `我过了萌宠拼拼乐第 ${level} 关，来比比谁更快！`;
+}
+
+/** 从分享卡启动时卡片里的关卡号；没有 / 非法返回 null（调用方再判断是否已解锁） */
+export function getLaunchLevel(): number | null {
+  const wx = (globalThis as { wx?: any }).wx;
+  if (!wx || typeof wx.getLaunchOptionsSync !== 'function') return null;
+  try {
+    const q = (wx.getLaunchOptionsSync() as { query?: Record<string, unknown> }).query || {};
+    const n = Number(q.level);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 读取启动 / 分享参数里的邀请人 id（inviter）。非微信或无参数时返回 null。
  * 云同步登录成功后调用方把结果交给 reportInviter（本次登录只报一次）。
  */
@@ -128,11 +158,11 @@ export function enableShare(myPlayerId: string | number | null): void {
   if (!wx || typeof wx.onShareAppMessage !== 'function') return;
   try {
     wx.onShareAppMessage(() => {
-      track('share', { from: 'menu' });
-      return {
-        title: SHARE_TITLE,
-        query: myPlayerId == null ? '' : `inviter=${encodeURIComponent(String(myPlayerId))}`,
-      };
+      track('share', { from: 'menu', level: lastChallenge?.level ?? 0 });
+      const q: string[] = [];
+      if (myPlayerId != null) q.push(`inviter=${encodeURIComponent(String(myPlayerId))}`);
+      if (lastChallenge) q.push(`level=${lastChallenge.level}`);
+      return { title: shareTitle(), query: q.join('&') };
     });
   } catch {
     /* 忽略：分享开关失败不影响游戏 */

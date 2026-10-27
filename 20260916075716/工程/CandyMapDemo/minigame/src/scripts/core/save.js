@@ -17,6 +17,7 @@ import { GRID_BY_LEVEL,               } from './config.js';
                                    
 import { STAMINA_MAX, createProgress,                                                    INITIAL_UNLOCKED } from './progress.js';
 import { LEGACY_POINTS_PER_GROUP } from './scoring.js';
+import { createRetention,                     } from './retention.js';
 
 /** 存档格式版本；改动字段含义时必须 +1（旧档会整档作废，见 `parseSave`） */
 export const SAVE_VERSION = 1;
@@ -54,6 +55,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                        
                          
                      
+                                                                  
+                            
  
 
 /**
@@ -144,6 +147,30 @@ export function createMetaSnapshot(now        )               {
     adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
+    retention: createRetention(),
+  };
+}
+
+/** 回访状态修复：字段逐个兜底，坏了只丢这一项，不影响别的 */
+function sanitizeRetention(raw         , issues          )                 {
+  const fb = createRetention();
+  if (raw === undefined) return fb;   // 老存档：迁移，不算修复
+  if (!isObj(raw)) {
+    issues.push('回访数据不是对象，已按默认处理');
+    return fb;
+  }
+  const n = (v         , max = Number.MAX_SAFE_INTEGER)         => intIn(v, 0, max) ?? 0;
+  const s = (v         )         => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  return {
+    checkinDays: n(raw.checkinDays),
+    lastCheckinDay: s(raw.lastCheckinDay),
+    dailyDay: s(raw.dailyDay),
+    dailyPlays: n(raw.dailyPlays, 99),
+    dailyCleared: boolOr(raw.dailyCleared, false),
+    dailyBest: n(raw.dailyBest),
+    lastLoginDay: s(raw.lastLoginDay),
+    reviveTickets: n(raw.reviveTickets, 999),
+    bonusGold: n(raw.bonusGold, 36),
   };
 }
 
@@ -323,6 +350,7 @@ function sanitizeMeta(raw         , limits            , now        , issues     
       bgm: boolOr(rawSettings.bgm, fb.settings.bgm),
     },
     guideDone: boolOr(raw.guideDone, false),
+    retention: sanitizeRetention(raw.retention, issues),
   };
 }
 

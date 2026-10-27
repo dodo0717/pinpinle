@@ -10,8 +10,10 @@ import {
   LEVEL_REWARD_CONFIG,
   REWARD_LEVELS,
   STAMINA_MAX,
+  createRetention,
   type ProgressData,
   type Stamina,
+  type RetentionState,
 } from '../核心/index';
 
 /** 秒 → mm:ss（原在 web/ui/dom.ts，纯函数，随模块搬过来） */
@@ -60,6 +62,8 @@ export interface MetaState {
   settings: Settings;
   /** 新手引导是否已走完（§14 五步） */
   guideDone: boolean;
+  /** 回访系统（签到 / 每日挑战 / 回流 / 续命券，核心/retention.ts） */
+  retention: RetentionState;
   /**
    * 当前体力上限（运行时字段，不落盘）：STAMINA_MAX + 章节宝箱加成（核心/rewards.ts）。
    * 由 GS 在读档 / 结算后按进度重算；缺省按 STAMINA_MAX。
@@ -87,6 +91,7 @@ export function createMeta(now: number): MetaState {
     adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
+    retention: createRetention(),
   };
 }
 
