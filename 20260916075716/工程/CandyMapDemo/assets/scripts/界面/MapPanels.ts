@@ -50,6 +50,8 @@ export interface PanelHost {
   onChallenge: (level: number) => void;
   /** 设置页「重置存档」（确认框由宿主弹） */
   onReset: () => void;
+  /** 设置页合规入口：隐私保护指引 / 用户协议 / 适龄提示（评审 P0-1，弹窗由宿主弹） */
+  onLegal: (kind: 'privacy' | 'agreement' | 'age') => void;
 }
 
 /* ------------------------------------------------------------------ 布局常量（1080 设计坐标，取自 web/ui.css） */
@@ -1045,6 +1047,16 @@ export class MapPanels {
     g.roundRect(-180, -45, 360, 90, 45);
     g.stroke();
     this.label(reset, 'Text', PANEL.reset, 36, new Color(150, 100, 40), 320, 80);
+
+    // 合规入口一排三个文字按钮（评审 P0-1）：隐私保护指引 / 用户协议 / 适龄提示
+    const legalY = resetY - 45 - 40 - 30;
+    const legal: Array<[string, 'privacy' | 'agreement' | 'age']> = [
+      [PANEL.privacy, 'privacy'], [PANEL.agreement, 'agreement'], [PANEL.ageTip, 'age'],
+    ];
+    legal.forEach(([text, kind], i) => {
+      const btn = this.button(this.root, 'Legal_' + kind, 280, 60, (i - 1) * 300, legalY, () => this.host.onLegal(kind));
+      this.label(btn, 'Text', text, 32, new Color(68, 80, 122), 270, 50);
+    });
   }
 
   private settingRow(

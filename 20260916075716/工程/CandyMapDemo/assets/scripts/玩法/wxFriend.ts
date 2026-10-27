@@ -19,6 +19,8 @@
 import { GS } from './state';
 import { rankTotals } from '../核心/index';
 import { cloudSync } from './cloud';
+import { track } from './analytics';
+import { withPrivacy } from './privacy';
 
 /** 开放数据域按同一个 key 读（open-data/index.js 里的 RANK_KEY 必须一致） */
 const RANK_KEY = 'pinpin_rank';
@@ -34,6 +36,11 @@ let friendSize = '';
 export function syncFriendRank(): void {
   const wx = (globalThis as { wx?: any }).wx;
   if (!wx || typeof wx.setUserCloudStorage !== 'function') return;
+  // 托管 KV 属于关系链数据：先确认隐私协议已同意（privacy.ts），拒绝就不上报
+  withPrivacy(() => writeFriendKV(wx));
+}
+
+function writeFriendKV(wx: any): void {
   try {
     // 与总榜同一口径（核心/rank.ts）：总积分 = 简单 + 困难×1.5（只认有效成绩），总星数两模式合计
     const t = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare);
@@ -88,6 +95,9 @@ export function friendRankCanvas(w: number, h: number, scale: number): CanvasIma
 
 /* ================================================================ 分享卡片（带邀请人） */
 
+/** 「从分享卡打开」每次启动只报一次（getInviter 可能被调用多次） */
+let shareOpenTracked = false;
+
 /** 分享卡片标题（糖果小镇同款做法：文案写在 wxFeatures 侧） */
 const SHARE_TITLE = '萌宠拼拼乐，一起闯关！';
 
@@ -101,7 +111,9 @@ export function getInviter(): string | null {
   try {
     const q = (wx.getLaunchOptionsSync() as { query?: Record<string, unknown> }).query || {};
     const v = q.inviter;
-    return typeof v === 'string' && v.length > 0 ? v : null;
+    if (typeof v !== 'string' || v.length === 0) return null;
+    if (!shareOpenTracked) { shareOpenTracked = true; track('share_open', { inviter: v }); }
+    return v;
   } catch {
     return null;
   }
@@ -115,10 +127,13 @@ export function enableShare(myPlayerId: string | number | null): void {
   const wx = (globalThis as { wx?: any }).wx;
   if (!wx || typeof wx.onShareAppMessage !== 'function') return;
   try {
-    wx.onShareAppMessage(() => ({
-      title: SHARE_TITLE,
-      query: myPlayerId == null ? '' : `inviter=${encodeURIComponent(String(myPlayerId))}`,
-    }));
+    wx.onShareAppMessage(() => {
+      track('share', { from: 'menu' });
+      return {
+        title: SHARE_TITLE,
+        query: myPlayerId == null ? '' : `inviter=${encodeURIComponent(String(myPlayerId))}`,
+      };
+    });
   } catch {
     /* 忽略：分享开关失败不影响游戏 */
   }

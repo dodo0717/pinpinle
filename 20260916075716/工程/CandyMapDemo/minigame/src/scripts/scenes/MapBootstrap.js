@@ -9,9 +9,11 @@ import { GameBootstrap } from '../game/GameBootstrap.js';
 import { GameDialog } from '../game/GameDialog.js';
 import { ToastLayer } from '../game/toast.js';
 import { GS } from '../game/state.js';
+import { showRewardedAd, preloadAds } from '../game/ads.js';
 import { syncFriendRank, enableShare, getInviter, reportInviter } from '../game/wxFriend.js';
 import { cloudSync,                } from '../game/cloud.js';
-import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL } from '../game/text.js';
+import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL } from '../game/text.js';
+import { HEALTH_ADVICE, AGE_TIP_LINES, USER_AGREEMENT_LINES, openPrivacyContract } from '../game/privacy.js';
 import { MapPanels } from '../ui/MapPanels.js';
 import { AvatarView, ProfilePanel } from '../ui/ProfilePanel.js';
 import { ThemedPreview } from '../ui/ThemedPreview.js';
@@ -270,6 +272,7 @@ export class MapBootstrap extends Component {
         this.k = this.screenH / PAGE_H;
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
+        preloadAds();
         // 启动即把本人总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
         syncFriendRank();
         // 云同步启动对齐：登录 → 补传离线队列 → 拉云档取大合并（非微信 no-op）。
@@ -1016,7 +1019,7 @@ export class MapBootstrap extends Component {
         this.countdownLabel.string = cd ? MAP_TEXT.staminaCountdown(cd) : '';
     }
 
-    /** 体力 + ：看广告（本地模拟），每日上限由 GS 收口 */
+    /** 体力 + ：看激励视频（ads.ts，看完才发），每日上限由 GS 收口 */
             onStaminaPlus() {
         if (GS.stamina.available >= GS.staminaMax) {
             this.toast.show(ADS.staminaFull, 1400);
@@ -1026,13 +1029,17 @@ export class MapBootstrap extends Component {
             this.toast.show(ADS.dailyLimit, 2200);
             return;
         }
-        this.toast.show('广告播放中…', 1200);
-        this.scheduleOnce(() => {
+        this.toast.show(ADS.playing, 1200);
+        showRewardedAd('stamina', (r) => {
+            if (r !== 'ended') {
+                this.toast.show(r === 'closed' ? ADS.notEnded : ADS.notReady, 2200);
+                return;
+            }
             GS.recordAd();
             if (GS.gainStamina(1)) {
                 this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 1400);
             }
-        }, 1.2);
+        });
     }
 
     /* ================================================================ 换世界 / 翻页 */
@@ -1176,7 +1183,19 @@ export class MapBootstrap extends Component {
                 this.openPreview(level);
             },
             onReset: () => this.confirmReset(),
+            onLegal: (kind) => this.showLegal(kind),
         });
+    }
+
+    /** 设置页合规入口（评审 P0-1）：隐私指引走微信官方页，其余两项弹窗显示 */
+            showLegal(kind                                 ) {
+        if (kind === 'privacy') {
+            if (!openPrivacyContract()) this.toast.show(PANEL.privacyUnsupported, 2200);
+            return;
+        }
+        const title = kind === 'age' ? PANEL.ageTip : PANEL.agreement;
+        const lines = kind === 'age' ? AGE_TIP_LINES : USER_AGREEMENT_LINES;
+        this.dialog.show(title, lines.slice(), [{ text: '知道了', onClick: () => {}, primary: true }]);
     }
 
             confirmReset() {
@@ -1401,6 +1420,11 @@ export class MapBootstrap extends Component {
         fs.sizeMode = Sprite.SizeMode.CUSTOM;
         this.loadFrame('loading/bar-fill', (sf) => { if (fs.isValid) fs.spriteFrame = sf; });
         this.loadingNum = this.makeLabel(bar, 'Num', MAP_TEXT.loading(0), 46, C_WHITE, 200, 60, 0, 0, { shadow: true });
+
+        // 健康游戏忠告（评审 P0-1，国家新闻出版署要求加载页常驻）：进度条下方两行
+        HEALTH_ADVICE.forEach((line, i) => {
+            this.makeLabel(node, 'Health' + i, line, 30, new Color(110, 72, 40), 1000, 40, 0, barY - 74 - 40 - i * 42);
+        });
 
         this.loading = node;
         this.loadingOpacity = node.addComponent(UIOpacity);

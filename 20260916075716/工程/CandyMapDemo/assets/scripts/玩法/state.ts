@@ -42,6 +42,9 @@ import {
   staminaCountdown,
   adStaminaLeft,
   recordAdStamina,
+  AD_REVIVE_DAILY_MAX,
+  adReviveLeft,
+  recordAdRevive,
   type MetaState,
 } from './meta';
 
@@ -51,6 +54,7 @@ export const SAVE_LIMITS: SaveLimits = {
   staminaMax: STAMINA_MAX,
   timeLimit: TIME_LIMIT,
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
+  adReviveDailyMax: AD_REVIVE_DAILY_MAX,
 };
 
 /** 元系统有变化时的订阅（地图顶栏据此刷新体力/倒计时） */
@@ -121,6 +125,7 @@ class GameState {
       nextRecoverAt: this.meta.nextRecoverAt,
       adDay: this.meta.adDay,
       adStaminaUsed: this.meta.adStaminaUsed,
+      adReviveUsed: this.meta.adReviveUsed,
       settings: { ...this.meta.settings },
       guideDone: this.meta.guideDone,
     };
@@ -185,6 +190,9 @@ class GameState {
   get staminaMax(): number { return STAMINA_MAX; }
   get adStaminaLeft(): number { return adStaminaLeft(this.meta, Date.now()); }
   recordAd(): void { recordAdStamina(this.meta); this.markDirty(); }
+  /** 续命广告额度（与加体力分开计数） */
+  get adReviveLeft(): number { return adReviveLeft(this.meta, Date.now()); }
+  recordAdRevive(): void { recordAdRevive(this.meta); this.markDirty(); }
   countdownText(): string | null { return staminaCountdown(this.meta, Date.now()); }
 
   /* ------------------------------------------------------------ 元系统心跳 */
@@ -252,6 +260,7 @@ function metaFromSnapshot(data: SaveData, now: number): MetaState {
     nextRecoverAt: m?.nextRecoverAt ?? null,
     adDay: m?.adDay ?? base.adDay,
     adStaminaUsed: m?.adStaminaUsed ?? 0,
+    adReviveUsed: m?.adReviveUsed ?? 0,
     settings: m?.settings ?? base.settings,
     guideDone: m?.guideDone ?? false,
   };

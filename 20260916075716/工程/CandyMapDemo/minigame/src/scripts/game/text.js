@@ -6,7 +6,7 @@
  */
 
 import { STAMINA_MAX } from '../core/index.js';
-import { AD_STAMINA_DAILY_MAX } from './meta.js';
+import { AD_STAMINA_DAILY_MAX, AD_REVIVE_DAILY_MAX } from './meta.js';
 
 /** 2026-10 命名统一：「普通」一律改叫「简单」，全项目不再出现「普通」二字 */
 export const MODE_LABEL = { normal: '简单', nightmare: '困难' }         ;
@@ -81,6 +81,10 @@ export const PANEL = {
   sfx: '音效',
   version: '版本 v1.0',
   reset: '重置存档',
+  privacy: '隐私保护指引',
+  agreement: '用户协议',
+  ageTip: '适龄提示',
+  privacyUnsupported: '请在微信内查看《隐私保护指引》',
 }         ;
 
 export const TABBAR = {
@@ -148,7 +152,11 @@ export const SAVE = {
 export const ADS = {
   staminaFull: `体力已满（上限 ${STAMINA_MAX}）`,
   dailyLimit: `今日加体力次数已用完（${AD_STAMINA_DAILY_MAX} 次）`,
+  reviveLimit: `今日续命次数已用完（${AD_REVIVE_DAILY_MAX} 次）`,
   notReady: '广告还没准备好，稍后再试',
+  /** 中途关闭：不发奖、不扣次数 */
+  notEnded: '看完才能领取哦',
+  playing: '广告播放中…',
   watched: '已看完广告',
 }         ;
 

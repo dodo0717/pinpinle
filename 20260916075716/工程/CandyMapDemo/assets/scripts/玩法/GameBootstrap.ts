@@ -21,6 +21,8 @@ import { ToastLayer, fmtMMSS } from './toast';
 import { GameAudio } from './audio';
 import { GuideBar } from './guide';
 import { GS } from './state';
+import { showRewardedAd } from './ads';
+import { track } from './analytics';
 import { syncFriendRank } from './wxFriend';
 import { cloudSync, REPORT_MODES } from './cloud';
 import { setThemeForLevel, onThemeChanged, currentTheme } from './theme';
@@ -316,8 +318,9 @@ export class GameBootstrap extends Component {
         if (pre.reason === 'already-pending') {
           GS.refundStamina();
           const again = GS.preDeduct();
-          if (!again.ok) { this.toast.show(HOME.staminaShort, 2600); return; }
+          if (!again.ok) { track('stamina_empty', { level }); this.toast.show(HOME.staminaShort, 2600); return; }
         } else {
+          track('stamina_empty', { level });
           this.toast.show(HOME.staminaShort, 2600);
           return;
         }
@@ -360,6 +363,7 @@ export class GameBootstrap extends Component {
       this.setPaused(false);
       // 渲染完成 → 入场费转正（§12.4 第二步）
       GS.confirmStamina();
+      track('level_start', { level, mode: GS.mode });
     }
 
     this.syncSession();
@@ -757,6 +761,11 @@ export class GameBootstrap extends Component {
       this.showReviveDialog();
       return;
     }
+    track('level_end', {
+      level: outcome.level, mode: GS.mode, result: settlement ? 'win' : 'fail',
+      stars: settlement ? settlement.stars : 0, groups: outcome.score,
+      time_left: Math.max(0, Math.round(this.timeLeft)), revived: outcome.revived,
+    });
     if (settlement) {
       const next = commitSettlement(GS.progress, outcome, settlement, TOTAL_LEVELS);
       const after = recordOf(next, this.levelIndex);
@@ -875,12 +884,16 @@ export class GameBootstrap extends Component {
   private watchStaminaAd(back: () => void): void {
     if (GS.stamina.available >= GS.staminaMax) { this.toast.show(ADS.staminaFull, 1800); back(); return; }
     if (GS.adStaminaLeft <= 0) { this.toast.show(ADS.dailyLimit, 2600); back(); return; }
-    this.toast.show('广告播放中…', 1200);
-    this.scheduleOnce(() => {
-      GS.recordAd();
-      if (GS.gainStamina(1)) this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 2200);
+    this.toast.show(ADS.playing, 1200);
+    showRewardedAd('stamina', (r) => {
+      if (r === 'ended') {
+        GS.recordAd();
+        if (GS.gainStamina(1)) this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 2200);
+      } else {
+        this.toast.show(r === 'closed' ? ADS.notEnded : ADS.notReady, 2200);
+      }
       back();
-    }, 1.2);
+    });
   }
 
   /** 排行榜（灰盒 100 人 + 本机） */
@@ -968,21 +981,30 @@ export class GameBootstrap extends Component {
     });
   }
 
-  /** 广告续命（本地模拟：1.2 秒「观看」） */
+  /**
+   * 广告续命：看完才续（ads.ts；非微信 / 未配广告位时本地模拟 1.2 秒）。
+   * 续命额度与加体力分开计数（2026-10-26 评审 P0-2）。
+   */
   private watchRevive(): void {
-    if (GS.adStaminaLeft <= 0) {
+    if (GS.adReviveLeft <= 0) {
       // 弹窗已经关了：不能停在一个既没结算也没弹窗的盘面上，按最终失败处理
-      this.toast.show(ADS.dailyLimit, 2600);
+      this.toast.show(ADS.reviveLimit, 2600);
       this.giveUp();
       return;
     }
-    GS.recordAd();
-    this.toast.show('广告播放中…', 1200);
+    this.toast.show(ADS.playing, 1200);
     this.busy = true;
-    this.scheduleOnce(() => {
+    showRewardedAd('revive', (r) => {
       this.busy = false;
-      this.revive();
-    }, 1.2);
+      if (r === 'ended') {
+        GS.recordAdRevive();
+        this.revive();
+        return;
+      }
+      // 没看完 / 没拉到：不扣次数，把续命弹窗还回去让玩家再选
+      this.toast.show(r === 'closed' ? ADS.notEnded : ADS.notReady, 2200);
+      this.showReviveDialog();
+    });
   }
 
   private revive(): void {
@@ -1027,7 +1049,10 @@ export class GameBootstrap extends Component {
   private exitToHome(): void {
     this.unschedule(this.onTick);
     this.clearHint();
-    if (!this.finished) GS.refundStamina();
+    if (!this.finished) {
+      track('level_end', { level: this.levelIndex, mode: GS.mode, result: 'quit', stars: 0, groups: this.engine?.score ?? 0, time_left: Math.max(0, Math.round(this.timeLeft)), revived: this.revived });
+      GS.refundStamina();
+    }
     GS.setSession(null);
     GS.flush();
     this.finished = true;
@@ -1169,6 +1194,7 @@ export class GameBootstrap extends Component {
   private webGuide(step: keyof typeof WEB_GUIDE): void {
     if (GS.guideDone || this.webGuideSeen.has(step)) return;
     this.webGuideSeen.add(step);
+    track('guide_step', { step });
     this.guide.show(WEB_GUIDE[step]);
     if (step === 'clear') GS.finishGuide();
   }
@@ -1184,6 +1210,7 @@ export class GameBootstrap extends Component {
     this.guideStep = step;
     const text = [GUIDE.step1, GUIDE.step2, GUIDE.step3, GUIDE.step4, GUIDE.step5][step - 1];
     if (!text) return;
+    track('guide_step', { step });
     this.guide.show(text);
     if (step >= 5) GS.finishGuide();
   }

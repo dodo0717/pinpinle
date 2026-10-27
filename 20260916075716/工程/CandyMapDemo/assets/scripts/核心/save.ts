@@ -32,6 +32,8 @@ export interface SaveLimits {
   staminaMax: number;
   timeLimit: number;
   adStaminaDailyMax: number;
+  /** 续命广告每日上限；调用方不给时不校验上限（只要求非负整数） */
+  adReviveDailyMax?: number;
 }
 
 /* ------------------------------------------------------------------ 结构 */
@@ -47,6 +49,8 @@ export interface MetaSnapshot {
   nextRecoverAt: number | null;
   adDay: string;
   adStaminaUsed: number;
+  /** 今日已用续命广告次数（2026-10-26 新增；老存档没有 → 按 0） */
+  adReviveUsed: number;
   settings: SaveSettings;
   guideDone: boolean;
 }
@@ -123,6 +127,7 @@ export function createMetaSnapshot(now: number): MetaSnapshot {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
+    adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
   };
@@ -271,6 +276,11 @@ function sanitizeMeta(raw: unknown, limits: SaveLimits, now: number, issues: str
     issues.push(`广告次数非法（${String(raw.adStaminaUsed)}），已按 0 处理`);
   }
 
+  const adReviveUsed = intIn(raw.adReviveUsed, 0, limits.adReviveDailyMax ?? Number.MAX_SAFE_INTEGER);
+  if (adReviveUsed === null && raw.adReviveUsed !== undefined) {
+    issues.push(`续命广告次数非法（${String(raw.adReviveUsed)}），已按 0 处理`);
+  }
+
   const rawSettings = isObj(raw.settings) ? raw.settings : {};
 
   return {
@@ -278,6 +288,7 @@ function sanitizeMeta(raw: unknown, limits: SaveLimits, now: number, issues: str
     nextRecoverAt,
     adDay: typeof raw.adDay === 'string' && raw.adDay ? raw.adDay : fb.adDay,
     adStaminaUsed: adStaminaUsed ?? 0,
+    adReviveUsed: adReviveUsed ?? 0,
     settings: {
       sound: boolOr(rawSettings.sound, fb.settings.sound),
       bgm: boolOr(rawSettings.bgm, fb.settings.bgm),

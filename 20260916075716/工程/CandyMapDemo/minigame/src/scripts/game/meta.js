@@ -24,6 +24,12 @@ export function fmtMMSS(sec        )         {
 /** 加体力广告每日上限（§13.3：所有加体力入口共用 5 次） */
 export const AD_STAMINA_DAILY_MAX = 5;
 
+/**
+ * 续命广告每日上限（2026-10-26 评审 P0-2）：与加体力**分开计数** ——
+ * 原来两者共用 5 次，续命几次之后就加不了体力了。
+ */
+export const AD_REVIVE_DAILY_MAX = 10;
+
 /** 体力恢复间隔：每 20 分钟 1 颗（§13.1） */
 export const STAMINA_RECOVER_MS = 20 * 60 * 1000;
 
@@ -43,6 +49,8 @@ export const STAMINA_RECOVER_MS = 20 * 60 * 1000;
                 
                       
                         
+                                            
+                       
                      
                           
                      
@@ -60,17 +68,19 @@ export function createMeta(now        )            {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
+    adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
   };
 }
 
-/** 跨天 → 加体力广告次数归零（§13.3「每日 5 次」） */
+/** 跨天 → 加体力 / 续命广告次数都归零（§13.3「每日 5 次」） */
 export function rollOverDay(state           , now        )          {
   const key = dayKey(now);
   if (state.adDay === key) return false;
   state.adDay = key;
   state.adStaminaUsed = 0;
+  state.adReviveUsed = 0;
   return true;
 }
 
@@ -134,6 +144,17 @@ export function adStaminaLeft(state           , now        )         {
 /** 记一次加体力广告（看完才算，§13.3） */
 export function recordAdStamina(state           )       {
   state.adStaminaUsed += 1;
+}
+
+/** 今日还剩几次续命广告 */
+export function adReviveLeft(state           , now        )         {
+  rollOverDay(state, now);
+  return Math.max(0, AD_REVIVE_DAILY_MAX - state.adReviveUsed);
+}
+
+/** 记一次续命广告（看完才算） */
+export function recordAdRevive(state           )       {
+  state.adReviveUsed += 1;
 }
 
 /* ---------------------------------------------------------------- 图鉴（§10） */

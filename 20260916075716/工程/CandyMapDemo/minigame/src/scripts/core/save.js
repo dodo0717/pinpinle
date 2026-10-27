@@ -32,6 +32,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                      
                     
                             
+                                      
+                            
  
 
 /* ------------------------------------------------------------------ 结构 */
@@ -47,6 +49,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                                
                 
                         
+                                              
+                       
                          
                      
  
@@ -123,6 +127,7 @@ export function createMetaSnapshot(now        )               {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
+    adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
   };
@@ -271,6 +276,11 @@ function sanitizeMeta(raw         , limits            , now        , issues     
     issues.push(`广告次数非法（${String(raw.adStaminaUsed)}），已按 0 处理`);
   }
 
+  const adReviveUsed = intIn(raw.adReviveUsed, 0, limits.adReviveDailyMax ?? Number.MAX_SAFE_INTEGER);
+  if (adReviveUsed === null && raw.adReviveUsed !== undefined) {
+    issues.push(`续命广告次数非法（${String(raw.adReviveUsed)}），已按 0 处理`);
+  }
+
   const rawSettings = isObj(raw.settings) ? raw.settings : {};
 
   return {
@@ -278,6 +288,7 @@ function sanitizeMeta(raw         , limits            , now        , issues     
     nextRecoverAt,
     adDay: typeof raw.adDay === 'string' && raw.adDay ? raw.adDay : fb.adDay,
     adStaminaUsed: adStaminaUsed ?? 0,
+    adReviveUsed: adReviveUsed ?? 0,
     settings: {
       sound: boolOr(rawSettings.sound, fb.settings.sound),
       bgm: boolOr(rawSettings.bgm, fb.settings.bgm),

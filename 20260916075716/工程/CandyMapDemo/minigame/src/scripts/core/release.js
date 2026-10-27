@@ -20,11 +20,21 @@ export const RELEASE_PROFILE                 = 'test';
                           
                                               
                            
+     
+                                    
+                                         
+     
+                           
+                             
+                     
  
 
+/** ⚠️ 待填：流量主开通后把广告位 ID 填到这里（测试 / 正式可以用同一个） */
+const REWARDED_AD_UNIT_ID = '';
+
 const FLAGS                                       = {
-  test: { initialUnlocked: 4, runtimeErrorBar: true },
-  prod: { initialUnlocked: 1, runtimeErrorBar: false },
+  test: { initialUnlocked: 4, runtimeErrorBar: true, rewardedAdUnitId: REWARDED_AD_UNIT_ID, analytics: true },
+  prod: { initialUnlocked: 1, runtimeErrorBar: false, rewardedAdUnitId: REWARDED_AD_UNIT_ID, analytics: true },
 };
 
 export const RELEASE                         = FLAGS[RELEASE_PROFILE];
