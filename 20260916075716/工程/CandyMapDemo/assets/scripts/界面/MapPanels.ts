@@ -1035,10 +1035,24 @@ export class MapPanels {
     });
     this.cardFrame(card, cw, ch);
 
-    const cardBottom = cTop - ch;
-    this.label(this.root, 'Version', PANEL.version, 40, new Color(68, 80, 122), 600, 56, 0, cardBottom - 14 - 28);
+    // 第二张木牌：合规入口（评审 P0-1）—— 与音乐 / 音效同一套木牌 + 条目样式，
+    // 条目矮一档、右侧「›」表示点进去看，不再是飘在蓝天上的三个小字
+    const legal: Array<[string, string, 'privacy' | 'agreement' | 'age']> = [
+      ['🛡️', PANEL.privacy, 'privacy'], ['📄', PANEL.agreement, 'agreement'], ['🎈', PANEL.ageTip, 'age'],
+    ];
+    const lRowH = 112;
+    const lGap = 20;
+    const lch = 40 + lRowH * legal.length + lGap * (legal.length - 1) + 40;
+    const lTop = cTop - ch - 36;
+    const lcard = this.cardBase(lTop, cw, lch, new Color(92, 58, 39));
+    const lFirstY = lch / 2 - 40 - lRowH / 2;
+    legal.forEach(([icon, text, kind], i) => {
+      this.linkRow(lcard, rowW, lRowH, lFirstY - i * (lRowH + lGap), icon, text, () => this.host.onLegal(kind));
+    });
+    this.cardFrame(lcard, cw, lch);
 
-    const resetY = cardBottom - 14 - 56 - 40 - 45;
+    const cardBottom = lTop - lch;
+    const resetY = cardBottom - 36 - 45;
     const reset = this.button(this.root, 'Reset', 360, 90, 0, resetY, () => this.host.onReset());
     const g = reset.addComponent(Graphics);
     this.roundRect(g, -180, -45, 360, 90, 45, new Color(255, 255, 255, 220));
@@ -1048,15 +1062,21 @@ export class MapPanels {
     g.stroke();
     this.label(reset, 'Text', PANEL.reset, 36, new Color(150, 100, 40), 320, 80);
 
-    // 合规入口一排三个文字按钮（评审 P0-1）：隐私保护指引 / 用户协议 / 适龄提示
-    const legalY = resetY - 45 - 40 - 30;
-    const legal: Array<[string, 'privacy' | 'agreement' | 'age']> = [
-      [PANEL.privacy, 'privacy'], [PANEL.agreement, 'agreement'], [PANEL.ageTip, 'age'],
-    ];
-    legal.forEach(([text, kind], i) => {
-      const btn = this.button(this.root, 'Legal_' + kind, 280, 60, (i - 1) * 300, legalY, () => this.host.onLegal(kind));
-      this.label(btn, 'Text', text, 32, new Color(68, 80, 122), 270, 50);
-    });
+    // 版本号放到最底：信息层级最低
+    this.label(this.root, 'Version', PANEL.version, 34, new Color(68, 80, 122, 200), 600, 50, 0, resetY - 45 - 24 - 25);
+  }
+
+  /** 设置页的「点进去看」条目：木色底 + 图标 + 文字 + 右侧箭头（样式同 settingRow，矮一档） */
+  private linkRow(card: Node, w: number, h: number, y: number, icon: string, text: string, onTap: () => void): void {
+    const row = this.button(card, 'Link_' + text, w, h, 0, y, onTap);
+    const g = row.addComponent(Graphics);
+    this.roundRect(g, -w / 2, -h / 2 - 6, w, h, 30, new Color(30, 15, 5, 70));
+    this.roundRect(g, -w / 2, -h / 2, w, h, 30, new Color(110, 72, 49));
+    this.roundRect(g, -w / 2 + 6, h / 2 - 12, w - 12, 6, 3, new Color(255, 255, 255, 30));
+    this.label(row, 'Icon', icon, 52, C_WHITE, 80, 80, -w / 2 + 40 + 40, 0);
+    this.label(row, 'Label', text, 46, new Color(255, 233, 196), w - 300, 70, -w / 2 + 40 + 80 + 24 + (w - 300) / 2, 0,
+      { align: 'left', shadow: true });
+    this.label(row, 'Arrow', '›', 64, new Color(255, 214, 150), 60, 80, w / 2 - 40 - 30, 4);
   }
 
   private settingRow(
