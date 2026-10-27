@@ -9,6 +9,7 @@
  */
 
 import type { GameMode } from './config';
+import { RELEASE } from './release';
 
 /* ------------------------------------------------------------------ 类型 */
 
@@ -169,9 +170,10 @@ export function applySettlement(
 /**
  * 出厂就解锁的关卡数（2026-10-24：用户要求第 2/3/4 关默认可玩，三套对局主题对比用）。
  * 读档时也按它兜底（2026-10-26：老存档 unlocked=2 的真机只显示 1、2 关）。
- * 正式上线前视产品口径改回 1；服务端 sys_config `game.level.initialUnlocked` 要同步改。
+ * 取值由发布口径决定（`release.ts`：测试 4 / 正式 1）；服务端 sys_config
+ * `game.level.initialUnlocked` 要同步改（见 docs/上线核对清单.md）。
  */
-export const INITIAL_UNLOCKED = 4;
+export const INITIAL_UNLOCKED = RELEASE.initialUnlocked;
 
 export function createProgress(mode: GameMode): ProgressData {
   return { mode, unlocked: INITIAL_UNLOCKED, levels: {} };

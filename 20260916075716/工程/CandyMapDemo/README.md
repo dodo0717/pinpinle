@@ -1,51 +1,56 @@
-# CandyMapDemo — 糖果传奇风格选关地图
+# 萌宠拼拼乐（工程名 CandyMapDemo）
 
-Cocos Creator 3.8.8 竖版选关地图 Demo，对标 Candy Crush 关卡地图。
+微信小游戏优先（海外 App 后续）。竖屏 1080×1920，拼图消除玩法：萌宠贴纸碎片拖动换位，正确相邻即融合，凑满 2×2 消除，落下补位可连锁。
 
-## 功能
-
-- 竖版 1080×1920，地图高度 3 屏（5760px），上下滑动
-- 渐变背景（深紫→暖橙）+ 柔光斑点
-- 蜿蜒糖果路径（外发光+主线+内亮线），路径上点缀彩色糖豆
-- 20 个圆形糖果关卡节点，当前关卡（第 6 关）呼吸发光
-- 装饰：星星、漂浮圆糖
-- 启动自动滚动到当前关卡附近
+- 60 关（3×4 → 4×4 → 5×4 三段），普通 / 困难两种模式，三星评级
+- 首页选关地图、关卡详情窗、图鉴、排行榜（总榜 / 关卡榜 / 好友榜）、玩家资料
+- 体力、广告续命、云同步（服务端 https://candy.aidertech.cn）、分享邀请
+- 源码是 Cocos Creator 3.8.8 工程（`assets/scripts`），正式运行走**纯代码小游戏**：`tools/build-minigame.ts` 剥类型后配 `preview/cc-shim.js` 运行时输出到 `minigame/`
 
 ## 打开方式
 
-1. 用 Cocos Creator 3.8.8 打开本项目文件夹
-2. 等待资源编译完成
-3. 打开 `assets/scenes/Map.scene`
-4. 点击预览运行
+- **微信开发者工具**：导入 `minigame/` 目录（改代码后先跑构建）
+- **浏览器**：`node preview/serve.mjs`，打开 http://localhost:5181/
+- **Cocos Creator 3.8.8**：打开本目录，场景 `assets/scenes/Map.scene`
 
 ## 项目结构
 
 ```
 CandyMapDemo/
-├── assets/
-│   ├── scenes/
-│   │   └── Map.scene          # 地图场景（Canvas + Bootstrap）
-│   └── scripts/
-│       ├── MapBootstrap.ts    # 启动器：动态生成背景/路径/节点/滚动
-│       └── LevelNode.ts       # 关卡节点：糖果绘制 + 呼吸发光动画
-├── settings/v2/packages/project.json  # 设计分辨率 1080×1920
-├── project.json
-└── tsconfig.json
+├── assets/scripts/
+│   ├── 核心/      # 纯逻辑引擎（零 Cocos 依赖，可单测）：碎片/融合/消除/补位/连锁、关卡配置 config.ts、
+│   │              # 进度与结算 progress.ts、存档 save.ts、排行积分 rank.ts、发布开关 release.ts
+│   ├── 玩法/      # 对局表现：GameBootstrap（HUD）、BoardView（棋盘）、theme*.ts（三主题）、
+│   │              # cloud.ts（云同步）、wxFriend.ts（好友排行 / 分享）、state.ts（全局状态）
+│   ├── 界面/      # 排行榜 / 图鉴 / 设置面板、玩家资料、关卡详情窗
+│   └── 场景/      # MapBootstrap（首页地图）、levelTable（关卡坐标表）
+├── preview/       # 浏览器预览：serve.mjs 现场剥 TS 跑真源码；cc-shim.js 是纯代码运行时
+├── minigame/      # 微信小游戏工程（构建产物入库，用微信开发者工具导入这个目录）
+├── tools/         # build-minigame.ts（构建）、地图坐标转换、字体子集等
+├── test/          # 单测（Node 内置测试运行器，零依赖）+ 冒烟脚本
+├── design/        # 三套对局原型、排行榜规则原型（单文件 HTML）
+├── docs/          # 原型→真机改造、移植差距审计、上线核对清单
+└── web/           # 早期网页版（规格参考）
 ```
 
-## 可调参数
+## 常用命令（Node ≥ 22.18）
 
-在 `MapBootstrap.ts` 顶部：
+| 用途 | 命令（在本目录执行） |
+|---|---|
+| 单测 | `node --import ./test/ts-resolve.mjs --test test/*.test.ts` |
+| 冒烟 | `node --import ./test/cc-resolve.mjs test/smoke-game.mjs` |
+| 浏览器预览 | `node preview/serve.mjs` → http://localhost:5181/ |
+| 构建小游戏 | `node tools/build-minigame.ts`（改了 `assets/scripts` 或 `preview/cc-shim.js` 都要重跑） |
 
-| 参数              | 值    | 说明         |
-| --------------- | ---- | ---------- |
-| `DESIGN_W`      | 1080 | 设计宽度       |
-| `MAP_H`         | 5760 | 地图总高度（3 屏） |
-| `CURRENT_LEVEL` | 6    | 当前高亮关卡     |
+## 上线前
 
-节点坐标由 `generateLevelPositions()` 生成，正弦摆动，可替换为外部坐标表。
+测试口径与正式口径的差异集中在 `assets/scripts/核心/release.ts`，提审前按 [docs/上线核对清单.md](docs/上线核对清单.md) 逐项核对（含服务端参数）。
 
 ## 近期更新（2026-10-21 ~ 26）
+
+- **2026-10-26（评审落地·阶段 0）**：新分支 `feat/product-review-optimizations`。新增 `核心/release.ts` 发布开关（`RELEASE_PROFILE = 'test' | 'prod'`），出厂解锁关数（测试 4 / 正式 1）与运行时错误红条（正式包关闭，cc-shim 新增 `setErrorBarEnabled`）改为读它；新增 `docs/上线核对清单.md`（客户端开关 + 服务端 `initialUnlocked` / `botTarget` + 合规项）；README 头部重写为项目定位 / 目录结构 / 常用命令。255 测试全过、冒烟通过、minigame 已重建。
+
+- **2026-10-26（评审文档）**：新增 `文档/评审-产品找茬与优化建议.md`（产品经理视角，只是方案，游戏代码未改）：18 条问题按 P0/P1/P2 列表，每条附依据、影响、具体方案、验收标准；附录给出第 37~60 关奖励表、新机制排期、新分数公式、体力参数调整、回访系统、最小埋点集，以及 6 周处理顺序。
 
 - **2026-10-26（排行榜）**：领奖台三个奖杯里的人脸换成当前前 3 名的头像（服务端 `avatar` 预设序号；示例对手按名字稳定取；「我」跟随本机资料含微信头像；脸的位置按切图像素测出，见 `MapPanels.ts` `CUP_FACE`）；银 / 铜底座补上「2」「3」；打开排行榜、换 Tab、换关卡、实时数据到达时自动翻到「我」所在那一页（手动翻页后不再拉回）。
 
