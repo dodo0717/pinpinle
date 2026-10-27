@@ -23,6 +23,7 @@ import { GuideBar } from './guide';
 import { GS } from './state';
 import { showRewardedAd } from './ads';
 import { track } from './analytics';
+import { SERVER_RETENTION_API } from '../核心/release';
 import { syncFriendRank, setShareChallenge, shareChallengeNow } from './wxFriend';
 import { cloudSync, REPORT_MODES } from './cloud';
 import { setThemeForLevel, onThemeChanged, currentTheme } from './theme';
@@ -300,7 +301,8 @@ export class GameBootstrap extends Component {
     this.audio.play(cleared ? 'win' : 'fail');
     const left = dailyPlaysLeft(r, now);
     // 日榜（2026-10-27 服务端 /daily/result）：异步上报，回来后 toast 名次；离线 / 失败静默
-    const cloud = cloudSync();
+    // 服务端回访接口没部署时不调（release.ts SERVER_RETENTION_API），免得控制台报 404
+    const cloud = SERVER_RETENTION_API ? cloudSync() : null;
     if (cloud && outcome.points > 0) {
       void cloud.api('POST', '/game/api/daily/result', { day: dayKeyOf(now), score: outcome.points }).then((res) => {
         const rank = Number(res?.myRank);

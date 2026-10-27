@@ -8,7 +8,7 @@
  * 模板 ID 没配（release.ts SUBSCRIBE_TEMPLATES 为空）或非微信时，返回 false，调用方给提示。
  */
 
-import { SUBSCRIBE_TEMPLATES } from '../核心/release';
+import { SUBSCRIBE_TEMPLATES, SERVER_RETENTION_API } from '../核心/release';
 import { track } from './analytics';
 import { cloudSync } from './cloud';
 
@@ -18,6 +18,7 @@ import { cloudSync } from './cloud';
  * 失败静默：推送是锦上添花。
  */
 export function registerReminders(staminaFullAt: number | null, now = Date.now()): void {
+  if (!SERVER_RETENTION_API) return;
   const cloud = cloudSync();
   if (!cloud) return;
   if (SUBSCRIBE_TEMPLATES.stamina && staminaFullAt !== null && staminaFullAt > now) {

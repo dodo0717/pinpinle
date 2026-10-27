@@ -48,6 +48,8 @@ CandyMapDemo/
 
 ## 近期更新（2026-10-21 ~ 26）
 
+- **2026-10-27（修：控制台 404）**：开发者工具启动时报 `POST /game/api/invite/claim 404`——新接口在服务端分支 `feat/daily-invite-subscribe`，测试服还没部署。功能上本来就静默降级，但每次启动报红容易被当成故障。`核心/release.ts` 新增 `SERVER_RETENTION_API = false`，关闭时日榜上报、邀请上报 / 领取、订阅登记五处都不发请求；服务端部署并执行 V9 后改 true。另一条「基础库 3.7.0 起支持 HarmonyOS」是微信自身的提示，与本项目无关。283 测试全过、冒烟通过、minigame 已重建。
+
 - **2026-10-27（日榜 / 邀请 / 订阅 / 挑战好友）**：把阶段 5 延后的几项做完。① 服务端（`candy-game-server` 新分支 `feat/daily-invite-subscribe`，基于 `feat/score-points`，**仅本地未部署**）：新增 `GameRetentionController`——`/daily/result`（只留当天最好，北京时间，收今天或昨天）、`/daily/rank`、`/invite`（只认注册 24 小时内的新玩家、一个受邀者只算一次、不能邀请自己、邀请人每天上限）、`/invite/claim`（邀请人原子领取）、`/subscribe`；`SubscribePushTask` 每分钟推送到点的订阅消息（默认关闭，sys_config `game.subscribe.enabled`）；`V9__daily_invite_subscribe.sql`（3 张表 + 7 个参数）；`RetentionRulesTest` 7 项，服务端单测 93 全过。② 客户端：每日挑战结算上报日榜并 toast 名次；登录后受邀者 / 邀请人各自领邀请体力（`wxFriend.reportInviter / claimInviteRewards`）；订阅授权成功后登记体力回满时刻与次日 0:05（`subscribe.registerReminders`）；结算弹窗加「📤 挑战好友」（三套主题右上角统一胶囊按钮，原版式不动；第 1 关吊牌并进按钮行），走 `wx.shareAppMessage`，卡片带关卡号与邀请人。新增 `docs/后续事项进度.md`，同步 `docs/待提供与待确认清单.md`。283 测试全过、冒烟通过、minigame 已重建。
 
 - **2026-10-27（主题改回按关绑定）**：主视觉还没定，按用户要求恢复原来的第 2 关糖果嘉年华 / 第 3 关果冻乐园 / 第 4 关贴纸手账、其余关卡原样式（`玩法/theme.ts` 新增开关 `UNIFIED_SKIN = false`）。阶段 4 的「全关统一皮肤 + 设置页选皮肤」代码保留，开关关闭时设置页不显示皮肤入口；定稿后改成 true 即可启用。新增 `docs/待提供与待确认清单.md`（需要提供的 ID / 正文 / 后台配置 / 美术，待拍板事项，上线前操作）。283 测试全过、冒烟通过、minigame 已重建。

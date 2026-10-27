@@ -30,8 +30,16 @@ export const RELEASE_PROFILE                 = 'test';
  
 
 /**
+ * 服务端「回访」接口是否已部署（2026-10-27：/daily/result、/invite、/invite/claim、/subscribe，
+ * 在 candy-game-server 分支 feat/daily-invite-subscribe）。
+ * 没部署时调用会 404：功能上已静默降级，但开发者工具控制台每次启动都报红，容易被当成故障。
+ * ⚠️ 服务端部署 + 执行 V9 之后改成 true（见 docs/上线核对清单.md）。
+ */
+export const SERVER_RETENTION_API = false;
+
+/**
  * ⚠️ 待填：订阅消息模板 ID（微信后台「订阅消息」申请，2026-10-27 评审 P1-6）。
- * 空串 = 不弹订阅框。推送要服务端定时任务，尚未实现（见延后清单）。
+ * 空串 = 不弹订阅框。服务端定时推送见 SubscribePushTask（还要在后台开 game.subscribe.enabled）。
  */
 export const SUBSCRIBE_TEMPLATES = {
   /** 体力回满提醒 */

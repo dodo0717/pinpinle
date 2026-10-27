@@ -21,6 +21,7 @@ import { rankTotals } from '../核心/index';
 import { cloudSync } from './cloud';
 import { track } from './analytics';
 import { withPrivacy } from './privacy';
+import { SERVER_RETENTION_API } from '../核心/release';
 
 /** 开放数据域按同一个 key 读（open-data/index.js 里的 RANK_KEY 必须一致） */
 const RANK_KEY = 'pinpin_rank';
@@ -174,7 +175,7 @@ export function enableShare(myPlayerId: string | number | null): void {
  * 返回受邀者这一份奖励体力（无效邀请 / 老服务端 404 / 失败一律 0，静默）。
  */
 export async function reportInviter(inviter: string): Promise<number> {
-  if (!inviter) return 0;
+  if (!inviter || !SERVER_RETENTION_API) return 0;
   const cloud = cloudSync();
   if (!cloud) return 0;
   const res = await cloud.api('POST', '/game/api/invite', { inviter });
@@ -184,6 +185,7 @@ export async function reportInviter(inviter: string): Promise<number> {
 
 /** 邀请人领取累计的邀请奖励（登录后调一次）；返回本次领到的体力，没有 / 失败为 0 */
 export async function claimInviteRewards(): Promise<number> {
+  if (!SERVER_RETENTION_API) return 0;
   const cloud = cloudSync();
   if (!cloud) return 0;
   const res = await cloud.api('POST', '/game/api/invite/claim');
