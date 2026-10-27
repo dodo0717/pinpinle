@@ -48,6 +48,8 @@ CandyMapDemo/
 
 ## 近期更新（2026-10-21 ~ 26）
 
+- **2026-10-27（测试服部署）**：服务端 `feat/daily-invite-subscribe`（含排行分）部署到 candy.aidertech.cn。先备份库与源码（`/root/backup/*-20261027-221737.*`）并把旧镜像另存为 `candy-game-app:rollback-20261027-221737`；停 app 后串行只构建 app；停机期间执行 V8（存档总分合计 16,387 → 1,639,650，单关最高 300 → 30,000，100 个虚拟玩家 progress_json 带上 `unit:points`）与 V9（3 张表、7 个参数，订阅推送默认关）；`game.stamina.recoverMinutes` 20 → 15 并清 Redis 缓存。23:01 启动成功、healthy，jar 内新类与迁移齐全，启动后无 ERROR；新 SQL 在事务内试跑后回滚。客户端 `SERVER_RETENTION_API` 改 true（日榜 / 邀请 / 订阅登记开始调服务端）。部署记录与回滚方法见 `docs/后续事项进度.md`。283 测试全过、冒烟通过、minigame 已重建。
+
 - **2026-10-27（修：控制台 404）**：开发者工具启动时报 `POST /game/api/invite/claim 404`——新接口在服务端分支 `feat/daily-invite-subscribe`，测试服还没部署。功能上本来就静默降级，但每次启动报红容易被当成故障。`核心/release.ts` 新增 `SERVER_RETENTION_API = false`，关闭时日榜上报、邀请上报 / 领取、订阅登记五处都不发请求；服务端部署并执行 V9 后改 true。另一条「基础库 3.7.0 起支持 HarmonyOS」是微信自身的提示，与本项目无关。283 测试全过、冒烟通过、minigame 已重建。
 
 - **2026-10-27（日榜 / 邀请 / 订阅 / 挑战好友）**：把阶段 5 延后的几项做完。① 服务端（`candy-game-server` 新分支 `feat/daily-invite-subscribe`，基于 `feat/score-points`，**仅本地未部署**）：新增 `GameRetentionController`——`/daily/result`（只留当天最好，北京时间，收今天或昨天）、`/daily/rank`、`/invite`（只认注册 24 小时内的新玩家、一个受邀者只算一次、不能邀请自己、邀请人每天上限）、`/invite/claim`（邀请人原子领取）、`/subscribe`；`SubscribePushTask` 每分钟推送到点的订阅消息（默认关闭，sys_config `game.subscribe.enabled`）；`V9__daily_invite_subscribe.sql`（3 张表 + 7 个参数）；`RetentionRulesTest` 7 项，服务端单测 93 全过。② 客户端：每日挑战结算上报日榜并 toast 名次；登录后受邀者 / 邀请人各自领邀请体力（`wxFriend.reportInviter / claimInviteRewards`）；订阅授权成功后登记体力回满时刻与次日 0:05（`subscribe.registerReminders`）；结算弹窗加「📤 挑战好友」（三套主题右上角统一胶囊按钮，原版式不动；第 1 关吊牌并进按钮行），走 `wx.shareAppMessage`，卡片带关卡号与邀请人。新增 `docs/后续事项进度.md`，同步 `docs/待提供与待确认清单.md`。283 测试全过、冒烟通过、minigame 已重建。

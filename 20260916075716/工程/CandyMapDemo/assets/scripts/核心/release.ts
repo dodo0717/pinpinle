@@ -33,9 +33,9 @@ interface ReleaseFlags {
  * 服务端「回访」接口是否已部署（2026-10-27：/daily/result、/invite、/invite/claim、/subscribe，
  * 在 candy-game-server 分支 feat/daily-invite-subscribe）。
  * 没部署时调用会 404：功能上已静默降级，但开发者工具控制台每次启动都报红，容易被当成故障。
- * ⚠️ 服务端部署 + 执行 V9 之后改成 true（见 docs/上线核对清单.md）。
+ * 2026-10-27 22:17 起测试服已部署（feat/daily-invite-subscribe，V8 / V9 已执行），打开。
  */
-export const SERVER_RETENTION_API = false;
+export const SERVER_RETENTION_API = true;
 
 /**
  * ⚠️ 待填：订阅消息模板 ID（微信后台「订阅消息」申请，2026-10-27 评审 P1-6）。
