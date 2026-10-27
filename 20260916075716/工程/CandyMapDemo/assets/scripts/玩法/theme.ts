@@ -280,11 +280,9 @@ export const THEMES: Record<ThemeId, GameTheme> = {
 const ORDER: ThemeId[] = ['classic', 'candy', 'clean', 'journal'];
 
 /**
- * 主视觉统一（2026-10-27 评审 P1-3）：全部关卡都用玩家选的「对局皮肤」，默认贴纸手账。
- * 原来第 2/3/4 关各绑一套、其余关卡用原样式，新玩家前 5 关看到 4 种界面语言。
- * 糖果嘉年华 / 果冻乐园改为章节宝箱奖励（核心/rewards.ts，第 45 / 55 关），解锁后在设置页切换；
- * 「拥有没拥有」由调用方判断（本模块不依赖存档），见 MapBootstrap `ensureSkinOwned`。
- * 原样式 classic 不再出现在正式流程里，只留给调试循环切换。
+ * 「全关统一皮肤」方案（2026-10-27 评审 P1-3，**暂未启用**，见下方 `UNIFIED_SKIN`）：
+ * 全部关卡用玩家选的对局皮肤，默认贴纸手账；糖果嘉年华 / 果冻乐园由章节宝箱解锁
+ * （核心/rewards.ts，第 45 / 55 关），在设置页切换。拥有与否由调用方判断（MapBootstrap showSkinPicker）。
  */
 export const DEFAULT_SKIN: ThemeId = 'journal';
 /** 可选皮肤（设置页列表顺序） */
@@ -333,7 +331,8 @@ let skinId: ThemeId = ((): ThemeId => {
   return v && SKINS.includes(v) ? v : DEFAULT_SKIN;
 })();
 
-let currentId: ThemeId = skinId;
+// 进关时 setThemeForLevel 会按关卡重设；这里只是启动时的初值
+let currentId: ThemeId = readStored() ?? 'classic';
 
 /** 当前选的皮肤 */
 export function selectedSkin(): ThemeId {
@@ -348,9 +347,19 @@ export function setSkin(id: ThemeId): boolean {
   return true;
 }
 
-/** 关卡 → 主题：所有关卡都用当前皮肤（评审 P1-3）。参数保留，以后要做章节主题时按关号分 */
-export function themeForLevel(_level: number): GameTheme {
-  return THEMES[skinId];
+/**
+ * 关卡 → 主题。
+ *
+ * 2026-10-27 用户决定：主视觉还没定，**先恢复原来的按关绑定**（第 2 关糖果嘉年华 / 第 3 关果冻乐园 /
+ * 第 4 关贴纸手账，其余关卡原样式），三套对比着看。「全关统一 + 设置页选皮肤」的代码保留，
+ * 由 `UNIFIED_SKIN` 开关控制，定稿后把它改成 true 即可（设置页皮肤入口跟着出现）。
+ */
+export const UNIFIED_SKIN = false;
+const LEVEL_THEME: Record<number, ThemeId> = { 2: 'candy', 3: 'clean', 4: 'journal' };
+
+export function themeForLevel(level: number): GameTheme {
+  if (UNIFIED_SKIN) return THEMES[skinId];
+  return THEMES[LEVEL_THEME[level] ?? 'classic'];
 }
 
 /** 进关时设定主题（GameBootstrap 调用） */

@@ -27,7 +27,7 @@ import { cloudSync } from '../玩法/cloud';
 import { AvatarView } from './ProfilePanel';
 import { PRESET_AVATARS } from '../玩法/profile';
 import { unlockedImageIds, COLLECTION_TOTAL } from '../玩法/meta';
-import { THEMES, selectedSkin } from '../玩法/theme';
+import { THEMES, selectedSkin, UNIFIED_SKIN } from '../玩法/theme';
 import {
   goldCardIds,
   boardSnapshot, recordOf, levelStatus, STAR_LINES_BY_MODE, TOTAL_LEVELS,
@@ -1083,8 +1083,9 @@ export class MapPanels {
     // 第二张木牌：合规入口（评审 P0-1）—— 与音乐 / 音效同一套木牌 + 条目样式，
     // 条目矮一档、右侧「›」表示点进去看，不再是飘在蓝天上的三个小字
     // 第一行：对局皮肤（评审 P1-3，默认贴纸手账，其余靠章节宝箱解锁）；其后三行合规入口
+    // 皮肤入口只在「全关统一皮肤」启用后出现（theme.ts UNIFIED_SKIN，主视觉定稿前关闭）
     const legal: Array<[string, string, 'skin' | 'privacy' | 'agreement' | 'age']> = [
-      ['🎨', PANEL.skin(THEMES[selectedSkin()].name), 'skin'],
+      ...(UNIFIED_SKIN ? [['🎨', PANEL.skin(THEMES[selectedSkin()].name), 'skin'] as [string, string, 'skin']] : []),
       ['🛡️', PANEL.privacy, 'privacy'], ['📄', PANEL.agreement, 'agreement'], ['🎈', PANEL.ageTip, 'age'],
     ];
     const lRowH = 112;
