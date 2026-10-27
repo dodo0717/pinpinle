@@ -16,7 +16,8 @@ export const HOME = {
   modeNightmare: '困难模式',
   staminaFull: '体力已满',
   staminaShort: '体力不够啦',
-  staminaGain: (n: number, max: number) => `体力 +${n}（当前 ${n}/${max}）`,
+  staminaGain: (n: number, max: number) => `体力已补充（当前 ${n}/${max}）`,
+  staminaRefund: '首次三星！返还 1 点体力',
   adLeft: (n: number) => `今日还可看 ${n} 次广告加体力`,
   adNone: '今日加体力次数已用完',
   lockedToast: '先通关前面的关卡哦',
@@ -30,8 +31,8 @@ export const MAP_TEXT = {
   avatar: '🐶',
   staminaCountdown: (mmss: string) => `下颗体力 ${mmss}`,
   locked: (prev: number) => `先通关第 ${prev} 关`,
-  /** 困难模式门槛：同一关必须先在简单模式拿到 3 星 */
-  nightmareLocked: '三星通关后开启困难模式',
+  /** 困难模式门槛：同一关先在简单模式通关（2026-10-27 评审 P1-7，原来要 3 星） */
+  nightmareLocked: '简单模式通关后开启困难模式',
   level: (level: number) => `第 ${level} 关`,
   starLine: (s1: number, s3: number) => `1星 ${s1} 分   |   3星 ${s3} 分`,
   play: 'Play',
@@ -112,7 +113,7 @@ export const HONOR = {
 export const REVIVE = {
   title: '差一点点！',
   line1: (sec: number) => `再看一段广告，加 ${sec} 秒继续拼`,
-  line2: '（每局限一次，续命局最多 1★）',
+  line2: '（每局限一次，续命后最高 2★，不计入排行榜）',
   watch: '看广告续命',
   giveUp: '放弃本局',
   gained: (sec: number) => `已加时 ${sec} 秒，继续！`,
@@ -232,7 +233,7 @@ export const WEB_FAIL = {
   title: '差一点就成功了',
   gap: (gap: number) => `(还差 ${gap} 组)`,
   btnRetry: '重试',
-  btnAdStamina: '📺 看广告 +1体力',
+  btnAdStamina: '📺 看广告 +2体力',
   btnHome: '返回主页',
   reviveUsed: '本局的续命机会已经用掉了',
   offline: '离开期间倒计时已走完，本局按离开时的分数结算',
@@ -241,10 +242,10 @@ export const WEB_FAIL = {
 export const WEB_REVIVE = {
   title: '时间到',
   gap: (gap: number) => `还差 ${gap} 组就能通关`,
-  ask: '要再试一次吗？',
+  ask: '要再试一次吗？续命后最高 2★，不计入排行榜',
   btnAd: '📺 看广告 +1分钟',
   btnGiveUp: '❌ 放弃',
-  granted: '续命 +60 秒，继续本局（统一记 1 星，不上排行榜）',
+  granted: '续命 +60 秒，继续本局（最高 2★，不上排行榜）',
 } as const;
 
 /** 结算分数标签：按模式叫「简单分数」/「困难分数」 */

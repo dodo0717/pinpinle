@@ -10,6 +10,7 @@ import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
 import { showRewardedAd, preloadAds } from '../玩法/ads';
+import { AD_STAMINA_GAIN } from '../玩法/meta';
 import { syncFriendRank, enableShare, getInviter, reportInviter } from '../玩法/wxFriend';
 import { cloudSync, type CloudSync } from '../玩法/cloud';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL } from '../玩法/text';
@@ -108,8 +109,11 @@ const LINK_ART = { path: 'map/node/link-candy', w: 1094, h: 57 };
 const LINK_H = 46;
 const C_NODE_NUM_EDGE = new Color(200, 70, 122);
 
-/** 困难模式门槛：同一关简单模式要拿到的星数（web main.ts NIGHTMARE_MIN_NORMAL_STARS） */
-const NIGHTMARE_MIN_NORMAL_STARS = 3;
+/**
+ * 困难模式门槛：同一关简单模式要拿到的星数。
+ * 2026-10-27 评审 P1-7：3 → 1（通关即开）。原来要 3★，可拿到 3★ 的玩家已经没动力再刷这关了。
+ */
+const NIGHTMARE_MIN_NORMAL_STARS = 1;
 
 /* 配色（取自 web ui.css） */
 const C_WHITE = new Color(255, 255, 255);
@@ -1037,7 +1041,7 @@ export class MapBootstrap extends Component {
                 return;
             }
             GS.recordAd();
-            if (GS.gainStamina(1)) {
+            if (GS.gainStamina(AD_STAMINA_GAIN)) {
                 this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 1400);
             }
         });

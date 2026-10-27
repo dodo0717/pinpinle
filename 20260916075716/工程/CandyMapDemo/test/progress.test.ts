@@ -63,10 +63,24 @@ describe('M4 · 结算判定（§7.2 / §7.4 / §12.1）', () => {
     assert.strictEqual(starsFor(12, 7, 9, 11), 3, '超过 3★ 线继续拿 3★（分数没有上限）');
   });
 
-  it('续命局统一判 1 星，哪怕分数够到 3★（§7.4）', () => {
-    const s = settleLevel(outcome({ score: 12, revived: true }));
-    assert.ok(s);
-    assert.strictEqual(s.stars, 1, '续命局不能被判成 3 星');
+  it('续命局按实际分数判星，最高 2★（2026-10-27 评审 P1-8，原「统一 1 星」作废）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.stars, 2, '够到 3★ 也只能 2★');
+    assert.strictEqual(settleLevel(outcome({ score: 7, revived: true }))!.stars, 2);
+    assert.strictEqual(settleLevel(outcome({ score: 5, revived: true }))!.stars, 1, '只够 1★ 就是 1★');
+  });
+
+  it('首次 3★ 返还 1 颗体力；以前拿过 3★ / 续命局 / 没到 3★ 都不返（评审 P1-5）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 9 }))!.refundStamina, true, '首次通关就 3★');
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 2, personalBest: 8, boardBest: 0, validBest: 8 })!.refundStamina,
+      true, '以前 2★，这次首次 3★',
+    );
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 })!.refundStamina,
+      false, '以前拿过 3★',
+    );
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.refundStamina, false, '续命局到不了 3★');
+    assert.strictEqual(settleLevel(outcome({ score: 8 }))!.refundStamina, false);
   });
 
   it('续命也没救回来（分数没够 1★）仍然是失败', () => {

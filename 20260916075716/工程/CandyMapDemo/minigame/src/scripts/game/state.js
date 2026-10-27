@@ -22,6 +22,7 @@ import {
 import {
   TOTAL_LEVELS,
   TIME_LIMIT,
+  LEVEL_TIME_MAX,
   STAMINA_MAX,
   preDeductStamina,
   confirmStamina,
@@ -52,7 +53,9 @@ import {
 export const SAVE_LIMITS             = {
   totalLevels: TOTAL_LEVELS,
   staminaMax: STAMINA_MAX,
-  timeLimit: TIME_LIMIT,
+  // 断点 timeLeft 的上限：逐关时长最长 LEVEL_TIME_MAX（2026-10-27），不能再用固定 180，
+  // 否则困难模式长关 / 续命 +60 秒后的断点会被当越界作废
+  timeLimit: Math.max(TIME_LIMIT, LEVEL_TIME_MAX),
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
   adReviveDailyMax: AD_REVIVE_DAILY_MAX,
 };

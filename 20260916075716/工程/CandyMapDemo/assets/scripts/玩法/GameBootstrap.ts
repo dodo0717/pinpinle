@@ -36,7 +36,7 @@ import {
   MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD,
   WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
 } from './text';
-import { unlockedImageIds } from './meta';
+import { unlockedImageIds, AD_STAMINA_GAIN } from './meta';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
@@ -770,6 +770,8 @@ export class GameBootstrap extends Component {
       const next = commitSettlement(GS.progress, outcome, settlement, TOTAL_LEVELS);
       const after = recordOf(next, this.levelIndex);
       GS.setProgress(next);
+      // 首次 3★ 返还本局体力 1 颗（评审 P1-5）；满格时 gainStamina 返回 false，不提示
+      if (settlement.refundStamina && GS.gainStamina(1)) this.toast.show(HOME.staminaRefund, 2200);
       GS.flush();
       // 结算落盘后把最新总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
       syncFriendRank();
@@ -880,7 +882,7 @@ export class GameBootstrap extends Component {
     return { label, dim: GS.stamina.available <= 0, disabledHint: hint, onClick: run };
   }
 
-  /** 第 1 关「看广告 +1 体力」（失败吊牌上的次按钮），看完把失败吊牌还回去 */
+  /** 第 1 关「看广告 +2 体力」（失败吊牌上的次按钮），看完把失败吊牌还回去 */
   private watchStaminaAd(back: () => void): void {
     if (GS.stamina.available >= GS.staminaMax) { this.toast.show(ADS.staminaFull, 1800); back(); return; }
     if (GS.adStaminaLeft <= 0) { this.toast.show(ADS.dailyLimit, 2600); back(); return; }
@@ -888,7 +890,7 @@ export class GameBootstrap extends Component {
     showRewardedAd('stamina', (r) => {
       if (r === 'ended') {
         GS.recordAd();
-        if (GS.gainStamina(1)) this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 2200);
+        if (GS.gainStamina(AD_STAMINA_GAIN)) this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 2200);
       } else {
         this.toast.show(r === 'closed' ? ADS.notEnded : ADS.notReady, 2200);
       }

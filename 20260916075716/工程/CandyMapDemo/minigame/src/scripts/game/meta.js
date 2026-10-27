@@ -30,8 +30,14 @@ export const AD_STAMINA_DAILY_MAX = 5;
  */
 export const AD_REVIVE_DAILY_MAX = 10;
 
-/** 体力恢复间隔：每 20 分钟 1 颗（§13.1） */
-export const STAMINA_RECOVER_MS = 20 * 60 * 1000;
+/**
+ * 体力恢复间隔：每 15 分钟 1 颗（2026-10-27 评审 P1-5，原 §13.1 为 20 分钟）。
+ * 0 → 回满 10 颗约 2.5 小时，适合「中午 + 晚上」两次回访。
+ */
+export const STAMINA_RECOVER_MS = 15 * 60 * 1000;
+
+/** 看一次广告加几颗体力（评审 P1-5：原来 +1，一次广告只值一局，改 +2） */
+export const AD_STAMINA_GAIN = 2;
 
                            
                                                                        

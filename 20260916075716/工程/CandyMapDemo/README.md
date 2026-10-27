@@ -48,6 +48,8 @@ CandyMapDemo/
 
 ## 近期更新（2026-10-21 ~ 26）
 
+- **2026-10-27（评审落地·阶段 2）**：规则与数值。① 逐关时长（P1-4）：新增 `tools/sim-level-time.ts` 仿真器（真引擎补位 + 最少交换次数，假设一次交换 1.5 秒；`--emit` 输出字面量），`config.ts` 新增 `LEVEL_TIME` / `NIGHTMARE_LEVEL_TIME`（简单 = 3★ 中位 + 60 秒，95~165 秒；困难 = max(简单, 困难 3★ 中位 + 30 秒)，95~230 秒），`buildLevelPlan` 按模式取 `timeLimitOf()`，`validateLevelDesign` 校验 60~300 秒且困难不短于简单；存档断点 timeLeft 上限从 180 放宽到 300（否则困难长关 + 续命的断点会被作废）。原方案「困难时长 −30%」仿真下几乎拿不到 3★，经确认放弃。② 体力（P1-5）：恢复 20 → 15 分钟 / 颗；广告一次 +2（`AD_STAMINA_GAIN`）；首次 3★ 结算返还 1 颗（`LevelSettlement.refundStamina`）。③ 困难模式（P1-7）：解锁门槛从简单 3★ 降到 1★（通关即开），提示文案同步。④ 续命（P1-8）：续命局按实际分数判星、上限 2★（`REVIVED_MAX_STARS`），仍不上榜；续命弹窗 / 提示文案事前写明「最高 2★，不计入排行榜」。新增 6 项单测、改 1 项旧口径单测，265 全过、冒烟通过、minigame 已重建。
+
 - **2026-10-27（设置页美化）**：合规三入口原来是飘在蓝天上的三个小字，改成音乐 / 音效下方的第二张木牌（同款木框 + 木色条目，条目高 112、图标 🛡️ / 📄 / 🎈 + 文字 + 右侧「›」）；「重置存档」挪到两张木牌之下，版本号降为最底一行小字（`界面/MapPanels.ts` `renderSettings` / 新增 `linkRow`）。259 测试全过、minigame 已重建。
 
 - **2026-10-26（评审落地·阶段 1）**：合规 / 广告 / 埋点。① 合规：`game.json` 开 `__usePrivacyCheck__`；新增 `玩法/privacy.ts`，静默拿微信资料（`profile.ts`）与写好友榜 KV（`wxFriend.ts`）前先 `requirePrivacyAuthorize`，拒绝则跳过；加载页常驻健康游戏忠告；设置页加「隐私保护指引（wx.openPrivacyContract）/ 用户协议（正文占位）/ 适龄提示 8+」三个入口。② 广告：新增 `玩法/ads.ts` 激励视频封装（单例预加载，`isEnded` 才发奖，中途关闭「看完才能领取哦」、拉取失败「广告还没准备好」，都不扣次数；未配 adUnitId 或非微信时本地模拟 1.2 秒）；首页加体力、失败页加体力、续命三处替换掉原模拟；续命额度与加体力拆开（`AD_REVIVE_DAILY_MAX = 10`，存档新增 `adReviveUsed`，老存档按 0 迁移）；续命没看完时把续命弹窗还回去。③ 埋点：新增 `玩法/analytics.ts`（`wx.reportEvent`），接入 level_start / level_end（含 quit）/ guide_step / ad_show / ad_reward / stamina_empty / share / share_open。`release.ts` 增加 `rewardedAdUnitId`（待填）与 `analytics`；上线核对清单补后台待办与事件表。新增 4 项单测，259 全过、冒烟通过、minigame 已重建。

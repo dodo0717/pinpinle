@@ -69,6 +69,8 @@ import { RELEASE } from './release.js';
                        
                           
                 
+                                                 
+                         
                               
                       
  
@@ -112,7 +114,8 @@ export function boardEligible(outcome              , stars         )          {
  * 规则：
  *   1. 得分没够到 1★ 线 → **未通关**，返回 `null`（界面走失败结算 §12.2）；
  *      续命也没救回来同样是失败，不能因为「看广告了」就算过。
- *   2. 续命局**统一判 1 星**（§7.4），哪怕最终分数够到了 2★/3★。
+ *   2. 续命局按实际分数判星，**最高 2★**（2026-10-27 评审 P1-8，原 §7.4「统一判 1 星」作废）：
+ *      看了广告不该被罚，但 3★ 必须一命通关；续命局仍不上排行榜。
  *   3. 只有**首次**通关才解锁下一关（§7.3.3）；重复挑战不改变关卡进度。
  *
  * ⚠️ 2026-09-12 修订（《通关及排名》）：删掉了 `showNext` 字段。
@@ -131,7 +134,8 @@ export function settleLevel(
   const raw = starsFor(outcome.score, outcome.star1, outcome.star2, outcome.star3);
   if (raw === 0) return null;
 
-  const stars = outcome.revived ? 1 : raw;
+  // 2026-10-27 评审 P1-8：续命局按实际分数判星、上限 2★（3★ 必须一命通关）；仍不上榜
+  const stars = outcome.revived ? Math.min(raw, REVIVED_MAX_STARS) : raw;
   const firstClear = (before?.stars ?? 0) === 0;
   const kind                 = firstClear
     ? outcome.revived
@@ -141,8 +145,13 @@ export function settleLevel(
       ? 'repeat-revived'
       : 'repeat';
 
-  return { kind, stars, unlockNext: firstClear };
+  // 首次 3★ 返还 1 颗体力：只看「以前没拿过 3★」，续命局到不了 3★ 自然不返
+  const refundStamina = stars >= 3 && (before?.stars ?? 0) < 3;
+  return { kind, stars, unlockNext: firstClear, refundStamina };
 }
+
+/** 续命局的星级上限（评审 P1-8） */
+export const REVIVED_MAX_STARS = 2;
 
 /** 把一次结算写进记录（不修改入参） */
 export function applySettlement(

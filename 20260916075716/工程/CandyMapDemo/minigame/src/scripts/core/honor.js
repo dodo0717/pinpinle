@@ -244,7 +244,7 @@ export function boardSnapshot(level        , line            , myBoardBest      
                    
                                 
                 
-                             
+                                         
                 
                  
                    

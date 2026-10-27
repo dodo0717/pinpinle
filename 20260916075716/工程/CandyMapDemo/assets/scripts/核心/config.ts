@@ -27,8 +27,15 @@ import { MAX_ART_ID, allArtIds } from './ledger';
 /** 素材台账（图ID ↔ 动物/情绪）在本模块转出，保持既有 import 路径可用 */
 export * from './ledger';
 
-/** 时间限制固定 180 秒（§5.3） */
+/**
+ * 默认时长（§5.3 原口径 180 秒）。2026-10-27 起每关时长改由 `LEVEL_TIME` / `NIGHTMARE_LEVEL_TIME`
+ * 逐关给定（评审 P1-4），本常量只作缺表兜底。
+ */
 export const TIME_LIMIT = 180;
+
+/** 逐关时长的合法区间（`validateLevelDesign` 校验；存档 timeLeft 上限取 MAX） */
+export const LEVEL_TIME_MIN = 60;
+export const LEVEL_TIME_MAX = 300;
 
 /** 关卡总数（设计表：第 1~60 关） */
 export const TOTAL_LEVELS = 60;
@@ -437,6 +444,44 @@ export const LEVEL_STAR_LINES: Record<number, [number, number, number]> = {
  */
 export const NIGHTMARE_STAR_LINES: Record<number, [number, number, number]> = { ...LEVEL_STAR_LINES };
 
+/**
+ * 逐关时长（秒）—— 2026-10-27 评审 P1-4 初稿，**策划可直接改数字**。
+ *
+ * 来源：`node --import ./test/ts-resolve.mjs tools/sim-level-time.ts 200 --emit`
+ *   简单 = 仿真 3★ 中位耗时 + 60 秒（保守版），向上取整到 5 秒；
+ *   困难 = max(简单, 困难 3★ 中位 + 30 秒) —— 困难只能相邻交换，同分要多走 2~3 倍步数，
+ *          原方案「时长 −30%」仿真下几乎所有关都拿不到 3★，已放弃。
+ * 仿真假设一次交换 1.5 秒、每次走最少步数，偏乐观；上线后用 level_end 的 time_left 埋点校准。
+ */
+export const LEVEL_TIME: Record<number, number> = {
+  1: 95, 2: 100, 3: 105, 4: 110, 5: 110, 6: 110, 7: 110, 8: 110, 9: 115, 10: 120,
+  11: 120, 12: 120, 13: 125, 14: 125, 15: 135, 16: 115, 17: 115, 18: 115, 19: 120, 20: 125,
+  21: 125, 22: 120, 23: 125, 24: 125, 25: 140, 26: 130, 27: 130, 28: 135, 29: 135, 30: 135,
+  31: 135, 32: 135, 33: 135, 34: 145, 35: 155, 36: 130, 37: 125, 38: 130, 39: 135, 40: 140,
+  41: 135, 42: 135, 43: 130, 44: 140, 45: 140, 46: 145, 47: 150, 48: 160, 49: 140, 50: 140,
+  51: 150, 52: 150, 53: 150, 54: 150, 55: 150, 56: 150, 57: 150, 58: 150, 59: 160, 60: 165,
+};
+
+export const NIGHTMARE_LEVEL_TIME: Record<number, number> = {
+  1: 95, 2: 105, 3: 120, 4: 120, 5: 120, 6: 120, 7: 120, 8: 120, 9: 125, 10: 140,
+  11: 130, 12: 130, 13: 135, 14: 145, 15: 155, 16: 145, 17: 145, 18: 145, 19: 150, 20: 155,
+  21: 155, 22: 150, 23: 155, 24: 155, 25: 175, 26: 160, 27: 160, 28: 165, 29: 165, 30: 165,
+  31: 165, 32: 165, 33: 165, 34: 180, 35: 200, 36: 175, 37: 170, 38: 170, 39: 175, 40: 185,
+  41: 185, 42: 185, 43: 175, 44: 190, 45: 190, 46: 190, 47: 195, 48: 215, 49: 185, 50: 185,
+  51: 195, 52: 195, 53: 195, 54: 195, 55: 195, 56: 195, 57: 195, 58: 195, 59: 210, 60: 230,
+};
+
+/** 按模式索引时长表 */
+export const LEVEL_TIME_BY_MODE: Record<GameMode, Record<number, number>> = {
+  normal: LEVEL_TIME,
+  nightmare: NIGHTMARE_LEVEL_TIME,
+};
+
+/** 某关某模式的时长（缺表时退回 TIME_LIMIT） */
+export function timeLimitOf(level: number, mode: GameMode = 'normal'): number {
+  return LEVEL_TIME_BY_MODE[mode][level] ?? TIME_LIMIT;
+}
+
 /** 按模式索引星线表 */
 export const STAR_LINES_BY_MODE: Record<GameMode, Record<number, [number, number, number]>> = {
   normal: LEVEL_STAR_LINES,
@@ -520,7 +565,7 @@ export function buildLevelPlan(mode: GameMode = 'normal', options: BuildLevelOpt
       rows,
       cols,
       imageIds: pool.imageIds,
-      timeLimit: TIME_LIMIT,
+      timeLimit: timeLimitOf(request.level, mode),
       star1: line[0],
       star2: line[1],
       star3: line[2],
@@ -605,6 +650,19 @@ export function validateLevelDesign(): ConfigIssue[] {
     const [s1, s2, s3] = line;
     if (!(s1 >= 1 && s1 < s2 && s2 < s3)) {
       issues.push({ scope, message: `星线必须严格递增，实际 ${s1} / ${s2} / ${s3}` });
+    }
+
+    // 逐关时长（2026-10-27）：两模式都要有、在合法区间内、困难不短于简单
+    const tn = LEVEL_TIME[level];
+    const th = NIGHTMARE_LEVEL_TIME[level];
+    for (const [name, t] of [['LEVEL_TIME', tn], ['NIGHTMARE_LEVEL_TIME', th]] as const) {
+      if (t === undefined) issues.push({ scope, message: `缺少时长配置（${name}）` });
+      else if (!Number.isInteger(t) || t < LEVEL_TIME_MIN || t > LEVEL_TIME_MAX) {
+        issues.push({ scope, message: `${name} 时长 ${t} 秒超出 ${LEVEL_TIME_MIN}~${LEVEL_TIME_MAX}` });
+      }
+    }
+    if (tn !== undefined && th !== undefined && th < tn) {
+      issues.push({ scope, message: `困难时长 ${th} 秒短于简单 ${tn} 秒（困难只能相邻交换，不应更短）` });
     }
   }
 

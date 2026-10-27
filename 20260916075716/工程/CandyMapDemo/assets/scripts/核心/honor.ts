@@ -244,7 +244,7 @@ export interface HonorInput {
   line: HonorLines;
   /** 本局实际得分（弹窗上「本关得分」显示的就是它） */
   score: number;
-  /** 本局星级（续命局按 §7.4 恒为 1） */
+  /** 本局星级（续命局最高 2，2026-10-27 评审 P1-8） */
   stars: number;
   /** 本局是否用过续命 */
   revived: boolean;
