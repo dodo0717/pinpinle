@@ -250,7 +250,7 @@ export class ThemedPreview {
             tb.fill();
           }
           mkText(tb.node, `${i + 1} 星线`, -tw / 2 + 200 + 90, y, 180, { font: FONT_CANDY, size: 38, color: P.ink, align: 'left' });
-          mkText(tb.node, `${v} 分`, tw / 2 - 40 - 110, y, 220, { font: FONT_CANDY, size: 44, color: P.total, align: 'right' });
+          mkText(tb.node, `${v} 张`, tw / 2 - 40 - 110, y, 220, { font: FONT_CANDY, size: 44, color: P.total, align: 'right' });
           if (i < 2) {
             tb.lineWidth = 3;
             tb.strokeColor = P.dash;
@@ -409,7 +409,7 @@ export class ThemedPreview {
             cardG.fill();
           }
           mkText(cardG.node, `${i + 1} 星线`, -cw / 2 + 210 + 100, y, 200, { font: FONT_SANS, size: 38, color: P.inkSoft, bold: true, align: 'left' });
-          mkText(cardG.node, `${v} 分`, cw / 2 - 50 - 120, y, 240, { font: FONT_SANS, size: 46, color: P.ink, bold: true, align: 'right' });
+          mkText(cardG.node, `${v} 张`, cw / 2 - 50 - 120, y, 240, { font: FONT_SANS, size: 46, color: P.ink, bold: true, align: 'right' });
           if (i < 2) {
             cardG.fillColor = P.line;
             cardG.rect(-cw / 2 + 36, y - 41, cw - 72, 2);
@@ -514,7 +514,7 @@ export class ThemedPreview {
         lines.forEach((v, i) => {
           const y = 76 - i * 76;
           mkText(lg.node, `${'★'.repeat(i + 1)} ${i + 1} 星线`, -W / 2 + 110 + 140, y, 280, hand(40, P.ink, { align: 'left' }));
-          mkText(lg.node, `${v} 分`, W / 2 - 70 - 90, y, 180, hand(46, P.stamp, { bold: true, align: 'right' }));
+          mkText(lg.node, `${v} 张`, W / 2 - 70 - 90, y, 180, hand(46, P.stamp, { bold: true, align: 'right' }));
           lg.lineWidth = 4;
           lg.strokeColor = P.rail;
           dash(lg, [6, 10]);

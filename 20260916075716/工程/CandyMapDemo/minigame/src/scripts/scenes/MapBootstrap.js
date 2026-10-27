@@ -1188,6 +1188,7 @@ export class MapBootstrap extends Component {
             },
             onReset: () => this.confirmReset(),
             onLegal: (kind) => this.showLegal(kind),
+            onRules: () => this.dialog.show(PANEL.rulesTitle, PANEL.rulesLines.slice(), [{ text: '知道了', onClick: () => {}, primary: true }]),
         });
     }
 

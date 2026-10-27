@@ -52,6 +52,8 @@ export interface PanelHost {
   onReset: () => void;
   /** 设置页合规入口：隐私保护指引 / 用户协议 / 适龄提示（评审 P0-1，弹窗由宿主弹） */
   onLegal: (kind: 'privacy' | 'agreement' | 'age') => void;
+  /** 排行榜「怎么上榜」说明卡（评审 P1-2，弹窗由宿主弹） */
+  onRules: () => void;
 }
 
 /* ------------------------------------------------------------------ 布局常量（1080 设计坐标，取自 web/ui.css） */
@@ -546,7 +548,11 @@ export class MapPanels {
       text = !gap ? PANEL.hintFirst
         : gap.score > 0 ? PANEL.hintAhead(gap.name, gap.score) : PANEL.hintAheadStars(gap.name, gap.stars);
     }
-    this.label(box, 'Text', '💡 ' + text, 32, new Color(43, 74, 115), w - 40, h, 0, 0);
+    this.label(box, 'Text', '💡 ' + text, 32, new Color(43, 74, 115), w - 190, h, -75, 0);
+    // 右端「❓ 怎么上榜」：点开 4 行规则说明卡（评审 P1-2，弹窗由宿主弹）
+    const rules = this.button(box, 'Rules', 170, h - 10, w / 2 - 95, 0, () => this.host.onRules());
+    this.roundRect(rules.addComponent(Graphics), -85, -(h - 10) / 2, 170, h - 10, 22, new Color(43, 74, 115, 40));
+    this.label(rules, 'Text', PANEL.rulesEntry, 28, new Color(43, 74, 115), 160, h - 10);
   }
 
   private setBoardTab(tab: 'total' | 'level' | 'friend'): void {
@@ -617,12 +623,13 @@ export class MapPanels {
       }
       scoreLabel = PANEL.mineLevelScoreLabel;
     }
+    // 2026-10-27 评审 P1-2：对玩家只露两个数 ——「我的排名」「我的最好」；星数留在图鉴 / 首页
+    void stars;
     const cells: Array<[string, string, Color]> = [
       [PANEL.mineRankLabel, PANEL.rankValue(rank), new Color(255, 233, 176)],
       [scoreLabel, `${score}`, new Color(255, 213, 74)],
-      [PANEL.mineStarsLabel, `${PANEL.starsValue(stars)}/${RANK_RULE.maxStars}`, new Color(255, 224, 102)],
     ];
-    const cw = (w - 36) / 3;
+    const cw = (w - 36) / cells.length;
     cells.forEach(([k, v, color], i) => {
       const x = -w / 2 + 18 + cw * (i + 0.5);
       if (i > 0) {

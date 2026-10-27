@@ -21,3 +21,4 @@ export * from './progress';
 export * from './honor';
 export * from './rank';
 export * from './save';
+export * from './scoring';

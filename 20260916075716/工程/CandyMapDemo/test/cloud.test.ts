@@ -24,7 +24,7 @@ function progress(levels: Record<number, { stars: number; personalBest?: number 
 
 test('mergeCloudProgress：星级/最高分逐关取大，boardBest 保持本地', () => {
   const local = progress({ 1: { stars: 2, personalBest: 800 }, 2: { stars: 1, personalBest: 300 } }, 3);
-  const merged = mergeCloudProgress(local, { stars: { 1: 3, 2: 1 }, best: { 1: 500, 2: 900 } });
+  const merged = mergeCloudProgress(local, { unit: 'points', stars: { 1: 3, 2: 1 }, best: { 1: 500, 2: 900 } });
   assert.equal(recordOf(merged, 1).stars, 3);            // 云 3 > 本地 2
   assert.equal(recordOf(merged, 1).personalBest, 800);   // 本地 800 > 云 500
   assert.equal(recordOf(merged, 2).personalBest, 900);   // 云 900 > 本地 300
@@ -36,9 +36,24 @@ test('mergeCloudProgress：星级/最高分逐关取大，boardBest 保持本地
 
 test('mergeCloudProgress：无变化时返回原引用（调用方按引用跳过重画）', () => {
   const local = progress({ 1: { stars: 3, personalBest: 900 } }, 2);
-  assert.equal(mergeCloudProgress(local, { stars: { 1: 2 }, best: { 1: 500 } }), local);
+  assert.equal(mergeCloudProgress(local, { unit: 'points', stars: { 1: 2 }, best: { 1: 500 } }), local);
   assert.equal(mergeCloudProgress(local, null), local);
   assert.equal(mergeCloudProgress(local, 'junk'), local);
+});
+
+test('云档没有 unit（服务端还没迁移，分数是组数）→ 读进来 ×100（2026-10-27 排行分）', () => {
+  const local = progress({ 1: { stars: 1, personalBest: 300 } }, 2);
+  const merged = mergeCloudProgress(local, { stars: { 1: 3 }, best: { 1: 9 }, valid: { 1: 8 } });
+  assert.equal(recordOf(merged, 1).personalBest, 900);
+  assert.equal(recordOf(merged, 1).validBest, 800);
+  // 本地补推按云端换算后的分数比：本地 300 < 云 800 → 不推
+  assert.deepEqual(cloudDiff(merged, { stars: { 1: 3 }, best: { 1: 9 }, valid: { 1: 8 } }), []);
+});
+
+test('上报带 scoreUnit:points（服务端据此不再换算）', () => {
+  const local = progress({ 2: { stars: 1, personalBest: 400 } }, 3);
+  const diff = cloudDiff(local, null);
+  assert.equal(diff[0]!.scoreUnit, 'points');
 });
 
 test('mergeCloudProgress：坏数据不炸——越界关号忽略、星级夹到 0~3、unlocked 夹到 totalLevels', () => {

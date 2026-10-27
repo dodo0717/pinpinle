@@ -19,8 +19,13 @@ import {
 /** 一关的星线（第 15 关的真实数值：5 / 7 / 9） */
 const LINES = { star1: 5, star2: 7, star3: 9 };
 
+/**
+ * 一局结果。`points`（排行分）默认等于 `score`（组数）：本文件只测「哪个最高分被抬、哪个不抬」，
+ * 让两者同值断言最直观；分数单位换算另见 scoring.test.ts。
+ */
 function outcome(partial: Partial<LevelOutcome> = {}): LevelOutcome {
-  return { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  const base = { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  return { points: base.score, ...base };
 }
 
 describe('M4 · 星级折算（§7.2）', () => {

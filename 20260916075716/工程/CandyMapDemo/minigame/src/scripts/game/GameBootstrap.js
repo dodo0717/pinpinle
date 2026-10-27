@@ -33,15 +33,15 @@ import { screenH, screenInsets } from './paint.js';
 import { WebHud, webLayout } from './webHud.js';
 import { showWebResult,                } from './webResult.js';
 import {
-  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD,
+  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL,
   WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
 } from './text.js';
 import { unlockedImageIds, AD_STAMINA_GAIN } from './meta.js';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS,
-                                                                                
+  TOTAL_LEVELS, createTally, addElimination, onRevive,
+                                                                                                  
                                                                     
 } from '../core/index.js';
 
@@ -90,6 +90,8 @@ export class GameBootstrap extends Component {
 
   /* ---------------------------------------------------------------- 局内现场 */
           timeLeft = 0;
+  /** 本局排行分计分器（2026-10-27 评审 P1-1，核心/scoring.ts）；判星仍看 engine.score（组数） */
+          tally              = createTally(0);
           started = false;
           paused = false;
           busy = false;
@@ -302,6 +304,8 @@ export class GameBootstrap extends Component {
         eliminations: from.eliminations,
       });
       this.timeLeft = resumeTimeLeft(from, Date.now());
+      // 离线流逝的秒数不算进速度分间隔：基准跟着剩余时间一起扣（不超过原基准）
+      this.tally = { points: from.points, lastTimeLeft: Math.min(from.lastTimeLeft, from.lastTimeLeft - (from.timeLeft - this.timeLeft)) };
       this.revived = from.revived;
       this.revivedUsed = from.revivedUsed;
       this.swapMisses = from.swapMisses;
@@ -326,6 +330,7 @@ export class GameBootstrap extends Component {
       this.rng = new Rng(this.levelSeed);
       this.engine = new PuzzleEngine(this.cfg, this.rng);
       this.timeLeft = this.cfg.timeLimit;
+      this.tally = createTally(this.timeLeft);
       this.revived = false;
       this.revivedUsed = false;
       this.swapMisses = 0;
@@ -581,7 +586,9 @@ export class GameBootstrap extends Component {
     this.setPaused(true);
     this.audio.play('swap');
     this.runGuide(3);
-    this.playResolution(outcome, outcome.score - before);
+    // 每消一组记一次排行分（基础 100 + 速度分），飘字显示这一组得了多少
+    const gained = outcome.score > before ? addElimination(this.tally, this.timeLeft) : 0;
+    this.playResolution(outcome, gained);
   }
 
   /* ================================================================ 消除演出 */
@@ -615,7 +622,8 @@ export class GameBootstrap extends Component {
             this.view.setMergePhase(st.eliminatedCells, 'off');
             this.audio.play('eliminate');
             this.view.playVanish(st.eliminatedCells);
-            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`, st.eliminatedCells);
+            // 第 1 关（classic）HUD 是「组数 / 1★ 线」翻牌，飘 +1；主题关飘本组排行分
+            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, this.isClassic ? '+1' : `+${gained}`, st.eliminatedCells);
             this.chainCount++;
             if (this.chainCount >= 2 && !this.isClassic) showComboWord(this.node, this.chainCount, this.boardTop - 200);
             this.updateHud();
@@ -745,6 +753,7 @@ export class GameBootstrap extends Component {
     const outcome               = {
       level: this.levelIndex,
       score: this.engine.score,
+      points: this.tally.points,
       star1: this.cfg.star1,
       star2: this.cfg.star2,
       star3: this.cfg.star3,
@@ -776,7 +785,8 @@ export class GameBootstrap extends Component {
       // 失败进离线队列，下次启动补传；不挡本地流程
       if (REPORT_MODES.includes(GS.mode)) {
         void cloudSync()?.report({
-          level: outcome.level, win: true, stars: settlement.stars, score: outcome.score,
+          // 上报排行分（2026-10-27）；cloud.ts 带上 scoreUnit:'points'，服务端据此不再 ×100
+          level: outcome.level, win: true, stars: settlement.stars, score: outcome.points,
           mode: GS.mode, revived: outcome.revived,
         });
       }
@@ -813,6 +823,9 @@ export class GameBootstrap extends Component {
     });
 
     this.audio.play(honor.tier === 'god' ? 'honorGod' : honor.tier === 'king' ? 'honorKing' : 'honorPass');
+    // 没上榜时写明原因（评审 P1-2）：玩家最常问的就是「为什么我的分没进排行」
+    const offBoard = outcome.revived ? PANEL.offBoardRevived : settlement.stars < 3 ? PANEL.offBoardStars : '';
+    if (offBoard) this.toast.show(`💡 ${offBoard}`, 3000);
 
     if (this.isClassic) {
       this.showWebHonor(honor, settlement.stars);
@@ -823,10 +836,10 @@ export class GameBootstrap extends Component {
     const total = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare).total;
     showThemeWin(this.node, {
       stars: settlement.stars,
-      score: outcome.score,
+      score: outcome.points,
       stickers: this.engine.eliminations,
       totalScore: total,
-      isNewBest: boardBest === outcome.score && outcome.score > 0,
+      isNewBest: boardBest === outcome.points && outcome.points > 0,
       level: this.levelIndex,
       modeLabel: MODE_LABEL[GS.mode],
     }, {
@@ -1012,6 +1025,7 @@ export class GameBootstrap extends Component {
     this.finished = false;
     this.pendingOutcome = null;
     this.timeLeft += REVIVE_SECONDS;
+    onRevive(this.tally, REVIVE_SECONDS);
     this.setPaused(false);
     this.syncSession();
     GS.flush();
@@ -1091,6 +1105,7 @@ export class GameBootstrap extends Component {
     if (!this.hud || !this.engine) return;
     this.hud.update({
       score: this.engine.score,
+      points: this.tally.points,
       lines: [this.cfg.star1, this.cfg.star2, this.cfg.star3],
       timeLeft: this.timeLeft,
       timeLimit: this.cfg.timeLimit,
@@ -1232,6 +1247,8 @@ export class GameBootstrap extends Component {
       revivedUsed: this.revivedUsed,
       swapMisses: this.swapMisses,
       eliminatedOnce: this.eliminatedOnce,
+      points: this.tally.points,
+      lastTimeLeft: this.tally.lastTimeLeft,
       savedAt: Date.now(),
     };
     GS.setSession(s);

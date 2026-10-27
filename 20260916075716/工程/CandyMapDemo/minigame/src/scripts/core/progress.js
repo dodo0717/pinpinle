@@ -19,7 +19,12 @@ import { RELEASE } from './release.js';
 /** 结算弹窗的 4 种形态（§12.1.1 ~ §12.1.4） */
                                                                                      
 
-/** 一关的历史记录 */
+/**
+ * 一关的历史记录。
+ *
+ * ⚠️ 2026-10-27 起三个最高分的单位是**排行分**（`scoring.ts`：每组 100 + 速度分），不再是组数。
+ * 老存档按 ×100 迁移（save.ts `scoreUnit`）。
+ */
                               
                    
                 
@@ -55,7 +60,13 @@ import { RELEASE } from './release.js';
  */
                                
                 
+                                           
                 
+     
+                                                         
+                                                        
+     
+                 
                                            
                 
                 
@@ -161,16 +172,17 @@ export function applySettlement(
 )              {
   const rec              = before ?? { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
   const prevValid = typeof rec.validBest === 'number' ? rec.validBest : rec.personalBest;
+  // 三个最高分记的都是排行分（points），判星仍看组数（outcome.score）
   return {
     stars: Math.max(rec.stars, settlement.stars),
-    personalBest: Math.max(rec.personalBest, outcome.score),
+    personalBest: Math.max(rec.personalBest, outcome.points),
     // 续命局不上榜（§7.4）；1★ / 2★ 同样不上榜（《通关及排名》2026-09-12）
     boardBest: boardEligible(outcome, settlement.stars)
-      ? Math.max(rec.boardBest, outcome.score)
+      ? Math.max(rec.boardBest, outcome.points)
       : rec.boardBest,
     // 有效成绩：未续命（能走到这里已保证 ≥1★）
     // 老记录没有 validBest（commitSettlement 直接传 data.levels[x]，不经 recordOf 迁移）→ 按个人最高分兜底
-    validBest: outcome.revived ? prevValid : Math.max(prevValid, outcome.score),
+    validBest: outcome.revived ? prevValid : Math.max(prevValid, outcome.points),
   };
 }
 

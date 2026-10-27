@@ -34,7 +34,8 @@ export const MAP_TEXT = {
   /** 困难模式门槛：同一关先在简单模式通关（2026-10-27 评审 P1-7，原来要 3 星） */
   nightmareLocked: '简单模式通关后开启困难模式',
   level: (level: number) => `第 ${level} 关`,
-  starLine: (s1: number, s3: number) => `1星 ${s1} 分   |   3星 ${s3} 分`,
+  // 星线是「拼好几张」（组数），与排行分不是一个单位（2026-10-27 评审 P1-1）
+  starLine: (s1: number, s3: number) => `1星 ${s1} 张   |   3星 ${s3} 张`,
   play: 'Play',
   loading: (pct: number) => `${pct}%`,
 } as const;
@@ -53,8 +54,20 @@ export const PANEL = {
   colTotal: '总分',
   level: (level: number) => `第 ${level} 关`,
   mineRankLabel: '我的排名',
-  mineScoreLabel: '总积分',
-  mineLevelScoreLabel: '本关最高分',
+  mineScoreLabel: '我的最好（总分）',
+  mineLevelScoreLabel: '我的最好（本关）',
+  /** 「怎么上榜」说明卡（评审 P1-2：压成 4 行；规则改动时同步改 rank.ts RANK_RULES_VERSION） */
+  rulesTitle: '怎么上榜',
+  rulesLines: [
+    '① 每拼好一张得 100 分，拼得越快加分越多（最多 +60）',
+    '② 不续命、通关的成绩才计入排行',
+    '③ 本关拿到 3★ 才能上关卡榜',
+    '④ 总榜 = 各关最好成绩之和，困难模式 ×1.5',
+  ],
+  rulesEntry: '❓ 怎么上榜',
+  /** 结算时没上榜的原因（评审 P1-2） */
+  offBoardRevived: '续命局不计入排行榜',
+  offBoardStars: '拿到 3★ 才能上本关排行榜',
   mineStarsLabel: '累计星数',
   rankValue: (rank: number) => (rank > 0 ? `${rank}` : '未上榜'),
   starsValue: (stars: number) => `⭐${stars}`,
@@ -63,7 +76,7 @@ export const PANEL = {
   hintAheadStars: (name: string, stars: number) => `和「${name}」同分，再多 ${stars} 颗星就能超过`,
   hintFirst: '你是第 1 名，保持住！',
   hintJoinTotal: '打出一局不续命的通关成绩即可上榜',
-  hintJoinLevel: (score: number) => `本关拿到 3★（${score} 分）且不续命即可上榜`,
+  hintJoinLevel: (n: number) => `本关拼好 ${n} 张（3★）且不续命即可上榜`,
   sampleNote: '示例数据 · 联网后显示真实排名',
   liveTotal: '全服实时排名',
   liveLevel: (n: number) => `本关 ${n} 人上榜 · 实时排名`,

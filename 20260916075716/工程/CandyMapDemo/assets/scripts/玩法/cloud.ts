@@ -23,7 +23,7 @@
  * 浏览器预览：无 `wx` → cloudSync() 返回 null，全部路径变 no-op。
  */
 
-import { recordOf, TOTAL_LEVELS } from '../核心/index';
+import { recordOf, TOTAL_LEVELS, LEGACY_POINTS_PER_GROUP } from '../核心/index';
 import type { ProgressData } from '../核心/index';
 import type { GameMode } from '../核心/index';
 
@@ -46,6 +46,8 @@ export interface CloudLevelResult {
   /** 2026-10-25 排行榜新规：模式与是否续命（服务端据此只把有效成绩记进排行；老服务端忽略这两个字段） */
   mode?: GameMode;
   revived?: boolean;
+  /** 分数单位；'points' = 排行分（2026-10-27 起）。没有 = 老客户端 / 老队列条目，分数是组数 */
+  scoreUnit?: typeof CLOUD_SCORE_UNIT;
   moves?: number;
   durationMs?: number;
   ts?: number;
@@ -69,16 +71,30 @@ interface CloudShape {
   valid?: Record<string, number>;
 }
 
+/**
+ * 分数单位（2026-10-27 评审 P1-1）：上报带 `scoreUnit: 'points'`；服务端存档 JSON 带 `unit: 'points'`。
+ * 云档没有 `unit` = 服务端还没迁移这一行（分数是组数）→ 读进来时 ×LEGACY_POINTS_PER_GROUP。
+ */
+export const CLOUD_SCORE_UNIT = 'points';
+
+function scaleMap(m: unknown, k: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!m || typeof m !== 'object') return out;
+  for (const [key, v] of Object.entries(m as Record<string, unknown>)) out[key] = Math.max(0, Math.floor(Number(v) || 0)) * k;
+  return out;
+}
+
 function asCloudShape(raw: unknown): CloudShape | null {
   if (!raw || typeof raw !== 'object') return null;
   const stars = (raw as { stars?: unknown }).stars;
   const best = (raw as { best?: unknown }).best;
   if (!stars || typeof stars !== 'object' || !best || typeof best !== 'object') return null;
   const valid = (raw as { valid?: unknown }).valid;
+  const k = (raw as { unit?: unknown }).unit === CLOUD_SCORE_UNIT ? 1 : LEGACY_POINTS_PER_GROUP;
   return {
     stars: stars as Record<string, number>,
-    best: best as Record<string, number>,
-    valid: valid && typeof valid === 'object' ? (valid as Record<string, number>) : undefined,
+    best: scaleMap(best, k),
+    valid: valid && typeof valid === 'object' ? scaleMap(valid, k) : undefined,
   };
 }
 
@@ -141,7 +157,7 @@ export function cloudDiff(local: ProgressData, cloud: unknown): CloudLevelResult
     const better = rec.stars > (Number(cloudStars[key]) || 0)
       || rec.validBest > (Number(cloudValid[key]) || 0);
     if (!better) continue;
-    out.push({ level, win: true, stars: rec.stars, score: rec.validBest, mode: local.mode, revived: false });
+    out.push({ level, win: true, stars: rec.stars, score: rec.validBest, mode: local.mode, revived: false, scoreUnit: CLOUD_SCORE_UNIT });
   }
   return out.sort((a, b) => a.level - b.level);
 }
@@ -226,7 +242,7 @@ export class CloudSync {
   /** 结算上报：成功即返回，失败入队（≤200 条），下次 flush() 补传。 */
   async report(r: CloudLevelResult): Promise<void> {
     if (!this.enabled) return;
-    const item: CloudLevelResult = { ...r, ts: Date.now() };
+    const item: CloudLevelResult = { ...r, scoreUnit: CLOUD_SCORE_UNIT, ts: Date.now() };
     const ok = this.token ? await this.postResult(item) : false;
     if (!ok) this.enqueue(item);
   }
@@ -279,6 +295,8 @@ export class CloudSync {
         header: { 'Wx-Authorization': `Bearer ${this.token}` },
         data: {
           level: item.level, win: item.win, stars: item.stars, score: item.score,
+          // 离线队列里 2026-10-27 之前入队的条目分数是组数：那时还没有 scoreUnit 字段，原样不带
+          ...(item.scoreUnit ? { scoreUnit: item.scoreUnit } : {}),
           mode: item.mode ?? 'normal', revived: !!item.revived,
           moves: item.moves, durationMs: item.durationMs,
         },

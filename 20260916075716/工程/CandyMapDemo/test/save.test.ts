@@ -67,6 +67,8 @@ function realSession(level = 1, overrides: Partial<LevelSession> = {}): LevelSes
     revivedUsed: false,
     swapMisses: 0,
     eliminatedOnce: false,
+    points: 0,
+    lastTimeLeft: cfg.timeLimit,
     savedAt: T0,
     ...overrides,
   };

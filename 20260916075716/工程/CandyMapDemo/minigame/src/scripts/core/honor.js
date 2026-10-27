@@ -36,6 +36,7 @@
 
 import { BOARD_MIN_STARS } from './progress.js';
 import { Rng } from './rng.js';
+import { pointsOfGroups } from './scoring.js';
 
 /* ------------------------------------------------------------------ 类型与常量 */
 
@@ -171,7 +172,9 @@ export function mockBoardScores(level        , line            )           {
     const t = i / (HONOR_RULE.mockPlayers - 1);
     const curve = Math.pow(1 - t, 1.6);
     const jitter = rng.int(3) - 1;
-    out.push(Math.max(star3, star3 + Math.round(span * curve) + jitter));
+    const groups = Math.max(star3, star3 + Math.round(span * curve) + jitter);
+    // 2026-10-27 排行分：组数 ×100 + 每组平均 0~30 的速度分（scoring.ts），与真实玩家同一单位
+    out.push(pointsOfGroups(groups) + rng.int(groups * 30 + 1));
   }
   return out;
 }
@@ -280,7 +283,8 @@ export function honorForLevel(input            )               {
   const onBoard = !input.revived && input.stars >= BOARD_MIN_STARS && input.boardBest > 0;
   const scores = mockBoardScores(input.level, input.line);
   const pool = onBoard ? [...scores, input.boardBest] : scores;
-  const rankScore = onBoard ? input.boardBest : input.line.star1;
+  // 没上榜按 1★ 线计：星线是组数，换成排行分单位再比
+  const rankScore = onBoard ? input.boardBest : pointsOfGroups(input.line.star1);
   const stats = rankStats(pool, rankScore);
   return {
     // 没上榜（1★ / 2★ / 续命局）恒为优秀：它们不参加排名，名次只是参考值

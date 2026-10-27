@@ -21,3 +21,4 @@ export * from './progress.js';
 export * from './honor.js';
 export * from './rank.js';
 export * from './save.js';
+export * from './scoring.js';

@@ -8,6 +8,7 @@ import {
   mockBoardNames,
   mockBoardScores,
   percentileText,
+  pointsOfGroups,
   rankStats,
 } from '../assets/scripts/核心/index';
 
@@ -123,11 +124,11 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
   });
 
   it('上榜后总人数 +1，且我出现在榜单里（名次和分数都对得上）', () => {
-    const snap = boardSnapshot(15, LINE, 999);
+    const snap = boardSnapshot(15, LINE, 99999);
     assert.strictEqual(snap.totalPlayers, HONOR_RULE.mockPlayers + 1);
-    assert.strictEqual(snap.myRank, 1, '999 分必然第一');
+    assert.strictEqual(snap.myRank, 1, '99999 分必然第一');
     assert.strictEqual(snap.rows[0]!.mine, true);
-    assert.strictEqual(snap.rows[0]!.score, 999);
+    assert.strictEqual(snap.rows[0]!.score, 99999);
   });
 
   it('榜单按分数降序，名次单调不降', () => {
@@ -155,7 +156,7 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
   });
 
   it('3★ 上榜且名次靠前 → 超神 / 王者按名次占比', () => {
-    const top = honorForLevel({ level: 15, line: LINE, score: 99, stars: 3, revived: false, boardBest: 99 });
+    const top = honorForLevel({ level: 15, line: LINE, score: 99, stars: 3, revived: false, boardBest: 99999 });
     assert.strictEqual(top.stats.rank, 1);
     assert.strictEqual(top.tier, 'god');
   });
@@ -173,26 +174,26 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
   it('续命局按 1★ 线计分 → 优秀（哪怕实际打出 3★ 的分数）', () => {
     const out = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 0 });
     assert.strictEqual(out.tier, 'pass');
-    assert.strictEqual(out.rankScore, LINE.star1);
+    assert.strictEqual(out.rankScore, pointsOfGroups(LINE.star1));
     assert.strictEqual(out.stats.percentile, 0);
   });
 
   it('历史上过榜，但本局续命 / 只拿 1★ → 仍是优秀，不能沿用历史榜分判超神', () => {
-    const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 30 });
+    const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 99999 });
     assert.strictEqual(revived.tier, 'pass');
-    assert.strictEqual(revived.rankScore, LINE.star1);
+    assert.strictEqual(revived.rankScore, pointsOfGroups(LINE.star1));
     assert.strictEqual(revived.boardBest, 0);
 
-    const oneStar = honorForLevel({ level: 15, line: LINE, score: 5, stars: 1, revived: false, boardBest: 30 });
+    const oneStar = honorForLevel({ level: 15, line: LINE, score: 5, stars: 1, revived: false, boardBest: 99999 });
     assert.strictEqual(oneStar.tier, 'pass');
-    assert.strictEqual(oneStar.rankScore, LINE.star1);
+    assert.strictEqual(oneStar.rankScore, pointsOfGroups(LINE.star1));
   });
 
   it('重复通关时用「更新后的上榜最高分」排名 —— 不会把自己算成比自己高的人', () => {
     // 历史最高 30 分（榜上第一），本次只打了 9 分：排名仍然按 30 分算，
     // 名次必须是第 1 名，而不是「101 人里第 101 名」。
-    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 30 });
-    assert.strictEqual(out.rankScore, 30);
+    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 99999 });
+    assert.strictEqual(out.rankScore, 99999);
     assert.strictEqual(out.stats.rank, 1);
     assert.strictEqual(out.tier, 'god');
     assert.strictEqual(out.stats.sameCount, 1, '自己那条记录必须落在 sameCount 里');
