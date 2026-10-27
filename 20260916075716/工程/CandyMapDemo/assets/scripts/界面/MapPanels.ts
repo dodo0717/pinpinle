@@ -627,11 +627,12 @@ export class MapPanels {
       }
       scoreLabel = PANEL.mineLevelScoreLabel;
     }
-    // 2026-10-27 评审 P1-2：对玩家只露两个数 ——「我的排名」「我的最好」；星数留在图鉴 / 首页
-    void stars;
+    // 星数与分数并存（2026-10-27 用户要求改回）：星数是收集进度，分数是竞技成绩，两个都要看得见；
+    // 总榜同分时也按星数排，玩家需要知道自己有几颗星
     const cells: Array<[string, string, Color]> = [
       [PANEL.mineRankLabel, PANEL.rankValue(rank), new Color(255, 233, 176)],
       [scoreLabel, `${score}`, new Color(255, 213, 74)],
+      [PANEL.mineStarsLabel, `${PANEL.starsValue(stars)}/${RANK_RULE.maxStars}`, new Color(255, 224, 102)],
     ];
     const cw = (w - 36) / cells.length;
     cells.forEach(([k, v, color], i) => {

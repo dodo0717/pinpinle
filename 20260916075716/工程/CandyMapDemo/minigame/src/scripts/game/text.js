@@ -60,8 +60,9 @@ export const PANEL = {
   colTotal: '总分',
   level: (level        ) => `第 ${level} 关`,
   mineRankLabel: '我的排名',
-  mineScoreLabel: '我的最好（总分）',
-  mineLevelScoreLabel: '我的最好（本关）',
+  // 三格并排（排名 / 分数 / 星数），标签要短，否则缩字缩得看不清
+  mineScoreLabel: '总积分',
+  mineLevelScoreLabel: '本关最高分',
   /** 「怎么上榜」说明卡（评审 P1-2：压成 4 行；规则改动时同步改 rank.ts RANK_RULES_VERSION） */
   rulesTitle: '怎么上榜',
   rulesLines: [
@@ -69,6 +70,7 @@ export const PANEL = {
     '② 不续命、通关的成绩才计入排行',
     '③ 本关拿到 3★ 才能上关卡榜',
     '④ 总榜 = 各关最好成绩之和，困难模式 ×1.5',
+    '⑤ 同分时星星多的排前面（累计星数含续命局）',
   ],
   rulesEntry: '❓ 怎么上榜',
   /** 结算时没上榜的原因（评审 P1-2） */
