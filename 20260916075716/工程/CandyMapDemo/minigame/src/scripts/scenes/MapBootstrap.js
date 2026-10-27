@@ -18,12 +18,13 @@ import { HEALTH_ADVICE, AGE_TIP_LINES, USER_AGREEMENT_LINES, openPrivacyContract
 import { MapPanels } from '../ui/MapPanels.js';
 import { AvatarView, ProfilePanel } from '../ui/ProfilePanel.js';
 import { ThemedPreview } from '../ui/ThemedPreview.js';
-import { themeForLevel } from '../game/theme.js';
+import { themeForLevel, THEMES, SKINS, selectedSkin, setSkin } from '../game/theme.js';
 import { getProfile, onProfileChanged, trySilentWxProfile, syncProfileAfterLogin } from '../game/profile.js';
 import { starPath, shadow } from '../game/paint.js';
 import { LEVELS_BY_ART } from './levelTable.js';
 import {
     levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
+    ownedRewards, CHESTS,
                                     
 } from '../core/index.js';
 const { ccclass } = _decorator;
@@ -1189,7 +1190,33 @@ export class MapBootstrap extends Component {
             onReset: () => this.confirmReset(),
             onLegal: (kind) => this.showLegal(kind),
             onRules: () => this.dialog.show(PANEL.rulesTitle, PANEL.rulesLines.slice(), [{ text: '知道了', onClick: () => {}, primary: true }]),
+            onSkin: () => this.showSkinPicker(),
         });
+    }
+
+    /**
+     * 对局皮肤选择（评审 P1-3）：贴纸手账默认拥有；糖果嘉年华 / 果冻乐园由章节宝箱解锁
+     * （核心/rewards.ts，第 45 / 55 关）。没解锁的按钮置灰，正文写明在哪一关解锁。
+     */
+            showSkinPicker() {
+        const owned = new Set        (['journal', ...ownedRewards(GS.data.progress.normal).skins]);
+        const lines           = [];
+        const buttons = SKINS.map((id) => {
+            const name = THEMES[id].name;
+            const chest = CHESTS.find((c) => c.skin === id);
+            const has = owned.has(id);
+            if (!has && chest) lines.push(`${name}：${PANEL.skinLocked(chest.level)}`);
+            return {
+                text: id === selectedSkin() ? `✓ ${name}` : name,
+                primary: id === selectedSkin(),
+                disabled: !has,
+                onClick: () => {
+                    if (setSkin(id)) this.toast.show(PANEL.skinChanged(name), 2200);
+                    this.panels.refresh();
+                },
+            };
+        });
+        this.dialog.show(PANEL.skinTitle, lines, buttons);
     }
 
     /** 设置页合规入口（评审 P0-1）：隐私指引走微信官方页，其余两项弹窗显示 */

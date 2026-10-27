@@ -40,7 +40,7 @@ import { unlockedImageIds, AD_STAMINA_GAIN } from './meta.js';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS, createTally, addElimination, onRevive,
+  TOTAL_LEVELS, createTally, addElimination, onRevive, newlyEarned,
                                                                                                   
                                                                     
 } from '../core/index.js';
@@ -775,7 +775,17 @@ export class GameBootstrap extends Component {
     if (settlement) {
       const next = commitSettlement(GS.progress, outcome, settlement, TOTAL_LEVELS);
       const after = recordOf(next, this.levelIndex);
+      // 结算前后的奖励快照（金卡 / 章节宝箱，评审 P0-4）：都从进度派生，比一下就知道这局新拿了什么
+      const snap = () => {
+        const n = GS.data.progress.normal;
+        const h = GS.data.progress.nightmare;
+        return { normal: n, nightmare: h, owned: unlockedImageIds(n, h).length };
+      };
+      const rewardsBefore = snap();
       GS.setProgress(next);
+      const earned = newlyEarned(rewardsBefore, snap());
+      for (const c of earned.chests) this.toast.show(HOME.chestGain(c.name), 3200);
+      if (earned.gold > 0) this.toast.show(HOME.goldGain(earned.gold), 2600);
       // 首次 3★ 返还本局体力 1 颗（评审 P1-5）；满格时 gainStamina 返回 false，不提示
       if (settlement.refundStamina && GS.gainStamina(1)) this.toast.show(HOME.staminaRefund, 2200);
       GS.flush();

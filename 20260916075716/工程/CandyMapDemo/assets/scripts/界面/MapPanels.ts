@@ -27,7 +27,9 @@ import { cloudSync } from '../玩法/cloud';
 import { AvatarView } from './ProfilePanel';
 import { PRESET_AVATARS } from '../玩法/profile';
 import { unlockedImageIds, COLLECTION_TOTAL } from '../玩法/meta';
+import { THEMES, selectedSkin } from '../玩法/theme';
 import {
+  goldCardIds,
   boardSnapshot, recordOf, levelStatus, STAR_LINES_BY_MODE, TOTAL_LEVELS,
   rankTotals, totalBoard, mockTotalRivals, gapToAhead, RANK_RULE,
   IMAGE_MOOD, IMAGE_TEXT_PLACEHOLDER, animalOf, type GameMode, type ProgressData,
@@ -54,6 +56,8 @@ export interface PanelHost {
   onLegal: (kind: 'privacy' | 'agreement' | 'age') => void;
   /** 排行榜「怎么上榜」说明卡（评审 P1-2，弹窗由宿主弹） */
   onRules: () => void;
+  /** 设置页「对局皮肤」（评审 P1-3，选择弹窗由宿主弹） */
+  onSkin: () => void;
 }
 
 /* ------------------------------------------------------------------ 布局常量（1080 设计坐标，取自 web/ui.css） */
@@ -894,9 +898,12 @@ export class MapPanels {
 
   private renderCollection(): void {
     const top = this.chrome(PANEL.collectionTitle, `${ART}/collection/back`);
-    const owned = new Set(unlockedImageIds(GS.data.progress.normal, GS.data.progress.nightmare));
-    this.label(this.root, 'Count', PANEL.collected(owned.size, COLLECTION_TOTAL), 58, new Color(217, 236, 125),
-      900, 80, 0, top - 6 - 35, { outline: C_TITLE_EDGE, outlineWidth: 4 });
+    const ownedIds = unlockedImageIds(GS.data.progress.normal, GS.data.progress.nightmare);
+    const owned = new Set(ownedIds);
+    // 金卡（评审 P0-4）：困难 3★ 把已解锁的普通卡按图号升成金卡
+    const gold = new Set(goldCardIds(ownedIds, GS.data.progress.nightmare));
+    this.label(this.root, 'Count', `${PANEL.collected(owned.size, COLLECTION_TOTAL)}   ${PANEL.goldCollected(gold.size, COLLECTION_TOTAL)}`,
+      50, new Color(217, 236, 125), 1000, 80, 0, top - 6 - 35, { outline: C_TITLE_EDGE, outlineWidth: 4 });
 
     const cTop = top - 6 - 70 - 14 - 8;
     const cw = W - 32;
@@ -930,18 +937,19 @@ export class MapPanels {
       if (id >= COLLECTION_TOTAL) break;
       const x = ((k % 3) - 1) * (cellW + CELL_GAP);
       const y = startY - Math.floor(k / 3) * (cellH + CELL_GAP);
-      this.collectionCell(card, id, owned.has(id), cellW, cellH, x, y);
+      this.collectionCell(card, id, owned.has(id), cellW, cellH, x, y, gold.has(id));
     }
 
     this.pager(card, pagerY, this.colPage, pages, (p) => { this.colPage = p; this.render(); });
     this.cardFrame(card, cw, ch);
   }
 
-  private collectionCell(card: Node, id: number, owned: boolean, w: number, h: number, x: number, y: number): void {
+  private collectionCell(card: Node, id: number, owned: boolean, w: number, h: number, x: number, y: number, gold = false): void {
     const cell = this.button(card, 'Cell_' + id, w, h, x, y, () => {
       if (owned) this.openSticker(id);
       else this.host.toast(PANEL.lockedToast, 1800);
     });
+    if (gold) this.goldFrame(cell, w, h);
     const skin = owned ? CARD_SKINS[id % CARD_SKINS.length] : 'card-locked';
     this.sprite(cell, 'Skin', `${ART}/collection/${skin}`, w, h);
     if (!owned) return;
@@ -952,6 +960,36 @@ export class MapPanels {
     const sp = n.addComponent(Sprite);
     sp.sizeMode = Sprite.SizeMode.CUSTOM;
     this.stickerFrame(id, iw / ih, (sf) => { if (sp.isValid) sp.spriteFrame = sf; });
+    // 金边 / 星标最后加，压在贴纸上面（贴纸是异步加载，但节点顺序已定）
+    if (gold) this.goldFrameTop(cell, w, h);
+  }
+
+  /** 金卡外框第一层（代码绘制，不用新出图）：卡底下垫一圈金色光晕，排在卡皮之下 */
+  private goldFrame(cell: Node, w: number, h: number): void {
+    const glow = this.node(cell, 'GoldGlow', w + 24, h + 24);
+    const g = glow.addComponent(Graphics);
+    this.roundRect(g, -w / 2 - 12, -h / 2 - 12, w + 24, h + 24, 30, new Color(255, 206, 64, 150));
+    this.roundRect(g, -w / 2 - 6, -h / 2 - 6, w + 12, h + 12, 26, new Color(255, 236, 150, 200));
+  }
+
+  /** 金卡要压在贴纸上面的部分：双线金边 + 右上角「★」 */
+  private goldFrameTop(cell: Node, w: number, h: number): void {
+    const n = this.node(cell, 'GoldEdge', w, h);
+    const g = n.addComponent(Graphics);
+    g.lineWidth = 8;
+    g.strokeColor = new Color(232, 168, 32);
+    g.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 22);
+    g.stroke();
+    g.lineWidth = 3;
+    g.strokeColor = new Color(255, 244, 190);
+    g.roundRect(-w / 2 + 12, -h / 2 + 12, w - 24, h - 24, 16);
+    g.stroke();
+    const badge = this.node(cell, 'GoldBadge', 64, 64, w / 2 - 30, h / 2 - 30);
+    const bg = badge.addComponent(Graphics);
+    bg.fillColor = new Color(232, 168, 32);
+    bg.circle(0, 0, 30);
+    bg.fill();
+    this.label(badge, 'Star', '★', 40, C_WHITE, 60, 60);
   }
 
   /** 贴纸纹理按目标宽高比居中裁切（cover），裁切靠 SpriteFrame.rect，不改原图 */
@@ -1044,7 +1082,9 @@ export class MapPanels {
 
     // 第二张木牌：合规入口（评审 P0-1）—— 与音乐 / 音效同一套木牌 + 条目样式，
     // 条目矮一档、右侧「›」表示点进去看，不再是飘在蓝天上的三个小字
-    const legal: Array<[string, string, 'privacy' | 'agreement' | 'age']> = [
+    // 第一行：对局皮肤（评审 P1-3，默认贴纸手账，其余靠章节宝箱解锁）；其后三行合规入口
+    const legal: Array<[string, string, 'skin' | 'privacy' | 'agreement' | 'age']> = [
+      ['🎨', PANEL.skin(THEMES[selectedSkin()].name), 'skin'],
       ['🛡️', PANEL.privacy, 'privacy'], ['📄', PANEL.agreement, 'agreement'], ['🎈', PANEL.ageTip, 'age'],
     ];
     const lRowH = 112;
@@ -1054,7 +1094,8 @@ export class MapPanels {
     const lcard = this.cardBase(lTop, cw, lch, new Color(92, 58, 39));
     const lFirstY = lch / 2 - 40 - lRowH / 2;
     legal.forEach(([icon, text, kind], i) => {
-      this.linkRow(lcard, rowW, lRowH, lFirstY - i * (lRowH + lGap), icon, text, () => this.host.onLegal(kind));
+      this.linkRow(lcard, rowW, lRowH, lFirstY - i * (lRowH + lGap), icon, text,
+        () => (kind === 'skin' ? this.host.onSkin() : this.host.onLegal(kind)));
     });
     this.cardFrame(lcard, cw, lch);
 

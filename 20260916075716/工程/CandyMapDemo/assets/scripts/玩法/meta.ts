@@ -60,6 +60,16 @@ export interface MetaState {
   settings: Settings;
   /** 新手引导是否已走完（§14 五步） */
   guideDone: boolean;
+  /**
+   * 当前体力上限（运行时字段，不落盘）：STAMINA_MAX + 章节宝箱加成（核心/rewards.ts）。
+   * 由 GS 在读档 / 结算后按进度重算；缺省按 STAMINA_MAX。
+   */
+  staminaMax?: number;
+}
+
+/** 本状态的体力上限 */
+export function staminaMaxOf(state: MetaState): number {
+  return state.staminaMax ?? STAMINA_MAX;
 }
 
 function dayKey(now: number): string {
@@ -98,17 +108,18 @@ export function rollOverDay(state: MetaState, now: number): boolean {
  */
 export function tickMeta(state: MetaState, now: number): boolean {
   let changed = rollOverDay(state, now);
+  const max = staminaMaxOf(state);
 
-  if (state.stamina.available < STAMINA_MAX) {
+  if (state.stamina.available < max) {
     if (state.nextRecoverAt === null) state.nextRecoverAt = now + STAMINA_RECOVER_MS;
-    while (state.stamina.available < STAMINA_MAX && now >= state.nextRecoverAt) {
+    while (state.stamina.available < max && now >= state.nextRecoverAt) {
       state.stamina = { available: state.stamina.available + 1, pending: state.stamina.pending };
       state.nextRecoverAt += STAMINA_RECOVER_MS;
       changed = true;
     }
   }
   // 满格 → 不再显示倒计时，计时器也停掉（否则下次消耗前的时间会被白算）
-  if (state.stamina.available >= STAMINA_MAX && state.nextRecoverAt !== null) {
+  if (state.stamina.available >= max && state.nextRecoverAt !== null) {
     state.nextRecoverAt = null;
     changed = true;
   }
@@ -117,16 +128,17 @@ export function tickMeta(state: MetaState, now: number): boolean {
 
 /** 消耗体力后调用：把恢复计时器点起来（如果还没点） */
 export function armRecovery(state: MetaState, now: number): void {
-  if (state.stamina.available < STAMINA_MAX && state.nextRecoverAt === null) {
+  if (state.stamina.available < staminaMaxOf(state) && state.nextRecoverAt === null) {
     state.nextRecoverAt = now + STAMINA_RECOVER_MS;
   }
 }
 
 /** 加体力（广告 / 开发工具）；满格时返回 false，调用方给「体力已满」 */
 export function addStamina(state: MetaState, now: number, count = 1): boolean {
-  if (state.stamina.available >= STAMINA_MAX) return false;
+  const max = staminaMaxOf(state);
+  if (state.stamina.available >= max) return false;
   state.stamina = {
-    available: Math.min(STAMINA_MAX, state.stamina.available + count),
+    available: Math.min(max, state.stamina.available + count),
     pending: state.stamina.pending,
   };
   armRecovery(state, now);
@@ -136,7 +148,7 @@ export function addStamina(state: MetaState, now: number, count = 1): boolean {
 
 /** 「下颗体力 MM:SS」；体力已满返回 null（§11.1：满格不显示倒计时） */
 export function staminaCountdown(state: MetaState, now: number): string | null {
-  if (state.stamina.available >= STAMINA_MAX) return null;
+  if (state.stamina.available >= staminaMaxOf(state)) return null;
   if (state.nextRecoverAt === null) return fmtMMSS(STAMINA_RECOVER_MS / 1000);
   return fmtMMSS(Math.max(0, state.nextRecoverAt - now) / 1000);
 }
@@ -168,7 +180,10 @@ export function recordAdRevive(state: MetaState): void {
 /** 图鉴总数 = 36（图 ID 0~35） */
 export const COLLECTION_TOTAL = REWARD_LEVELS;
 
-/** 第 N 关的图鉴奖励图 ID；第 37~60 关无奖励（§10.2） */
+/**
+ * 第 N 关的图鉴奖励图 ID（§10.2 旧口径，仅老界面 / 测试还在读）。
+ * ⚠️ 图鉴实际按「每 10 颗星一张」解锁（见 unlockedImageIds）；后段奖励是金卡 + 章节宝箱（核心/rewards.ts）。
+ */
 export function rewardImageOfLevel(level: number): number | undefined {
   return LEVEL_REWARD_CONFIG[level];
 }

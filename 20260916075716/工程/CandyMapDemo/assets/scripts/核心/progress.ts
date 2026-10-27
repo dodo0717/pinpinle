@@ -271,7 +271,8 @@ export function confirmStamina(state: Stamina): Stamina {
  *
  * 退还时按上限截断：否则「预扣 → 退还」循环能把体力刷到超过上限。
  */
-export function refundStamina(state: Stamina): Stamina {
+export function refundStamina(state: Stamina, max: number = STAMINA_MAX): Stamina {
   if (state.pending <= 0) return state;
-  return { available: Math.min(STAMINA_MAX, state.available + 1), pending: 0 };
+  // max：当前体力上限（章节宝箱会加成，2026-10-27 评审 P0-4）
+  return { available: Math.min(max, state.available + 1), pending: 0 };
 }

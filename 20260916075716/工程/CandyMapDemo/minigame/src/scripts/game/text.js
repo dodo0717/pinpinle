@@ -18,6 +18,9 @@ export const HOME = {
   staminaShort: '体力不够啦',
   staminaGain: (n        , max        ) => `体力已补充（当前 ${n}/${max}）`,
   staminaRefund: '首次三星！返还 1 点体力',
+  /** 结算新得奖励（评审 P0-4） */
+  goldGain: (n        ) => `✨ 图鉴升级金卡 ×${n}`,
+  chestGain: (name        ) => `🎁 章节宝箱：${name}`,
   adLeft: (n        ) => `今日还可看 ${n} 次广告加体力`,
   adNone: '今日加体力次数已用完',
   lockedToast: '先通关前面的关卡哦',
@@ -95,6 +98,14 @@ export const PANEL = {
   sfx: '音效',
   version: '版本 v1.0',
   reset: '重置存档',
+  /** 图鉴金卡计数（2026-10-27 评审 P0-4：困难 3★ 把普通卡升成金卡） */
+  goldCollected: (n        , total        ) => `金卡 ${n} / ${total}`,
+  goldHint: '困难模式每拿一个 3★，升级一张金卡',
+  /** 设置页「对局皮肤」（评审 P1-3） */
+  skin: (name        ) => `对局皮肤：${name}`,
+  skinTitle: '选择对局皮肤',
+  skinLocked: (level        ) => `简单模式通关第 ${level} 关宝箱解锁`,
+  skinChanged: (name        ) => `已换成「${name}」，下一局生效`,
   privacy: '隐私保护指引',
   agreement: '用户协议',
   ageTip: '适龄提示',

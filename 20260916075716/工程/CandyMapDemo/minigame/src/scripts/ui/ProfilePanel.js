@@ -16,8 +16,39 @@ import {
 } from '../game/profile.js';
 import { hex, fillV, shadow, mkNode, mkGfx, mkText, setSpriteRadii, screenH } from '../game/paint.js';
 import { FONT_SANS } from '../game/theme.js';
+import { GS } from '../game/state.js';
+import { ownedRewards,                    } from '../core/index.js';
 
 const BROWN = hex('#6B4A2F');
+
+/**
+ * 头像框（章节宝箱奖励，评审 P0-4）：代码绘制占位，美术出图后换成 Sprite 即可。
+ *   star 萌宠新星 = 金色双圈；king 终极拼王 = 紫金双圈 + 顶部皇冠
+ */
+function avatarFrame(parent      , size        , x        , y        , id               )       {
+  const g = mkGfx(parent, 'AvatarFrame', size + 60, size + 60, x, y);
+  const r = size / 2;
+  const outer = id === 'king' ? hex('#8E5BD8') : hex('#E8A820');
+  g.lineWidth = 12;
+  g.strokeColor = outer;
+  g.circle(0, 0, r + 12);
+  g.stroke();
+  g.lineWidth = 4;
+  g.strokeColor = GOLD;
+  g.circle(0, 0, r + 22);
+  g.stroke();
+  if (id === 'king') mkText(g.node, '👑', 0, r + 26, 120, { font: FONT_SANS, size: 64, color: new Color(255, 255, 255) });
+}
+
+/** 称号胶囊（压在头像下沿） */
+function titleBadge(parent      , title        , x        , y        )       {
+  const w = Math.max(200, title.length * 40 + 60);
+  const g = mkGfx(parent, 'TitleBadge', w, 56, x, y);
+  g.fillColor = hex('#E8A820');
+  g.roundRect(-w / 2, -28, w, 56, 28);
+  g.fill();
+  mkText(g.node, title, 0, 0, w - 20, { font: FONT_SANS, size: 34, color: new Color(255, 255, 255), bold: true });
+}
 const GOLD = hex('#F5C542');
 const CREAM_A = hex('#FFF8E7');
 const CREAM_B = hex('#fdeccb');
@@ -165,8 +196,14 @@ export class ProfilePanel {
       shadow: { color: new Color(0, 0, 0, 31), y: 4 },
     });
 
-    // 大头像 + 昵称
+    // 大头像 + 昵称；章节宝箱奖励（评审 P0-4）：头像框画在头像外圈，称号压在头像下沿
+    const rewards = ownedRewards(GS.data.progress.normal);
+    const frame = rewards.frames.includes('king') ? 'king' : rewards.frames.includes('star') ? 'star' : null;
+    if (frame) avatarFrame(card, 200, 0, top - 280, frame);
     new AvatarView(card, 200, 0, top - 280);
+    const title = rewards.titles[rewards.titles.length - 1];
+    // y 取 -372：胶囊下沿 -400，不碰下面昵称（中心 -430、字号 52）
+    if (title) titleBadge(card, title, 0, top - 372);
     const nick = mkText(card, '', 0, top - 430, 760, { font: FONT_SANS, size: 52, color: BROWN, bold: true });
     const paintNick = (p         )       => { if (nick.isValid) nick.string = p.nickname; };
     paintNick(getProfile());

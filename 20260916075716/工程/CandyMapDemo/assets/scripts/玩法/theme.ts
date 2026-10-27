@@ -279,23 +279,32 @@ export const THEMES: Record<ThemeId, GameTheme> = {
 
 const ORDER: ThemeId[] = ['classic', 'candy', 'clean', 'journal'];
 
-/** 关卡 → 主题（10-25）：第 2/3/4 关是三原型，其余关卡（含第 1 关）是原样式 */
-const LEVEL_THEME: Record<number, ThemeId> = { 2: 'candy', 3: 'clean', 4: 'journal' };
+/**
+ * 主视觉统一（2026-10-27 评审 P1-3）：全部关卡都用玩家选的「对局皮肤」，默认贴纸手账。
+ * 原来第 2/3/4 关各绑一套、其余关卡用原样式，新玩家前 5 关看到 4 种界面语言。
+ * 糖果嘉年华 / 果冻乐园改为章节宝箱奖励（核心/rewards.ts，第 45 / 55 关），解锁后在设置页切换；
+ * 「拥有没拥有」由调用方判断（本模块不依赖存档），见 MapBootstrap `ensureSkinOwned`。
+ * 原样式 classic 不再出现在正式流程里，只留给调试循环切换。
+ */
+export const DEFAULT_SKIN: ThemeId = 'journal';
+/** 可选皮肤（设置页列表顺序） */
+export const SKINS: readonly ThemeId[] = ['journal', 'candy', 'clean'];
 const KEY = 'pinpin.theme';
+const SKIN_KEY = 'pinpin.skin';
 
 type Listener = (t: GameTheme) => void;
 const listeners: Listener[] = [];
 
-function readStored(): ThemeId | null {
+function readStored(key = KEY): ThemeId | null {
   try {
     const wx = (globalThis as { wx?: any }).wx;
     if (wx && typeof wx.getStorageSync === 'function') {
-      const v = wx.getStorageSync(KEY);
+      const v = wx.getStorageSync(key);
       if (typeof v === 'string' && v in THEMES) return v as ThemeId;
     }
     const ls = (globalThis as { localStorage?: Storage }).localStorage;
     if (ls) {
-      const v = ls.getItem(KEY);
+      const v = ls.getItem(key);
       if (v && v in THEMES) return v as ThemeId;
     }
   } catch {
@@ -304,25 +313,44 @@ function readStored(): ThemeId | null {
   return null;
 }
 
-function writeStored(id: ThemeId): void {
+function writeStored(id: ThemeId, key = KEY): void {
   try {
     const wx = (globalThis as { wx?: any }).wx;
     if (wx && typeof wx.setStorageSync === 'function') {
-      wx.setStorageSync(KEY, id);
+      wx.setStorageSync(key, id);
       return;
     }
     const ls = (globalThis as { localStorage?: Storage }).localStorage;
-    if (ls) ls.setItem(KEY, id);
+    if (ls) ls.setItem(key, id);
   } catch {
     /* 存不上就内存态 */
   }
 }
 
-let currentId: ThemeId = readStored() ?? 'classic';
+/** 玩家选的对局皮肤（只认 SKINS 里的；读不到 / 老值 classic → 默认贴纸手账） */
+let skinId: ThemeId = ((): ThemeId => {
+  const v = readStored(SKIN_KEY);
+  return v && SKINS.includes(v) ? v : DEFAULT_SKIN;
+})();
 
-/** 关卡 → 主题：第 2 关糖果嘉年华 / 第 3 关果冻乐园 / 第 4 关贴纸手账，其余原样式。进关时由 GameBootstrap 调用 */
-export function themeForLevel(level: number): GameTheme {
-  return THEMES[LEVEL_THEME[level] ?? 'classic'];
+let currentId: ThemeId = skinId;
+
+/** 当前选的皮肤 */
+export function selectedSkin(): ThemeId {
+  return skinId;
+}
+
+/** 换皮肤（设置页）；是否已拥有由调用方先判断。返回是否真的换了 */
+export function setSkin(id: ThemeId): boolean {
+  if (!SKINS.includes(id) || id === skinId) return false;
+  skinId = id;
+  writeStored(id, SKIN_KEY);
+  return true;
+}
+
+/** 关卡 → 主题：所有关卡都用当前皮肤（评审 P1-3）。参数保留，以后要做章节主题时按关号分 */
+export function themeForLevel(_level: number): GameTheme {
+  return THEMES[skinId];
 }
 
 /** 进关时设定主题（GameBootstrap 调用） */

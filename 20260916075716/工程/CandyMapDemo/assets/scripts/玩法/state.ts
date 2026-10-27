@@ -24,6 +24,8 @@ import {
   TIME_LIMIT,
   LEVEL_TIME_MAX,
   STAMINA_MAX,
+  MAX_STAMINA_BONUS,
+  ownedRewards,
   preDeductStamina,
   confirmStamina,
   refundStamina,
@@ -52,7 +54,8 @@ import {
 /** 存档字段的合法区间（由 core 给真值，避免这里再抄一份策划案数字） */
 export const SAVE_LIMITS: SaveLimits = {
   totalLevels: TOTAL_LEVELS,
-  staminaMax: STAMINA_MAX,
+  // 体力上限会被章节宝箱加成（核心/rewards.ts），存档校验要放得下加成后的值
+  staminaMax: STAMINA_MAX + MAX_STAMINA_BONUS,
   // 断点 timeLeft 的上限：逐关时长最长 LEVEL_TIME_MAX（2026-10-27），不能再用固定 180，
   // 否则困难模式长关 / 续命 +60 秒后的断点会被当越界作废
   timeLimit: Math.max(TIME_LIMIT, LEVEL_TIME_MAX),
@@ -98,6 +101,7 @@ class GameState {
     const result = parseSave(this.save.read(), fresh, SAVE_LIMITS, now);
     this.data = result.data;
     this.meta = metaFromSnapshot(this.data, now);
+    this.applyRewardBonus();
     this.readResult = result;
     // 悬空的预扣体力只能在读档这一刻退还：此时没有任何「局内」上下文，
     // 再往后就无法区分「正在进关」和「上次进关时崩了」
@@ -150,7 +154,13 @@ class GameState {
 
   setProgress(next: ProgressData): void {
     this.data.progress[this.mode] = next;
+    this.applyRewardBonus();
     this.markDirty();
+  }
+
+  /** 按进度重算章节宝箱带来的体力上限加成（只涨不扣当前体力） */
+  private applyRewardBonus(): void {
+    this.meta.staminaMax = STAMINA_MAX + ownedRewards(this.data.progress.normal).staminaBonus;
   }
 
   /* ------------------------------------------------------------ 体力（§12.4 三态） */
@@ -178,7 +188,7 @@ class GameState {
   /** 中途退出 / 加载超时 → 退还 */
   refundStamina(): void {
     if (this.meta.stamina.pending <= 0) return;
-    this.meta.stamina = refundStamina(this.meta.stamina);
+    this.meta.stamina = refundStamina(this.meta.stamina, this.staminaMax);
     this.markDirty();
     this.notify();
   }
@@ -190,7 +200,7 @@ class GameState {
     return ok;
   }
 
-  get staminaMax(): number { return STAMINA_MAX; }
+  get staminaMax(): number { return this.meta.staminaMax ?? STAMINA_MAX; }
   get adStaminaLeft(): number { return adStaminaLeft(this.meta, Date.now()); }
   recordAd(): void { recordAdStamina(this.meta); this.markDirty(); }
   /** 续命广告额度（与加体力分开计数） */
@@ -249,6 +259,7 @@ class GameState {
     removeSave();
     this.data = createSaveData('normal', now);
     this.meta = createMeta(now);
+    this.applyRewardBonus();
     this.flush();
     this.notify();
   }
