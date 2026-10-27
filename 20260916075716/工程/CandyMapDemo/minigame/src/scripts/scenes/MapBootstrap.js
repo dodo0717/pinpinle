@@ -10,9 +10,9 @@ import { GameDialog } from '../game/GameDialog.js';
 import { ToastLayer } from '../game/toast.js';
 import { GS } from '../game/state.js';
 import { showRewardedAd, preloadAds } from '../game/ads.js';
-import { AD_STAMINA_GAIN } from '../game/meta.js';
-import { syncFriendRank, enableShare, getInviter, reportInviter, getLaunchLevel } from '../game/wxFriend.js';
-import { requestReminders } from '../game/subscribe.js';
+import { AD_STAMINA_GAIN, STAMINA_RECOVER_MS } from '../game/meta.js';
+import { syncFriendRank, enableShare, getInviter, reportInviter, getLaunchLevel, claimInviteRewards } from '../game/wxFriend.js';
+import { requestReminders, registerReminders } from '../game/subscribe.js';
 import { cloudSync,                } from '../game/cloud.js';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL, DAILY, CHECKIN, COMEBACK } from '../game/text.js';
 import { HEALTH_ADVICE, AGE_TIP_LINES, USER_AGREEMENT_LINES, openPrivacyContract } from '../game/privacy.js';
@@ -333,8 +333,13 @@ export class MapBootstrap extends Component {
         enableShare(cloud.playerId);
         // 本机资料推给后端（排行榜上的名字 / 头像）
         syncProfileAfterLogin();
+        // 邀请奖励（2026-10-27）：受邀新玩家登录时领自己那份；邀请人每次登录领累计的那份
         const inviter = getInviter();
-        if (inviter) void reportInviter(inviter);
+        const gotInvited = inviter ? await reportInviter(inviter) : 0;
+        if (gotInvited > 0 && GS.gainStamina(gotInvited)) this.toast.show(HOME.inviteeGain(gotInvited), 2600);
+        const gotInviter = await claimInviteRewards();
+        if (gotInviter > 0 && GS.gainStamina(gotInviter)) this.toast.show(HOME.inviterGain(gotInviter), 2600);
+        if (gotInvited > 0 || gotInviter > 0) { GS.flush(); this.refreshTopbar(); }
         await cloud.flush();
         const merged = await cloud.pull(GS.data.progress.normal);
         if (merged === GS.data.progress.normal) return;
@@ -1574,7 +1579,10 @@ export class MapBootstrap extends Component {
             {
                 text: CHECKIN.remind,
                 // 订阅消息必须在点击回调里请求（微信规矩），所以放在按钮上
-                onClick: () => requestReminders((ok) => this.toast.show(ok ? CHECKIN.remindOk : CHECKIN.remindNA, 2200)),
+                onClick: () => requestReminders((ok) => {
+                    this.toast.show(ok ? CHECKIN.remindOk : CHECKIN.remindNA, 2200);
+                    if (ok) registerReminders(this.staminaFullAt());
+                }),
             },
             {
                 text: can ? CHECKIN.btn : CHECKIN.done,
@@ -1583,6 +1591,14 @@ export class MapBootstrap extends Component {
                 onClick: () => this.doCheckin(),
             },
         ]);
+    }
+
+    /** 体力回满的时刻（订阅提醒用）；已满返回 null */
+            staminaFullAt()                {
+        const missing = GS.staminaMax - GS.stamina.available;
+        if (missing <= 0) return null;
+        const next = GS.meta.nextRecoverAt ?? Date.now() + STAMINA_RECOVER_MS;
+        return next + (missing - 1) * STAMINA_RECOVER_MS;
     }
 
             doCheckin() {

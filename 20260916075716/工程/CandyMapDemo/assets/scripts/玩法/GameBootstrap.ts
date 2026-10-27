@@ -23,7 +23,7 @@ import { GuideBar } from './guide';
 import { GS } from './state';
 import { showRewardedAd } from './ads';
 import { track } from './analytics';
-import { syncFriendRank, setShareChallenge } from './wxFriend';
+import { syncFriendRank, setShareChallenge, shareChallengeNow } from './wxFriend';
 import { cloudSync, REPORT_MODES } from './cloud';
 import { setThemeForLevel, onThemeChanged, currentTheme } from './theme';
 import { showThemeWin, showThemeFail } from './themeResult';
@@ -33,7 +33,7 @@ import { screenH, screenInsets } from './paint';
 import { WebHud, webLayout } from './webHud';
 import { showWebResult, type WebButton } from './webResult';
 import {
-  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL, DAILY, TICKET,
+  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL, DAILY, TICKET, SHARE,
   WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
 } from './text';
 import { unlockedImageIds, AD_STAMINA_GAIN } from './meta';
@@ -299,9 +299,18 @@ export class GameBootstrap extends Component {
     });
     this.audio.play(cleared ? 'win' : 'fail');
     const left = dailyPlaysLeft(r, now);
+    // 日榜（2026-10-27 服务端 /daily/result）：异步上报，回来后 toast 名次；离线 / 失败静默
+    const cloud = cloudSync();
+    if (cloud && outcome.points > 0) {
+      void cloud.api('POST', '/game/api/daily/result', { day: dayKeyOf(now), score: outcome.points }).then((res) => {
+        const rank = Number(res?.myRank);
+        const total = Number(res?.total);
+        if (Number.isFinite(rank) && rank > 0) this.toast.show(DAILY.boardRank(rank, Number.isFinite(total) ? total : rank), 3000);
+      });
+    }
     this.dialog.show(
       DAILY.resultTitle,
-      [cleared ? DAILY.cleared : DAILY.failed, DAILY.resultLine(outcome.points, r.dailyBest), DAILY.playsLeft(left), DAILY.boardTodo],
+      [cleared ? DAILY.cleared : DAILY.failed, DAILY.resultLine(outcome.points, r.dailyBest), DAILY.playsLeft(left), cloud ? '' : DAILY.boardOffline].filter(Boolean),
       [
         { text: DAILY.back, onClick: () => this.exitToHome() },
         { text: DAILY.again, onClick: () => this.restart(), primary: true, disabled: left <= 0 },
@@ -921,9 +930,12 @@ export class GameBootstrap extends Component {
       isNewBest: boardBest === outcome.points && outcome.points > 0,
       level: this.levelIndex,
       modeLabel: MODE_LABEL[GS.mode],
+      shareText: SHARE.btn,
     }, {
       onNext: () => this.nextLevel(),
       onBack: () => this.exitToHome(),
+      // 「挑战好友」（评审 P2-2）：点了不关弹窗，非微信给提示
+      onShare: () => { if (!shareChallengeNow()) this.toast.show(SHARE.na, 2000); },
     });
   }
 
@@ -950,6 +962,8 @@ export class GameBootstrap extends Component {
     } else {
       rows.push([retry]);
     }
+    // 第 1 关原样式吊牌：「挑战好友」并进最后一行（点了会关吊牌，分享后玩家回到地图前仍在结算页）
+    rows[rows.length - 1]!.push({ label: SHARE.btn, onClick: () => { if (!shareChallengeNow()) this.toast.show(SHARE.na, 2000); } });
     if (this.levelIndex === 1) this.webGuide('clear');
     showWebResult(this.node, {
       mode: 'win',

@@ -48,6 +48,8 @@ CandyMapDemo/
 
 ## 近期更新（2026-10-21 ~ 26）
 
+- **2026-10-27（日榜 / 邀请 / 订阅 / 挑战好友）**：把阶段 5 延后的几项做完。① 服务端（`candy-game-server` 新分支 `feat/daily-invite-subscribe`，基于 `feat/score-points`，**仅本地未部署**）：新增 `GameRetentionController`——`/daily/result`（只留当天最好，北京时间，收今天或昨天）、`/daily/rank`、`/invite`（只认注册 24 小时内的新玩家、一个受邀者只算一次、不能邀请自己、邀请人每天上限）、`/invite/claim`（邀请人原子领取）、`/subscribe`；`SubscribePushTask` 每分钟推送到点的订阅消息（默认关闭，sys_config `game.subscribe.enabled`）；`V9__daily_invite_subscribe.sql`（3 张表 + 7 个参数）；`RetentionRulesTest` 7 项，服务端单测 93 全过。② 客户端：每日挑战结算上报日榜并 toast 名次；登录后受邀者 / 邀请人各自领邀请体力（`wxFriend.reportInviter / claimInviteRewards`）；订阅授权成功后登记体力回满时刻与次日 0:05（`subscribe.registerReminders`）；结算弹窗加「📤 挑战好友」（三套主题右上角统一胶囊按钮，原版式不动；第 1 关吊牌并进按钮行），走 `wx.shareAppMessage`，卡片带关卡号与邀请人。新增 `docs/后续事项进度.md`，同步 `docs/待提供与待确认清单.md`。283 测试全过、冒烟通过、minigame 已重建。
+
 - **2026-10-27（主题改回按关绑定）**：主视觉还没定，按用户要求恢复原来的第 2 关糖果嘉年华 / 第 3 关果冻乐园 / 第 4 关贴纸手账、其余关卡原样式（`玩法/theme.ts` 新增开关 `UNIFIED_SKIN = false`）。阶段 4 的「全关统一皮肤 + 设置页选皮肤」代码保留，开关关闭时设置页不显示皮肤入口；定稿后改成 true 即可启用。新增 `docs/待提供与待确认清单.md`（需要提供的 ID / 正文 / 后台配置 / 美术，待拍板事项，上线前操作）。283 测试全过、冒烟通过、minigame 已重建。
 
 - **2026-10-27（评审落地·阶段 6）**：爽感动效（P2-1），全部代码绘制。① 消除贴纸弹出（`BoardView.playFullPop`）：放大 0.25 秒到 1.18 → 回弹到 1.0 → 停 0.08 秒再缩没，「拼成了」的停顿更明显。② 飘字：`floatScore` 新增 `heat`（这一组速度分占满额的比例），越快字越大（最多 ×1.35）、颜色越往橙红偏；主题关飘本组排行分。③ 3★ 庆祝：金光爆发从糖果主题抽成 `goldBurst()`，果冻乐园 / 贴纸手账的通关弹窗也加上（对齐各自星星落下 / 印章盖下的时刻）；彩带雨三套共用，配色随主题（手账用和纸胶带色）；低端机（微信 `benchmarkLevel < 15`）彩带 60 → 30 片。音效节奏与动画对齐未做（需真机听感调试）。283 测试全过、冒烟通过、minigame 已重建。

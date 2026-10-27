@@ -10,6 +10,25 @@
 
 import { SUBSCRIBE_TEMPLATES } from '../core/release.js';
 import { track } from './analytics.js';
+import { cloudSync } from './cloud.js';
+
+/**
+ * 授权成功后把推送时间登记到服务端（2026-10-27，GameRetentionController /subscribe）：
+ *   stamina —— 体力回满的时刻（满格时不登记）；daily —— 明天 0 点 5 分（每日挑战刷新）。
+ * 失败静默：推送是锦上添花。
+ */
+export function registerReminders(staminaFullAt               , now = Date.now())       {
+  const cloud = cloudSync();
+  if (!cloud) return;
+  if (SUBSCRIBE_TEMPLATES.stamina && staminaFullAt !== null && staminaFullAt > now) {
+    void cloud.api('POST', '/game/api/subscribe', { kind: 'stamina', sendAt: Math.round(staminaFullAt) });
+  }
+  if (SUBSCRIBE_TEMPLATES.daily) {
+    const d = new Date(now);
+    const tomorrow = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 5, 0).getTime();
+    void cloud.api('POST', '/game/api/subscribe', { kind: 'daily', sendAt: tomorrow });
+  }
+}
 
 export function subscribeAvailable()          {
   const wx = (globalThis                ).wx;

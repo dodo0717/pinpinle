@@ -29,11 +29,15 @@ export interface WinInfo {
   isNewBest: boolean;
   level: number;
   modeLabel: string;
+  /** 「挑战好友」按钮文字 */
+  shareText?: string;
 }
 
 export interface ThemeResultCallbacks {
   onNext: () => void;
   onBack: () => void;
+  /** 「挑战好友」（评审 P2-2）；不传就不显示 */
+  onShare?: () => void;
 }
 
 export interface FailInfo {
@@ -56,9 +60,32 @@ const REVIVE_WAIT = 10;
 
 export function showThemeWin(parent: Node, info: WinInfo, cb: ThemeResultCallbacks): Node {
   const t = currentTheme();
-  if (t.id === 'clean') return winClean(parent, t, info, cb);
-  if (t.id === 'journal') return winJournal(parent, t, info, cb);
-  return winCandy(parent, t, info, cb);
+  const root = t.id === 'clean' ? winClean(parent, t, info, cb)
+    : t.id === 'journal' ? winJournal(parent, t, info, cb)
+      : winCandy(parent, t, info, cb);
+  if (cb.onShare) shareChip(root, t, info.shareText ?? '📤', cb.onShare);
+  return root;
+}
+
+/**
+ * 「挑战好友」（2026-10-27 评审 P2-2）：三套弹窗原版式都不动，统一挂一个胶囊按钮在屏幕右上
+ * （微信胶囊下方），点了不关弹窗。等主视觉定稿后再考虑并进各自的按钮区。
+ */
+function shareChip(root: Node, t: GameTheme, text: string, onTap: () => void): void {
+  const H = screenH();
+  const n = mkNode(root, 'ShareChip', 300, 96, 540 - 40 - 150, H / 2 - 230);
+  const g = n.addComponent(Graphics);
+  const face = t.id === 'candy' ? P_CANDY.cta : t.id === 'clean' ? P_CLEAN.mint : P_JOURNAL.stamp;
+  shadow(g, new Color(0, 0, 0, 70), 20, 0, 6);
+  g.fillColor = face;
+  g.roundRect(-150, -48, 300, 96, 48);
+  g.fill();
+  shadow(g, null);
+  mkText(n, text, 0, 0, 280, { font: t.font, size: 36, color: new Color(255, 255, 255), bold: t.id !== 'candy' });
+  n.on(Node.EventType.TOUCH_START, (e: EventTouch) => { e.propagationStopped = true; n.setScale(0.95, 0.95); });
+  n.on(Node.EventType.TOUCH_CANCEL, () => n.setScale(1, 1));
+  n.on(Node.EventType.TOUCH_END, (e: EventTouch) => { e.propagationStopped = true; n.setScale(1, 1); onTap(); });
+  popIn(n, 1.4);
 }
 
 export function showThemeFail(parent: Node, info: FailInfo, cb: FailCallbacks): Node {

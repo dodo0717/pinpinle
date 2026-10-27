@@ -170,12 +170,43 @@ export function enableShare(myPlayerId                        )       {
 }
 
 /**
- * 上报「我是被谁邀请来的」。好友系统是后端**二期**，/game/api/invite 还没上线：
- * 404 / 失败一律静默（尽力而为），接口上线后自动开始生效。
+ * 上报「我是被谁邀请来的」（2026-10-27 服务端 GameRetentionController /invite）。
+ * 返回受邀者这一份奖励体力（无效邀请 / 老服务端 404 / 失败一律 0，静默）。
  */
-export async function reportInviter(inviter        )                {
-  if (!inviter) return;
+export async function reportInviter(inviter        )                  {
+  if (!inviter) return 0;
   const cloud = cloudSync();
-  if (!cloud) return;
-  await cloud.api('POST', '/game/api/invite', { inviter });
+  if (!cloud) return 0;
+  const res = await cloud.api('POST', '/game/api/invite', { inviter });
+  const n = Number(res?.reward);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** 邀请人领取累计的邀请奖励（登录后调一次）；返回本次领到的体力，没有 / 失败为 0 */
+export async function claimInviteRewards()                  {
+  const cloud = cloudSync();
+  if (!cloud) return 0;
+  const res = await cloud.api('POST', '/game/api/invite/claim');
+  const n = Number(res?.reward);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
+ * 结算弹窗「挑战好友」按钮（评审 P2-2）：主动拉起转发，卡片与右上角转发同一套标题 / query。
+ * 必须在点击回调里调（微信规矩）。非微信返回 false，调用方给提示。
+ */
+export function shareChallengeNow()          {
+  const wx = (globalThis                ).wx;
+  if (!wx || typeof wx.shareAppMessage !== 'function') return false;
+  try {
+    const q           = [];
+    const pid = cloudSync()?.playerId;
+    if (pid != null) q.push(`inviter=${encodeURIComponent(String(pid))}`);
+    if (lastChallenge) q.push(`level=${lastChallenge.level}`);
+    track('share', { from: 'result', level: lastChallenge?.level ?? 0 });
+    wx.shareAppMessage({ title: shareTitle(), query: q.join('&') });
+    return true;
+  } catch {
+    return false;
+  }
 }

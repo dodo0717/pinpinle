@@ -10,9 +10,9 @@ import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
 import { showRewardedAd, preloadAds } from '../玩法/ads';
-import { AD_STAMINA_GAIN } from '../玩法/meta';
-import { syncFriendRank, enableShare, getInviter, reportInviter, getLaunchLevel } from '../玩法/wxFriend';
-import { requestReminders } from '../玩法/subscribe';
+import { AD_STAMINA_GAIN, STAMINA_RECOVER_MS } from '../玩法/meta';
+import { syncFriendRank, enableShare, getInviter, reportInviter, getLaunchLevel, claimInviteRewards } from '../玩法/wxFriend';
+import { requestReminders, registerReminders } from '../玩法/subscribe';
 import { cloudSync, type CloudSync } from '../玩法/cloud';
 import { HOME, ADS, SETTINGS, MAP_TEXT, TABBAR, MODE_LABEL, PANEL, DAILY, CHECKIN, COMEBACK } from '../玩法/text';
 import { HEALTH_ADVICE, AGE_TIP_LINES, USER_AGREEMENT_LINES, openPrivacyContract } from '../玩法/privacy';
@@ -334,8 +334,13 @@ export class MapBootstrap extends Component {
         enableShare(cloud.playerId);
         // 本机资料推给后端（排行榜上的名字 / 头像）
         syncProfileAfterLogin();
+        // 邀请奖励（2026-10-27）：受邀新玩家登录时领自己那份；邀请人每次登录领累计的那份
         const inviter = getInviter();
-        if (inviter) void reportInviter(inviter);
+        const gotInvited = inviter ? await reportInviter(inviter) : 0;
+        if (gotInvited > 0 && GS.gainStamina(gotInvited)) this.toast.show(HOME.inviteeGain(gotInvited), 2600);
+        const gotInviter = await claimInviteRewards();
+        if (gotInviter > 0 && GS.gainStamina(gotInviter)) this.toast.show(HOME.inviterGain(gotInviter), 2600);
+        if (gotInvited > 0 || gotInviter > 0) { GS.flush(); this.refreshTopbar(); }
         await cloud.flush();
         const merged = await cloud.pull(GS.data.progress.normal);
         if (merged === GS.data.progress.normal) return;
@@ -1575,7 +1580,10 @@ export class MapBootstrap extends Component {
             {
                 text: CHECKIN.remind,
                 // 订阅消息必须在点击回调里请求（微信规矩），所以放在按钮上
-                onClick: () => requestReminders((ok) => this.toast.show(ok ? CHECKIN.remindOk : CHECKIN.remindNA, 2200)),
+                onClick: () => requestReminders((ok) => {
+                    this.toast.show(ok ? CHECKIN.remindOk : CHECKIN.remindNA, 2200);
+                    if (ok) registerReminders(this.staminaFullAt());
+                }),
             },
             {
                 text: can ? CHECKIN.btn : CHECKIN.done,
@@ -1584,6 +1592,14 @@ export class MapBootstrap extends Component {
                 onClick: () => this.doCheckin(),
             },
         ]);
+    }
+
+    /** 体力回满的时刻（订阅提醒用）；已满返回 null */
+    private staminaFullAt(): number | null {
+        const missing = GS.staminaMax - GS.stamina.available;
+        if (missing <= 0) return null;
+        const next = GS.meta.nextRecoverAt ?? Date.now() + STAMINA_RECOVER_MS;
+        return next + (missing - 1) * STAMINA_RECOVER_MS;
     }
 
     private doCheckin() {

@@ -18,6 +18,9 @@ export const HOME = {
   staminaShort: '体力不够啦',
   staminaGain: (n        , max        ) => `体力已补充（当前 ${n}/${max}）`,
   staminaRefund: '首次三星！返还 1 点体力',
+  /** 邀请奖励（2026-10-27 服务端 /invite） */
+  inviteeGain: (n        ) => `好友邀请你来玩，体力 +${n}`,
+  inviterGain: (n        ) => `好友接受了你的邀请，体力 +${n}`,
   /** 结算新得奖励（评审 P0-4） */
   goldGain: (n        ) => `✨ 图鉴升级金卡 ×${n}`,
   chestGain: (name        ) => `🎁 章节宝箱：${name}`,
@@ -188,6 +191,15 @@ export const DAILY = {
   again: '再挑战一次',
   back: '回地图',
   boardTodo: '每日排行榜即将开放',
+  /** 日榜（服务端 /daily/result 回来的名次） */
+  boardRank: (rank        , total        ) => `今日排行 第 ${rank} 名 / ${total} 人`,
+  boardOffline: '联网后可查看今日排行',
+}         ;
+
+/** 结算弹窗「挑战好友」（评审 P2-2） */
+export const SHARE = {
+  btn: '📤 挑战好友',
+  na: '请在微信里分享给好友',
 }         ;
 
 export const CHECKIN = {
