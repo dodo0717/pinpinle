@@ -62,8 +62,15 @@ test('renderTable：空表 / 有表都能生成合法 TS（levelTable.ts 回退�
   assert.ok(filled.includes('level: 1, x: 768, y: 10496'));
 });
 
-test('LevelTable 模块可被 MapBootstrap 导入且默认为空表（公式回退不破坏现状）', async () => {
+test('LevelTable 模块可被 MapBootstrap 导入；已导出的世界关号连续、坐标落在轨道内', async () => {
   const mod = await import('../assets/scripts/场景/levelTable');
   assert.ok(mod.LEVELS_BY_ART);
-  assert.deepEqual(Object.keys(mod.LEVELS_BY_ART), []);
+  // 2026-10-28 起 xiaozhen 由地图编辑器导出；其余世界仍回退 ROAD_X 公式
+  for (const [art, rows] of Object.entries(mod.LEVELS_BY_ART)) {
+    assert.equal(rows.length, 12, `${art} 应为 12 关`);
+    rows.forEach((r, i) => {
+      assert.equal(r.level, rows[0].level + i, `${art} 关号不连续`);
+      assert.ok(r.x > 0 && r.x < 1536 && r.y > 0 && r.y < 5462, `${art} 第 ${r.level} 关越界`);
+    });
+  }
 });
