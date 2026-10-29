@@ -19,6 +19,7 @@ import { themeForLevel } from '../game/theme.js';
 import { getProfile, onProfileChanged, trySilentWxProfile, syncProfileAfterLogin } from '../game/profile.js';
 import { starPath, shadow } from '../game/paint.js';
 import { LEVELS_BY_ART } from './levelTable.js';
+import { MAP_ANIM } from './mapAnim.js';
 import {
     levelStatus, recordOf, buildLevelConfigs, boardSnapshot, STAR_LINES_BY_MODE, TOTAL_LEVELS,
                                     
@@ -36,7 +37,8 @@ const { ccclass } = _decorator;
  *   - 左右大箭头换世界，右侧「▲ · 页点 · ▼」翻页，底部四个页签。
  *
  * 坐标约定：轨道（track）沿用 web 的 1536 × 5462 坐标（y 从上往下），整条轨道按
- * `k = 可视高度 / 2731` 缩放，一页正好铺满一屏 —— 与 web 的 fitScale 同一口径。
+ * `k = min(可视高度 / 2731, 1080 / 1536)` 缩放：普通屏一页正好铺满一屏（与 web 的 fitScale 同一口径）；
+ * 长屏按宽铺满，左右不裁，两页上下重叠、翻页顶 / 底对齐（2026-10-29）。
  */
 
 /* ------------------------------------------------------------------ 布局常量（与 web/ui/map.ts 一致） */
@@ -184,6 +186,9 @@ export class MapBootstrap extends Component {
             sky           = null ;
             bgSprite         = null ;
             beadLayer       = null ;
+    /** 底图动画块（tools/make-map-anim.py 生成的序列帧图集，垫在珠子下面） */
+            animLayer       = null ;
+            anims                                                       = [];
             world = 0;
             page = PAGE_COUNT - 1;
     /** content 的 y：-H/2 = 第 0 页（上），+H/2 = 第 1 页（下） */
@@ -267,7 +272,9 @@ export class MapBootstrap extends Component {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
         const vs = view.getVisibleSize();
         this.screenH = vs.height || DESIGN_H;
-        this.k = this.screenH / PAGE_H;
+        // 一页铺满一屏会在长屏（19.5:9 等，可视高 > 1920）上把轨道放宽到超过屏宽，左右两边被裁掉；
+        // 所以取「按高铺满」与「按宽铺满」的较小者：长屏按宽铺满，上下两页有重叠，翻页改为顶 / 底对齐
+        this.k = Math.min(this.screenH / PAGE_H, DESIGN_W / TRACK_W);
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
         // 启动即把本人总分/星数报给微信托管 KV（好友榜数据源；非微信 no-op）
@@ -389,6 +396,14 @@ export class MapBootstrap extends Component {
         for (const p of this.pulses) {
             p.node.setScale(1 + 0.2 * ph, 1 + 0.2 * ph);
             p.op.opacity = Math.round(210 * (1 - ph));
+        }
+
+        // 底图动画块：来回播放，周期 = 2 × (帧数 - 1)
+        for (const a of this.anims) {
+            const n = a.frames.length;
+            if (n < 2) continue;
+            const t = Math.floor(this.time * a.fps) % (2 * (n - 1));
+            a.sp.spriteFrame = a.frames[t < n ? t : 2 * (n - 1) - t];
         }
 
         // 吊牌从屏幕上方落下
@@ -609,6 +624,7 @@ export class MapBootstrap extends Component {
         const bg = this.makeNode(this.content, 'Bg', TRACK_W, TRACK_H);
         this.bgSprite = bg.addComponent(Sprite);
         this.bgSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.animLayer = this.makeNode(this.content, 'Anims', TRACK_W, TRACK_H);
         this.beadLayer = this.makeNode(this.content, 'Beads', TRACK_W, TRACK_H);
 
         this.mapView.on(Node.EventType.TOUCH_START, this.onMapStart, this);
@@ -664,6 +680,7 @@ export class MapBootstrap extends Component {
         this.loadFrame('map-v2/' + WORLDS[this.world].art, (sf) => {
             if (token === this.bgToken && this.bgSprite.isValid) this.bgSprite.spriteFrame = sf;
         });
+        this.buildAnims(token);
 
         this.buildBeads();
         // r=59 与 buildWorldNav 一致：到边界（第一世界 / 最后世界）置灰，不再只是变淡
@@ -672,6 +689,32 @@ export class MapBootstrap extends Component {
         if (focus) this.focusWorld(false);
         else this.applyOffset();
         this.paintPager();
+    }
+
+    /**
+     * 底图动画块：每块一张网格图集，按 rect 切成帧，update 里来回播放（正放再倒放，首尾不跳）。
+     * 图集边缘已和底图羽化烘焙在一起（不透明 jpg），图集没加载到时这块就是静态底图，不会露空。
+     */
+            buildAnims(token        ) {
+        for (const c of this.animLayer.children.slice()) c.destroy();
+        this.anims = [];
+        for (const def of MAP_ANIM[WORLDS[this.world].art] ?? []) {
+            const sp = this.makeNode(this.animLayer, 'Anim', def.w, def.h,
+                def.x - TRACK_W / 2, TRACK_H / 2 - def.y).addComponent(Sprite);
+            sp.sizeMode = Sprite.SizeMode.CUSTOM;
+            this.loadFrame(def.path, (sheet) => {
+                if (token !== this.bgToken || !sp.isValid) return;
+                const frames                = [];
+                for (let i = 0; i < def.frames; i++) {
+                    const f = new SpriteFrame();
+                    f.texture = sheet.texture;
+                    f.rect = new Rect((i % def.cols) * def.fw, Math.floor(i / def.cols) * def.fh, def.fw, def.fh);
+                    frames.push(f);
+                }
+                sp.spriteFrame = frames[0];
+                this.anims.push({ sp, frames, fps: def.fps });
+            });
+        }
     }
 
             buildBeads() {
@@ -813,15 +856,20 @@ export class MapBootstrap extends Component {
         this.content.setPosition(0, this.offset);
     }
 
-            minOffset()         { return -this.screenH / 2; }
-            maxOffset()         { return this.screenH / 2; }
+    /** 轨道顶边贴屏幕顶 / 底边贴屏幕底时的 offset；k 按高铺满时正好是 ∓screenH/2（与原口径一致） */
+            minOffset()         { return (this.screenH - TRACK_H * this.k) / 2; }
+            maxOffset()         { return (TRACK_H * this.k - this.screenH) / 2; }
 
+    /** 第 0 页顶对齐、最后一页底对齐，中间按比例 */
             pageOffset(p        )         {
-        return clamp(-this.screenH / 2 + p * this.screenH, this.minOffset(), this.maxOffset());
+        const lo = this.minOffset();
+        return lo + (this.maxOffset() - lo) * (p / (PAGE_COUNT - 1));
     }
 
             nearestPage(v        )         {
-        return clamp(Math.round((v + this.screenH / 2) / this.screenH), 0, PAGE_COUNT - 1);
+        const lo = this.minOffset();
+        const span = this.maxOffset() - lo;
+        return clamp(Math.round(span > 0 ? ((v - lo) / span) * (PAGE_COUNT - 1) : 0), 0, PAGE_COUNT - 1);
     }
 
             rubber(v        )         {
