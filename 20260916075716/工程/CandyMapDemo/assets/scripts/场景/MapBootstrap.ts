@@ -13,7 +13,7 @@ const { ccclass } = _decorator;
 
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
-const MAP_H = 2880;            // v4 定稿 1440×3840 按 1080 屏宽等比缩放后的高度（2 屏）
+const MAP_H = 3840;            // 新小镇底图 1080×3840（手机 2 屏，完整高度）
 const LEVEL_COUNT = 10;        // W1 当前 10 关；后续若要扩 20 关，再补一段同规格底图即可
 
 /**
@@ -26,20 +26,33 @@ const PAD_BOTTOM = 340;
 const CONTENT_H = MAP_H + PAD_TOP + PAD_BOTTOM;
 
 /**
- * 世界1（奶油果园）关卡坐标 —— 基于 v4 定稿图 1440×3840，按 1080×2880 换算
- * x / y 均为底图图片坐标（从顶部 0 往下），程序内部转成「从底部往上」的 yFromBottom
+ * 分层浮层资源 —— 全部 ≤1M：
+ * 静态背景层(整张1080×3840) + 风车/水面/角色 3 个透明浮层，动画由 updateFloats 驱动。
+ * 坐标 yFromTop 为底图图片坐标（从顶部往下），程序转成 yFromBottom。
+ */
+const FLOAT = {
+    bg: 'map/w1_bg',                                              // 静态背景层整张
+    windmill: { path: 'map/w1_windmill', w: 260, h: 260, x: 800, yFromTop: 550 },  // 上段右侧风车
+    water:    { path: 'map/w1_water',    w: 520, h: 320, x: 540, yFromTop: 3300 }, // 下段湖面
+    bear:     { path: 'map/w1_bear',     w: 200, h: 200, x: 300, yFromTop: 1850 }, // 中段左侧角色(可调)
+};
+
+/**
+ * 世界1（奶油果园）关卡坐标 —— 基于新小镇底图 1080×3840（手机 2 屏）
+ * 由旧 1080×2880 系按 ×4/3 等比重算；x / y 均为底图图片坐标（从顶部 0 往下），
+ * 程序内部转成「从底部往上」的 yFromBottom。如需微调对齐，改这里的数值即可。
  */
 const W1_LEVEL_XY: number[][] = [
-  [622, 2682],   // L1
-  [628, 2334],   // L2
-  [558, 2006],   // L3
-  [668, 1742],   // L4
-  [616, 1424],   // L5
-  [696, 1112],   // L6（当前关）
-  [634,  816],   // L7
-  [702,  526],   // L8
-  [640,  246],   // L9
-  [714,   60],   // L10
+  [829, 3576],   // L1
+  [837, 3112],   // L2
+  [744, 2675],   // L3
+  [891, 2323],   // L4
+  [821, 1899],   // L5
+  [928, 1483],   // L6（当前关）
+  [845, 1088],   // L7
+  [936,  701],   // L8
+  [853,  328],   // L9
+  [952,   80],   // L10
 ];
 
 /** UI 落位（1080×1920 基准，Cocos 坐标，屏幕中心为原点）—— 与美术落位文档一致 */
@@ -526,15 +539,64 @@ export class MapBootstrap extends Component {
         }
     }
 
-    /** 底图：1080×2880 切 2 段 1080×1440，从上到下拼 */
+    /** 底图：整张静态背景层 1080×3840（分层方案），再挂 3 个浮层做动画 */
     private createMapBackground() {
-        const seg = MAP_H / 2;
-        const top = this.localY(MAP_H);         // 地图顶边的局部 y
-        this.makeSprite(this.content, 'BgTop', 'map/w1_bg_top', DESIGN_W, seg, 0, top - seg / 2);
-        this.makeSprite(this.content, 'BgBottom', 'map/w1_bg_bottom', DESIGN_W, seg, 0, this.localY(0) + seg / 2);
+        this.makeSprite(this.content, 'BgMain', FLOAT.bg, DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
+        this.createFloatLayers();
+    }
 
-        // 新素材藤蔓浮层，盖住原底图藤蔓
-        this.makeSprite(this.content, 'Vine', 'map/vine', 152, MAP_H, 0, this.localY(MAP_H / 2));
+    private floatNodes: { node: Node; kind: 'wm' | 'water' | 'bear'; baseX: number }[] = [];
+    private floatTime = 0;
+
+    /** 挂一个透明浮层 Sprite（资源异步加载），返回节点 */
+    private addFloat(name: string, path: string, w: number, h: number, x: number, yFromBottom: number): Node {
+        const n = new Node(name);
+        n.parent = this.content;
+        n.layer = Layers.Enum.UI_2D;
+        n.addComponent(UITransform).setContentSize(w, h);
+        n.setPosition(x - DESIGN_W / 2, this.localY(yFromBottom));
+        resources.load(path + '/spriteFrame', SpriteFrame, (err, sf) => {
+            if (err || !sf) { console.warn('[map] 浮层缺失: ' + path); return; }
+            if (!n.isValid) return;
+            const sp = n.addComponent(Sprite);
+            sp.sizeMode = Sprite.SizeMode.CUSTOM;
+            sp.spriteFrame = sf;
+        });
+        return n;
+    }
+
+    /** 创建 3 个浮层并注册动画驱动 */
+    private createFloatLayers() {
+        const wm = FLOAT.windmill;
+        const wmNode = this.addFloat('Windmill', wm.path, wm.w, wm.h, wm.x, MAP_H - wm.yFromTop);
+        this.floatNodes.push({ node: wmNode, kind: 'wm', baseX: wmNode.position.x });
+
+        const wa = FLOAT.water;
+        const waNode = this.addFloat('Water', wa.path, wa.w, wa.h, wa.x, MAP_H - wa.yFromTop);
+        this.floatNodes.push({ node: waNode, kind: 'water', baseX: waNode.position.x });
+
+        const be = FLOAT.bear;
+        const beNode = this.addFloat('Bear', be.path, be.w, be.h, be.x, MAP_H - be.yFromTop);
+        this.floatNodes.push({ node: beNode, kind: 'bear', baseX: beNode.position.x });
+
+        this.schedule(this.updateFloats, 0);
+    }
+
+    /** 每帧驱动浮层动画：风车旋转 / 水面流动 / 角色眨眼 */
+    private updateFloats() {
+        this.floatTime += 0.016;
+        for (const f of this.floatNodes) {
+            if (!f.node?.isValid) continue;
+            const t = this.floatTime;
+            if (f.kind === 'wm') {
+                f.node.angle = Math.sin(t * 2.2) * 10;                       // 风车往复旋转（叶片转动感）
+            } else if (f.kind === 'water') {
+                f.node.setPosition(f.baseX + Math.sin(t * 1.6) * 55, f.node.position.y);  // 水面横向流动
+            } else if (f.kind === 'bear') {
+                const sc = Math.max(0.25, Math.abs(Math.sin(t * 3.2)));      // 眨眼（纵向缩放）
+                f.node.setScale(1, sc, 1);
+            }
+        }
     }
 
     /**

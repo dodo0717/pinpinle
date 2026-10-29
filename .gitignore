@@ -32,3 +32,17 @@ Thumbs.db
 desktop.ini
 *.log
 *.tmp
+
+# ---------- 6. 2026-10-29: old art backups before 108-sticker / 15-map swap (do not commit) ----------
+*_backup_*/
+
+# ---------- 7. analysis / debug scratch output (frames, road-check, dev server) ----------
+_frames/
+_fx/
+_roadcheck.jpg
+_serve.cjs
+*.err
+
+# ---------- 8. 美术原始素材(未压缩源图, 体积过大, 只保留本地不入厍; 工程内已转好的 512 素材/底图照常入厍) ----------
+/20260916075716/美术/拼图素材新图/
+/20260916075716/美术/场景图/

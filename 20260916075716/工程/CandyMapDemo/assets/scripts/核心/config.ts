@@ -4,7 +4,7 @@
  * ⚠️ 2026-09-11 修订（**60 关设计表落地**）：关卡从 20 关扩到 60 关。
  * 网格、图池构成、星线**全部改为逐关给定**，来源是策划的《关卡配置表》：
  *
- *   1~15 关  3×4（12 格 / 6 图）
+ *   1~15 关  4×3（12 格 / 6 图）← 2026-10-25 由 3×4 改来（少一列，格子更大）
  *   16~35 关 4×4（16 格 / 8 图）
  *   36~60 关 5×4（20 格 / 10 图）
  *
@@ -30,11 +30,21 @@ export * from './ledger';
 /** 时间限制固定 180 秒（§5.3） */
 export const TIME_LIMIT = 180;
 
-/** 关卡总数（设计表：第 1~60 关） */
-export const TOTAL_LEVELS = 60;
+/**
+ * 关卡总数：**180 关**（2026-10-29 扩充，原 60 关）。
+ *
+ * 对应地图 **15 个世界 × 12 关**（美术新交付 15 张 1080×3840 场景图，每世界一张）。
+ * ⚠️ 第 61~180 关是**按规则生成**的（不是逐关手抄的设计表），规则见各表上方注释：
+ *    网格已到棋盘上限（5×4）、`ma` 已到用户认可的辨识上限（≤3，见 §16），
+ *    **唯一还能递加的难度旋钮是星线**，所以 61~180 关靠星线逐段抬高。
+ */
+export const TOTAL_LEVELS = 180;
 
-/** 通关奖励覆盖的关卡数：第 1~36 关逐关解锁一张图（素材恰好 36 张） */
-export const REWARD_LEVELS = 36;
+/** 第 61~180 关的起始关号（前 60 关是策划逐关给定的设计表，保持不变） */
+export const GENERATED_FROM_LEVEL = 61;
+
+/** 通关奖励覆盖的关卡数：第 1~108 关逐关解锁一张图（素材 108 张，2026-10-29 扩充） */
+export const REWARD_LEVELS = 108;
 
 /**
  * **图鉴/奖励系统**使用的图 ID 上限。
@@ -48,11 +58,13 @@ export const MAX_IMAGE_ID_IN_USE = MAX_ART_ID;
  * 关卡号 → [行, 列]（§8.1 + 60 关设计表）
  *
  * 棋盘上限：**每行最多 4 个碎片、每列最多 5 个碎片**。
- * 列固定 4、行数从 3 涨到 5 —— 竖屏下 4 列正好铺满宽度，多出来的碎片往上长。
- * 碎片因此能画大得多（5×4 约 217px/格，旧的 4×6 只有约 140px/格）。
+ *
+ * ⚠️ 2026-10-25：第 1~15 关由 `3×4`（3 行 4 列）改为 **`4×3`（4 行 3 列）** —— 同样是 12 格 / 6 图，
+ * 但竖屏下少一列，**格子边长能放大约 1/3**（宽度不再是瓶颈，图看得更清楚）。
+ * 列数因此是 3（1~15 关）/ 4（16~60 关），行数 4 / 4 / 5。
  *
  * 段位（设计表）：
- *   第 1~15 关  3×4（12 格 / 6 图）
+ *   第 1~15 关  4×3（12 格 / 6 图）
  *   第 16~35 关 4×4（16 格 / 8 图）
  *   第 36~60 关 5×4（20 格 / 10 图）
  * 全表只有 12 / 16 / 20 三种格数，**不存在 24 格关卡**。
@@ -60,7 +72,7 @@ export const MAX_IMAGE_ID_IN_USE = MAX_ART_ID;
 export const GRID_BY_LEVEL: Record<number, [number, number]> = (() => {
   const grid: Record<number, [number, number]> = {};
   for (let level = 1; level <= TOTAL_LEVELS; level++) {
-    if (level <= 15) grid[level] = [3, 4];
+    if (level <= 15) grid[level] = [4, 3];
     else if (level <= 35) grid[level] = [4, 4];
     else grid[level] = [5, 4];
   }
@@ -83,10 +95,23 @@ export interface MoodGroup {
 const g = (moods: number, animals: number): MoodGroup => ({ moods, animals });
 
 /**
+ * **同一关里同一只动物最多出几张情绪图**（= 混淆度 ma 的硬上限，2026-10-25 定）。
+ *
+ * 为什么是 3：ma 是「同一张脸在本关出现几次」。ma=4~6 时整关只剩 1~2 只动物、
+ * 同一张脸反复出现，玩家的辨识负荷过高（反馈：难度过大）。上限压到 3 后，
+ * 难度改由**星线 + 网格 + 只数**承载（见 `LEVEL_STAR_LINES` / `GRID_BY_LEVEL`）。
+ *
+ * ⚠️ 连带约束：ma ≤ 3 ⇒ 只数 A ≥ ⌈图数 N / 3⌉
+ *   （4×3 段 N=6 → A≥2；4×4 段 N=8 → A≥3；5×4 段 N=10 → A≥4）。
+ *   改这张表时 `LEVEL_ANIMAL_COUNT` 必须一起改，`validateLevelDesign()` 会逐关校验。
+ */
+export const MAX_MOODS_PER_ANIMAL = 3;
+
+/**
  * **逐关图池构成**（设计表「同动物不同情绪」列）—— 图池生成的唯一权威来源。
  *
  * 读法：`[g(2,1), g(1,4)]` = 1 只动物出 2 个情绪图 + 4 只动物各出 1 个情绪图，
- * 共 5 只动物、6 张图（= 3×4 段的总图数）。
+ * 共 5 只动物、6 张图（= 4×3 段的总图数）。
  *
  * ⚠️ 每关两个硬约束（`validateLevelDesign()` 会逐关校验，表写错直接报错）：
  *   1. **图数校验**：Σ(moods × animals) 必须等于 `imagesPerLevel(格数)`；
@@ -97,9 +122,34 @@ const g = (moods: number, animals: number): MoodGroup => ({ moods, animals });
  * 素材齐全（36 张，每只动物 6 个情绪）时，本表可**逐关精确还原**；
  * 素材不足时由 `poolGen.ts` 降级（抬高实际 ma 或增加动物只数）并逐关点名。
  */
+/**
+ * **第 61~180 关的图池构成**（程序生成，2026-10-29 扩充）。
+ *
+ * 为什么是生成的：120 关逐行手写既不可能核对、也没法维护；而这几个旋钮**已经顶格**——
+ *   ① 网格：5×4（20 格）是棋盘上限（每行 ≤4、每列 ≤5 个碎片），61 关后无处可加；
+ *   ② `ma`（同关同一动物最多几张情绪图）：§16 用户明确反馈「4~6 张同一只动物难度过大」，
+ *      已锁 **≤3**，不能再抬；
+ *   ③ 只数：受 `ma≤3` 约束，10 图 ⇒ 只数 ≥ ⌈10/3⌉ = 4。
+ * → 所以 61~180 关的**构成只在三种合法形态之间轮换，难度全部交给星线**（见 `LEVEL_STAR_LINES_EXT`）。
+ *
+ * 每个世界（12 关）内的节奏，与前面 60 关的段位节奏保持一致：
+ *   `热身(ma=2) ×2 → 主力(ma=3) ×5 → 小BOSS → 回落(ma=2) → 主力 ×2 → 段BOSS`
+ */
+export const LEVEL_POOL_SPEC_EXT: Record<number, MoodGroup[]> = (() => {
+  const spec: Record<number, MoodGroup[]> = {};
+  for (let level = GENERATED_FROM_LEVEL; level <= TOTAL_LEVELS; level++) {
+    const idx = (level - GENERATED_FROM_LEVEL) % 12; // 世界内序号 0~11
+    if (idx <= 1 || idx === 8) spec[level] = [g(2, 5)];            // 热身 / 回落：ma=2，5 只
+    else if (idx === 7) spec[level] = [g(3, 2), g(2, 2)];          // 小BOSS：两种动物各 2 张
+    else spec[level] = [g(3, 3), g(1, 1)];                          // 主力 / 段BOSS：ma=3，4 只
+  }
+  return spec;
+})();
+
 export const LEVEL_POOL_SPEC: Record<number, MoodGroup[]> = {
-  // ── 3×4 段（第 1~15 关，6 图）────────────────────────────────────────
-  1: [g(1, 6)],
+  ...LEVEL_POOL_SPEC_EXT,
+  // ── 4×3 段（第 1~15 关，6 图；只数 ≥ 2）─────────────────────────────
+  1: [g(1, 6)], // 教学：6 只动物各 1 张，一眼可分
   2: [g(1, 6)],
   3: [g(1, 6)],
   4: [g(2, 1), g(1, 4)],
@@ -108,59 +158,59 @@ export const LEVEL_POOL_SPEC: Record<number, MoodGroup[]> = {
   7: [g(2, 2), g(1, 2)],
   8: [g(2, 3)],
   9: [g(3, 1), g(2, 1), g(1, 1)],
-  10: [g(3, 1), g(2, 1), g(1, 1)],
-  11: [g(4, 1), g(2, 1)],
-  12: [g(4, 1), g(2, 1)],
-  13: [g(5, 1), g(1, 1)],
-  14: [g(4, 1), g(2, 1)],
-  15: [g(4, 1), g(2, 1)],
-  // ── 4×4 段（第 16~35 关，8 图）──────────────────────────────────────
+  10: [g(3, 1), g(2, 1), g(1, 1)], // 小BOSS
+  11: [g(2, 3)], // 回落：ma 降回 2
+  12: [g(3, 2)],
+  13: [g(3, 2)],
+  14: [g(3, 2)],
+  15: [g(3, 2)], // 段BOSS（难度由星线承载，见 LEVEL_STAR_LINES）
+  // ── 4×4 段（第 16~35 关，8 图；⚠️ ma≤3 时只数必须 ≥ 3）──────────────
   16: [g(2, 4)],
-  17: [g(2, 3), g(2, 1)],
+  17: [g(2, 4)],
   18: [g(2, 4)],
-  19: [g(3, 2), g(2, 1)],
-  20: [g(4, 1), g(2, 2)],
-  21: [g(4, 1), g(2, 2)],
+  19: [g(3, 2), g(1, 2)],
+  20: [g(3, 2), g(2, 1)],
+  21: [g(3, 2), g(2, 1)],
   22: [g(3, 2), g(2, 1)],
-  23: [g(4, 2)],
-  24: [g(4, 2)],
-  25: [g(5, 1), g(3, 1)],
-  26: [g(5, 1), g(3, 1)],
-  27: [g(5, 1), g(3, 1)],
-  28: [g(6, 1), g(2, 1)],
-  29: [g(6, 1), g(2, 1)],
-  30: [g(6, 1), g(2, 1)],
-  31: [g(6, 1), g(2, 1)],
-  32: [g(6, 1), g(2, 1)],
-  33: [g(6, 1), g(2, 1)],
-  34: [g(6, 1), g(2, 1)],
-  35: [g(6, 1), g(2, 1)],
-  // ── 5×4 段（第 36~60 关，10 图）─────────────────────────────────────
+  23: [g(3, 2), g(2, 1)],
+  24: [g(3, 2), g(2, 1)],
+  25: [g(3, 2), g(2, 1)], // 小BOSS
+  26: [g(2, 4)], // 回落：ma 降回 2
+  27: [g(3, 2), g(1, 2)],
+  28: [g(3, 2), g(1, 2)],
+  29: [g(3, 2), g(2, 1)],
+  30: [g(3, 2), g(2, 1)],
+  31: [g(3, 2), g(2, 1)],
+  32: [g(3, 2), g(2, 1)],
+  33: [g(3, 2), g(2, 1)],
+  34: [g(3, 2), g(2, 1)],
+  35: [g(3, 2), g(2, 1)], // 段BOSS
+  // ── 5×4 段（第 36~60 关，10 图；⚠️ ma≤3 时只数必须 ≥ 4）─────────────
   36: [g(2, 5)],
   37: [g(2, 5)],
   38: [g(2, 5)],
-  39: [g(3, 2), g(2, 2)],
-  40: [g(4, 1), g(2, 3)],
-  41: [g(4, 1), g(2, 3)],
-  42: [g(4, 1), g(3, 2)],
+  39: [g(3, 3), g(1, 1)],
+  40: [g(3, 3), g(1, 1)],
+  41: [g(3, 3), g(1, 1)],
+  42: [g(3, 2), g(2, 2)], // 修正关
   43: [g(3, 2), g(2, 2)],
-  44: [g(5, 1), g(3, 1), g(2, 1)],
-  45: [g(5, 1), g(3, 1), g(2, 1)],
-  46: [g(5, 1), g(4, 1), g(1, 1)],
-  47: [g(6, 1), g(3, 1), g(1, 1)],
-  48: [g(6, 1), g(3, 1), g(1, 1)],
-  49: [g(5, 1), g(3, 1), g(2, 1)],
-  50: [g(5, 1), g(4, 1), g(1, 1)],
-  51: [g(6, 1), g(3, 1), g(1, 1)],
-  52: [g(6, 1), g(4, 1)],
-  53: [g(6, 1), g(4, 1)],
-  54: [g(6, 1), g(4, 1)],
-  55: [g(6, 1), g(4, 1)],
-  56: [g(6, 1), g(4, 1)],
-  57: [g(6, 1), g(4, 1)],
-  58: [g(6, 1), g(4, 1)],
-  59: [g(6, 1), g(4, 1)],
-  60: [g(6, 1), g(4, 1)],
+  44: [g(3, 3), g(1, 1)],
+  45: [g(3, 3), g(1, 1)],
+  46: [g(3, 3), g(1, 1)],
+  47: [g(3, 3), g(1, 1)],
+  48: [g(3, 3), g(1, 1)], // 小BOSS
+  49: [g(2, 5)], // 回落：ma 降回 2
+  50: [g(3, 2), g(2, 2)],
+  51: [g(3, 3), g(1, 1)],
+  52: [g(3, 3), g(1, 1)],
+  53: [g(3, 3), g(1, 1)],
+  54: [g(3, 3), g(1, 1)],
+  55: [g(3, 3), g(1, 1)],
+  56: [g(3, 3), g(1, 1)],
+  57: [g(3, 3), g(1, 1)],
+  58: [g(3, 3), g(1, 1)],
+  59: [g(3, 3), g(1, 1)],
+  60: [g(3, 3), g(1, 1)], // 终极BOSS
 };
 
 /**
@@ -170,14 +220,33 @@ export const LEVEL_POOL_SPEC: Record<number, MoodGroup[]> = {
  * 这正是设计表新加的「只数校验」列，`validateLevelDesign()` 会逐关比对。
  * 保留成独立一列，是为了让「表被改错」这件事能被自动发现，而不是由生成器悄悄兜住。
  */
+/**
+ * 第 61~180 关的「动物只数」（程序生成）。
+ *
+ * ⚠️ **故意不从 `LEVEL_POOL_SPEC_EXT` 派生**：这张表的存在意义就是当「第二份表述」去
+ * 校验图池构成（两列必须一致），若直接派生就等于自己校验自己，改错了发现不了。
+ */
+export const LEVEL_ANIMAL_COUNT_EXT: Record<number, number> = (() => {
+  const counts: Record<number, number> = {};
+  for (let level = GENERATED_FROM_LEVEL; level <= TOTAL_LEVELS; level++) {
+    const idx = (level - GENERATED_FROM_LEVEL) % 12;
+    counts[level] = idx <= 1 || idx === 8 ? 5 : 4; // g(2,5) → 5 只；其余 → 4 只
+  }
+  return counts;
+})();
+
 export const LEVEL_ANIMAL_COUNT: Record<number, number> = {
+  ...LEVEL_ANIMAL_COUNT_EXT,
+  // 4×3 段（6 图）
   1: 6, 2: 6, 3: 6, 4: 5, 5: 5, 6: 4, 7: 4, 8: 3, 9: 3, 10: 3,
-  11: 2, 12: 2, 13: 2, 14: 2, 15: 2,
-  16: 4, 17: 4, 18: 4, 19: 3, 20: 3, 21: 3, 22: 3, 23: 2, 24: 2, 25: 2,
-  26: 2, 27: 2, 28: 2, 29: 2, 30: 2, 31: 2, 32: 2, 33: 2, 34: 2, 35: 2,
-  36: 5, 37: 5, 38: 5, 39: 4, 40: 4, 41: 4, 42: 3, 43: 4, 44: 3, 45: 3,
-  46: 3, 47: 3, 48: 3, 49: 3, 50: 3, 51: 3, 52: 2, 53: 2, 54: 2, 55: 2,
-  56: 2, 57: 2, 58: 2, 59: 2, 60: 2,
+  11: 3, 12: 2, 13: 2, 14: 2, 15: 2,
+  // 4×4 段（8 图）：ma≤3 ⇒ 只数 ≥ ⌈8/3⌉ = 3（原表 23~35 关是 2，已同步抬高）
+  16: 4, 17: 4, 18: 4, 19: 4, 20: 3, 21: 3, 22: 3, 23: 3, 24: 3, 25: 3,
+  26: 4, 27: 4, 28: 4, 29: 3, 30: 3, 31: 3, 32: 3, 33: 3, 34: 3, 35: 3,
+  // 5×4 段（10 图）：ma≤3 ⇒ 只数 ≥ ⌈10/3⌉ = 4（原表 42~60 关是 2~3，已同步抬高）
+  36: 5, 37: 5, 38: 5, 39: 4, 40: 4, 41: 4, 42: 4, 43: 4, 44: 4, 45: 4,
+  46: 4, 47: 4, 48: 4, 49: 5, 50: 4, 51: 4, 52: 4, 53: 4, 54: 4, 55: 4,
+  56: 4, 57: 4, 58: 4, 59: 4, 60: 4,
 };
 
 /**
@@ -190,7 +259,24 @@ export const LEVEL_ANIMAL_COUNT: Record<number, number> = {
  *   `段BOSS`  段位收尾（第 15 / 35 关）
  *   `终极BOSS` 第 60 关
  */
+/**
+ * 第 61~180 关的备注（程序生成）：**每个世界内部同样的节奏** ——
+ * 第 8 关 `小BOSS`、第 9 关 `回落`、第 12 关 `段BOSS`（世界收尾）；第 180 关 `终极BOSS`。
+ */
+export const LEVEL_TAGS_EXT: Record<number, string> = (() => {
+  const tags: Record<number, string> = {};
+  for (let level = GENERATED_FROM_LEVEL; level <= TOTAL_LEVELS; level++) {
+    const idx = (level - GENERATED_FROM_LEVEL) % 12;
+    if (idx === 7) tags[level] = '小BOSS';
+    else if (idx === 8) tags[level] = '回落';
+    else if (idx === 11) tags[level] = '段BOSS';
+  }
+  tags[TOTAL_LEVELS] = '终极BOSS'; // 第 180 关
+  return tags;
+})();
+
 export const LEVEL_TAGS: Record<number, string> = {
+  ...LEVEL_TAGS_EXT,
   1: '教学',
   5: '修正',
   7: '修正',
@@ -203,7 +289,7 @@ export const LEVEL_TAGS: Record<number, string> = {
   42: '修正',
   48: '小BOSS',
   49: '回落',
-  60: '终极BOSS',
+  60: '段BOSS', // 原「终极BOSS」：180 关扩表后第 60 关只是第 5 个世界的收尾，终极BOSS 移到第 180 关
 };
 
 /** 展开某关的情绪分布：第 i 只动物出几个情绪图（按设计表从多到少） */
@@ -241,7 +327,8 @@ export function confusionOfLevel(level: number): number {
  *   ma=6 → 整关只有 1~2 只动物的不同情绪（最难）
  *
  * 保留这张派生表，是因为渲染层、标定器与测试都按 `ma` 分组比较。
- * 曲线（设计表）：1 → 2 → 3 → 4 → 5 → 6，段内整体走高，BOSS 前后有回落。
+ * 曲线（2026-10-25 改）：1 → 2 → 3 封顶（见 `MAX_MOODS_PER_ANIMAL`），段内整体走高，
+ * BOSS 前后有回落；段位越往后靠**星线 + 网格 + 更少只数**继续加压。
  */
 export const LEVEL_CONFUSION_CONFIG: Record<number, number> = Object.fromEntries(
   Array.from({ length: TOTAL_LEVELS }, (_, i) => [i + 1, confusionOfLevel(i + 1)]),
@@ -333,7 +420,7 @@ export function imagesPerLevel(cells: number): number {
  *      这不是「同一难度共用一组数」的标定口径能表达的；
  *   2. 标定器唯一的人因假设「一次交换 1.5 秒」尚未用真人数据替换（§8.4 待办 2）。
  *
- * 曲线（3★）：5 → 7 → …→ 9（3×4 段收尾）→ 8 → …→ 10（4×4 段收尾）→ 9 → …→ 11（终极BOSS）。
+ * 曲线（3★）：5 → 7 → …→ 9（4×3 段收尾）→ 8 → …→ 10（4×4 段收尾）→ 9 → …→ 11（终极BOSS）。
  * 因此**「星线随关卡单调不升」这条旧不变量已作废**，改为「与设计表逐关一致」。
  *
  * `tools/calibrate.mjs` 仍可运行（**保留**）：它打印本表的仿真达成率 + 参考建议值，
@@ -349,8 +436,37 @@ export function imagesPerLevel(cells: number): number {
  * 所以分数加到「仿真里没几个人够得着」时，该加的是**新素材或新玩法**，不是继续堆分数。
  * 补关卡的具体流程见 `开发计划与美术资源清单.md` §13.11。
  */
+/**
+ * **第 61~180 关的星线**（程序生成）—— 这一段**唯一还在递加的难度旋钮**。
+ *
+ * 为什么只抬星线：网格已到棋盘上限（5×4）、`ma` 已锁 ≤3（§16 用户反馈）、时间固定 180 秒，
+ * 剩下能调的只有「多少分给几星」。口径沿用前 60 关：**三星间隔 2 分**。
+ *
+ * 基准 1★ 线按段位缓慢抬高（避免后期陡到不可能达成 —— 180 秒内手速有上限）：
+ *   第 61~120 关  → 6
+ *   第 121~144 关 → 7
+ *   第 145~168 关 → 8
+ *   第 169~180 关 → 9
+ * BOSS 加成沿用设计表：小BOSS +1、段BOSS +2（第 60 关是 [7,9,11] = 段BOSS 加成后的值，对齐）。
+ *
+ * ⚠️ 这些数值**没有经过真机标定**（前 60 关是策划设计表给的，61~180 是外推）。
+ *    拿到留存/通关数据后要跑 `tools/calibrate.mjs` 复核，尤其是后段是否真的可达成。
+ */
+export const LEVEL_STAR_LINES_EXT: Record<number, [number, number, number]> = (() => {
+  const lines: Record<number, [number, number, number]> = {};
+  for (let level = GENERATED_FROM_LEVEL; level <= TOTAL_LEVELS; level++) {
+    const idx = (level - GENERATED_FROM_LEVEL) % 12;
+    const one = level <= 120 ? 6 : Math.min(9, 7 + Math.floor((level - 121) / 24));
+    if (idx === 11) lines[level] = [one + 2, one + 4, one + 6];      // 段BOSS
+    else if (idx === 7) lines[level] = [one + 1, one + 3, one + 5];  // 小BOSS
+    else lines[level] = [one, one + 2, one + 4];                     // 常规 / 回落
+  }
+  return lines;
+})();
+
 export const LEVEL_STAR_LINES: Record<number, [number, number, number]> = {
-  // ── 3×4 段（第 1~15 关，6 图）────────────────────────────────────────
+  ...LEVEL_STAR_LINES_EXT,
+  // ── 4×3 段（第 1~15 关，6 图）────────────────────────────────────────
   1: [1, 3, 5], // 教学
   2: [2, 4, 6],
   3: [3, 5, 7],
@@ -412,7 +528,7 @@ export const LEVEL_STAR_LINES: Record<number, [number, number, number]> = {
   57: [5, 7, 9],
   58: [5, 7, 9],
   59: [6, 8, 10],
-  60: [7, 9, 11], // 终极BOSS
+  60: [7, 9, 11], // 段BOSS（原「终极BOSS」——180 关扩表后，第 60 关只是第 5 个世界的收尾）
 };
 
 /**
@@ -565,8 +681,11 @@ export function validateLevelDesign(): ConfigIssue[] {
       continue;
     }
     for (const group of groups) {
-      if (!Number.isInteger(group.moods) || group.moods < 1 || group.moods > 6) {
-        issues.push({ scope, message: `情绪组 ${group.moods}情绪×${group.animals}只：情绪数必须为 1~6` });
+      if (!Number.isInteger(group.moods) || group.moods < 1 || group.moods > MAX_MOODS_PER_ANIMAL) {
+        issues.push({
+          scope,
+          message: `情绪组 ${group.moods}情绪×${group.animals}只：同关同一动物最多 ${MAX_MOODS_PER_ANIMAL} 张（ma 上限）`,
+        });
       }
       if (!Number.isInteger(group.animals) || group.animals < 1) {
         issues.push({ scope, message: `情绪组 ${group.moods}情绪×${group.animals}只：只数必须 ≥1` });
@@ -608,11 +727,11 @@ export function validateLevelDesign(): ConfigIssue[] {
     }
   }
 
-  // 段位边界（设计表）：1~15 为 3×4、16~35 为 4×4、36~60 为 5×4
+  // 段位边界（设计表）：1~15 为 4×3、16~35 为 4×4、36~60 为 5×4
   for (let level = 1; level <= TOTAL_LEVELS; level++) {
     const grid = GRID_BY_LEVEL[level]!;
     const key = `${grid[0]}×${grid[1]}`;
-    const want = level <= 15 ? '3×4' : level <= 35 ? '4×4' : '5×4';
+    const want = level <= 15 ? '4×3' : level <= 35 ? '4×4' : '5×4';
     if (key !== want) {
       issues.push({ scope: `第${level}关`, message: `段位网格应为 ${want}，实际 ${key}` });
     }

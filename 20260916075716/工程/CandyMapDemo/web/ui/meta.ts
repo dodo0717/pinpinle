@@ -26,6 +26,11 @@ export interface Settings {
   sound: boolean;
   /** 背景音乐开关（§11.4）—— 同上，关掉会立刻停掉 BGM 的排音 */
   bgm: boolean;
+  /**
+   * 教学语音说明开关（2026-10-26 新增）—— 关掉后序章**只显示那句文本、不朗读**。
+   * 与 `sound` 分开：有人想听讲解不要音效，也有人相反。
+   */
+  voice: boolean;
 }
 
 export interface MetaState {
@@ -38,8 +43,20 @@ export interface MetaState {
   /** 今日已用完的加体力广告次数 */
   adStaminaUsed: number;
   settings: Settings;
-  /** 新手引导是否已走完（§14 五步） */
+  /** 新手引导是否已走完（§14 五步）—— 五步气泡已关闭，字段保留不动 */
   guideDone: boolean;
+  /**
+   * 新手教学（序章）进度。
+   * 落盘形态与 `assets/scripts/核心/save.ts` 的 `TutorialState` 同名同义；
+   * 老档缺字段时由 `sanitizeMeta()` 补默认值，所以**不改 SAVE_VERSION**。
+   */
+  tutorial: {
+    seen: boolean;
+    normalCleared: boolean;
+    nightmareCleared: boolean;
+    /** 教学奖励：第 1 关免 1 颗体力（用掉即清） */
+    freeLevel: boolean;
+  };
 }
 
 function dayKey(now: number): string {
@@ -54,8 +71,9 @@ export function createMeta(now: number): MetaState {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
-    settings: { sound: true, bgm: true },
+    settings: { sound: true, bgm: true, voice: true },
     guideDone: false,
+    tutorial: { seen: false, normalCleared: false, nightmareCleared: false, freeLevel: false },
   };
 }
 
@@ -131,6 +149,21 @@ export function recordAdStamina(state: MetaState): void {
 }
 
 /* ---------------------------------------------------------------- 图鉴（§10） */
+
+/**
+ * 某套进度里**已通关**的关卡数（星级 > 0 即算通关）。
+ *
+ * 用途：新手教学入口的隐藏条件 —— 「困难模式累计通关 ≥ 10 关」后首页按钮消失。
+ * 口径与 `totalStars()` 同源（都从 `progress.levels` 派生），不要另算一套。
+ */
+export function clearedCount(progress: ProgressData): number {
+  let n = 0;
+  for (const key of Object.keys(progress.levels)) {
+    const rec = progress.levels[Number(key)];
+    if (rec && rec.stars > 0) n += 1;
+  }
+  return n;
+}
 
 /** 图鉴总数 = 36（图 ID 0~35） */
 export const COLLECTION_TOTAL = REWARD_LEVELS;

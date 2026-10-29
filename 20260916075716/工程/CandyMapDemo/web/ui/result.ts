@@ -34,8 +34,12 @@ export interface ResultOptions {
   sub?: string;
   /** 得分卡上的标签，默认「本关得分」 */
   scoreLabel?: string;
-  /** 本关得分（从 0 滚上去） */
-  score: number;
+  /**
+   * 本关得分（从 0 滚上去）。
+   * **不传 = 不画得分卡** —— 教学完成这类「没有分数可结」的弹窗用它省掉一整块，
+   * 只留「标题 + 按钮」，按用户要求能多简就多简。
+   */
+  score?: number;
   /** 得分下方的辅助文案 */
   hint?: string;
   /** 更次要的提示行（如「还差 X 组」），可空 */
@@ -76,30 +80,34 @@ export function createResultPopup(): ResultPopup {
     clear(card);
     card.classList.toggle('result-lose', opts.mode === 'lose');
 
-    // 顶部英雄图标：三颗星优先，否则 emoji
-    const hero = el('div', 'rs-icon');
-    if (opts.stars !== undefined) {
-      const row = el('div', 'hero-stars');
-      for (let i = 0; i < 3; i++) {
-        row.appendChild(el('span', i < opts.stars ? 'hero-star lit' : 'hero-star', '⭐'));
+    // 顶部英雄区：三颗星优先，否则 emoji；**两个都不传就整块不画**（只留标题 + 按钮）
+    if (opts.stars !== undefined || opts.icon !== undefined) {
+      const hero = el('div', 'rs-icon');
+      if (opts.stars !== undefined) {
+        const row = el('div', 'hero-stars');
+        for (let i = 0; i < 3; i++) {
+          row.appendChild(el('span', i < opts.stars ? 'hero-star lit' : 'hero-star', '⭐'));
+        }
+        hero.appendChild(row);
+      } else {
+        hero.appendChild(el('div', 'hero-icon', opts.icon ?? ''));
       }
-      hero.appendChild(row);
-    } else {
-      hero.appendChild(el('div', 'hero-icon', opts.icon ?? ''));
+      card.appendChild(hero);
     }
-    card.appendChild(hero);
 
     card.appendChild(el('h2', 'rs-title', opts.title));
     if (opts.sub) card.appendChild(el('p', 'rs-sub', opts.sub));
 
-    // 得分卡
-    const scoreCard = el('div', 'rs-score-card');
-    scoreCard.appendChild(el('div', 'rs-score-label', opts.scoreLabel ?? '本关得分'));
-    const value = el('div', 'rs-score-value', '0');
-    scoreCard.appendChild(value);
-    if (opts.hint) scoreCard.appendChild(el('div', 'rs-hint', opts.hint));
-    card.appendChild(scoreCard);
-    rollNumber(value, opts.score);
+    // 得分卡：**没给 score 就不画**（教学完成弹窗走这条）
+    if (opts.score !== undefined) {
+      const scoreCard = el('div', 'rs-score-card');
+      scoreCard.appendChild(el('div', 'rs-score-label', opts.scoreLabel ?? '本关得分'));
+      const value = el('div', 'rs-score-value', '0');
+      scoreCard.appendChild(value);
+      if (opts.hint) scoreCard.appendChild(el('div', 'rs-hint', opts.hint));
+      card.appendChild(scoreCard);
+      rollNumber(value, opts.score);
+    }
 
     if (opts.note) card.appendChild(el('p', 'rs-note', opts.note));
 

@@ -682,6 +682,35 @@
   position: absolute; left: 0; width: 1536px; height: 2731px;
   background-size: 100% 100%; background-repeat: no-repeat;
 }
+/* 程序化动效画布（map-fx.ts）：铺满与底图同一块区域，半分辨率内部分辨率由 JS 定 */
+/* 视频**当背景地图**（小镇，2026-10-29）：视频画面本身就是地图，节点/UI 浮在上面。
+   该视频 720×1280 = 9:16，单屏轨道 1536×2731 也是 9:16 → `fill` 在这里就是等比铺满，
+   **不变形、不裁切**（换素材前先确认比例仍是 9:16，否则改回 `cover`）。
+   播不了时整层被 JS 移除，露出下面的 poster（= 视频首帧，构图一致，节点不会飘）。 */
+.map-bg-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: fill; pointer-events: none; opacity: 0;
+  transition: opacity .5s ease;
+}
+/* ⚠️ 程序化动效画布（`.map-fx`，见 map-fx.ts）**当前停用**（2026-10-29 用户要求"动画先放着"），
+   样式先注释掉，等接回动效时一并恢复：
+   .map-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+*/
+/* 循环动效（小镇 v27 起）：盖在底图上、节点/路径之下，铺满与底图同一块区域。
+   默认 opacity 0 —— 视频真正开播（playing）才淡入，避免解码慢时闪黑帧；
+   播不了（error / 3 秒没解出首帧）整层被 JS 移除，只留 jpg 底图。
+   ⚠️ 用 `cover` 而不是 `fill`：素材比例不一定等于容器比例（容器是 1536×5462 ≈ 1:3.556），
+      `fill` 会把画面硬拉变形（踩过：一条 720×1280 的单屏动效被 fill 拉成两屏长条，
+      横向拉伸 2.4 倍）。`cover` 至少保证等比，代价是裁掉长边 —— 素材不对时宁可裁也别变形。 */
+.map-bg-anim {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; pointer-events: none; opacity: 0;
+  /* ⚠️ 光影混合层：动效视频与底图是两次独立生成、几何对不上（见 map.ts 注释），
+     所以**不整块盖住底图**，只用 soft-light 吸收它的明暗流动（云影/波光/风车转动）。
+     觉得画面发脏就把 JS 里的 opacity（现 0.5）调低，或改成 screen（只提亮、不压暗）。 */
+  mix-blend-mode: soft-light;
+  transition: opacity .6s ease;
+}
 /* 有真图后让位：CSS 占位云、程序画的小路都撤掉（路底图里已经画了，进度看节点星级） */
 .map.has-art .map-scroll::before { display: none; }
 .map.has-art .map-path { display: none; }
@@ -1312,4 +1341,282 @@
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   z-index: 2; font-size: 46px; font-weight: 900; line-height: 1; color: #fff;
   text-shadow: 0 3px 0 rgba(140, 70, 20, .65), 0 6px 10px rgba(90, 40, 0, .35);
+}
+
+/* ==================================================================
+   新手教学（序章）—— 2026-10-26 新增
+   方案见 docs/新手教学（序章）策划案.md
+   ⚠️ 抽屉是**独立组件**（自带遮罩），不接 #scrim（全屏遮罩会吃掉所有点击）
+   ================================================================== */
+
+/* 右上角一列：上 = 体力胶囊，下 = 教学入口（用户要求：教学图标在体力**下方**） */
+.home-right { display: flex; flex-direction: column; align-items: flex-end; gap: 18px; }
+
+/* 首页顶栏右侧「教学」胶囊（在体力胶囊下方） */
+.home-tutorial {
+  display: flex; align-items: center; gap: 10px;
+  height: 84px; padding: 0 30px;
+  border: 0; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(180deg, #ffe9a8, #f0b445);
+  box-shadow: 0 6px 0 rgba(140, 80, 20, .55), 0 10px 22px rgba(90, 50, 0, .35);
+  color: #6b3a00; font-size: 44px; font-weight: 900; line-height: 1;
+}
+.home-tutorial:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(140, 80, 20, .55); }
+.home-tutorial-icon { font-size: 46px; }
+.home-tutorial-text { letter-spacing: 2px; }
+
+/* 右侧抽屉 */
+.tut-drawer { position: absolute; inset: 0; z-index: 80; }
+.tut-mask { position: absolute; inset: 0; background: rgba(20, 10, 0, .45); opacity: 0; transition: opacity .22s ease; }
+.tut-drawer.on .tut-mask { opacity: 1; }
+.tut-panel {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 78%;
+  padding: 46px 40px; overflow-y: auto;
+  background: linear-gradient(180deg, #fffaf0, #ffeccd);
+  box-shadow: -10px 0 30px rgba(80, 40, 0, .35);
+  transform: translateX(100%); transition: transform .24s cubic-bezier(.2, .8, .3, 1);
+}
+.tut-drawer.on .tut-panel { transform: translateX(0); }
+
+.tut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.tut-title { font-size: 56px; font-weight: 900; color: #7a4100; }
+.tut-close {
+  width: 76px; height: 76px; border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(120, 70, 20, .12); color: #7a4100; font-size: 44px; font-weight: 900; line-height: 1;
+}
+
+/* ---- 抽屉 v3 排版：分区卡片 + 真实插图 + 三级字号 ---- */
+.tut-card {
+  margin-bottom: 28px; padding: 28px 30px;
+  border: 4px solid rgba(190, 130, 50, .45); border-radius: 28px;
+  background: rgba(255, 255, 255, .72);
+  box-shadow: 0 6px 16px rgba(120, 70, 10, .12);
+}
+.tut-card:last-child { margin-bottom: 0; }
+.tut-card-title { font-size: 46px; font-weight: 900; color: #7a4100; margin-bottom: 22px; }
+.tut-card-note { background: rgba(255, 236, 200, .8); border-style: dashed; }
+.tut-note-line { font-size: 30px; font-weight: 600; color: #9a6a2a; line-height: 1.7; }
+
+.tut-status-line {
+  display: flex; align-items: center; gap: 16px;
+  font-size: 38px; font-weight: 700; color: #9a6a2a; line-height: 1.9;
+}
+.tut-status-line.done { color: #2f8a3f; }
+.tut-status-line::before {
+  content: '○'; flex: none; width: 44px; text-align: center;
+  font-size: 40px; color: #c8a978;
+}
+.tut-status-line.done::before { content: '✅'; font-size: 34px; }
+
+.tut-btn {
+  display: block; width: 100%; height: 118px; margin-bottom: 22px;
+  border: 0; border-radius: 999px; cursor: pointer;
+  font-size: 46px; font-weight: 900; color: #fff;
+  background: linear-gradient(180deg, #ffd479, #ef9b28);
+  box-shadow: 0 7px 0 rgba(150, 80, 10, .6);
+}
+.tut-btn:last-child { margin-bottom: 0; }
+.tut-btn.primary { background: linear-gradient(180deg, #ffb35c, #e8760f); }
+/* 次按钮：描边款，比主按钮矮一档，主次一眼可分 */
+.tut-btn.ghost {
+  height: 96px; font-size: 40px; color: #8a4b00;
+  background: rgba(255, 255, 255, .9);
+  border: 4px solid rgba(200, 130, 40, .6);
+  box-shadow: 0 5px 0 rgba(150, 110, 40, .35);
+}
+.tut-btn:active { transform: translateY(4px); box-shadow: 0 3px 0 rgba(150, 80, 10, .6); }
+.tut-btn.dim {
+  background: linear-gradient(180deg, #d8cdbf, #b4a795); color: #f4efe6;
+  cursor: default; border-color: transparent;
+}
+
+/* ---- 图解：用真实贴纸切块画的「3 缺 1 → 拖一步 → 拼成发光」---- */
+.tut-fig { display: flex; align-items: center; justify-content: center; gap: 22px; margin-bottom: 26px; }
+.tut-fig-col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.tut-fig-grid {
+  display: grid; grid-template-columns: repeat(2, 76px); grid-template-rows: repeat(2, 76px);
+  border-radius: 16px; overflow: hidden; box-shadow: 0 4px 10px rgba(90, 50, 0, .25);
+}
+.tut-fig-piece { background-size: 200% 200%; background-repeat: no-repeat; }
+.tut-fig-gap {
+  border: 4px dashed rgba(255, 255, 255, .9); border-radius: 8px;
+  background: rgba(60, 35, 0, .45);
+}
+.tut-fig-grid.done { box-shadow: 0 0 0 5px rgba(255, 196, 60, .9), 0 0 26px rgba(255, 170, 20, .85); }
+/* 缺的那块画在**离 2×2 远一点**的位置（v4.1：教学盘上它就不挨着缺口） */
+.tut-fig-move { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 26px; }
+.tut-fig-move .tut-fig-piece { width: 76px; height: 76px; border-radius: 12px; }
+.tut-fig-up { font-size: 36px; font-weight: 900; color: #e8760f; line-height: 1; }
+.tut-fig-arrow { font-size: 48px; color: #c0530f; }
+.tut-fig-cap { font-size: 32px; font-weight: 900; color: #e8760f; }
+
+.tut-how-row { display: flex; gap: 16px; margin-bottom: 18px; }
+.tut-how-row:last-child { margin-bottom: 0; }
+.tut-how-no {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(180deg, #ffb35c, #e8760f); color: #fff;
+  font-size: 28px; font-weight: 900; line-height: 44px; text-align: center;
+}
+.tut-how-body { flex: 1; font-size: 32px; font-weight: 600; line-height: 1.5; color: #6d4a1c; }
+
+/* 棋盘上方轻横幅（教学提示，**非弹窗**） */
+.tut-banner {
+  position: absolute; left: 50%; top: 250px; transform: translate(-50%, -12px);
+  z-index: 70; max-width: 88%; padding: 22px 44px;
+  border-radius: 999px; opacity: 0; transition: opacity .2s ease, transform .2s ease;
+  background: rgba(40, 22, 0, .82); color: #ffe9b8;
+  font-size: 42px; font-weight: 800; line-height: 1.35; text-align: center;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .35); pointer-events: none;
+}
+.tut-banner.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* 序章内右上角「跳过教学」 */
+.tut-skip {
+  position: absolute; right: 36px; top: 210px; z-index: 70;
+  height: 84px; padding: 0 34px; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(40, 22, 0, .62); color: #ffe9b8;
+  font-size: 38px; font-weight: 800;
+}
+
+/* 序章：倒计时冻结（灰显，让玩家先认识这个元素） */
+#hud-timer.frozen { opacity: .45; filter: grayscale(1); }
+
+/* 设置页里的「新手教学」行按钮 */
+.set-tutorial-btn {
+  height: 76px; padding: 0 32px; border: 0; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(180deg, #ffd479, #ef9b28);
+  box-shadow: 0 5px 0 rgba(150, 80, 10, .6);
+  color: #fff; font-size: 38px; font-weight: 900;
+}
+.set-tutorial-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(150, 80, 10, .6); }
+
+/* ==================================================================
+   序章 v3：强制教学的棋盘视觉 + 手指动画 + 聚光灯（零文字）
+   ================================================================== */
+
+/* 锁定期：不是"这一步该动的"全部压暗，一眼看出只有一块是活的 */
+.cell.dim { opacity: .5; filter: grayscale(.7); }
+/* 目标块：呼吸脉冲，把视线钉住 */
+.cell.pulse { animation: tutPulse 1.1s ease-in-out infinite; z-index: 3; }
+/* 缺口：虚线呼吸框 */
+.cell.gap::after {
+  content: ''; position: absolute; inset: 8px; border-radius: 12px;
+  border: 5px dashed rgba(255, 236, 170, .95);
+  animation: tutGap 1.1s ease-in-out infinite; pointer-events: none;
+}
+/* 按错块：抖两下（零文字的"不是这块"） */
+.cell.shake { animation: tutShake .32s ease-in-out; }
+
+@keyframes tutPulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.07); filter: brightness(1.18); }
+}
+@keyframes tutGap {
+  0%, 100% { opacity: .55; transform: scale(.97); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+@keyframes tutShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-7px); }
+  75% { transform: translateX(7px); }
+}
+
+/* ---- 手指滑动演示（boardEl 内，设计像素坐标）---- */
+.tut-hint {
+  position: absolute; left: 0; top: 0; z-index: 8; pointer-events: none;
+  animation: tutSlide 1.6s ease-in-out infinite;
+}
+.tut-hand {
+  position: absolute; left: -26px; top: -34px;
+  width: 52px; height: 52px; border-radius: 50% 50% 46% 46%;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .35), inset 0 -4px 6px rgba(0, 0, 0, .12);
+}
+.tut-hand-tip { position: absolute; left: 6px; top: 2px; font-size: 34px; line-height: 1; }
+.tut-flash {
+  position: absolute; left: 0; top: 0; width: 110px; height: 110px;
+  margin-left: -55px; margin-top: -55px; border-radius: 18px;
+  background: radial-gradient(circle, rgba(255, 226, 130, .95), rgba(255, 180, 40, 0) 70%);
+  opacity: 0; animation: tutFlash 1.6s ease-out infinite;
+}
+@keyframes tutSlide {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  8% { transform: translate(0, 0) scale(1); opacity: 1; }
+  20% { transform: translate(0, 0) scale(.9); }
+  55% { transform: translate(var(--tx, 0), var(--ty, 0)) scale(.9); }
+  68% { transform: translate(var(--tx, 0), var(--ty, 0)) scale(1); opacity: 1; }
+  80% { opacity: 0; }
+  82% { transform: translate(0, 0) scale(1); opacity: 0; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+}
+@keyframes tutFlash {
+  0%, 50% { opacity: 0; transform: scale(.6); }
+  62% { opacity: 1; transform: scale(1.05); }
+  78%, 100% { opacity: 0; transform: scale(1.2); }
+}
+
+/* ---- 聚光灯（挂 body，视口坐标）---- */
+.spot { position: fixed; inset: 0; z-index: 999; opacity: 0; transition: opacity .22s ease; }
+.spot.on { opacity: 1; }
+.spot-hole {
+  position: absolute; border-radius: 26px; cursor: pointer;
+  box-shadow: 0 0 0 9999px rgba(12, 6, 0, .74);
+  transition: left .22s ease, top .22s ease, width .22s ease, height .22s ease;
+  animation: spotBreath 1.6s ease-in-out infinite;
+}
+@keyframes spotBreath {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(12, 6, 0, .74), 0 0 0 4px rgba(255, 210, 100, .55); }
+  50% { box-shadow: 0 0 0 9999px rgba(12, 6, 0, .74), 0 0 0 12px rgba(255, 210, 100, .18); }
+}
+/* 简短文本气泡（v4：与语音同一句；贴在洞旁，自动上/下避让） */
+.spot-tip {
+  position: absolute; padding: 22px 26px; border-radius: 22px;
+  background: linear-gradient(180deg, #fff8e6, #ffe6b8);
+  border: 5px solid rgba(190, 130, 50, .8);
+  color: #6d3f00; font-size: 40px; font-weight: 800; line-height: 1.35; text-align: center;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
+  animation: spotTipIn .26s ease-out;
+}
+.spot-tip[hidden] { display: none; }
+@keyframes spotTipIn {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.spot-next {
+  position: absolute; transform: translateX(-50%);
+  width: 76px; height: 76px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(255, 200, 90, .95); color: #7a4100;
+  font-size: 44px; font-weight: 900; line-height: 1;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .4);
+  animation: spotNext 1.2s ease-in-out infinite;
+}
+.spot-next.up { transform: translateX(-50%) rotate(180deg); }
+@keyframes spotNext {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: 10px; }
+}
+
+/* ---- 三颗进度点（零文字的"还差几组"）---- */
+.tut-progress {
+  position: absolute; left: 50%; top: 196px; transform: translateX(-50%);
+  z-index: 70; display: flex; gap: 16px; pointer-events: none;
+}
+.tut-progress i {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255, 255, 255, .3); border: 4px solid rgba(120, 70, 10, .45);
+  transition: background .25s ease, transform .25s ease, box-shadow .25s ease;
+}
+.tut-progress i.on {
+  background: radial-gradient(circle at 35% 30%, #ffe89a, #f2a71b);
+  border-color: rgba(255, 220, 120, .9); transform: scale(1.18);
+  box-shadow: 0 0 14px rgba(255, 190, 60, .9);
+}
+
+/* 旗子数字跳变（拼成一组 → 数字少 1，看得见的因果） */
+#hud-goal-num.bump { animation: goalBump .5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes goalBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.7); color: #fff2c0; }
+  100% { transform: scale(1); }
 }

@@ -1,0 +1,13 @@
+{"e":"tutorial_skip","ts":1793009303183,"pid":"def12aa6-5023-4b3f-aab1-6a1cce0e2fe4","sid":"2117f4a8-0066-4897-825d-fb2d9b9d9a09","day":0,"seq":3,"p":{"mode":"normal","step":1}}
+{"e":"session_start","ts":1793009882707,"pid":"def12aa6-5023-4b3f-aab1-6a1cce0e2fe4","sid":"d2bba3c7-22f4-4846-9c60-c2249f1cc3fe","day":0,"seq":0,"p":{}}
+{"e":"first_open","ts":1793009890793,"pid":"ca675dbc-7897-42cf-a042-4e380f39a241","sid":"a72d25ab-7ce1-43f1-9ea1-b6632dec78e8","day":0,"seq":0,"p":{}}
+{"e":"session_start","ts":1793009890793,"pid":"ca675dbc-7897-42cf-a042-4e380f39a241","sid":"a72d25ab-7ce1-43f1-9ea1-b6632dec78e8","day":0,"seq":1,"p":{}}
+{"e":"tutorial_start","ts":1793009890874,"pid":"ca675dbc-7897-42cf-a042-4e380f39a241","sid":"a72d25ab-7ce1-43f1-9ea1-b6632dec78e8","day":0,"seq":2,"p":{"mode":"normal"}}
+{"e":"tutorial_skip","ts":1793009894563,"pid":"ca675dbc-7897-42cf-a042-4e380f39a241","sid":"a72d25ab-7ce1-43f1-9ea1-b6632dec78e8","day":0,"seq":3,"p":{"mode":"normal","step":1}}
+{"e":"session_start","ts":1793009986810,"pid":"ca675dbc-7897-42cf-a042-4e380f39a241","sid":"56707f8b-1d3b-4191-9be6-291ecb4cf454","day":0,"seq":0,"p":{}}
+{"e":"first_open","ts":1793009992930,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":0,"p":{}}
+{"e":"session_start","ts":1793009992930,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":1,"p":{}}
+{"e":"tutorial_start","ts":1793009992971,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":2,"p":{"mode":"normal"}}
+{"e":"tutorial_skip","ts":1793009999557,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":3,"p":{"mode":"normal","step":1}}
+{"e":"level_start","ts":1793010001089,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":4,"p":{"level":2,"mode":"normal","attempt":1,"rows":4,"cols":3,"star1":2}}
+{"e":"level_start","ts":1793010003108,"pid":"b5aa2dbd-7b0e-4fab-9f49-99a54c2da93e","sid":"f33aacda-6098-4945-a2ff-5562cd182e18","day":0,"seq":5,"p":{"level":2,"mode":"normal","attempt":2,"rows":4,"cols":3,"star1":2}}
