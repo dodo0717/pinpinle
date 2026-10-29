@@ -93,6 +93,12 @@ CandyMapDemo/
     普通档现在有 107 关拿不到 3★（落在 2★）—— 这是**想要的**难度曲线，3★ 应该难。
     生手(4s/步) 139 → 77 关打不过（4 秒走一步的玩家在噩梦里本来就不该轻松）。
     简单模式依旧全 3★（时间变长后更松：生手平均 15 → 20.1 分）。
+- ⚠️ **已知问题：单元测试目前跑不起来（既有问题，非本次改动引入）** ——
+  `test/*.test.ts` 一律 import `../assets/scripts/core/...`（英文），但算法层目录实际叫
+  **`核心`**（中文），改名后一直没同步 → 一跑就 `ERR_MODULE_NOT_FOUND`。涉及 10 个测试文件
+  （`save` / `progress` / `config` / `engine` / `move` / `init` / `poolGen` / `matcher` / `merge` / `honor` 等）。
+  修法：把这些 import 路径里的 `core` 换成 `核心`（或改 `test/ts-resolve.mjs` 加一层目录别名）。
+  ⚠️ 在此之前，**改动算法层只有 `tools/simulate-levels.mjs` 这一道仿真验证**，没有单测兜底。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
