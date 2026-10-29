@@ -27,8 +27,62 @@ import { MAX_ART_ID, allArtIds } from './ledger';
 /** 素材台账（图ID ↔ 动物/情绪）在本模块转出，保持既有 import 路径可用 */
 export * from './ledger';
 
-/** 时间限制固定 180 秒（§5.3） */
+/** 时间限制（秒）**基础值**：第 1~60 关，以及新手教学序章（§5.3 原为全关固定 180 秒） */
 export const TIME_LIMIT = 180;
+
+/**
+ * **分段时间限制**（2026-10-29 用户定）：关卡越靠后，本关时间越长。
+ *
+ *   第 1~60 关    → 180 秒（3 分钟，原值不动）
+ *   第 61~120 关  → 240 秒（4 分钟）
+ *   第 121~180 关 → 300 秒（5 分钟）
+ *
+ * 为什么是加时间而不是降星线：噩梦模式每拿 1 分要 2.5~3 倍交换次数（每步只能挪 1 格），
+ * 而 61~180 关的星线又一路在抬 —— 仿真显示普通玩家在这段「攒到 1★ 平均要 233 秒」，
+ * 180 秒这道墙**拦的是手速上限，不是玩家水平**。加时间能保住「分数 = 水平」这条设计线，
+ * 降星线则会让「1★」这个奖励缩水。仿真结论见 README 2026-10-29 条目。
+ *
+ * ⚠️ 改这里的同时要确认 `SaveLimits.timeLimit`（存档校验的上界）跟着走 —— 见 `MAX_TIME_LIMIT`。
+ */
+export const TIME_LIMIT_BY_SEGMENT: readonly { from: number; to: number; seconds: number }[] = [
+  { from: 1, to: 60, seconds: 180 },
+  { from: 61, to: 120, seconds: 240 },
+  { from: 121, to: 180, seconds: 300 }, // 180 = TOTAL_LEVELS（此处不能用该常量：它定义在下面，会有 TDZ 问题）
+];
+
+/** 全关最长时限（存档校验这类「取上界」的场景用；精确值一律走 `timeLimitFor()`） */
+export const MAX_TIME_LIMIT = 300;
+
+/** 第 n 关的关卡时限（秒） */
+export function timeLimitFor(level: number): number {
+  for (const seg of TIME_LIMIT_BY_SEGMENT) {
+    if (level >= seg.from && level <= seg.to) return seg.seconds;
+  }
+  return TIME_LIMIT;
+}
+
+/**
+ * **续命（看广告）加时，同样分段**（2026-10-29 用户定）：
+ *   第 1~60 关 → +60 秒（原值）
+ *   第 61~120 关 → +90 秒
+ *   第 121~180 关 → +120 秒
+ *
+ * ⚠️ §7.4：续命局统一判 **1 星**、不上排行榜 —— 所以续命只能保「通关」，拿不到高星。
+ */
+export const REVIVE_SECONDS_BASE = 60;
+export const REVIVE_SECONDS_BY_SEGMENT: readonly { from: number; to: number; seconds: number }[] = [
+  { from: 1, to: 60, seconds: 60 },
+  { from: 61, to: 120, seconds: 90 },
+  { from: 121, to: 180, seconds: 120 },
+];
+
+/** 第 n 关续命一次加多少秒 */
+export function reviveSecondsFor(level: number): number {
+  for (const seg of REVIVE_SECONDS_BY_SEGMENT) {
+    if (level >= seg.from && level <= seg.to) return seg.seconds;
+  }
+  return REVIVE_SECONDS_BASE;
+}
 
 /**
  * 关卡总数：**180 关**（2026-10-29 扩充，原 60 关）。
@@ -432,7 +486,7 @@ export function imagesPerLevel(cells: number): number {
  *
  * 注意：**抬星线是唯一还能递加难度的手段** —— 网格已到硬上限
  * （每行 ≤4 / 每列 ≤5，最大 5×4，24 格段位已取消，见 `GRID_BY_LEVEL`），
- * 混淆度 `ma` 已到 6 上限（受素材张数限制），时间固定 `TIME_LIMIT = 180` 秒。
+ * 混淆度 `ma` 已到 6 上限（受素材张数限制），时间**分段**（`timeLimitFor()`：180 / 240 / 300 秒）。
  * 所以分数加到「仿真里没几个人够得着」时，该加的是**新素材或新玩法**，不是继续堆分数。
  * 补关卡的具体流程见 `开发计划与美术资源清单.md` §13.11。
  */
@@ -636,7 +690,7 @@ export function buildLevelPlan(mode: GameMode = 'normal', options: BuildLevelOpt
       rows,
       cols,
       imageIds: pool.imageIds,
-      timeLimit: TIME_LIMIT,
+      timeLimit: timeLimitFor(request.level),
       star1: line[0],
       star2: line[1],
       star3: line[2],

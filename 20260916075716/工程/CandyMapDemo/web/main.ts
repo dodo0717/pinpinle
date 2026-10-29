@@ -24,7 +24,8 @@ import {
   SAVE_VERSION,
   STAR_LINES_BY_MODE,
   STAMINA_MAX,
-  TIME_LIMIT,
+  MAX_TIME_LIMIT,
+  reviveSecondsFor,
   TOTAL_LEVELS,
   boardSnapshot,
   buildLevelConfigs,
@@ -332,8 +333,7 @@ let pendingOutcome: LevelOutcome | null = null;
  * 由 `enterLevel()` 在开局时清零：它只描述「这一局是怎么结束的」，不跨局残留。
  */
 let offlineSettle = false;
-/** 续命一次加多少秒（§7.4） */
-const REVIVE_SECONDS = 60;
+/** 续命一次加多少秒 —— **按关段取值**，见 `reviveSecondsFor()`（§7.4） */
 /** 本局续命广告「连续加载失败」次数：连续 3 次按 §13.4 直接回续命弹窗 */
 let reviveAdFailures = 0;
 /**
@@ -364,7 +364,8 @@ let drag: { index: number; x: number; y: number; cells: number[] } | null = null
 const SAVE_LIMITS: SaveLimits = {
   totalLevels: TOTAL_LEVELS,
   staminaMax: STAMINA_MAX,
-  timeLimit: TIME_LIMIT,
+  // 存档校验只取「上界」：各关时限已分段（180/240/300），精确值由 timeLimitFor() 给
+  timeLimit: MAX_TIME_LIMIT,
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
 };
 
@@ -3250,7 +3251,7 @@ function revive(): void {
   revived = true;
   revivedUsed = true;
   pendingOutcome = null;
-  timeLeft += REVIVE_SECONDS;
+  timeLeft += reviveSecondsFor(engine.config.level);
   finished = false;
   started = true;
   setPaused(false);

@@ -26,7 +26,7 @@ import { unlockedImageIds } from './meta';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS,
+  TOTAL_LEVELS, reviveSecondsFor,
   type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement,
   type LevelConfig, type LevelSession, type Cell, type ProgressData,
 } from '../核心/index';
@@ -39,8 +39,7 @@ const BOARD_TOP = 780;
 const BOARD_BOTTOM = -640;
 /** 小于这个位移视为点击（画布 px） */
 const TAP_SLOP = 14;
-/** 续命加时（秒） */
-const REVIVE_SECONDS = 60;
+/** 续命加时（秒）—— **按关段取值**，见 `reviveSecondsFor()`（2026-10-29 起分段） */
 /** 融合三阶段 + 消除 + 掉落的总时长，用于排下一次动作 */
 const RESOLVE_TAIL = 0.05;
 
@@ -706,7 +705,7 @@ export class GameBootstrap extends Component {
   private showReviveDialog(): void {
     const left = GS.adStaminaLeft;
     this.dialog.show(REVIVE.title, [
-      REVIVE.line1(REVIVE_SECONDS),
+      REVIVE.line1(reviveSecondsFor(this.levelIndex)),
       REVIVE.line2,
     ], [
       { text: REVIVE.giveUp, onClick: () => this.giveUp() },
@@ -734,12 +733,12 @@ export class GameBootstrap extends Component {
     this.revivedUsed = true;
     this.finished = false;
     this.pendingOutcome = null;
-    this.timeLeft += REVIVE_SECONDS;
+    this.timeLeft += reviveSecondsFor(this.levelIndex);
     this.setPaused(false);
     this.syncSession();
     GS.flush();
     this.schedule(this.onTick, 1);
-    this.toast.show(REVIVE.gained(REVIVE_SECONDS), 1800);
+    this.toast.show(REVIVE.gained(reviveSecondsFor(this.levelIndex)), 1800);
   }
 
   private giveUp(): void {

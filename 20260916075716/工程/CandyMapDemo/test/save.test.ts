@@ -20,7 +20,7 @@ import {
   Rng,
   SAVE_VERSION,
   STAMINA_MAX,
-  TIME_LIMIT,
+  MAX_TIME_LIMIT,
   TOTAL_LEVELS,
   buildLevelConfigs,
   createSaveData,
@@ -37,7 +37,7 @@ import {
 const LIMITS: SaveLimits = {
   totalLevels: TOTAL_LEVELS,
   staminaMax: STAMINA_MAX,
-  timeLimit: TIME_LIMIT,
+  timeLimit: MAX_TIME_LIMIT,
   adStaminaDailyMax: 5,
 };
 
@@ -205,7 +205,7 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
       ['棋盘格数不符', { cells: [0, 1, 2] }],
       ['棋盘有空位', { cells: realSession().cells.map((c, i) => (i === 0 ? null : c)) as unknown as number[] }],
       ['碎片重复', { cells: realSession().cells.map(() => 4) }],
-      ['时间越界', { timeLeft: TIME_LIMIT + 10 }],
+      ['时间越界', { timeLeft: MAX_TIME_LIMIT + 10 }],
       ['随机源状态非法', { rngState: 0 }],
       ['关卡号越界', { level: TOTAL_LEVELS + 1 }],
       ['模式非法', { mode: 'hard' as never }],
