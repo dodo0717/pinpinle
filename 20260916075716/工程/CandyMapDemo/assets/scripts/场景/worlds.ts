@@ -14,7 +14,12 @@
  * ⚠️ 已知未标定项（与 Web 版同）：只有 **town 是像素验证过的**（12/12 点确实在路面上）；
  * 其余 14 张是「居中 + 正弦蜿蜒」的兜底值 —— 保证连续、居中、不贴边，**但不保证压在真实路面上**。
  * 校正方法：在真机/编辑器里挨个世界看一眼，把正确的路中线按值填回 `ROAD_X`（一行 12 个数，改完即生效）。
+ *
+ * 底图来源：走 `平台/assetSource.ts` 的 `resolveAsset('map', …)`，默认（cdnBase 为空）返回
+ * `map/wN_主题` 的本地路径 —— 与改造前逐字一致；将来填了 cdnBase 就自动切远程，本表不动。
  */
+
+import { resolveAsset, type ResolvedAsset } from '../平台/assetSource';
 
 /** 每世界底图尺寸（与 assets/resources/map/ 下的 jpg 一致） */
 export const MAP_W = 1080;
@@ -84,10 +89,30 @@ export function worldIndexOf(level: number): number {
   return Math.max(0, Math.min(WORLDS.length - 1, idx));
 }
 
-/** 世界下标 → 底图资源路径（assets/resources 下，不含扩展名；命名 `w序号_主题`） */
-export function worldArtPath(worldIndex: number): string {
+/**
+ * 世界下标 → 底图资源名（不含目录与扩展名，命名 `w序号_主题`）。
+ * 拆出来是因为「路径」与「来源」现在是两件事：名字只有一个，走本地还是 CDN 由 `resolveAsset` 决定。
+ */
+export function worldArtName(worldIndex: number): string {
   const i = Math.max(0, Math.min(WORLDS.length - 1, worldIndex));
-  return `map/w${i + 1}_${WORLDS[i]!.art}`;
+  return `w${i + 1}_${WORLDS[i]!.art}`;
+}
+
+/**
+ * 世界下标 → 本地 resources 路径（不含扩展名）。
+ * ⚠️ 保留供「明确就要本地路径」的地方使用；新代码请用 `worldArtAsset()`，
+ * 它默认返回的 path 与这里**逐字相同**（`map/w1_town`），所以本地渲染不受影响。
+ */
+export function worldArtPath(worldIndex: number): string {
+  return `map/${worldArtName(worldIndex)}`;
+}
+
+/**
+ * 世界下标 → 解析后的底图来源。local 时 `path` 与 `worldArtPath()` 完全一致，
+ * cdn 时 `path` 是完整 URL（`resolveAsset` 拼的），加载动作由调用方按 `mode` 分派。
+ */
+export function worldArtAsset(worldIndex: number): ResolvedAsset {
+  return resolveAsset('map', worldArtName(worldIndex), 'jpg');
 }
 
 /** 某关卡在所属世界内的序号（0 = 该世界第 1 关 = 最下面那个点） */

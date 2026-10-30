@@ -21,7 +21,10 @@ import {
 import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '../玩法/meta';
 import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
-import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtPath } from './worlds';
+import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtAsset } from './worlds';
+// 底图走资源来源分派：默认全本地（path 与改造前逐字一致），将来填 cdnBase 才走远程
+import { loadSpriteFrame } from '../平台/assetLoader';
+import type { ResolvedAsset } from '../平台/assetSource';
 const { ccclass } = _decorator;
 
 const DESIGN_W = 1080;
@@ -584,8 +587,57 @@ export class MapBootstrap extends Component {
      * ⚠️ 风车 / 水面 / 角色是**小镇底图专属**浮层，其他世界没有这些切片，只在第 1 世界挂。
      */
     private createMapBackground() {
-        this.makeSprite(this.content, 'BgMain', worldArtPath(this.worldIndex), DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
+        this.makeResolvedSprite(this.content, 'BgMain', worldArtAsset(this.worldIndex), DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
         if (this.worldIndex === 0) this.createFloatLayers();
+    }
+
+    /**
+     * 底图代次：`switchWorld` 换世界时，上一张底图的远程回调可能还没回来，
+     * 靠这个 token 把迟到的结果丢掉（否则会看到上一世界的图盖在新世界上）。
+     */
+    private bgToken = 0;
+
+    /**
+     * 按 `resolveAsset` 的结果挂贴图：
+     *   - local：走 `makeSprite()`，**与改造前同一条** `resources.load('map/w1_town/spriteFrame')`；
+     *   - cdn  ：先挂占位（纯色底 + 「加载中」），远程到了再换上；失败按 `canFallbackToLocal()`
+     *            退回本地，再失败就留着占位 —— 切世界时不会白屏。
+     */
+    private makeResolvedSprite(parent: Node, name: string, res: ResolvedAsset, w: number, h: number, x: number, y: number): void {
+        if (res.mode === 'local') {
+            this.makeSprite(parent, name, res.path, w, h, x, y);
+            return;
+        }
+        this.makeRemoteSprite(parent, name, res, w, h, x, y);
+    }
+
+    /** 远程底图：占位 → 加载 → 换图 / 回退 / 提示失败 */
+    private makeRemoteSprite(parent: Node, name: string, res: ResolvedAsset, w: number, h: number, x: number, y: number): void {
+        const token = ++this.bgToken;
+        const n = new Node(name);
+        n.parent = parent;
+        n.layer = Layers.Enum.UI_2D;
+        n.addComponent(UITransform).setContentSize(w, h);
+        n.setPosition(x, y);
+
+        // 占位：CDN 未到之前先铺一块底色，避免整屏白
+        const g = n.addComponent(Graphics);
+        g.rect(-w / 2, -h / 2, w, h);
+        g.fillColor = new Color(176, 214, 238, 255);
+        g.fill();
+        const tip = this.makeLabel(n, 'LoadingTip', '底图加载中…', 0, 0, 36, new Color(90, 60, 40), 620, 80);
+
+        const sp = n.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        loadSpriteFrame(res, (sf) => {
+            if (token !== this.bgToken || !n.isValid) return;   // 已经切到别的世界，丢弃这次结果
+            if (sf) {
+                sp.spriteFrame = sf;
+                if (tip.node?.isValid) tip.node.destroy();
+                return;
+            }
+            if (tip.node?.isValid) tip.string = '底图加载失败';
+        });
     }
 
     // ========== 世界切换（15 个世界，地图上同时只驻留一张底图）==========
@@ -627,7 +679,12 @@ export class MapBootstrap extends Component {
         if (this.worldTitle?.isValid) this.worldTitle.string = `${w.name} ${w.from}-${w.to}`;
     }
 
-    /** 切到相邻世界：销毁当前世界的底图/浮层/节点后重建（不保留旧图，省内存） */
+    /**
+     * 切到相邻世界：销毁当前世界的底图/浮层/节点后重建（不保留旧图，省内存）
+     *
+     * ⚠️ 底图走 CDN 时这里有个时间差：旧图已销毁、新图还没到。
+     * 所以 `createMapBackground()` 会先挂占位，迟到的回调由 `bgToken` 判掉 —— 切世界不会白屏。
+     */
     private switchWorld(next: number): void {
         const w = Math.max(0, Math.min(WORLDS.length - 1, next));
         if (w === this.worldIndex || !this.content?.isValid) return;

@@ -9,11 +9,18 @@
  *
  * 素材：卡底三色轮换（蓝 / 粉 / 橙）**程序绘制**（Web 版是三张切图 PNG），
  * 贴纸复用 `stickers/sticker_N/spriteFrame`，与棋盘碎片同一套资源 —— 不引入新素材。
+ *
+ * ⚠️ 108 张贴纸**不再全量加载**：格子照建（只有 Graphics 卡底，很便宜），
+ * 贴图按**可视范围**发请求（视口上下各多留 `PRELOAD_ROWS` 行），滚到哪加载到哪；
+ * 走 CDN 时这条更重要 —— 一次性 108 个远程请求既卡又容易超时。
+ * 来源由 `平台/assetSource.ts` 分派：默认全本地（`stickers/sticker_N`，与改造前逐字一致）。
  */
 
 import {
-  Node, UITransform, Graphics, Label, Sprite, SpriteFrame, Color, Layers, ScrollView, resources,
+  Node, UITransform, Graphics, Label, Sprite, Color, Layers, ScrollView,
 } from 'cc';
+import { resolveAsset, type ResolvedAsset } from '../平台/assetSource';
+import { loadSpriteFrame } from '../平台/assetLoader';
 
 /** 卡底三色轮换（对齐 Web 版 card-blue / card-pink / card-orange） */
 const CARD_SKINS: Color[] = [
@@ -27,6 +34,19 @@ const COLS = 3;
 const CELL = 280;
 const GAP = 24;
 const GRID_W = COLS * CELL + (COLS - 1) * GAP;
+/** 一行占的纵向步距（cell 高 + 间距） */
+const ROW_STRIDE = CELL + GAP;
+/** 滚动视口高度，与 build() 里 svNode 的 1400 对齐 */
+const VIEW_H = 1400;
+/** 视口上下各多加载几行：滚动时不出现「刚滚到还是空的」 */
+const PRELOAD_ROWS = 2;
+
+/** 待加载的一格：只记「要加载什么、在第几行」，真正发请求由 pumpVisible() 决定 */
+interface PendingCell {
+  sp: Sprite;
+  res: ResolvedAsset;
+  row: number;
+}
 
 export interface CollectionHandlers {
   onBack: () => void;
@@ -54,6 +74,9 @@ export class CollectionScreen {
   private root: Node = null!;
   private countLabel: Label = null!;
   private content: Node = null!;
+  private sv: ScrollView = null!;
+  /** 还没发请求的格子（可视范围外的全在这儿排队） */
+  private pending: PendingCell[] = [];
   private h: CollectionHandlers;
 
   private constructor(handlers: CollectionHandlers) {
@@ -116,6 +139,14 @@ export class CollectionScreen {
     content.parent = svNode;
     sv.content = content;
     this.content = content;
+    this.sv = sv;
+
+    // 滚动时补加载。shim（预览用）没有 ScrollView.EventType，这里做存在性判断，
+    // 免得预览页在 import 阶段就炸 —— 真引擎上一定会注册上。
+    const et = (ScrollView as unknown as { EventType?: { SCROLLING?: string } }).EventType;
+    if (et && et.SCROLLING && typeof svNode.on === 'function') {
+      svNode.on(et.SCROLLING, () => this.pumpVisible(), this);
+    }
   }
 
   /** 重绘：`unlocked` 是已解锁的图 ID 集合 */
@@ -127,6 +158,7 @@ export class CollectionScreen {
 
     // 重绘 = 清空旧格（content 自身保留）
     for (const c of this.content.children.slice()) c.destroy();
+    this.pending = [];
 
     const top = ct.height / 2 - CELL / 2;
     for (let imageId = 0; imageId < total; imageId++) {
@@ -146,19 +178,54 @@ export class CollectionScreen {
       if (owned) {
         const sp = cell.addComponent(Sprite);
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load(`stickers/sticker_${imageId}/spriteFrame`, SpriteFrame, (err, sf) => {
-          if (err || !sf || !cell.isValid) return;
-          sp.spriteFrame = sf;
-        });
+        // 只登记不加载 —— 108 张一次全下会卡（走 CDN 时更糟），由 pumpVisible() 按可视范围发
+        this.pending.push({ sp, res: resolveAsset('stickers', `sticker_${imageId}`, 'png'), row: r });
         cell.on(Node.EventType.TOUCH_END, () => this.h.onOpen(imageId));
       } else {
         mkLabel(cell, '🔒', 76, 0, 0, new Color(255, 255, 255, 230), CELL);
         cell.on(Node.EventType.TOUCH_END, () => this.h.onLockedTip?.());
       }
     }
+
+    this.pumpVisible();
   }
 
-  show(): void { this.root.active = true; }
+  /** 从顶部滚过的像素（拿不到就当没滚 —— 首屏照常加载） */
+  private scrollOffsetY(): number {
+    const sv = this.sv as unknown as { getScrollOffset?: () => { x: number; y: number } } | null;
+    if (sv && typeof sv.getScrollOffset === 'function') {
+      const o = sv.getScrollOffset();
+      // 不同版本 y 的正负方向可能相反，取绝对值即可（只需要「滚了多远」）
+      if (o && typeof o.y === 'number') return Math.abs(o.y);
+    }
+    return 0;
+  }
+
+  /** 当前可视行区间（闭区间，含上下各 PRELOAD_ROWS 行缓冲） */
+  private visibleRows(): [number, number] {
+    const off = this.scrollOffsetY();
+    const top = Math.max(0, off - PRELOAD_ROWS * ROW_STRIDE);
+    const bottom = off + VIEW_H + PRELOAD_ROWS * ROW_STRIDE;
+    return [Math.floor(top / ROW_STRIDE), Math.ceil(bottom / ROW_STRIDE)];
+  }
+
+  /** 把落在可视范围内的待加载项发出去，其余继续排队（滚动事件会再调） */
+  private pumpVisible(): void {
+    if (this.pending.length === 0) return;
+    const [r0, r1] = this.visibleRows();
+    const rest: PendingCell[] = [];
+    for (const p of this.pending) {
+      if (p.row < r0 || p.row > r1) { rest.push(p); continue; }
+      const sp = p.sp;
+      loadSpriteFrame(p.res, (sf) => {
+        if (!sf || !sp.node || !sp.node.isValid) return;
+        sp.spriteFrame = sf;
+      });
+    }
+    this.pending = rest;
+  }
+
+  show(): void { this.root.active = true; this.pumpVisible(); }
   hide(): void { this.root.active = false; }
   rootNode(): Node { return this.root; }
   destroy(): void { if (this.root?.isValid) this.root.destroy(); }

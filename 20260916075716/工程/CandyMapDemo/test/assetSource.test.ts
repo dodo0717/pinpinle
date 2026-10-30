@@ -92,3 +92,38 @@ test('CDN 失败可回退本地（默认开），reset 能回到全本地', () =
   resetAssetSourceConfig();
   assert.equal(isCdnEnabled(), false, 'reset 后必须回到本地');
 });
+
+/**
+ * 接线检查：`worlds.ts` 的底图已经改走 `resolveAsset`，这条是**本地渲染完整性**的保险丝 ——
+ * 只要有人把路径拼错（多一层目录、带了扩展名、写死成别的组），地图立刻整片缺图，
+ * 而错的地方（assetSource）离报错的地方（MapBootstrap 的 resources.load）很远。
+ */
+test('世界底图：默认 15 个世界全部本地，路径与改造前的字面值逐字一致', async () => {
+  const { WORLDS, worldArtPath, worldArtAsset } = await import('../assets/scripts/场景/worlds');
+
+  assert.equal(WORLDS.length, 15);
+  for (let i = 0; i < WORLDS.length; i++) {
+    const a = worldArtAsset(i);
+    assert.equal(a.mode, 'local', `第 ${i + 1} 世界不该走 CDN`);
+    assert.equal(a.group, 'map');
+    assert.equal(a.path, `map/w${i + 1}_${WORLDS[i]!.art}`, `第 ${i + 1} 世界路径与字面值不一致`);
+    assert.equal(a.path, worldArtPath(i), 'worldArtAsset 与 worldArtPath 必须同口径');
+  }
+
+  // 这两个字面值是 MapBootstrap 改造前 `resources.load` 用的，钉死防回归
+  assert.equal(worldArtAsset(0).path, 'map/w1_town');
+  assert.equal(worldArtAsset(14).path, 'map/w15_starcastle');
+  // 越界钳制：不能因为下标越界就返回 undefined 之类的坏路径
+  assert.equal(worldArtAsset(-5).path, 'map/w1_town');
+  assert.equal(worldArtAsset(99).path, 'map/w15_starcastle');
+});
+
+test('世界底图与图鉴贴纸切到 CDN：整组变远程，UI 仍留本地', async () => {
+  const { worldArtAsset } = await import('../assets/scripts/场景/worlds');
+  setAssetSourceConfig({ cdnBase: 'https://cdn.example.com/', cdnGroups: ['map', 'stickers'] });
+
+  assert.equal(worldArtAsset(0).mode, 'cdn');
+  assert.equal(worldArtAsset(0).path, 'https://cdn.example.com/map/w1_town.jpg');
+  assert.equal(resolveAsset('stickers', 'sticker_107', 'png').path, 'https://cdn.example.com/stickers/sticker_107.png');
+  assert.equal(resolveAsset('ui', '底栏/home_tabbar_bg', 'png').mode, 'local', 'UI 切图不跟着上 CDN');
+});

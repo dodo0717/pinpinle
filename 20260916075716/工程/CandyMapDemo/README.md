@@ -263,13 +263,21 @@
     `onStaminaPlus()` 无法在浏览器里跑；上面的加体力路径是改用 `MapBootstrap.prototype.onStaminaPlus.call()`
     配假 toast 验证的（方法体本身只依赖 `this.toast`）。与真机相关的 UI 表现（HUD「+」按钮、图鉴分享按钮）
     留到 Creator 里人工过一遍。
-  - **⑧ 包体治理（方案已定稿，见 `docs/小游戏包体方案.md`）**：实测 `assets/resources` 合计 **78.3 MB**
-    —— **最大头是贴纸 46.83 MB**（108 张），其次字体 15.63 MB、底图 13.37 MB、UI 2.48 MB。
-    UI 切图 PNG 2.48 MB → WebP **0.17 MB**；底图 q76 → 7.60 MB（810 宽 q72 → 4.15 MB）；
-    字体子集化字符表 1218 字（UTF-8 无 BOM）。⚠️ 配套代码改造未完成：`worlds.ts`、`MapBootstrap`
-    （改 `assetManager.loadBundle` + 加载态兜底）、`CollectionScreen`（贴纸懒加载）。
-  - **待办**：⑧ 剩余 —— 贴纸压缩实测、
-    包体配套代码改造、以及**构建验证（本机无 Cocos Creator，见文档内人工验证清单）**。
+  - **⑧ 包体治理（方案见 `docs/小游戏包体方案.md`）**：
+    - **素材压缩已实测跑完**：贴纸 46.83 MB → **10.20 MB**、底图 13.37 MB → **7.60 MB**、
+      UI 2.48 MB → **0.17 MB**，小游戏三组合计 62.68 MB → **17.97 MB**（省 71%）。
+      产物输出到 `minigame/assets/`（已 gitignore），**不改动原素材**。
+      → 结论：**不靠 CDN 也在总包 20 MB 内装得下**（需拆 5 个分包，每包 ≤ 4 MB）。
+    - **CDN 接口已预留**（`平台/assetSource.ts`）：默认 `cdnBase` 为空 = **全本地**，
+      本地渲染路径与改造前逐字一致；将来填地址即可切远程，调用方不用改。
+    - **配套代码改造已完成**：`worlds.ts` 新增 `worldArtAsset()`（保留 `worldArtPath()` 兼容）、
+      `MapBootstrap` 底图加载按 `mode` 分派（local 仍走改造前同一条 `resources.load`）、
+      `CollectionScreen` 贴纸走 `resolveAsset` 并**懒加载**；新增 `平台/assetLoader.ts` 做分派与兜底。
+      ⚠️ **CDN 分支未实机验证**（本机无 Creator）：`assetManager.loadRemote` 只按文档写，
+      真机联调若对不上只需改 `loadRemoteSpriteFrame()` 一个函数，调用方一行不动。
+    - 字体子集化字符表 1218 字（UTF-8 无 BOM）已生成，**pyftsubset 未实测**（本机 fonttools 未确认）。
+  - **待办**：⑧ 只剩**构建验证**（本机无 Cocos Creator，见 `docs/小游戏包体方案.md` 的人工验证清单）；
+    另两项待用户决策：14 张底图的路中线标定、加体力额度口径（每日 5 次 vs 续命不限次）。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
