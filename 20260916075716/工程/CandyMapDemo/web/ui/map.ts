@@ -24,7 +24,7 @@
  */
 
 import { MODE_LABEL, type LevelStatus } from '../../assets/scripts/核心/index.ts';
-import { HOME, MAP } from './text.ts';
+import { HOME, MAP, TUTORIAL } from './text.ts';
 import { buttonEl, el, toast } from './dom.ts';
 import { closeDialog, openDialog } from './dialog.ts';
 
@@ -74,6 +74,8 @@ export interface MapHandlers {
   onPick: (level: number) => void;
   /** 点体力：加体力分支由调用方判定 */
   onAddStamina: () => void;
+  /** 点首页右侧「教学」按钮：打开新手教学（序章）抽屉 */
+  onTutorial: () => void;
 }
 
 export interface MapScreen {
@@ -83,6 +85,12 @@ export interface MapScreen {
   enter: () => void;
   /** 每秒只刷体力这两处（避免整屏重绘打断滚动） */
   tick: (available: number, countdown: string | null) => void;
+  /**
+   * 教学入口是否显示。
+   * 隐藏条件（策划案 §4.4）：**困难模式累计通关 ≥ 10 关**后入口消失 ——
+   * 已经玩到那个程度的玩家不需要教学，别长期占着首页。
+   */
+  setTutorialVisible: (visible: boolean) => void;
 }
 
 /* ------------------------------------------------------------------ 布局常量（画布 px） */
@@ -95,8 +103,11 @@ const STAGE_W = 1536;
  * 改这三个值之前先确认：5462 = PAD_TOP + 11 × NODE_STEP + PAD_BOTTOM（每世界 12 关）。
  * ⚠️ 上下留白与 ROAD_X 路中线表是配套标定的（节点 y 定了才能对准路面），改一个就要重标另一个。
  */
-const NODE_STEP = 385;
-/** 轨道的上下留白：第 1 关不能贴着屏幕底，最后一关上方也要有落脚处 */
+/**
+ * 轨道的上下留白（**默认值**，两屏长卷专用）：第 1 关不能贴着屏幕底，最后一关上方也要有落脚处。
+ * ⚠️ 间距不再写死 —— 由「轨道高 − 上下留白」均分推出（见 `nodeStep`），
+ *    因为小镇改成**单屏**（用动效视频当背景）后留白必须留小，否则 12 个珠子挤不下。
+ */
 const PAD_TOP = 755;
 const PAD_BOTTOM = 472;
 
@@ -114,15 +125,63 @@ const RUBBER = 0.32;
 
 /**
  * 五张地图（糖果传奇式「世界」），每世界 12 关、共 60 关。
- * `art` = 该世界的底图文件名（web/art/map-v2/{art}.png，1080×3840 两屏一张）。
+ * `art` = 该世界的底图文件名（web/art/map-v2/{art}.{ext}，1080×3840 两屏一张）。
+ * `anim` = 该世界的**循环动效**（可选）：能播就盖在底图上，播不了自动退回底图。
  */
-const WORLDS = [
-  { name: '小镇', from: 1, to: 12, art: 'xiaozhen' },
-  { name: '果园', from: 13, to: 24, art: 'guoyuan' },
-  { name: '雪地', from: 25, to: 36, art: 'xuedi' },
-  { name: '沙滩', from: 37, to: 48, art: 'shatan' },
-  { name: '花园', from: 49, to: 60, art: 'huayuan' },
-] as const;
+interface WorldDef {
+  name: string;
+  from: number;
+  to: number;
+  /** 底图文件名（**不含扩展名**，扩展名见 `ext`；同时也是 `ROAD_X` 的 key） */
+  art: string;
+  /** 底图扩展名：新换的小镇 v27 交付的是 jpg，其余仍是 png */
+  ext: string;
+  /** 循环动效视频（可选）：**盖在底图上做光影混合**（`mix-blend-mode: soft-light`，不改变底图画风） */
+  anim?: string;
+  /**
+   * 用视频**直接当背景地图**（可选，2026-10-29 用户要求）：视频画面本身就是地图，
+   * 节点/UI 浮在上面，底图退化成「视频加载失败时的兜底」（必须与该视频同构图 ——
+   * 用 `ffmpeg` 从视频首帧导出的 `xiaozhen-poster.jpg`）。
+   * ⚠️ 与 `anim` 互斥：`bgVideo` 优先（它是主背景，不是混合层）。
+   */
+  bgVideo?: string;
+  /**
+   * 背景内容的**高宽比**（高 ÷ 宽）。轨道总高 = `STAGE_W × aspect`，这样底图/视频
+   * 铺上去永远是等比、不变形不裁切。默认 3840/1080（两屏长卷）。
+   */
+  aspect?: number;
+  /** 该世界的上下留白（不写 = 用 PAD_TOP / PAD_BOTTOM）。单屏世界必须写小，否则 12 关挤不下 */
+  padTop?: number;
+  padBottom?: number;
+}
+
+/**
+ * 15 张地图（糖果传奇式「世界」），每世界 12 关、共 **180 关**（2026-10-29 扩充，原 5 世界 60 关）。
+ *
+ * 底图全部来自 `美术/场景图/`（15 张 1080×3840 jpg，每世界一张，**不重复**），
+ * 导入时把中文文件名改成了英文 key（中文文件名在 URL 里要编码，容易踩坑），
+ * 对应关系见 `web/UI_README.md` §32。旧底图整体备份在 `web/art/map-v2_backup_20261029/`。
+ *
+ * 世界顺序：前 5 个沿用原主题（小镇 / 果园 / 雪地→滑雪场 / 沙滩→海岸线 / 花园→花海山丘），
+ * 之后按「自然 → 幻想」递进。
+ */
+const WORLDS: readonly WorldDef[] = [
+  { name: '小镇', from: 1, to: 12, art: 'town', ext: 'jpg' },
+  { name: '果园', from: 13, to: 24, art: 'orchard', ext: 'jpg' },
+  { name: '滑雪场', from: 25, to: 36, art: 'ski', ext: 'jpg' },
+  { name: '海岸线', from: 37, to: 48, art: 'coast', ext: 'jpg' },
+  { name: '花海山丘', from: 49, to: 60, art: 'flowerhill', ext: 'jpg' },
+  { name: '冰原', from: 61, to: 72, art: 'icefield', ext: 'jpg' },
+  { name: '山谷', from: 73, to: 84, art: 'valley', ext: 'jpg' },
+  { name: '草原', from: 85, to: 96, art: 'grassland', ext: 'jpg' },
+  { name: '农场', from: 97, to: 108, art: 'farm', ext: 'jpg' },
+  { name: '蘑菇森林', from: 109, to: 120, art: 'mushroom', ext: 'jpg' },
+  { name: '高山云端', from: 121, to: 132, art: 'cloudpeak', ext: 'jpg' },
+  { name: '沙漠', from: 133, to: 144, art: 'desert', ext: 'jpg' },
+  { name: '城堡童话', from: 145, to: 156, art: 'castle', ext: 'jpg' },
+  { name: '糖果王国', from: 157, to: 168, art: 'candy', ext: 'jpg' },
+  { name: '星空城堡', from: 169, to: 180, art: 'starcastle', ext: 'jpg' },
+];
 
 /** 关卡号 → 地图下标（越界兜底到首/末张，避免素材缺关时崩掉） */
 function worldIndexOf(level: number): number {
@@ -137,11 +196,45 @@ function worldIndexOf(level: number): number {
  * 数值按底图人工标定；换底图时改这张表即可，不用动布局公式。
  */
 const ROAD_X: Record<string, readonly number[]> = {
-  xiaozhen: [0.43, 0.54, 0.43, 0.39, 0.4, 0.51, 0.56, 0.47, 0.47, 0.5, 0.46, 0.44],
-  guoyuan: [0.5, 0.46, 0.42, 0.46, 0.52, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.46],
-  xuedi: [0.5, 0.47, 0.45, 0.5, 0.55, 0.5, 0.45, 0.5, 0.55, 0.5, 0.47, 0.5],
-  shatan: [0.52, 0.48, 0.44, 0.42, 0.48, 0.55, 0.58, 0.52, 0.46, 0.48, 0.53, 0.55],
-  huayuan: [0.5, 0.47, 0.5, 0.54, 0.5, 0.46, 0.5, 0.55, 0.5, 0.47, 0.52, 0.5],
+  /**
+   * 小镇（**唯一经过像素验证的一张**）：2026-10-29 用**路网追踪**标定 ——
+   * 从画面顶端最宽的路面段起，逐行跟着「离上一行最近的路面段」往下走，再做平滑校验。
+   * **12/12 个点经像素验证确实在路面上**（中心 + 左右各 20px 都是路面色），
+   * 且相邻点连线中点离最近路面 ≤123px（没有「断路」）。
+   * ⚠️ 新交付的 `town.jpg` 与旧 `xiaozhen.jpg` **MD5 一致（同一张图）**，所以这张表直接沿用。
+   */
+  town: [0.487, 0.495, 0.573, 0.537, 0.589, 0.587, 0.405, 0.687, 0.619, 0.454, 0.716, 0.874],
+  /**
+   * ⚠️ 以下 14 张是**居中蜿蜒曲线的兜底值，不是实测路中线** —— 需要人工目视校正。
+   *
+   * 为什么没测出来：自动标定试了两套办法都失败（详见 UI_README §32）：
+   *   ① 颜色判定（暖色=土路）→ 在这 14 张图上把整片地面/雪地/沙地都算成了路
+   *      （行内路面占比 61%~98%，冰原 95%、高山云端 98%），且「在路上 12/12」是用
+   *      同一套判定自证的，没有意义；
+   *   ② 边缘对跟踪（找路的两条边界）→ 大量结果被夹到画面边缘（0.08 / 0.92）、
+   *      相邻节点横向跳变最高 0.74，明显跟错了目标。
+   * 根因：**我看不到图**，而这些场景的路面材质（雪 / 沙 / 草地 / 奇幻地面）各不相同，
+   * 没有一套颜色规则能通用。
+   *
+   * → 现在的取值是「居中 + 正弦蜿蜒」（幅度 0.16~0.26、相位按世界错开、夹在 16%~84%），
+   *   保证节点**连续、居中、不贴边、不压到画面外**，但**不保证压在真实路面上**。
+   * 校正方法：打开游戏挨个世界看一眼，或直接在图上点出正确的路中线给我，我按值改这张表
+   *   （表里一行就是 12 个数，改完即生效，不用动任何布局公式）。
+   */
+  'orchard': [0.5, 0.58, 0.638, 0.66, 0.64, 0.582, 0.503, 0.424, 0.364, 0.34, 0.359, 0.415],
+  'ski': [0.706, 0.699, 0.64, 0.544, 0.436, 0.345, 0.295, 0.299, 0.356, 0.451, 0.559, 0.652],
+  'coast': [0.602, 0.469, 0.345, 0.262, 0.242, 0.29, 0.393, 0.525, 0.65, 0.736, 0.759, 0.714],
+  'flowerhill': [0.348, 0.316, 0.332, 0.394, 0.483, 0.577, 0.65, 0.684, 0.669, 0.61, 0.521, 0.427],
+  'icefield': [0.331, 0.434, 0.555, 0.661, 0.725, 0.729, 0.673, 0.571, 0.45, 0.342, 0.277, 0.27],
+  'valley': [0.586, 0.642, 0.66, 0.636, 0.576, 0.496, 0.417, 0.36, 0.34, 0.362, 0.421, 0.501],
+  'grassland': [0.696, 0.633, 0.534, 0.427, 0.339, 0.293, 0.302, 0.364, 0.461, 0.569, 0.658, 0.706],
+  'farm': [0.457, 0.335, 0.257, 0.243, 0.297, 0.404, 0.537, 0.66, 0.741, 0.758, 0.707, 0.601],
+  'mushroom': [0.315, 0.336, 0.401, 0.491, 0.584, 0.655, 0.685, 0.666, 0.603, 0.513, 0.419, 0.347],
+  'cloudpeak': [0.445, 0.566, 0.669, 0.728, 0.726, 0.665, 0.56, 0.439, 0.334, 0.273, 0.272, 0.331],
+  'desert': [0.645, 0.659, 0.632, 0.569, 0.488, 0.411, 0.357, 0.34, 0.366, 0.428, 0.508, 0.586],
+  'castle': [0.625, 0.525, 0.418, 0.333, 0.292, 0.306, 0.371, 0.471, 0.578, 0.665, 0.708, 0.696],
+  'candy': [0.326, 0.253, 0.245, 0.305, 0.416, 0.549, 0.67, 0.745, 0.756, 0.699, 0.589, 0.456],
+  'starcastle': [0.34, 0.408, 0.5, 0.592, 0.66, 0.685, 0.661, 0.595, 0.504, 0.411, 0.342, 0.315],
 };
 
 /** 节点横坐标：查该世界底图的小路中线表（local 0 = 第 1 关 = 表里最下面的点） */
@@ -151,13 +244,33 @@ function nodeX(local: number, world: number): number {
   return frac * STAGE_W;
 }
 
-/** 节点纵坐标：`local` 0 是第 1 关 —— y 越大越靠下，所以第 1 关在最底部，往上推进 */
-function nodeY(local: number, count: number): number {
-  return PAD_TOP + (count - 1 - local) * NODE_STEP;
+/** 某世界的轨道总高：由背景内容的比例决定（1536 × 高/宽），保证底图/视频铺上去等比不变形 */
+function trackHeight(world: number): number {
+  return Math.round(STAGE_W * (WORLDS[world]!.aspect ?? 3840 / 1080));
 }
 
-function trackHeight(count: number): number {
-  return PAD_TOP + Math.max(0, count - 1) * NODE_STEP + PAD_BOTTOM;
+/** 该世界的上下留白 */
+function pads(world: number): { top: number; bottom: number } {
+  return { top: WORLDS[world]!.padTop ?? PAD_TOP, bottom: WORLDS[world]!.padBottom ?? PAD_BOTTOM };
+}
+
+/**
+ * 节点间距：由「轨道高 − 上下留白」均分推出（不再写死 NODE_STEP）。
+ * 两屏世界算出来 ≈ 385（与原值一致），单屏小镇 ≈ 221。
+ */
+function nodeStep(world: number, count: number): number {
+  const { top, bottom } = pads(world);
+  return (trackHeight(world) - top - bottom) / Math.max(1, count - 1);
+}
+
+/** 节点纵坐标：`local` 0 是第 1 关 —— y 越大越靠下，所以第 1 关在最底部，往上推进 */
+function nodeY(local: number, count: number, world: number): number {
+  return pads(world).top + (count - 1 - local) * nodeStep(world, count);
+}
+
+/** 该世界的页数：一页 = 一屏（PAGE_H）。两屏世界 = 2 页，单屏小镇 = 1 页（不翻页） */
+function pageCount(world: number): number {
+  return Math.max(1, Math.round(trackHeight(world) / PAGE_H));
 }
 
 /** 两节点之间的 S 形曲线：控制点取垂直方向的 45%，正是糖果传奇那种「绕着往上爬」的观感 */
@@ -188,6 +301,10 @@ const SEG_H = 2731;
 /** 一页 = 一屏：整屏翻页的最小单位（也是吸附的步长） */
 const PAGE_H = SEG_H;
 /** 一条轨道的页数 = 2（底图就是两屏） */
+/**
+ * ⚠️ 页数**不再是常量**：小镇改成单屏（用视频当背景）后只有 1 页，其余世界仍是 2 页。
+ * 用 `pageCount(world)` 取（按轨道高 ÷ 页高算）。这里保留常量只是为了兼容旧注释里的说法。
+ */
 const PAGE_COUNT = 2;
 /** 页名（仅用于翻页圆点的 title） */
 const SEG_NAMES = ['top', 'bottom'] as const;
@@ -294,7 +411,22 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
   // 设计图里的绿色「＋」：加体力入口（点整块体力胶囊都触发加体力）
   staminaBox.appendChild(el('span', 'home-plus'));
   staminaBox.addEventListener('click', () => handlers.onAddStamina());
-  top.appendChild(staminaBox);
+  /* ---- 右上角：一列（上 = 体力胶囊，下 = 教学入口） ----
+     ⚠️ 用户要求（2026-10-26）：**教学图标放在体力下方**，所以右侧整体是一个纵向容器，
+     不再把教学按钮并排塞在顶栏行里（那会挤掉体力胶囊、也压到地图）。 */
+  const homeRight = el('div', 'home-right');
+  homeRight.appendChild(staminaBox);
+  /* ---- 教学入口：**体力下方**（新手教学 · 序章，2026-10-26）----
+     默认隐藏，由 `main.ts` 按「困难模式累计通关 < 10 关」决定是否显示。 */
+  const tutorialBtn = el('button', 'home-tutorial');
+  tutorialBtn.type = 'button';
+  tutorialBtn.hidden = true;
+  tutorialBtn.title = TUTORIAL.drawerTitle;
+  tutorialBtn.appendChild(el('span', 'home-tutorial-icon', '❓'));
+  tutorialBtn.appendChild(el('span', 'home-tutorial-text', TUTORIAL.entry));
+  tutorialBtn.addEventListener('click', () => handlers.onTutorial());
+  homeRight.appendChild(tutorialBtn);
+  top.appendChild(homeRight);
   root.appendChild(top);
 
   /* ---- 世界切换：左右两侧各一颗大箭头（不挂标题行，设计上要显眼） ---- */
@@ -390,12 +522,12 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
   /** 离 `v` 最近的那一页 */
   function nearestPage(v: number): number {
-    return clamp(Math.round(-v / pageSpan), 0, Math.max(0, PAGE_COUNT - 1));
+    return clamp(Math.round(-v / pageSpan), 0, Math.max(0, pageCount(world) - 1));
   }
 
   /** 某个轨道坐标落在第几页（底图坐标：一段 = 一页 = 1920） */
   function pageOfY(y: number): number {
-    return clamp(Math.floor(y / PAGE_H), 0, Math.max(0, PAGE_COUNT - 1));
+    return clamp(Math.floor(y / PAGE_H), 0, Math.max(0, pageCount(world) - 1));
   }
 
   function applyOffset(): void {
@@ -487,7 +619,7 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
   /** 整屏翻到第 p 页（定位与拖动吸附共用；带 CSS 过渡，读起来就是「整屏翻过去」） */
   function snapToPage(p: number, animated: boolean): void {
-    page = clamp(p, 0, Math.max(0, PAGE_COUNT - 1));
+    page = clamp(p, 0, Math.max(0, pageCount(world) - 1));
     velocity = 0;
     // 补间交给 animateTo（JS 逐帧），CSS 的 .snap 过渡会跟每帧写入的 transform 打架
     animateTo(pageOffset(page), animated ? SNAP_MS : 0);
@@ -564,11 +696,17 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
   /* ---------------------------------------------------------------- 渲染 */
 
-  /** 页码点与箭头：到头就置灰 */
+  /** 页码点与箭头：到头就置灰。⚠️ 单屏世界（小镇）只有 1 页 —— 多余的点要藏掉 */
   function paintPager(): void {
-    dotEls.forEach((dot, i) => dot.classList.toggle('on', i === page));
+    const pc = pageCount(world);
+    dotEls.forEach((dot, i) => {
+      dot.classList.toggle('on', i === page);
+      dot.style.display = i < pc ? '' : 'none';
+    });
     pageUp.disabled = page <= 0;
-    pageDown.disabled = page >= PAGE_COUNT - 1;
+    pageDown.disabled = page >= pc - 1;
+    // 单屏世界没有"翻页"这回事，整列控件藏掉（否则两个灰箭头摆在那儿像坏了）
+    pager.style.display = pc > 1 ? '' : 'none';
   }
 
   function worldNodes(w: number): MapNode[] {
@@ -602,7 +740,7 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
 
   function buildWorld(w: number): void {
     const list = worldNodes(w);
-    const h = trackHeight(list.length);
+    const h = trackHeight(w);
     track.style.height = `${h}px`;
     track.replaceChildren();
     nodeEls.length = 0;
@@ -614,11 +752,70 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
     const layer = el('div', 'map-bg-seg');
     layer.style.top = '0px';
     layer.style.height = `${h}px`;
-    layer.style.backgroundImage = `url("${MAP_ART_DIR}/${WORLDS[w]!.art}.png")`;
+    layer.style.backgroundImage = `url("${MAP_ART_DIR}/${WORLDS[w]!.art}.${WORLDS[w]!.ext}")`;
     bg.appendChild(layer);
+
+    /* 视频**直接当背景地图**（小镇，2026-10-29 用户要求）：视频画面本身就是地图，
+       节点与 UI 浮在上面。三重保障：
+         1. 底图用的是 `xiaozhen-poster.jpg` = **视频首帧**（ffmpeg 导出），所以视频没加载、
+            播不了、被 error 移除时，画面构图与节点位置**依然完全正确**；
+         2. 视频比例 720×1280 = 9:16，单屏轨道 1536×2731 也是 9:16 → `object-fit: fill`
+            在这里就是等比铺满，**不变形、不裁切**（这也是小镇敢改单屏的前提）；
+         3. `playing` 才淡入，避免解码慢时黑帧闪一下。 */
+    const bgVideoSrc = WORLDS[w]!.bgVideo;
+    if (bgVideoSrc) {
+      const v = el('video', 'map-bg-video') as HTMLVideoElement;
+      v.src = `${MAP_ART_DIR}/${bgVideoSrc}`;
+      v.muted = true;
+      v.loop = true;
+      v.autoplay = true;
+      v.setAttribute('playsinline', '');
+      v.preload = 'auto';
+      v.addEventListener('error', () => v.remove());
+      v.addEventListener('playing', () => {
+        v.style.opacity = '1';
+      });
+      bg.appendChild(v);
+    }
+
+    /* 循环动效层（可选）：底图上叠一条会动的视频（炊烟/云影/飘动物）。
+       ⚠️ 三重兜底，保证「播不了 = 等于没这层」，绝不让视频层把地图搞挂：
+         1. `error` 事件 → 整层移除，露出底下的 jpg；
+         2. 3 秒内没解出首帧（readyState < 2）→ 同样移除（canPlayType 会误报
+            "probably"，比如无 HEVC 硬解的 Chrome —— 只能靠真解一遍验证）；
+         3. 解码成功但还没开播前 opacity=0，避免黑帧闪一下。 */
+    const animSrc = WORLDS[w]!.anim;
+    if (animSrc) {
+      const video = el('video', 'map-bg-anim') as HTMLVideoElement;
+      video.src = `${MAP_ART_DIR}/${animSrc}`;
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = true;
+      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.addEventListener('error', () => video.remove());
+      video.addEventListener('playing', () => {
+        // 不是 1：这一层是 soft-light 光影叠加，全强度会把画面压脏（强度在 CSS 里调）
+        video.style.opacity = '0.5';
+      });
+      window.setTimeout(() => {
+        if (video.isConnected && video.readyState < 2) video.remove();
+      }, 3000);
+      bg.appendChild(video);
+    }
+
+    /* 程序化动效（2026-10-29，零素材）：目前只有小镇有 —— 云影 / 樱花瓣 /
+       喷泉水花 / 水面波光 / 光尘，全部 canvas 粒子（见 map-fx.ts 顶部说明）。
+       AI 整张动效视频与底图构图对不上（帧差验证过），所以不用视频、也不返工等素材。 */
+    /* ⚠️ 程序化动效（map-fx.ts）**当前停用**（2026-10-29 用户要求"动画先放着"）：
+       等美术的新动效视频到位再一起上。接回只需两行：
+         import { mountTownFx, type MapFx } from './map-fx.ts';
+         if (w === 0) townFx = mountTownFx(bg, { located: true, height: h });
+       （还要把 `let townFx: MapFx | null = null;` 和 buildWorld 开头的 destroy 块加回来，
+         否则切世界重建 DOM 时旧的 rAF 循环会空转泄漏 —— 见 map-fx.ts 与 UI_README §29。） */
     track.appendChild(bg);
 
-    const pos = list.map((_, i) => ({ x: nodeX(i, w), y: nodeY(i, list.length) }));
+    const pos = list.map((_, i) => ({ x: nodeX(i, w), y: nodeY(i, list.length, w) }));
 
     /* 路径：逐段画，段的「点亮」由**下方那个节点是否已通关**决定 ——
        打通第 N 关 → 从 N 到 N+1 的那一段跟着亮，不需要算 dasharray 长度。 */
@@ -700,10 +897,10 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
     const list = worldNodes(world);
     const local = list.findIndex((n) => n.level === level);
     if (local < 0) {
-      snapToPage(PAGE_COUNT - 1, animated);
+      snapToPage(pageCount(world) - 1, animated);
       return;
     }
-    snapToPage(pageOfY(nodeY(local, list.length)), animated);
+    snapToPage(pageOfY(nodeY(local, list.length, world)), animated);
   }
 
   /** 进入某个世界时的定位：优先当前解锁关，否则退到「最靠上的已通关关」，再退到最底一页 */
@@ -720,10 +917,10 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
       if (n.status === 'cleared') best = i;
     });
     if (best < 0) {
-      snapToPage(PAGE_COUNT - 1, animated);
+      snapToPage(pageCount(world) - 1, animated);
       return;
     }
-    snapToPage(pageOfY(nodeY(best, list.length)), animated);
+    snapToPage(pageOfY(nodeY(best, list.length, world)), animated);
   }
 
   /** 切地图：整张地图绕 X 轴翻滚出场，再从另一侧翻滚进场 */
@@ -808,5 +1005,13 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
     snapToPage(page, false);
   });
 
-  return { el: root, render, enter, tick: tickStamina };
+  return {
+    el: root,
+    render,
+    enter,
+    tick: tickStamina,
+    setTutorialVisible(visible: boolean): void {
+      tutorialBtn.hidden = !visible;
+    },
+  };
 }

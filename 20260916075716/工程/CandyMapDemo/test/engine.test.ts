@@ -9,7 +9,7 @@ import { randomAdjacentPair } from './helpers';
 const CONFIGS = buildLevelConfigs();
 /** 全表实际使用的三种段位（每行 ≤4、每列 ≤5，24 格段位已取消） */
 const GRIDS: Array<[number, number]> = [
-  [3, 4],
+  [4, 3],
   [4, 4],
   [5, 4],
 ];
@@ -103,20 +103,20 @@ describe('engine —— 标定接口 minSwapsToCompleteTarget（M8 方案A）', 
 
 describe('engine —— 移动事务（§6.1 / §6.3）', () => {
   it('任意两个格子（含非相邻）移动都被接受', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(1));
+    const engine = new PuzzleEngine(configOf(4, 3), new Rng(1));
     const out = engine.move(0, 5); // (0,0) ↔ (1,1) 斜对角
     assert.strictEqual(out.accepted, true);
   });
 
   it('原地不动（anchor === target）被拒绝', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(2));
+    const engine = new PuzzleEngine(configOf(4, 3), new Rng(2));
     const out = engine.move(3, 3);
     assert.strictEqual(out.accepted, false);
     assert.strictEqual(out.rejectReason, 'same');
   });
 
   it('1 格位移被接受，且移动后棋盘仍然满格', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(3));
+    const engine = new PuzzleEngine(configOf(4, 3), new Rng(3));
     const out = engine.move(0, 1);
     assert.strictEqual(out.accepted, true);
     assert.strictEqual(engine.board.emptyIndices().length, 0);

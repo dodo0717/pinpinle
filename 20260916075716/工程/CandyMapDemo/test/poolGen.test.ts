@@ -46,7 +46,7 @@ function assertPoolShape(imageIds: readonly number[], rows: number, cols: number
 describe('poolGen —— 素材齐全（36 张）', () => {
   it('60 关全部可开，且图池构成逐关精确等于设计表（只数 + 每只动物的情绪数）', () => {
     const plan = buildLevelPlan('normal', { availableIds: FULL });
-    assert.strictEqual(plan.levels.length, TOTAL_LEVELS, '素材齐全时应开放全部 60 关');
+    assert.strictEqual(plan.levels.length, TOTAL_LEVELS, '素材齐全时应开放全部关卡');
     assert.deepStrictEqual(plan.skipped, []);
     assert.deepStrictEqual(plan.notes, [], '素材齐全时不应有任何图池诊断');
 
@@ -126,9 +126,9 @@ describe('poolGen —— 素材不足', () => {
   it('图数超过到货张数的关卡被跳过，并给出说明', () => {
     const plan = buildLevelPlan('normal', { availableIds: PARTIAL_BATCH });
     assert.ok(plan.skipped.length > 0, '5×4 需 10 张、只到货 9 张，应有被跳过的关卡');
-    // 只有 5×4 的段位（第 36~60 关）会因张数不够而关闭
+    // 只有 5×4 的段位（第 36~180 关）会因张数不够而关闭
     for (const level of plan.skipped) {
-      assert.ok(level >= 36 && level <= 60, `第${level}关不该被跳过`);
+      assert.ok(level >= 36 && level <= TOTAL_LEVELS, `第${level}关不该被跳过`);
     }
     assert.ok(
       plan.notes.some((n) => n.includes('暂不开放')),

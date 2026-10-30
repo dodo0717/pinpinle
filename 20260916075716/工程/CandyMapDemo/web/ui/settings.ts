@@ -11,7 +11,7 @@
  * 落盘仍在 M6 的 SaveManager 里（设置是关键点，立即 flush）。
  */
 
-import { SETTINGS, VERSION } from './text.ts';
+import { SETTINGS, TUTORIAL, VERSION } from './text.ts';
 import { buttonEl, el } from './dom.ts';
 import type { Settings } from './meta.ts';
 
@@ -19,6 +19,12 @@ export interface SettingsHandlers {
   onBack: () => void;
   /** 开关变化；调用方负责存状态（界面不碰 MetaState） */
   onChange: (patch: Partial<Settings>) => void;
+  /**
+   * 打开新手教学（序章）抽屉。
+   * 首页的教学按钮会在「困难模式累计通关 ≥10 关」后隐藏，但玩家可能还想回看 ——
+   * 所以设置页**永久保留**这个入口（策划案 §14 决策 3）。
+   */
+  onTutorial: () => void;
 }
 
 export interface SettingsScreen {
@@ -41,7 +47,7 @@ export function createSettingsScreen(handlers: SettingsHandlers): SettingsScreen
   const card = el('div', 'set-card');
   const rows = el('div', 'set-rows');
 
-  let current: Settings = { sound: true, bgm: true };
+  let current: Settings = { sound: true, bgm: true, voice: true };
 
   /** 开关钮：底图在 on/off 两张切图间切换，aria 同步 */
   const toggleBtn = (get: () => boolean, flip: () => void): { btn: HTMLButtonElement; sync: (on: boolean) => void } => {
@@ -63,9 +69,22 @@ export function createSettingsScreen(handlers: SettingsHandlers): SettingsScreen
     () => current.sound,
     () => handlers.onChange({ sound: !current.sound }),
   );
+  // 教学语音（2026-10-26 新增）：序章里那句简短文本要不要念出来
+  const voice = toggleBtn(
+    () => current.voice,
+    () => handlers.onChange({ voice: !current.voice }),
+  );
 
   rows.appendChild(row('/web/art/settings/icon-music.png', SETTINGS.bgm, bgm.btn));
   rows.appendChild(row('/web/art/settings/icon-sfx.png', SETTINGS.sound, sfx.btn));
+  rows.appendChild(row('/web/art/settings/icon-sfx.png', SETTINGS.voice, voice.btn));
+  // 新手教学：首页按钮会按进度隐藏，这里永远留一个回看入口
+  const tutLine = el('div', 'set-row');
+  tutLine.append(
+    el('span', 'set-label', TUTORIAL.drawerTitle),
+    buttonEl('查看', 'set-tutorial-btn', () => handlers.onTutorial()),
+  );
+  rows.appendChild(tutLine);
   card.appendChild(rows);
   root.appendChild(card);
 
@@ -76,6 +95,7 @@ export function createSettingsScreen(handlers: SettingsHandlers): SettingsScreen
     current = settings;
     bgm.sync(settings.bgm);
     sfx.sync(settings.sound);
+    voice.sync(settings.voice);
   };
 
   return { el: root, render };

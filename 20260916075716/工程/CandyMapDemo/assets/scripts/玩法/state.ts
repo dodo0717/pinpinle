@@ -21,7 +21,7 @@ import {
 } from '../核心/save';
 import {
   TOTAL_LEVELS,
-  TIME_LIMIT,
+  MAX_TIME_LIMIT,
   STAMINA_MAX,
   preDeductStamina,
   confirmStamina,
@@ -49,7 +49,8 @@ import {
 export const SAVE_LIMITS: SaveLimits = {
   totalLevels: TOTAL_LEVELS,
   staminaMax: STAMINA_MAX,
-  timeLimit: TIME_LIMIT,
+  // 存档校验只取「上界」：各关时限已分段（180/240/300），精确值由 timeLimitFor() 给
+  timeLimit: MAX_TIME_LIMIT,
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
 };
 

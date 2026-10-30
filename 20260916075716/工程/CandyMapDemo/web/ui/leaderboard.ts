@@ -13,7 +13,7 @@
  * 数据通过 `handlers.view(level)` / `handlers.myTotals()` 取。
  */
 
-import { Rng, mockBoardNames, type LevelStatus } from '../../assets/scripts/核心/index.ts';
+import { Rng, mockBoardNames, TOTAL_LEVELS, type LevelStatus } from '../../assets/scripts/核心/index.ts';
 import { LEADERBOARD, tierOfLevel } from './text.ts';
 import { buttonEl, el, toast } from './dom.ts';
 
@@ -265,7 +265,8 @@ export function createLeaderboardScreen(handlers: LeaderboardHandlers): Leaderbo
   card.appendChild(challengeBtn);
 
   let current = 1;
-  let maxLevel = 60;
+  /** 关卡榜的关卡上限：跟随 `TOTAL_LEVELS`（2026-10-29 从写死的 60 改成 180 关） */
+  let maxLevel = TOTAL_LEVELS;
   let activeTab: 'total' | 'level' = 'total';
   let page = 1;
 

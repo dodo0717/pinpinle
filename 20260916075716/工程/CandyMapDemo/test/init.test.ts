@@ -9,7 +9,7 @@ import { Rng } from '../assets/scripts/核心/rng';
 const CONFIGS = buildLevelConfigs();
 /** 全表实际使用的三种段位（每行 ≤4、每列 ≤5，24 格段位已取消） */
 const GRIDS: Array<[number, number]> = [
-  [3, 4],
+  [4, 3],
   [4, 4],
   [5, 4],
 ];

@@ -38,7 +38,7 @@ import { unlockedImageIds } from './meta';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, rankTotals, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS,
+  TOTAL_LEVELS, reviveSecondsFor,
   type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement,
   type LevelConfig, type LevelSession, type Cell, type ProgressData,
 } from '../核心/index';
@@ -55,8 +55,7 @@ const WEB_BOARD_FILL = 0.98;
 const CELL_MAX = 236;
 /** 小于这个位移视为点击（画布 px） */
 const TAP_SLOP = 14;
-/** 续命加时（秒） */
-const REVIVE_SECONDS = 60;
+/** 续命加时（秒）—— **按关段取值**，见 `reviveSecondsFor()`（2026-10-29 起分段） */
 /** 融合三阶段 + 消除 + 掉落的总时长，用于排下一次动作 */
 const RESOLVE_TAIL = 0.05;
 
@@ -926,7 +925,7 @@ export class GameBootstrap extends Component {
       return;
     }
     const need = Math.max(0, this.cfg.star1 - outcome.score);
-    showThemeFail(this.node, { need, canRevive: false, reviveSec: REVIVE_SECONDS }, {
+    showThemeFail(this.node, { need, canRevive: false, reviveSec: reviveSecondsFor(this.levelIndex) }, {
       onRevive: () => {},
       onGiveUp: () => this.exitToHome(),
       onRetry: () => this.restart(),
@@ -961,7 +960,7 @@ export class GameBootstrap extends Component {
     }
     const o = this.pendingOutcome;
     const need = Math.max(0, this.cfg.star1 - (o?.score ?? this.engine.score));
-    showThemeFail(this.node, { need, canRevive: true, reviveSec: REVIVE_SECONDS }, {
+    showThemeFail(this.node, { need, canRevive: true, reviveSec: reviveSecondsFor(this.levelIndex) }, {
       onRevive: () => this.watchRevive(),
       onGiveUp: () => this.giveUp(),
       onRetry: () => this.restart(),
@@ -990,12 +989,12 @@ export class GameBootstrap extends Component {
     this.revivedUsed = true;
     this.finished = false;
     this.pendingOutcome = null;
-    this.timeLeft += REVIVE_SECONDS;
+    this.timeLeft += reviveSecondsFor(this.levelIndex);
     this.setPaused(false);
     this.syncSession();
     GS.flush();
     this.schedule(this.onTick, 1);
-    this.toast.show(this.isClassic ? WEB_REVIVE.granted : REVIVE.gained(REVIVE_SECONDS), this.isClassic ? 2600 : 1800);
+    this.toast.show(this.isClassic ? WEB_REVIVE.granted : REVIVE.gained(reviveSecondsFor(this.levelIndex)), this.isClassic ? 2600 : 1800);
   }
 
   /** 放弃续命 → 出最终失败页（再来一局 / 回地图） */

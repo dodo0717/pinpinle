@@ -24,7 +24,8 @@ import {
   SAVE_VERSION,
   STAR_LINES_BY_MODE,
   STAMINA_MAX,
-  TIME_LIMIT,
+  MAX_TIME_LIMIT,
+  reviveSecondsFor,
   TOTAL_LEVELS,
   boardSnapshot,
   buildLevelConfigs,
@@ -64,6 +65,7 @@ import {
 import { STICKER_DIR, fmtMMSS, starText, toast } from './ui/dom.ts';
 import { closeDialog, openDialog, confirmDialog, type DialogButton } from './ui/dialog.ts';
 import { createAnalytics } from './ui/analytics.ts';
+import { metricsStart, track, EVENT } from './ui/metrics.ts';
 import { runAd } from './ui/ads.ts';
 import {
   addStamina,
@@ -78,6 +80,7 @@ import {
   totalStars,
   AD_STAMINA_DAILY_MAX,
   COLLECTION_TOTAL,
+  clearedCount,
   type MetaState,
 } from './ui/meta.ts';
 import { createCollectionScreen, createPreviewScreen } from './ui/collection.ts';
@@ -94,7 +97,29 @@ import { SaveManager } from './ui/saveManager.ts';
 import { createAudio } from './ui/audio.ts';
 import { mergeExtent, pieceGeometry } from './ui/geometry.ts';
 import { removeSave, storageKind } from './ui/storage.ts';
-import { ADS, FAIL, HOME, HONOR, LEADERBOARD, MAP, REVIVE, SAVE, SETTLEMENT } from './ui/text.ts';
+import {
+  ADS,
+  FAIL,
+  HOME,
+  HONOR,
+  LEADERBOARD,
+  MAP,
+  REVIVE,
+  SAVE,
+  SETTLEMENT,
+  TUTORIAL,
+  TUTORIAL_VOICE,
+} from './ui/text.ts';
+import {
+  buildTutorialLayout,
+  createTutorialBanner,
+  createTutorialDrawer,
+  tutorialConfig,
+  TUTORIAL_SEED,
+} from './ui/tutorial.ts';
+import { createSpotlight } from './ui/spotlight.ts';
+import { createHandHint } from './ui/handHint.ts';
+import { createSpeech } from './ui/speech.ts';
 
 /** 探测范围 = 素材总量（附录A 的 36 张，ID 0~35）；没到货的图会自动退化成色块 */
 const PROBE_MAX = MAX_ART_ID + 1;
@@ -315,8 +340,7 @@ let pendingOutcome: LevelOutcome | null = null;
  * 由 `enterLevel()` 在开局时清零：它只描述「这一局是怎么结束的」，不跨局残留。
  */
 let offlineSettle = false;
-/** 续命一次加多少秒（§7.4） */
-const REVIVE_SECONDS = 60;
+/** 续命一次加多少秒 —— **按关段取值**，见 `reviveSecondsFor()`（§7.4） */
 /** 本局续命广告「连续加载失败」次数：连续 3 次按 §13.4 直接回续命弹窗 */
 let reviveAdFailures = 0;
 /**
@@ -347,7 +371,8 @@ let drag: { pointerId: number; index: number; x: number; y: number; cells: numbe
 const SAVE_LIMITS: SaveLimits = {
   totalLevels: TOTAL_LEVELS,
   staminaMax: STAMINA_MAX,
-  timeLimit: TIME_LIMIT,
+  // 存档校验只取「上界」：各关时限已分段（180/240/300），精确值由 timeLimitFor() 给
+  timeLimit: MAX_TIME_LIMIT,
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
 };
 
@@ -381,6 +406,8 @@ function currentSave(): SaveData {
       adStaminaUsed: meta.adStaminaUsed,
       settings: { ...meta.settings },
       guideDone: meta.guideDone,
+      // 教学进度（序章）：不写这段，完成状态与「已看过」标记刷新就丢了
+      tutorial: { ...meta.tutorial },
     },
     session: session ? { ...session, cells: session.cells.slice() } : null,
   };
@@ -450,6 +477,11 @@ function applySave(data: SaveData): void {
   meta.adStaminaUsed = data.meta.adStaminaUsed;
   meta.settings = { ...data.meta.settings };
   meta.guideDone = data.meta.guideDone;
+  // 教学进度：老档没有这一段，`sanitizeMeta()` 已按默认值补齐（所以这里一定读得到）
+  meta.tutorial = {
+    ...({ seen: false, normalCleared: false, nightmareCleared: false, freeLevel: false }),
+    ...(data.meta.tutorial ?? {}),
+  };
   // 引导「只出现一次」也要跨会话成立：老玩家刷新回来不该再被教一遍（§14）
   guide.markShown(data.meta.guideDone ? GUIDE_STEPS : []);
   // 开关要显示存档里的值，不然「关了音效 → 刷新 → 界面显示还是开」
@@ -457,6 +489,7 @@ function applySave(data: SaveData): void {
   // 读档后声音开关要真的生效（否则界面上是「关」，耳朵里还在响）—— M7 起有声音了，这行才有意义
   audio.setSound(meta.settings.sound);
   audio.setBgm(meta.settings.bgm);
+  speech.setEnabled(meta.settings.voice); // 教学语音同理（老档无此字段 → 默认开）
   loadedSession = data.session;
 }
 
@@ -519,12 +552,18 @@ const leaderboardScreen = createLeaderboardScreen({
 
 const settingsScreen = createSettingsScreen({
   onBack: () => showScreen('home'),
+  onTutorial: () => {
+    refreshTutorialEntry();
+    tutorialDrawer.open();
+  },
   onChange: (patch) => {
     Object.assign(meta.settings, patch);
     settingsScreen.render(meta.settings);
     // 开关要**立刻**作用到声音上：等刷新才生效会让人以为开关坏了（M7）
     audio.setSound(meta.settings.sound);
     audio.setBgm(meta.settings.bgm);
+    // 教学语音：关掉就立刻闭嘴（正念到一半也要停）
+    speech.setEnabled(meta.settings.voice);
     // 设置是玩家明确表达的偏好，不要等防抖窗口（M6：关键点立即落盘）
     save.flush();
   },
@@ -568,10 +607,631 @@ function applyMode(next: LevelMode): void {
   save.flush();
 }
 
+/* ------------------------------------------------------------------ 新手教学（序章） */
+
+/**
+ * 序章教学状态（`null` = 不在序章里）。
+ *
+ * 序章是**独立关卡**（`level 0`，配置由 `tutorialConfig()` 手工构造）：
+ * 不进 60 关进度、不进排行榜、不进图鉴星数、**不扣体力**、**不落断点**；
+ * 倒计时**全程冻结**（讲时间那一步演示 3 秒除外）。
+ *
+ * **v3（2026-10-26）**：用户要求"不要文字教学，强制教拖动，只有那块能操作，动画模拟滑动"，
+ * 并据对标（Candy Crush / Royal Match，见 `docs/新手教学对标分析与改进.md`）补上
+ * 「打开即玩 / 每组进度反馈 / 完成给奖励」。三条硬规则：
+ *   1. `locked` 期间：**只有 `targetIndex` 能拖、只能落到 `gapIndex`**；
+ *   2. `handHint` 循环演示滑动，**玩家一按就停**。
+ *
+ * **v4（2026-10-26，本轮）**：用户要求"简单和困难教学是不一样的，所有的教学要写个简短文本，
+ * 加入语音说明"。于是：
+ *   - **每一步配一句简短文本**（≤16 字）并由 `speech` 朗读（Web Speech API，中文）；
+ *   - **简单 / 困难是两套流程**（见 `TUTORIAL_VOICE`）：
+ *     简单 = 拖动 → 目标旗 → 倒计时 → 整片拖拉；困难 = **规则差异（挪一格）** → 拖动 → 目标旗
+ *     （不讲时间与整片：简单序章已讲过，且困难序章的门槛就是先完成简单序章）；
+ *   - 强制拖动 / 滑动演示 / 进度点 / 奖励**全部保留**（那是 v3 的骨架，v4 只在它上面加"说一句话"）。
+ */
+interface TutorialRun {
+  mode: LevelMode;
+  /**
+   * 步骤（**两套模式的编号含义不同**，别混用）：
+   *   简单 normal：1 拖动 → 2 旗 → 3 时间 → 4 整片 → 5 自由
+   *   困难 nightmare：1 规则+拖动 → 2 旗 → 5 自由
+   */
+  step: number;
+  /** 正在演示倒计时（这 3 秒里不推进其它教学） */
+  demoing: boolean;
+  /** 是否锁输入（只有目标块/目标片可以拖） */
+  locked: boolean;
+  /** 唯一能拖的那块；-1 = 摆盘降级、不锁 */
+  targetIndex: number;
+  /** 唯一合法落点（缺口） */
+  gapIndex: number;
+  /** 第 4 步：只能拖这一片（组内任意格都能当锚点，落点不限） */
+  groupCells: number[];
+  /** 已拼好的 3 块：困难模式找「下一步」时要绕开，别让玩家把它们拖散 */
+  fixed: number[];
+}
+let tutorial: TutorialRun | null = null;
+
+/** 聚光灯（挂 body：视口坐标，规避 `#stage` 的 scale 换算） */
+const tutorialSpotlight = createSpotlight();
+document.body.appendChild(tutorialSpotlight.el);
+
+/** 手指滑动演示动画 */
+const tutorialHand = createHandHint();
+
+/** 三颗进度点（每拼 1 组亮一颗 —— 零文字的"还差几组"信号） */
+const tutorialProgress = document.createElement('div');
+tutorialProgress.className = 'tut-progress';
+tutorialProgress.hidden = true;
+for (let i = 0; i < 3; i += 1) tutorialProgress.appendChild(document.createElement('i'));
+stageEl.insertBefore(tutorialProgress, document.getElementById('toast'));
+
+/** 语音说明（Web Speech API，中文朗读；不支持的环境静默降级，不影响教学） */
+const speech = createSpeech();
+
+/** 教学轻横幅（棋盘上方，显示那句**简短文本**） */
+const tutorialBanner = createTutorialBanner();
+stageEl.insertBefore(tutorialBanner.el, document.getElementById('toast'));
+
+/** 序章内右上角「跳过教学」 */
+const tutorialSkipBtn = document.createElement('button');
+tutorialSkipBtn.className = 'tut-skip';
+tutorialSkipBtn.type = 'button';
+tutorialSkipBtn.textContent = TUTORIAL.skip;
+tutorialSkipBtn.hidden = true;
+tutorialSkipBtn.addEventListener('click', () => exitTutorial());
+stageEl.insertBefore(tutorialSkipBtn, document.getElementById('toast'));
+
+const tutorialDrawer = createTutorialDrawer({
+  onStartNormal: () => startTutorial('normal'),
+  onStartNightmare: () => startTutorial('nightmare'),
+  onClose: () => {
+    // 关过一次就不再自动展开（首次自动展示 ≠ 强制学习，看过即可）
+    if (!meta.tutorial.seen) {
+      meta.tutorial.seen = true;
+      save.flush();
+    }
+  },
+});
+stageEl.insertBefore(tutorialDrawer.el, document.getElementById('toast'));
+
+/** 隐藏条件：困难模式**累计通关 ≥ 10 关**之后，首页教学入口消失 */
+const TUTORIAL_HIDE_AFTER = 10;
+
+function refreshTutorialEntry(): void {
+  homeScreen.setTutorialVisible(clearedCount(progressByMode.nightmare) < TUTORIAL_HIDE_AFTER);
+  tutorialDrawer.setStatus(meta.tutorial.normalCleared, meta.tutorial.nightmareCleared);
+}
+
+/**
+ * 序章里旗子显示的**过关分数**（`star1`），与正式关同一口径（v4.1）。
+ *
+ * ⚠️ 之前这里显示的是「还要拼几组」（star3 − score，会 3→2→1 递减），
+ * 但用户明确口径：**旗子旁的数字 = 过关分数**，是个固定目标值，不是倒计时式的剩余量。
+ * 序章把 `star1 / star2 / star3` 都配成 3（见 `tutorial.ts`），所以旗子上就是 3，
+ * 与「拼够 3 组过关」完全一致。
+ */
+function updateTutorialGoal(): void {
+  if (!tutorial || !engine) return;
+  const num = document.getElementById('hud-goal-num');
+  if (!num) return;
+  const pass = String(engine.config.star1);
+  if (num.textContent !== pass) num.textContent = pass;
+}
+
+/** 进度点：拼 1 组亮 1 颗（3 组 = 3 颗全亮 = 完成） */
+function setTutorialProgress(n: number): void {
+  const dots = tutorialProgress.children;
+  for (let i = 0; i < dots.length; i += 1) dots[i]!.classList.toggle('on', i < n);
+}
+
+/** 清掉「压暗 / 缺口框 / 脉冲」这些强制教学的视觉 */
+function clearTutorialMarks(): void {
+  for (const ref of cells) {
+    if (!ref) continue;
+    ref.root.classList.remove('dim', 'gap', 'pulse');
+  }
+}
+
+/**
+ * 教学「说一句话」：**同一句**既显示在横幅上，也念出来（v4）。
+ *
+ * ⚠️ 时长取「用户口径 v4.1 第 3 条」：**每句至少留 5 秒读完**。
+ * 句子长时再按字数往上加（中文 TTS 念 10 字约 2.5~3.5 秒，5 秒足够念完 + 读完一遍）。
+ *
+ * 取 5200 而不是 5000：横幅收起时有 200ms 淡出（`hide()` 里先摘 `on` 再 `hidden`），
+ * 5000 的话"完全不透明"只有 4.8 秒。宁可多 0.2 秒，也别让玩家没读完就淡掉。
+ */
+const TUTORIAL_SAY_MIN_MS = 5200;
+
+function tutorialSay(text: string): void {
+  tutorialBanner.show(text, Math.max(TUTORIAL_SAY_MIN_MS, 1200 + text.length * 190));
+  speech.speak(text);
+}
+
+/**
+ * 当前模式的语音文案（简单 / 困难**两套**）。
+ *
+ * 两套的字段**故意不齐**：困难没有 `time` / `group`（不讲），简单没有 `rule`（没有这条规则差异）。
+ * 返回类型把后三个标成可选，调用方按 `mode` 分叉后再取，取不到就是"这一步不讲"。
+ */
+function tutorialScript(): {
+  /** 两套**都有**规则句，但内容不同：简单 = 任意位置；困难 = 只能相邻 */
+  rule: string;
+  drag: string;
+  flag: string;
+  /** 简单专属：倒计时（演示**前**讲） */
+  time?: string;
+  /** 简单专属：倒计时演示**走完之后**讲（等玩家点「继续」才进下一步） */
+  timeDone?: string;
+  /** 简单专属：整片拖拉 */
+  group?: string;
+} {
+  return tutorial && tutorial.mode === 'nightmare' ? TUTORIAL_VOICE.nightmare : TUTORIAL_VOICE.normal;
+}
+
+/**
+ * 开局说两句：先讲**规则**（简单=任意位置 / 困难=只能相邻），5 秒后再讲**这一步怎么拖**。
+ * 只说一次（进入序章时）；之后每挪一步走的是 `tutorialSayNextStep()`。
+ */
+function tutorialSayIntro(): void {
+  const script = tutorialScript();
+  tutorialSay(script.rule);
+  window.setTimeout(() => {
+    if (tutorial && tutorial.step === 1) tutorialSay(script.drag);
+  }, TUTORIAL_SAY_MIN_MS);
+}
+
+/**
+ * 困难序章缺块**要走好几步**才到缺口 —— 每挪一步重新摆教学视觉 + 演示**下一步**。
+ *
+ * ⚠️ 手指演示的是「下一步要去哪格」，不是直接指缺口：困难一次只能挪一格，
+ * 演示一个够不着的落点会让人按不出来。
+ */
+function startTutorialStep1(sayIntro = true): void {
+  if (!tutorial || !engine) return;
+  tutorialHand.stop();
+  clearHint();
+  clearTutorialMarks();
+  if (!tutorial.locked) {
+    // 摆盘降级：不锁输入，退回引擎的「可拼提示」（保证不会卡死）
+    const picked = findHintCells(engine.board);
+    hintIndices = picked.length >= 2 ? picked.slice() : [];
+    for (const i of hintIndices) cells[i]?.root.classList.add('hint');
+    if (sayIntro) tutorialSayIntro();
+    return;
+  }
+  for (let i = 0; i < cells.length; i += 1) {
+    cells[i]?.root.classList.toggle('dim', i !== tutorial.targetIndex);
+  }
+  cells[tutorial.gapIndex]?.root.classList.add('gap');
+  cells[tutorial.targetIndex]?.root.classList.add('pulse');
+
+  // 演示落点：简单 = 直接指缺口（远距一步到位）；困难 = 指「下一步」那一格
+  const from = cells[tutorial.targetIndex]?.root;
+  const to = cells[tutorial.mode === 'nightmare' ? tutorialNextStep() : tutorial.gapIndex]?.root;
+  if (from && to) tutorialHand.play(from, to);
+
+  if (sayIntro) tutorialSayIntro();
+}
+
+/**
+ * 困难模式：缺块**朝缺口挪一格**应该落到哪一格（绕开已拼好的 3 块）。
+ * @returns 那一格的索引；已在缺口旁或算不出来就返回缺口本身
+ */
+function tutorialNextStep(): number {
+  if (!tutorial || !engine) return tutorial?.gapIndex ?? -1;
+  const board = engine.board;
+  const cols = board.cols;
+  const rows = board.rows;
+  const blocked = new Set(tutorial.fixed);
+  const from = tutorial.targetIndex;
+  const goal = tutorial.gapIndex;
+  // BFS：从缺口反推每格「还要挪几步」，再选相邻的、步数更少的那格
+  const dist: Array<number | null> = new Array(rows * cols).fill(null);
+  dist[goal] = 0;
+  const queue = [goal];
+  for (let head = 0; head < queue.length; head += 1) {
+    const cur = queue[head]!;
+    const r = Math.floor(cur / cols);
+    const c = cur % cols;
+    for (const [nr, nc] of [
+      [r - 1, c],
+      [r + 1, c],
+      [r, c - 1],
+      [r, c + 1],
+    ] as const) {
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      const next = nr * cols + nc;
+      if (blocked.has(next) || dist[next] !== null) continue;
+      dist[next] = dist[cur]! + 1;
+      queue.push(next);
+    }
+  }
+  const curDist = dist[from];
+  if (curDist === null) return goal; // 走不到（理论上不会）→ 直接指缺口
+  const r0 = Math.floor(from / cols);
+  const c0 = from % cols;
+  for (const [nr, nc] of [
+    [r0 - 1, c0],
+    [r0 + 1, c0],
+    [r0, c0 - 1],
+    [r0, c0 + 1],
+  ] as const) {
+    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+    const next = nr * cols + nc;
+    if (blocked.has(next)) continue;
+    if (dist[next] !== null && dist[next]! < curDist) return next;
+  }
+  return goal;
+}
+
+/**
+ * 进序章：**不走** `loadLevel()` —— 那里会扣体力、建断点、写进度，序章一样都不要。
+ */
+function startTutorial(m: LevelMode): void {
+  if (!requireReady()) return;
+  tutorialDrawer.close();
+  const cfg = tutorialConfig(m);
+  // 序章不占 60 关的 `playable` / `levelIndex`，结算也不写 `progressByMode`
+  closeDialog();
+  clearSession();
+  showScreen('game');
+  levelSeed = TUTORIAL_SEED;
+  rng = new Rng(TUTORIAL_SEED);
+
+  // ⭐ 手工摆「3 缺 1」：引擎只在构造时接受快照，所以从这条入口把盘面塞进去。
+  //    规则决定缺块摆多远：简单 = 最远（远距一步到位）；困难 = 2 步（多走几步）
+  const built = buildTutorialLayout(cfg.rows, cfg.cols, cfg.imageIds, rng, cfg.swapRule);
+  engine = new PuzzleEngine(cfg, rng, {
+    cells: built.grid.toArray(),
+    score: 0,
+    eliminations: 0,
+  });
+  enterLevel(cfg); // 内部已 `setPaused(true)` + `timeLeft = 180`
+
+  tutorial = {
+    mode: m,
+    step: 1,
+    demoing: false,
+    locked: built.layout !== null,
+    targetIndex: built.layout?.targetIndex ?? -1,
+    gapIndex: built.layout?.gapIndex ?? -1,
+    fixed: built.layout?.fixed ?? [],
+    groupCells: [],
+  };
+  tutorialSkipBtn.hidden = false;
+  timerEl.classList.add('frozen'); // 倒计时灰显：序章不计时
+  track(EVENT.tutorialStart, { mode: m }); // 指标埋点：教学开始（完成率的分母）
+  tutorialProgress.hidden = false;
+  setTutorialProgress(0);
+  updateTutorialGoal();
+
+  // 进过序章就算"见过"（老玩家不必再看抽屉自动展开）
+  if (!meta.tutorial.seen) {
+    meta.tutorial.seen = true;
+    save.flush();
+  }
+  // 落盘动画结束后再摆教学视觉：此刻棋盘刚重建，早了会标到旧格子上
+  window.setTimeout(startTutorialStep1, 1200);
+}
+
+/** 【输入锁】按下时：不是"这一步该动的块"就直接不响应（+ 抖一下把视线拉回去） */
+function tutorialGuardDown(index: number): boolean {
+  if (!tutorial || !tutorial.locked) return true;
+  tutorialHand.stop(); // 玩家一按就停，动画不再打扰
+  const allowed =
+    tutorial.step === 1
+      ? index === tutorial.targetIndex
+      : tutorial.step === 4
+        ? tutorial.groupCells.includes(index)
+        : true;
+  if (allowed) return true;
+  // 零文字反馈：按错的那块抖一下 + 目标块脉冲一次
+  const wrong = cells[index];
+  if (wrong) {
+    wrong.root.classList.remove('shake');
+    void wrong.root.offsetWidth;
+    wrong.root.classList.add('shake');
+    window.setTimeout(() => wrong.root.classList.remove('shake'), 400);
+  }
+  const hintAt = tutorial.step === 1 ? tutorial.targetIndex : tutorial.groupCells[0];
+  if (hintAt !== undefined && hintAt >= 0) {
+    const ref = cells[hintAt];
+    if (ref) {
+      ref.root.classList.remove('pulse');
+      void ref.root.offsetWidth;
+      ref.root.classList.add('pulse');
+    }
+  }
+  return false;
+}
+
+/**
+ * 【落点锁】松手时：
+ *   - **简单（any）**：必须一次**远距拖到缺口**（规则允许任意位置，所以直接要求落到缺口）；
+ *   - **困难（adjacent）**：一次只能挪一格 —— 落点必须与缺块**相邻**、且不能动已拼好的 3 块；
+ *     落到缺口当然最好（那就拼成了），落在半路也允许（用户要求困难"多走几步"）。
+ */
+function tutorialGuardMove(anchor: number, target: number): boolean {
+  if (!tutorial || !tutorial.locked || tutorial.step !== 1 || !engine) return true;
+  const board = engine.board;
+  if (tutorial.mode === 'nightmare') {
+    // ⚠️ 落点必须是「手指演示的那一格」（朝缺口更近的相邻格），不许往别处绕 ——
+    //    否则玩家能把缺块越拖越远，教学就散了。这一步一步带着走，正好演示"只能挪一格"。
+    const dr = Math.abs(board.rowOf(anchor) - board.rowOf(target));
+    const dc = Math.abs(board.colOf(anchor) - board.colOf(target));
+    const want = tutorialNextStep();
+    if (dr + dc !== 1 || target !== want) {
+      rejectCells([anchor], 0, -8); // 回弹：够说明"一次只能挪一格、且要往缺口方向"
+      return false;
+    }
+    // 缺块挪到新格了 → 教学标记跟着它走，下一步从这儿继续
+    tutorial.targetIndex = target;
+    return true;
+  }
+  if (target === tutorial.gapIndex) return true;
+  rejectCells([anchor], 0, -8); // 回弹：够说明"要放到缺口那一格"
+  return false;
+}
+
+/** 消除一组之后推进教学（由 `afterResolve()` 调用） */
+function tutorialAfterResolve(): void {
+  if (!tutorial || !engine) return;
+  if (tutorial.demoing) return;
+  tutorialHand.stop();
+  const score = engine.score;
+  setTutorialProgress(Math.min(3, score));
+  updateTutorialGoal();
+
+  if (score >= engine.config.star3) {
+    finishTutorial();
+    return;
+  }
+  if (tutorial.step === 1) {
+    // 困难序章：还没挪到缺口（这一步没拼成）→ 动画播完了，重摆教学视觉 + 演示下一步
+    if (tutorial.mode === 'nightmare' && tutorial.targetIndex !== tutorial.gapIndex) {
+      startTutorialStep1(false);
+      return;
+    }
+    // S1 完成 → 解锁，讲旗子（聚光灯 + 数字跳变 + 一句短语）
+    tutorial.locked = false;
+    tutorial.step = 2;
+    clearTutorialMarks();
+    clearHint();
+    window.setTimeout(() => {
+      if (!tutorial || tutorial.step !== 2) return;
+      updateTutorialGoal();
+      const tip = tutorialScript().flag;
+      tutorialSpotlight.show('#hud-goal', { tip, onNext: () => tutorialStepTime() });
+      speech.speak(tip);
+    }, 900);
+  }
+}
+
+/**
+ * 讲完旗子 → **简单序章讲倒计时**（让数字真的走 3 秒）；
+ * ⚠️ 困难序章**不讲**（简单序章已讲过），直接放他自己拼完剩下的组。
+ */
+/**
+ * 讲完旗子 → **简单序章讲倒计时**。
+ *
+ * ⚠️ 用户口径（2026-10-28）：**每一步都要玩家操作才推进，没操作就一直停着等**，
+ *    不许"几秒后自动跳下一步"。所以这一步只做两件事：把话讲完、把气泡挂着，
+ *    **不自动开始走倒计时** —— 玩家点了「▾ 继续」才演示（`runTimeDemo()`）。
+ *
+ * ⚠️ 困难序章**不讲**（简单序章已讲过），点了继续直接进自由拼（step 5）。
+ */
+function tutorialStepTime(): void {
+  if (!tutorial || !engine) return;
+  if (tutorial.mode === 'nightmare') {
+    tutorial.step = 5;
+    return;
+  }
+  tutorial.step = 3;
+  tutorial.demoing = true;
+  const tip = tutorialScript().time ?? '';
+  tutorialSpotlight.show('#hud-timer', { tip, onNext: runTimeDemo });
+  speech.speak(tip);
+}
+
+/**
+ * 玩家点了「继续」→ 让倒计时**真的走 3 秒**（眼见为实）。
+ *
+ * ⚠️ 走完同样**不自动进下一步**：再挂一次聚光灯，玩家点了「▾ 继续」才教整片拖拉。
+ */
+function runTimeDemo(): void {
+  if (!tutorial || !engine) return;
+  timerEl.classList.remove('frozen');
+  started = true;
+  setPaused(false);
+  window.setTimeout(() => {
+    if (!tutorial || !engine) return;
+    started = false; // ⚠️ 不能留成 true，否则序章后面会真的开始扣时间
+    setPaused(true);
+    timeLeft = engine.config.timeLimit;
+    updateHud();
+    timerEl.classList.add('frozen');
+    tutorial.demoing = false;
+    // 演示完了 → 再等玩家点一次「继续」，不自动跳
+    const tip = tutorialScript().timeDone ?? '';
+    tutorialSpotlight.show('#hud-timer', { tip, onNext: tutorialStepGroup });
+    speech.speak(tip);
+  }, 3000);
+}
+
+/** 讲完时间 → 教整片拖拉：只准拖这一片（落点不限），滑动演示指路 */
+function tutorialStepGroup(): void {
+  if (!tutorial || !engine) return;
+  const group = engine.mergeGroups().find((g) => g.cells.length >= 2);
+  if (!group) {
+    tutorial.step = 5; // 场上没有成片的，跳过这一步
+    return;
+  }
+  tutorial.step = 4;
+  tutorial.locked = true;
+  const groupCells = group.cells.slice();
+  tutorial.groupCells = groupCells;
+  clearTutorialMarks();
+  for (let i = 0; i < cells.length; i += 1) {
+    cells[i]?.root.classList.toggle('dim', !groupCells.includes(i));
+  }
+  for (const i of groupCells) cells[i]?.root.classList.add('pulse');
+  tutorialSay(tutorialScript().group ?? '');
+
+  // 演示：把这一片往它下方挪一格（落点不限，只是指个方向）
+  const board = engine.board;
+  const anchor = groupCells[0]!;
+  const toRow = board.rowOf(anchor) + 1;
+  const toCol = board.colOf(anchor) + (board.colOf(anchor) + 1 < board.cols ? 1 : -1);
+  if (board.inBounds(toRow, toCol)) {
+    const to = cells[board.index(toRow, toCol)]?.root;
+    if (to && groupCells.every((i) => board.inBounds(board.rowOf(i) + (toRow - board.rowOf(anchor)), board.colOf(i) + (toCol - board.colOf(anchor))))) {
+      tutorialHand.play(cells[anchor]!.root, to);
+    }
+  }
+}
+
+/** 一次成功移动之后推进教学（第 4 步：体验过「整片一起走」即通过） */
+function tutorialAfterMove(): void {
+  if (!tutorial || !engine) return;
+  // 困难序章缺块要走好几步：挪一步提醒一句（**这里只说话**）。
+  // ⚠️ 教学视觉（压暗 / 缺口框 / 脉冲 / 手指）**不能在这里重摆**：`tutorialAfterMove()`
+  //    是在移动动画**播放之前**调用的，随后消除 → 下压 → 补位会重排棋盘，把刚加的 class 冲掉
+  //    （实测第一步之后标记全没了）。重摆放在动画播完的 `tutorialAfterResolve()` 里。
+  if (tutorial.step === 1 && tutorial.mode === 'nightmare') {
+    if (tutorial.targetIndex !== tutorial.gapIndex) tutorialSay(TUTORIAL_VOICE.nightmare.nextStep);
+    return;
+  }
+  if (tutorial.step !== 4) return;
+  tutorial.step = 5;
+  tutorial.locked = false;
+  tutorialHand.stop();
+  clearTutorialMarks();
+}
+
+/**
+ * 教学奖励（对标 P0-3 —— "学会"之后必须有回报，闭环才成立）：
+ *   1. **第 1 关免 1 颗体力**（`freeLevel`）—— 主要奖励：序章一颗没扣、体力是满的，
+ *      所以单纯"+N 体力"会被上限吃掉；而第 1 关紧接着就要扣 1 颗，免单**人人有感**。
+ *   2. **体力 +5**（有余量时生效）—— 顺手补给，老玩家重玩教学（体力不满）时也拿得到。
+ *
+ * ⚠️ **不送星、不送图鉴贴纸**：星数会进排行榜与图鉴解锁（每 10 星一张），送了就污染两套系统。
+ */
+const TUTORIAL_REWARD_STAMINA = 5;
+
+function grantTutorialReward(): { stamina: number; freeLevel: boolean } {
+  const before = meta.stamina.available;
+  meta.stamina.available = Math.min(STAMINA_MAX, before + TUTORIAL_REWARD_STAMINA);
+  meta.tutorial.freeLevel = true;
+  return { stamina: meta.stamina.available - before, freeLevel: true };
+}
+
+/** 序章达成 3 星：结束教学（**不写 progress / 不进排行榜 / 不进图鉴星数**） */
+function finishTutorial(): void {
+  if (!tutorial) return;
+  const m = tutorial.mode;
+  tutorial = null;
+  tutorialSkipBtn.hidden = true;
+  timerEl.classList.remove('frozen');
+  tutorialBanner.hide();
+  tutorialHand.stop();
+  tutorialSpotlight.hide();
+  clearHint();
+  clearTutorialMarks();
+  setTutorialProgress(3);
+  finished = true;
+  setPaused(true);
+  if (m === 'nightmare') meta.tutorial.nightmareCleared = true;
+  else meta.tutorial.normalCleared = true;
+  track(EVENT.tutorialDone, { mode: m }); // 指标埋点：教学完成率
+  const reward = grantTutorialReward();
+  save.flush();
+  audio.play('win');
+  // 完成也念一句（结算信息，不是教学步骤）—— 玩家此时正看着牌子，听得进去
+  speech.speak(TUTORIAL_VOICE.done);
+  // ⚠️ 奖励照常发（上面 `grantTutorialReward()` 已经发了），但**弹窗不再写奖励行** ——
+  //    用户要求这块「能多简就多简」：只有「教学完成 + 继续第 1 关 + 回首页」。
+  void reward;
+  /**
+   * 用**结算弹窗的吊牌底板**（`resultPopup`，与胜利/失败同一套 `.lp-drop` 骨架）：
+   *   - 顶部三颗星：序章达成 3 星，视觉上「有收获」；
+   *   - 标题「教学完成」：`rs-title` 是 84px 金色描边美术字，够大气；
+   *   - **不传 `score`** → 不画得分卡（序章分数没有意义，画出来反而是噪音）；
+   *   - 两个按钮：主 = 继续第 1 关，次 = 回首页；`✕` 与「回首页」等价。
+   * ⚠️ `resultPopup` 的按钮封装里已经先 `hide()` 再回调，所以这里**不用**再 `closeDialog()`。
+   */
+  const leave = (): void => {
+    tutorialProgress.hidden = true;
+  };
+  resultPopup.show({
+    mode: 'win',
+    stars: 3,
+    title: TUTORIAL.doneTitle,
+    rows: [
+      [
+        {
+          label: TUTORIAL.donePrimary,
+          primary: true,
+          onClick: () => {
+            leave();
+            loadLevel(0); // 正式第 1 关（这里才正常扣体力）
+          },
+        },
+      ],
+      [
+        {
+          label: TUTORIAL.doneSecondary,
+          onClick: () => {
+            leave();
+            exitToHome();
+          },
+        },
+      ],
+    ],
+    onHome: () => {
+      leave();
+      exitToHome();
+    },
+  });
+}
+
+/** 退出 / 跳过序章：只记 `seen`（不记完成），不扣也不退体力 */
+function exitTutorial(): void {
+  if (!tutorial) return;
+  // 指标埋点：跳过教学（带 step —— 能看出是**第几步**把人劝退的）
+  track(EVENT.tutorialSkip, { mode: tutorial.mode, step: tutorial.step });
+  tutorialReset();
+  meta.tutorial.seen = true;
+  save.flush();
+  exitToHome();
+}
+
+/** 收起序章专属 UI（不碰体力：序章从没扣过） */
+function tutorialReset(): void {
+  tutorial = null;
+  tutorialSkipBtn.hidden = true;
+  timerEl.classList.remove('frozen');
+  tutorialBanner.hide();
+  speech.stop(); // 跳过 / 退出时别让语音继续念
+  tutorialHand.stop();
+  tutorialSpotlight.hide();
+  clearHint();
+  clearTutorialMarks();
+  tutorialProgress.hidden = true;
+  finished = true;
+  setPaused(true);
+}
+
 const homeScreen = createMapScreen({
   // 难度切换（简单 / 困难）：两套进度各自独立，切完由 setMode 重建关卡配置并回首页
   onMode: (next) => setMode(next),
   onAddStamina: watchStaminaAd,
+  onTutorial: () => {
+    refreshTutorialEntry();
+    tutorialDrawer.open();
+  },
   onPick: (level) => {
     const index = indexOfLevel(level);
     if (index < 0) {
@@ -686,6 +1346,8 @@ function showScreen(name: ScreenName): void {
 /** 首页整体刷新（地图节点 / 进度 / 体力 / 倒计时都从这里取） */
 function refreshHome(): void {
   homeScreen.render(mapView());
+  // 教学入口的显示与否随进度变化（困难通关 ≥10 关后隐藏），所以每次刷新都重算
+  refreshTutorialEntry();
 }
 
 function refreshCollection(): void {
@@ -1150,12 +1812,40 @@ function challengeLevel(level: number): void {
   levelPreview.open(index, level, mode);
 }
 
+/** 指标埋点：本局开始时刻（用来算单局时长） */
+let levelStartedAt = 0;
+/** 指标埋点：上一局的「模式-关卡」，用来判断这次是不是同一关重试 */
+let levelAttemptKey = '';
+/** 指标埋点：本关第几次尝试（换关归 1，同关重开 +1） */
+let levelAttemptNo = 0;
+
+/** 埋一次「开始一关」：换关归 1、同关连打累加 —— 关卡漏斗需要区分「多少人试了几次」 */
+function trackLevelStart(cfg: LevelConfig): void {
+  const key = `${mode}-${cfg.level}`;
+  levelAttemptNo = key === levelAttemptKey ? levelAttemptNo + 1 : 1;
+  levelAttemptKey = key;
+  levelStartedAt = Date.now();
+  track(EVENT.levelStart, {
+    level: cfg.level,
+    mode,
+    attempt: levelAttemptNo,
+    rows: cfg.rows,
+    cols: cfg.cols,
+    star1: cfg.star1,
+  });
+}
+
 function loadLevel(index: number, seed: number = Date.now()): void {
   if (!requireReady()) return;
   levelIndex = Math.max(0, Math.min(playable.length - 1, index));
   const cfg = currentConfig();
   if (!cfg) return;
-  if (!enterWithStamina()) return;
+  // 教学奖励：第 1 关**免 1 颗体力**（用掉即清）。不预扣、也不转正 —— 走 bypass 分支。
+  const freeEntry = index === 0 && meta.tutorial.freeLevel;
+  if (freeEntry) {
+    meta.tutorial.freeLevel = false;
+    save.flush();
+  } else if (!enterWithStamina()) return;
   // 进新关 = 上一局「中途退出」→ 旧断点作废（`enterWithStamina` 里已按 §12.4 退还）
   clearSession();
   showScreen('game');
@@ -1165,11 +1855,13 @@ function loadLevel(index: number, seed: number = Date.now()): void {
   enterLevel(cfg);
   openSession(cfg, seed);
   // 棋盘已经渲染出来了 → 这颗体力转正式扣除，不再退还（§12.4 第二步）
-  meta.stamina = confirmStamina(meta.stamina);
+  // ⚠️ 免单进来的没有预扣，不能走 `confirmStamina`（会把别人的预扣转正 / 空转报错）
+  if (!freeEntry) meta.stamina = confirmStamina(meta.stamina);
   updateHearts();
   armRecovery(meta, Date.now());
   // 体力转正 + 新断点建立：一起落盘，避免出现「有断点但体力还是预扣态」的中间档
   save.flush();
+  trackLevelStart(cfg);
 }
 
 /**
@@ -1197,6 +1889,7 @@ function restartLevel(): void {
   updateHearts();
   armRecovery(meta, Date.now());
   save.flush();
+  trackLevelStart(cfg); // 重开也算一次「尝试」（同关 → attempt 累加）
 }
 
 /**
@@ -1241,22 +1934,9 @@ function enterLevel(cfg: LevelConfig): void {
   updateHud();
   updateStatus();
   refreshLevelButton();
-  const pool = currentPool();
-  const poolHint =
-    pool && (pool.maActual !== pool.maDesigned || pool.animalsActual !== pool.animalsDesigned)
-      ? `\n图池：实际 ${pool.animalsActual} 只 / ma=${pool.maActual}` +
-        `（设计 ${pool.animalsDesigned} 只 / ma=${pool.maDesigned}，素材分布不足导致不一致）`
-      : '';
-  toast(
-    `${MODE_LABEL[mode]} · 第 ${cfg.level} 关 · ${cfg.rows}×${cfg.cols} · ` +
-      `${cfg.imageIds.length} 张图${pool ? ` · ${pool.animalsDesigned} 只动物` : ''}\n` +
-      `${ruleHint()}；点「自动消一组」可看 融合 → 消除 → 下压 → 补位` +
-      poolHint,
-    3200,
-  );
-
-  // 新手引导第 1 步：首次进入第 1 关（§14）
-  if (cfg.level === 1) showGuide('swap');
+  // ⚠️ 2026-10-25：开局那句「简单 · 第 N 关 · 3×4 · 6 张图 · 移动规则…」的大段说明 toast
+  // 与「新手引导第 1 步」气泡**已按产品要求去掉** —— 进关直接开拼，不再弹任何文字说明。
+  // （要恢复调试信息可走工具条，见文件末尾 devTools 的「关卡信息」按钮。）
 }
 
 /**
@@ -1827,21 +2507,14 @@ function clearHint(): void {
 /**
  * 引导气泡是**串行**的：上一条还在屏幕上时不叠加，排队等它消失。
  * 否则「首次消除」和「首次掉落」只隔 220ms，两句会直接盖在一起谁也看不清。
+ *
+ * ⚠️ 2026-10-25：**整段新手引导已关闭**（产品要求——开局和拼图过程中不要冒文字说明）。
+ * 这里直接 return，五步（swap / hint4 / eliminate / refill / clear）都不会再弹；
+ * 存档字段 `guideDone` 与 `guide.ts` 模块保留，将来要恢复引导只需删掉这行 return。
  */
-function showGuide(step: GuideStep, round: number = roundId): void {
-  // 排队期间那一局已经结束（退出 / 换关）→ 这条引导作废，不能弹到主页上
-  if (round !== roundId || currentScreen !== 'game') return;
-  if (guide.isDone(step)) return;
-  if (guide.isVisible()) {
-    window.setTimeout(() => showGuide(step, round), 500);
-    return;
-  }
-  guide.show(step);
-  // 最后一步（首次通关提示）走完 = 整段引导走完 → 落盘，下次不再教（§14 + M6）
-  if (step === 'clear' && !meta.guideDone) {
-    meta.guideDone = true;
-    save.flush();
-  }
+function showGuide(_step: GuideStep, _round: number = roundId): void {
+  // 2026-10-29 main 起旧引导停用（新手教学改走 tutorial.ts）；参数保留，调用方不用改
+  return;
 }
 
 /* ------------------------------------------------------------------ HUD / 状态 */
@@ -1931,6 +2604,8 @@ function updateStatus(): void {
  */
 function ensureRunning(allowStart = true): void {
   if (finished || busy) return;
+  // 序章**全程不计时**（策划案 §7）：玩家怎么点都不开表，只有 S4 演示那 3 秒例外
+  if (tutorial && !tutorial.demoing) return;
   if (!started) {
     if (!allowStart) return;
     started = true;
@@ -1994,7 +2669,11 @@ function doMove(anchor: number, target: number): void {
   setPaused(true);
   updateHud();
   updateStatus();
-  if (outcome.stages) toast(`消除 1 组（图 ${outcome.eliminatedImage}）+${gained} 分`, 1200);
+  // 教学 S2：一次成功移动 = 体验过「整片一起走」→ 推进到下一步（时间演示）
+  tutorialAfterMove();
+  // ⚠️ 2026-10-25：消除时的「消除 1 组（图 X）+N 分」toast 已去掉（拼图过程中不弹文字），
+  // 得分反馈交给 HUD 与消除动画本身。要恢复就把下面这行放开：
+  // if (outcome.stages) toast(`消除 1 组（图 ${outcome.eliminatedImage}）+${gained} 分`, 1200);
 
   // 解锁交给动画本身，而不是拍一个固定时长的定时器 ——
   // 否则动画长度一改，输入锁就会和画面脱节
@@ -2028,6 +2707,9 @@ function afterResolve(): void {
   // 不在这里落盘：交给 `save` 按 1 秒防抖合并连续交换；动画播放中则自动推迟。
   syncSession();
   save.markDirty();
+
+  // 教学推进（S1 完成 → S2；达成 3 星 → 结束）：放在解锁输入之前，状态最干净
+  tutorialAfterResolve();
 
   if (started) setPaused(false);
 }
@@ -2196,6 +2878,8 @@ function onPointerDown(event: PointerEvent): void {
   const cell = (event.target as HTMLElement).closest('.cell') as HTMLElement | null;
   if (!cell || cell.dataset.index === undefined) return;
   const index = Number(cell.dataset.index);
+  // 【序章强制教学】锁定期里只有"这一步该动的那块/那一片"能被拿起来（v3）
+  if (!tutorialGuardDown(index)) return;
   // 拖动单位是「锚点所在的整片」（§1.6）；单块时它就退化成一次两块交换
   const group = engine.groupOfCell(index);
   drag = {
@@ -2260,6 +2944,8 @@ function onPointerUp(event: PointerEvent): void {
     board.rowOf(active.index) + shift.dr,
     board.colOf(active.index) + shift.dc,
   );
+  // 【序章强制教学】第 1 步必须落进缺口，落到别处直接回弹（v3）
+  if (!tutorialGuardMove(active.index, target)) return;
   doMove(active.index, target);
 }
 
@@ -2349,8 +3035,20 @@ function onLevelEnd(): void {
     // 所以不发这个机会，直接失败结算。注意「够到 1★ 线」的一律照常通关 —— 分数是玩的时候
     // 实打实打出来的，不因为离线而作废。
     pendingOutcome = outcome;
-    if (revivedUsed || offlineSettle) showFailDialog(outcome);
-    else showReviveDialog(outcome);
+    if (revivedUsed || offlineSettle) {
+      // 指标埋点：**确认失败**才记（弹续命弹窗不算失败 —— 续命之后可能还是通关了，
+      // 那样会记成 level_end。把两者混在一起，关卡通过率就会虚低）
+      track(EVENT.levelFail, {
+        level: cfg.level,
+        mode,
+        score: outcome.score,
+        star1: cfg.star1,
+        duration_ms: Date.now() - levelStartedAt,
+        attempt: levelAttemptNo,
+        revived: revivedUsed,
+      });
+      showFailDialog(outcome);
+    } else showReviveDialog(outcome);
     return;
   }
 
@@ -2360,6 +3058,16 @@ function onLevelEnd(): void {
   // 先落盘、再弹窗：荣誉档位与本关最高分都要读**更新之后**的数值
   // （《通关及排名》§2 的「先更新玩家本关历史最高分，再统计」就落在这个先后顺序上）
   progressByMode[mode] = commitSettlement(progress, outcome, settlement, TOTAL_LEVELS);
+  // 指标埋点：通关（含续命后通关）。`duration_ms` 是单局真实时长，用来看节奏是否合理
+  track(EVENT.levelEnd, {
+    level: cfg.level,
+    mode,
+    stars: settlement.stars,
+    score: outcome.score,
+    duration_ms: Date.now() - levelStartedAt,
+    attempt: levelAttemptNo,
+    revived,
+  });
   showGuide('clear');
   refreshCollection();
   showHonorDialog(outcome, settlement.stars);
@@ -2589,7 +3297,7 @@ function revive(): void {
   revived = true;
   revivedUsed = true;
   pendingOutcome = null;
-  timeLeft += REVIVE_SECONDS;
+  timeLeft += reviveSecondsFor(engine.config.level);
   finished = false;
   started = true;
   setPaused(false);
@@ -3067,8 +3775,10 @@ async function main(): Promise<void> {
   // 按规范触摸产生的 pointerdown **不算用户激活**，手机上第一次 resume 会被拒，
   // 监听一撤就整局没声音。所以 pointerup / touchend / click / keydown 都挂上，
   // 直到上下文真正跑起来（`unlock()` 返回 true）才撤掉。
+  // 语音同理：iOS/Safari 不在真实手势里首次 speak，之后就永远不出声 —— 每次手势一并预热（幂等）
   const unlockEvents = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
   const tryUnlockAudio = (): void => {
+    speech.warmup();
     if (!audio.unlock()) return;
     for (const type of unlockEvents) window.removeEventListener(type, tryUnlockAudio, true);
   };
@@ -3128,6 +3838,15 @@ async function main(): Promise<void> {
   // 素材到货后再刷一次进度与图鉴：主界面要显示进度关卡
   refreshHome();
   refreshCollection();
+  // 指标埋点启动（放素材就绪之后：这时的 `mode` / 关卡数据才是真的）
+  metricsStart();
+
+  // 首次进入且没看过教学 → **直接进序章**（对标 P0-1：行业是"打开即玩"，
+  // 教学就在第一关里；在此之前先弹一屏抽屉说明书是"先讲后做"，留存最差的一种）。
+  // 抽屉退回本职：之后想回看 / 重玩，从首页「教学」胶囊或设置页进。
+  if (!meta.tutorial.seen && clearedCount(progressByMode.nightmare) < TUTORIAL_HIDE_AFTER) {
+    startTutorial('normal');
+  }
 
   // ── M6：存档相关的启动播报（放在素材就绪之后：断点能不能恢复要看这一关开不开得出来）
   if (save.kind === 'memory') {

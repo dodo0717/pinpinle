@@ -26,7 +26,7 @@ describe('rank · 总积分与总星数', () => {
   it('困难加权向下取整', () => {
     assert.equal(totalScore(0, 3), 4);
     assert.equal(totalScore(10, 1), 11);
-    assert.equal(RANK_RULE.maxStars, 360);
+    assert.equal(RANK_RULE.maxStars, 1080);   // 180 关 × 3★ × 2 模式
   });
 
   it('结算链路：续命局不抬有效分，未续命 1★ 局会抬', () => {

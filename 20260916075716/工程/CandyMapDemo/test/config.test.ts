@@ -31,7 +31,7 @@ import { ANIMAL_IMAGE_IDS } from '../assets/scripts/核心/ledger';
 
 /** 设计表里各段位的网格（第 1~15 / 16~35 / 36~60 关） */
 function designGridOf(level: number): string {
-  return level <= 15 ? '3×4' : level <= 35 ? '4×4' : '5×4';
+  return level <= 15 ? '4×3' : level <= 35 ? '4×4' : '5×4';
 }
 
 describe('素材台账 IMAGE_ANIMAL', () => {
@@ -52,7 +52,7 @@ describe('素材台账 IMAGE_ANIMAL', () => {
     assert.strictEqual(Object.keys(IMAGE_ANIMAL).length, MAX_ART_ID + 1);
   });
 
-  it('36 张全部登记，且每只动物正好 6 张、情绪不重复', () => {
+  it('108 张全部登记，18 只动物每只正好 6 张、情绪不重复', () => {
     const byAnimal = new Map<string, string[]>();
     for (let id = 0; id <= MAX_ART_ID; id++) {
       const animal = animalOf(id);
@@ -63,7 +63,7 @@ describe('素材台账 IMAGE_ANIMAL', () => {
       list.push(mood);
       byAnimal.set(animal, list);
     }
-    assert.strictEqual(byAnimal.size, 6, '应恰好 6 只动物');
+    assert.strictEqual(byAnimal.size, 18, '应恰好 18 只动物');
     for (const [animal, moods] of byAnimal) {
       assert.strictEqual(moods.length, 6, `${animal} 应有 6 张`);
       assert.strictEqual(new Set(moods).size, 6, `${animal} 的情绪出现重复`);
@@ -97,7 +97,7 @@ describe('60 关设计表落地（网格 / 图池构成 / 只数 / 备注）', (
     assert.deepStrictEqual(validateLevelDesign(), []);
   });
 
-  it('60 关齐全，且段位网格为 1~15 → 3×4、16~35 → 4×4、36~60 → 5×4', () => {
+  it('180 关齐全，且段位网格为 1~15 → 4×3、16~35 → 4×4、36~180 → 5×4', () => {
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       const cfg = buildLevelConfigs()[level - 1]!;
       assert.strictEqual(cfg.level, level);
@@ -142,11 +142,11 @@ describe('60 关设计表落地（网格 / 图池构成 / 只数 / 备注）', (
     // 第 7 关与第 6 关同构（4 只：2 只出 2 情绪 + 2 只各 1 情绪）
     assert.deepStrictEqual(LEVEL_POOL_SPEC[7], LEVEL_POOL_SPEC[6]);
     assert.deepStrictEqual(LEVEL_POOL_SPEC[7], [{ moods: 2, animals: 2 }, { moods: 1, animals: 2 }]);
-    // 第 42 关是 3 只：1 只出 4 情绪 + 2 只各 3 情绪
-    assert.deepStrictEqual(LEVEL_POOL_SPEC[42], [{ moods: 4, animals: 1 }, { moods: 3, animals: 2 }]);
+    // 第 42 关是 4 只：2 只各出 3 情绪 + 2 只各 2 情绪（2026-10-29 main 锁 ma≤3 后，5×4 段只数 ≥4）
+    assert.deepStrictEqual(LEVEL_POOL_SPEC[42], [{ moods: 3, animals: 2 }, { moods: 2, animals: 2 }]);
     assert.strictEqual(LEVEL_ANIMAL_COUNT[5], 5);
     assert.strictEqual(LEVEL_ANIMAL_COUNT[7], 4);
-    assert.strictEqual(LEVEL_ANIMAL_COUNT[42], 3);
+    assert.strictEqual(LEVEL_ANIMAL_COUNT[42], 4);
   });
 
   it('备注结构：小BOSS / 段BOSS 不低于前一关，回落关低于前一小BOSS，教学关最低', () => {
@@ -167,7 +167,8 @@ describe('60 关设计表落地（网格 / 图池构成 / 只数 / 备注）', (
     assert.strictEqual(LEVEL_TAGS[1], '教学');
     assert.strictEqual(LEVEL_TAGS[15], '段BOSS');
     assert.strictEqual(LEVEL_TAGS[35], '段BOSS');
-    assert.strictEqual(LEVEL_TAGS[60], '终极BOSS');
+    assert.strictEqual(LEVEL_TAGS[60], '段BOSS');
+    assert.strictEqual(LEVEL_TAGS[TOTAL_LEVELS], '终极BOSS');
     for (const cfg of buildLevelConfigs()) {
       assert.ok(
         LEVEL_STAR_LINES[cfg.level]![2] >= LEVEL_STAR_LINES[1]![2],
@@ -176,18 +177,18 @@ describe('60 关设计表落地（网格 / 图池构成 / 只数 / 备注）', (
     }
   });
 
-  it('混淆度由图池构成派生：第 1 关最好认（ma=1）、第 60 关最难（ma=6）', () => {
+  it('混淆度由图池构成派生：第 1 关最好认（ma=1），全程 ma ≤ 3（2026-10-29 辨识上限）', () => {
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       assert.strictEqual(LEVEL_CONFUSION_CONFIG[level], confusionOfLevel(level));
-      // ma 是「同一只动物最多出几个情绪」，可以大于动物只数（如第 13 关 2 只里有一只出 5 个情绪）
+      // ma 是「同一只动物最多出几个情绪」；main 按用户反馈锁到 ≤3
       assert.ok(
-        LEVEL_CONFUSION_CONFIG[level]! <= 6,
-        `第${level}关 ma 不应超过情绪总数 6`,
+        LEVEL_CONFUSION_CONFIG[level]! <= 3,
+        `第${level}关 ma 不应超过辨识上限 3`,
       );
     }
     assert.strictEqual(LEVEL_CONFUSION_CONFIG[1], 1);
-    assert.strictEqual(LEVEL_CONFUSION_CONFIG[13], 5);
-    assert.strictEqual(LEVEL_CONFUSION_CONFIG[60], 6);
+    assert.strictEqual(LEVEL_CONFUSION_CONFIG[13], 3);
+    assert.strictEqual(LEVEL_CONFUSION_CONFIG[60], 3);
   });
 
   it('棋盘上限：每行 ≤4 个碎片、每列 ≤5 个碎片，且不存在 24 格关卡', () => {

@@ -39,6 +39,31 @@ export interface SaveLimits {
 export interface SaveSettings {
   sound: boolean;
   bgm: boolean;
+  /**
+   * 教学语音说明开关（2026-10-26 新增）。
+   *
+   * 用浏览器 TTS 朗读教学里那句简短文本；关掉后**只显示不念**。
+   * 与 `sound`（音效）分开：有人想听讲解但不想听音效，也有人反过来。
+   */
+  voice: boolean;
+}
+
+/** 新手教学（序章）进度（2026-10-26 新增，见 `docs/新手教学（序章）策划案.md`） */
+export interface TutorialState {
+  /** 首页教学抽屉已经自动展开过一次（之后不再自动弹） */
+  seen: boolean;
+  /** 简单序章达成 3 星 */
+  normalCleared: boolean;
+  /** 困难序章达成 3 星 */
+  nightmareCleared: boolean;
+  /**
+   * 教学奖励：**第 1 关免 1 颗体力**（用掉即清）。
+   *
+   * 为什么不是"+5 体力"：新玩家在教学关**一颗都没扣**（序章不扣体力），
+   * 体力本来就是满的，加多少都会被 `STAMINA_MAX` 吃掉 —— 等于没奖励。
+   * 而第 1 关紧接着就要扣 1 颗，免单对**任何**玩家都实打实省一颗。
+   */
+  freeLevel: boolean;
 }
 
 /** `web/ui/meta.ts` 的 `MetaState` 的可落盘形态（字段同名同义，整体序列化即可） */
@@ -49,6 +74,12 @@ export interface MetaSnapshot {
   adStaminaUsed: number;
   settings: SaveSettings;
   guideDone: boolean;
+  /**
+   * 新手教学进度。**可选**：老档没有这个字段，
+   * `sanitizeMeta()` 会按 `createMetaSnapshot()` 的默认值补齐 —— 所以**不需要升 SAVE_VERSION**
+   * （升版本会让所有老档整档作废，代价太大）。
+   */
+  tutorial: TutorialState;
 }
 
 /**
@@ -116,6 +147,11 @@ function dayKey(now: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** 新手教学的出厂值 */
+export function createTutorialState(): TutorialState {
+  return { seen: false, normalCleared: false, nightmareCleared: false, freeLevel: false };
+}
+
 /** 新用户的元系统默认值（与 `web/ui/meta.ts` 的 `createMeta` 口径一致） */
 export function createMetaSnapshot(now: number): MetaSnapshot {
   return {
@@ -123,8 +159,9 @@ export function createMetaSnapshot(now: number): MetaSnapshot {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
-    settings: { sound: true, bgm: true },
+    settings: { sound: true, bgm: true, voice: true },
     guideDone: false,
+    tutorial: createTutorialState(),
   };
 }
 
@@ -281,8 +318,21 @@ function sanitizeMeta(raw: unknown, limits: SaveLimits, now: number, issues: str
     settings: {
       sound: boolOr(rawSettings.sound, fb.settings.sound),
       bgm: boolOr(rawSettings.bgm, fb.settings.bgm),
+      // 老档没有 `voice` → 默认**开**（教学语音是新加的，给玩家看到）
+      voice: boolOr(rawSettings.voice, fb.settings.voice),
     },
     guideDone: boolOr(raw.guideDone, false),
+    // 教学进度：老档没有这一段 → 按「都没做过」补齐（不升版本、不废档）
+    tutorial: (() => {
+      const rawT = isObj(raw.tutorial) ? raw.tutorial : {};
+      const fbT = createTutorialState();
+      return {
+        seen: boolOr(rawT.seen, fbT.seen),
+        normalCleared: boolOr(rawT.normalCleared, fbT.normalCleared),
+        nightmareCleared: boolOr(rawT.nightmareCleared, fbT.nightmareCleared),
+        freeLevel: boolOr(rawT.freeLevel, fbT.freeLevel),
+      };
+    })(),
   };
 }
 

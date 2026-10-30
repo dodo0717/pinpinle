@@ -43,11 +43,11 @@ test('mergeCloudProgress：无变化时返回原引用（调用方按引用跳�
 
 test('mergeCloudProgress：坏数据不炸——越界关号忽略、星级夹到 0~3、unlocked 夹到 totalLevels', () => {
   const local = progress({}, 1);
-  const merged = mergeCloudProgress(local, { stars: { 0: 3, 61: 3, abc: 2, 5: 99 }, best: { 5: -10 } });
+  const merged = mergeCloudProgress(local, { stars: { 0: 3, 181: 3, abc: 2, 5: 99 }, best: { 5: -10 } });
   assert.equal(recordOf(merged, 5).stars, 3);            // 99 → 夹 3
   assert.equal(recordOf(merged, 5).personalBest, 0);     // 负分 → 0
   assert.equal(recordOf(merged, 0).stars, 0);            // 关号 0 忽略
-  assert.equal(recordOf(merged, 61).stars, 0);           // 越界忽略
+  assert.equal(recordOf(merged, 181).stars, 0);          // 越界忽略（共 180 关）
   assert.equal(merged.unlocked, 6);                      // 通关 5 → 6
 });
 
