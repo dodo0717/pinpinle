@@ -44,6 +44,9 @@ MOTION_SD = 5.0                         # 时间标准差阈值（灰度，半�
 MIN_CELLS = 20                          # 动区连通块至少多少个 30px 格子才算一只动物
 PAD = 24                                # 动区外扩（视频坐标 px）
 FEATHER = 14                            # 块边缘羽化宽度（px）
+# 图集里每帧四周的留边（px，用帧边缘像素外扩填充）。2026-10-30：帧紧挨着排时，缩放采样会吃到
+# 隔壁格子的像素；最后一行的空格是纯黑，挨着它的那几帧播放时底边会出现一条黑线
+GUTTER = 4
 JPG_Q = 74
 
 
@@ -205,18 +208,23 @@ def main():
                 # 帧步长：先试每 2 帧取 1，图集放不下再加大
                 for step in (3, 4):
                     n = len(frames[::step])
-                    w_est = box[2] - box[0] + 2 * PAD + 20
-                    h_est = box[3] - box[1] + 2 * PAD + 20
+                    # 反向变换后块会按 1/a 缩小、再取整，按 a≈1 估 + 3% 余量就够
+                    w_est = math.ceil((box[2] - box[0] + 2 * PAD) * 1.03) + 2 * GUTTER
+                    h_est = math.ceil((box[3] - box[1] + 2 * PAD) * 1.03) + 2 * GUTTER
                     cols = max(1, ATLAS_MAX // w_est)
                     if math.ceil(n / cols) * h_est <= ATLAS_MAX:
                         break
                 (X0, Y0, W, H), out, amax = bake_patch(orig, frames, step, a, bx, by, oy, box)
                 n = len(out)
-                cols = max(1, ATLAS_MAX // W)
+                G = GUTTER
+                cw, ch = W + 2 * G, H + 2 * G
+                cols = max(1, ATLAS_MAX // cw)
                 rows = math.ceil(n / cols)
-                sheet = Image.new('RGB', (cols * W, rows * H))
-                for i, fr in enumerate(out):
-                    sheet.paste(Image.fromarray(fr), ((i % cols) * W, (i // cols) * H))
+                sheet = Image.new('RGB', (cols * cw, rows * ch))
+                # 每帧边缘外扩 G px；最后一行的空格也用最后一帧填满，图集里不留纯黑区域
+                for i in range(cols * rows):
+                    fr = np.pad(out[min(i, n - 1)], ((G, G), (G, G), (0, 0)), mode='edge')
+                    sheet.paste(Image.fromarray(fr), ((i % cols) * cw, (i // cols) * ch))
                 idx = len(entries)
                 name = '%s-%d' % (art, idx)
                 p = os.path.join(out_dir, name + '.jpg')
@@ -225,7 +233,7 @@ def main():
                 total += size
                 kx, ky = TRACK_W / 1080, TRACK_H / 3840
                 entries.append(dict(path='map-anim/' + name, fps=round(fps / step, 2), frames=n, cols=cols,
-                                    fw=W, fh=H, x=round((X0 + W / 2) * kx), y=round((Y0 + H / 2) * ky),
+                                    fw=W, fh=H, pad=G, x=round((X0 + W / 2) * kx), y=round((Y0 + H / 2) * ky),
                                     w=round(W * kx), h=round(H * ky)))
                 print('  %s  原图区域 (%d,%d) %d×%d  %d 帧 @%.1ffps  图集 %d×%d  %d KB'
                       % (name, X0, Y0, W, H, n, fps / step, sheet.width, sheet.height, size // 1024))
@@ -233,17 +241,18 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
 
     rows = '\n'.join(
-        "    {{ path: '{path}', fps: {fps}, frames: {frames}, cols: {cols}, fw: {fw}, fh: {fh}, "
+        "    {{ path: '{path}', fps: {fps}, frames: {frames}, cols: {cols}, fw: {fw}, fh: {fh}, pad: {pad}, "
         "x: {x}, y: {y}, w: {w}, h: {h} }},".format(**e) for e in entries)
     with open(TABLE, 'w', encoding='utf-8', newline='\r\n') as f:
         f.write("""/** 首页底图动画块 —— 由 tools/make-map-anim.py 生成，请勿手改。
  *
  * 每块 = 一张网格图集（从左到右、从上到下排帧），运行时来回播放（正放再倒放）。
+ * 每格 = 帧（fw × fh）四周再留 pad px 外扩边，切帧时 rect 要跳过这圈留边。
  * x / y = 块中心、w / h = 显示尺寸，都是轨道坐标（1536 × 5462，y 从上往下），与 levelTable 同口径。
  * 图集已把动区边缘羽化烘焙进底图，所以是不透明 jpg，叠在底图上看不出接缝。
  */
 export interface MapAnimDef {
-    path: string; fps: number; frames: number; cols: number; fw: number; fh: number;
+    path: string; fps: number; frames: number; cols: number; fw: number; fh: number; pad: number;
     x: number; y: number; w: number; h: number;
 }
 

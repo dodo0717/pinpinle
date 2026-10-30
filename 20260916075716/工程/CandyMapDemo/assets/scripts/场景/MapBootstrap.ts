@@ -706,10 +706,13 @@ export class MapBootstrap extends Component {
             this.loadFrame(def.path, (sheet) => {
                 if (token !== this.bgToken || !sp.isValid) return;
                 const frames: SpriteFrame[] = [];
+                // 每格四周有 pad px 留边（防缩放采样吃到隔壁格子 / 空格的黑色，2026-10-30 鱼漂黑线）
+                const cw = def.fw + 2 * def.pad;
+                const ch = def.fh + 2 * def.pad;
                 for (let i = 0; i < def.frames; i++) {
                     const f = new SpriteFrame();
                     f.texture = sheet.texture;
-                    f.rect = new Rect((i % def.cols) * def.fw, Math.floor(i / def.cols) * def.fh, def.fw, def.fh);
+                    f.rect = new Rect((i % def.cols) * cw + def.pad, Math.floor(i / def.cols) * ch + def.pad, def.fw, def.fh);
                     frames.push(f);
                 }
                 sp.spriteFrame = frames[0];

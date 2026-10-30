@@ -3,7 +3,8 @@
  *
  * 与 `preview/map.html` 同构：Canvas 根节点 → Bootstrap 子节点挂 MapBootstrap →
  * Renderer 驱动渲染 / 生命周期 / 触摸。区别只在画布来源：
- *   - 微信小游戏：wx.createCanvas() 的主画布（物理全屏，FIXED_WIDTH 可视高度见运行时）
+ *   - 微信小游戏：wx.createCanvas() 的主画布（默认逻辑像素尺寸，下面按 pixelRatio 重设为物理像素；
+ *     FIXED_WIDTH 可视高度见运行时）
  *   - 浏览器验证：browser.html 里的 #cv（按窗口尺寸铺满，验证长屏几何）
  *
  * 本文件由 tools/build-minigame.ts 之外手工维护（不参与 TS 剥离），纯 JS。
@@ -22,6 +23,17 @@ registerFont('PPHand', WX ? 'fonts/pp-hand.ttf' : './fonts/pp-hand.ttf');
 let canvas;
 if (WX) {
   canvas = wx.createCanvas();   // 首个 createCanvas 即全屏主画布
+  // 2026-10-30 真机模糊：主画布默认是「逻辑像素」尺寸（如 393×852），屏幕再按 pixelRatio（2~3）
+  // 拉伸显示，地图 / 图标 / 文字全部发虚。按物理像素重设画布尺寸，渲染器按 canvas.width / 1080 缩放，
+  // 布局和触摸（按逻辑窗口换算）都不受影响。pixelRatio 封顶 3，防个别安卓机报 3.5+ 时画布过大掉帧
+  try {
+    const info = typeof wx.getWindowInfo === 'function' ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    const dpr = Math.min(3, (info && info.pixelRatio) || 1);
+    if (info && info.windowWidth > 0 && info.windowHeight > 0) {
+      canvas.width = Math.round(info.windowWidth * dpr);
+      canvas.height = Math.round(info.windowHeight * dpr);
+    }
+  } catch (e) { /* 拿不到窗口信息就保持默认尺寸 */ }
 } else {
   canvas = document.getElementById('cv');
   // 浏览器验证：画布按布局矩形铺满（不信任 innerHeight —— 无头窗口里有工具条偏移，
