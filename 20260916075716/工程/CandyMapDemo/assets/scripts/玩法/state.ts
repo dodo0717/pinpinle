@@ -124,6 +124,7 @@ class GameState {
       adStaminaUsed: this.meta.adStaminaUsed,
       settings: { ...this.meta.settings },
       guideDone: this.meta.guideDone,
+      tutorial: { ...this.meta.tutorial },
     };
     this.data.savedAt = Date.now();
   }
@@ -230,8 +231,16 @@ class GameState {
 
   setSound(on: boolean): void { this.meta.settings.sound = on; this.markDirty(); }
   setBgm(on: boolean): void { this.meta.settings.bgm = on; this.markDirty(); }
+  setVoice(on: boolean): void { this.meta.settings.voice = on; this.markDirty(); }
   get guideDone(): boolean { return this.meta.guideDone; }
   finishGuide(): void { this.meta.guideDone = true; this.markDirty(); }
+
+  /** 教学进度（序章）—— 读取 + 局部更新（与 web/main.ts 直接改 meta.tutorial 等效） */
+  get tutorial(): MetaState['tutorial'] { return this.meta.tutorial; }
+  updateTutorial(patch: Partial<MetaState['tutorial']>): void {
+    this.meta.tutorial = { ...this.meta.tutorial, ...patch };
+    this.markDirty();
+  }
 
   /** 重置存档（设置页入口） */
   reset(): void {
@@ -253,8 +262,10 @@ function metaFromSnapshot(data: SaveData, now: number): MetaState {
     nextRecoverAt: m?.nextRecoverAt ?? null,
     adDay: m?.adDay ?? base.adDay,
     adStaminaUsed: m?.adStaminaUsed ?? 0,
-    settings: m?.settings ?? base.settings,
+    settings: { sound: m?.settings?.sound ?? base.settings.sound, bgm: m?.settings?.bgm ?? base.settings.bgm, voice: m?.settings?.voice ?? base.settings.voice },
     guideDone: m?.guideDone ?? false,
+    // 老档没有 tutorial 段 → 核心层 parseSave 已按默认值补齐，这里再兜一层底
+    tutorial: m?.tutorial ?? base.tutorial,
   };
 }
 

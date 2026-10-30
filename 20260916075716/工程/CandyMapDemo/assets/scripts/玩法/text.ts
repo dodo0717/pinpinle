@@ -112,9 +112,12 @@ export const BOARD = {
 export const SETTINGS = {
   title: '设置',
   sound: '音效',
-  bgm: '背景音乐',
+  bgm: '音乐',
+  voice: '教学语音', // 2026-10-26 新增（2026-10-30 移植）：序章里那句简短文本要不要念出来
   on: '开',
   off: '关',
+  about: '关于游戏',
+  version: (v: string): string => `版本 ${v}`,
   reset: '重置存档',
   resetConfirmTitle: '确定重置存档？',
   resetConfirmLine: '所有进度、图鉴、体力都会清空，且无法恢复',
@@ -130,4 +133,143 @@ export const MOVE = {
   notAdjacent: '困难模式只能一次挪一格',
   blocked: '这个方向被挡住了',
   noSpace: '那边没有空位',
+} as const;
+
+/* ------------------------------------------------------------------ 排行榜整屏（§9.3，2026-10-30 移植） */
+
+/**
+ * 排行榜整屏文案（从 web/ui/text.ts 的 LEADERBOARD 移植）。
+ * ⚠️ 旧灰盒面板用的 `BOARD` 先保留，整屏上线后替换。
+ */
+export const LEADERBOARD = {
+  title: '排行榜',
+  tabTotal: '总分榜',
+  tabLevel: '关卡榜',
+  colRank: '排名',
+  colName: '昵称',
+  colSimple: '简单',
+  colHard: '困难',
+  colTotal: '总分',
+  levelSelect: (level: number): string => `第 ${level} 关 ▼`,
+  header: (level: number): string => `第 ${level} 关`,
+  mineRankLabel: '我的排名',
+  mineScoreLabel: '累计总分',
+  mineLevelScoreLabel: '本关最高分',
+  mineStarsLabel: '累计星数',
+  rankValue: (rank: number): string => (rank > 0 ? `${rank}` : '未上榜'),
+  scoreValue: (score: number): string => `${score}`,
+  starsValue: (stars: number): string => `⭐${stars}`,
+  page: (page: number, pages: number): string => `第 ${page} / ${pages} 页`,
+  prevPage: '◀ 上一页',
+  nextPage: '下一页 ▶',
+  empty: '暂无记录，快来挑战吧！',
+  challenge: '▶ 挑战本关（消耗1体力）',
+  challengeLocked: '通关前一关后解锁',
+  challengeUnclear: '通关后解锁',
+  challengeUnavailable: (level: number): string => `第 ${level} 关暂未开放（所需素材张数不足）`,
+  challengeNoStamina: '体力不足，请点击主界面+看广告或返回主页',
+  prev: '◀ 上一关',
+  next: '下一关 ▶',
+  scoreUnit: (score: number): string => `${score} 分`,
+} as const;
+
+/* ------------------------------------------------------------------ 新手教学（序章，2026-10-30 移植） */
+
+/**
+ * 序章教学文案（2026-10-26 新增）。
+ *
+ * ⚠️ 口径：分数 = **消除组数**（拼成一张整图 +1），所以一律说「再拼 X 组」，
+ * 不要说「再得 X 分」—— 玩家会以为是另一套分数系统。
+ * 详细方案见 `docs/新手教学（序章）策划案.md`。
+ */
+export const TUTORIAL = {
+  entry: '教学',
+  drawerTitle: '新手教学 · 序章',
+  start: '开始教学',
+  replayNormal: '重玩简单序章',
+  replayNightmare: '重玩困难序章',
+  nightmareLocked: '先完成简单序章，才能玩困难序章',
+  doneNormal: '简单序章：已完成',
+  todoNormal: '简单序章：未开始',
+  doneNightmare: '困难序章：已完成',
+  todoNightmare: '困难序章：未开始',
+
+  step1: '把同一只萌宠的碎片拼到一起',
+  step2: '拼好的整片会一起走，按住拖动试试',
+  star1: '已经 1 星！再拼 2 组就 3 星',
+  star2: '再拼 1 组就 3 星',
+  step4: '正式关卡里它会一直走，时间用完就结算',
+  timeFrozen: '序章不计时',
+
+  howTitle: '怎么玩',
+  how1: '拖动：按住碎片移动，拼好的整片会一起走',
+  how2: '拼合：同一只萌宠的 4 块贴到一起，自动拼成一张整图',
+  how3: '消除：拼成 2×2 就消除 +1 组，上面的碎片落下来补位',
+  how4: '目标：拼够旗子上的分数就过关，多拼多得星',
+
+  noteTime: '🕒 倒计时走完，按最终所得分数结算',
+  noteStar: '⭐ 多拼多得星，成绩进排行榜',
+  noteNightmare: '🔒 困难关：只能拖动交换相邻的碎片（教学会单独讲这一条）',
+
+  skip: '跳过教学',
+  doneTitle: '教学完成',
+  doneLines: [
+    '倒计时走完，按最终所得分数结算',
+    '你的成绩会进排行榜，和别的玩家比名次',
+    '每拿 10 颗星，解锁一张图鉴贴纸',
+  ],
+  donePrimary: '继续第 1 关',
+  doneSecondary: '回首页',
+  rewardLine: (n: string) => `🎁 教学奖励：体力 +${n}`,
+  rewardFreeLevel: '🎁 教学奖励：第 1 关免 1 颗体力',
+
+  nightmareRule: '困难模式：一次只能挪一格',
+  nightmareStep2: '把 4 块拼成一张整图',
+} as const;
+
+/**
+ * 教学语音 / 简短文本（序章 v4）。
+ *
+ * ⚠️ 简单与困难是两套：简单讲「任意位置互换 → 拖动 → 目标旗 → 倒计时 → 整片」；
+ * 困难只讲「相邻互换 → 挪一格 → 目标旗」（不讲倒计时/整片）。
+ * 每句控制在 16 字以内：既是屏幕短句，也是要念出来的话。
+ */
+export const TUTORIAL_VOICE = {
+  normal: {
+    rule: '简单关：任意位置的碎片都能互换',
+    drag: '按住这块碎片，拖到缺口上',
+    flag: '旗子上的数字，是过关要拼的分数',
+    time: '倒计时走完，按最终分数结算',
+    timeDone: '时间一到，就按这个分数结算',
+    group: '拼好的整片会一起走，拖一下试试',
+  },
+  nightmare: {
+    rule: '困难关：只能交换相邻的碎片',
+    drag: '挪一格，把这块补进缺口',
+    nextStep: '继续往缺口挪一格',
+    flag: '旗子上的数字，是过关要拼的分数',
+  },
+  done: '教学完成，去玩第 1 关吧',
+} as const;
+
+/* ------------------------------------------------------------------ 关卡地图 / 底部页签栏 */
+
+/** 关卡地图整屏文案（地图节点锁因 / 吊牌 / 困难门槛提示） */
+export const MAP = {
+  title: '🗺 关卡地图',
+  locked: (prev: number): string => `先通关第 ${prev} 关`,
+  nightmareLocked: '三星通关后开启困难模式',
+  nightmareHint: '三星通关后开启困难模式',
+  level: (level: number): string => `第 ${level} 关`,
+  best: (stars: string): string => `最好成绩 ${stars}`,
+  start: '▶ 开始',
+  later: '稍后再说',
+} as const;
+
+/** 底部页签栏（非玩法屏常驻，玩法屏隐藏 —— 局内不允许跳走的入口） */
+export const TABBAR = {
+  home: '首页',
+  leaderboard: '排行榜',
+  collection: '图鉴',
+  settings: '设置',
 } as const;

@@ -13,7 +13,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
-  view, ResolutionPolicy, game, Game, EventTouch,
+  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -21,14 +21,21 @@ import { ToastLayer, fmtMMSS } from './toast';
 import { GameAudio } from './audio';
 import { GuideBar } from './guide';
 import { GS } from './state';
-import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD } from './text';
-import { unlockedImageIds } from './meta';
+import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD, TUTORIAL, TUTORIAL_VOICE } from './text';
+import { unlockedImageIds, clearedCount } from './meta';
+import { createSpeech, type GameSpeech } from './speech';
+import { SpotlightLayer, type SpotlightRect } from './spotlight';
+import { HandHint } from './handHint';
+import {
+  TutorialBanner, tutorialConfig, buildTutorialLayout, tutorialScript, tutorialSayDuration,
+  TUTORIAL_SEED, TUTORIAL_LEVEL,
+} from './tutorial';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
   TOTAL_LEVELS, reviveSecondsFor,
   type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement,
-  type LevelConfig, type LevelSession, type Cell, type ProgressData,
+  type LevelConfig, type LevelSession, type Cell, type ProgressData, type GameMode,
 } from '../核心/index';
 
 const { ccclass, property } = _decorator;
@@ -92,6 +99,25 @@ export class GameBootstrap extends Component {
   /** 进关时的图鉴已解锁数，用来只播报「本关新解锁的」 */
   private lastUnlocked = 0;
 
+  /* ---------------------------------------------------------------- 新手教学（序章） */
+  /** 教学：首页「教学」入口 / 抽屉调 startTutorial() 进入；finishTutorial() 置回 null */
+  private tut: {
+    mode: GameMode;
+    step: number;
+    demoing: boolean;
+    locked: boolean;
+    targetIndex: number;
+    gapIndex: number;
+    fixed: number[];
+    groupCells: number[];
+  } | null = null;
+  private tutBanner: TutorialBanner = null!;
+  private tutHand: HandHint = null!;
+  private tutSpot: SpotlightLayer = null!;
+  private speech: GameSpeech = null!;
+  /** 隐藏条件：困难模式累计通关 ≥ 10 关之后，首页教学入口消失（main.ts TUTORIAL_HIDE_AFTER） */
+  static readonly TUTORIAL_HIDE_AFTER = 10;
+
   /* ================================================================ 生命周期 */
 
   onLoad(): void {
@@ -121,6 +147,13 @@ export class GameBootstrap extends Component {
     game.on(Game.EVENT_SHOW, this.handleVisible, this);
     // 元系统心跳：跨天重置 + 体力按时间戳恢复（与原版 main() 的 1s 心跳同口径）
     this.schedule(this.onMetaTick, 1);
+
+    // 教学全家桶（序章）：横幅钉在棋盘上方、手指挂在棋盘里、聚光灯盖全屏
+    this.tutBanner = TutorialBanner.create(this.node);
+    this.tutBanner.setPosition(0, 700); // 棋盘（780 ~ -640）内部顶端，不挡 HUD 也不离开盘面视线
+    this.tutHand = HandHint.create(this.view.node);
+    this.tutSpot = SpotlightLayer.create(this.node);
+    this.speech = createSpeech();
   }
 
   onDestroy(): void {
@@ -371,6 +404,8 @@ export class GameBootstrap extends Component {
     if (this.busy || this.finished) return;
     const cell = this.hitCell(this.localOf(e));
     if (cell < 0) return;
+    this.speech.warmup(); // 首次手势拿朗读许可（Web 版 main.ts 首次 pointerdown 同款）
+    if (!this.tutorialGuardDown(cell)) return; // 教学输入锁：不是这一步该动的块就不响应
     const group = this.engine.groupOfCell(cell);
     if (!group) return;
     this.dragCells = group.cells.slice();
@@ -422,7 +457,9 @@ export class GameBootstrap extends Component {
     const b = this.engine.board;
     const row = b.rowOf(this.dragAnchor) + dr;
     const col = b.colOf(this.dragAnchor) + dc;
-    this.doMove(this.dragAnchor, b.index(row, col), intent);
+    const target = b.index(row, col);
+    if (!this.tutorialGuardMove(this.dragAnchor, target)) return; // 教学落点锁
+    this.doMove(this.dragAnchor, target, intent);
   }
 
   private doMove(anchor: number, target: number, intent: { dr: number; dc: number }): void {
@@ -447,6 +484,7 @@ export class GameBootstrap extends Component {
     this.setPaused(true);
     this.audio.play('swap');
     this.runGuide(3);
+    this.tutorialAfterMove(); // 第 4 步「整片一起走」在此推进（动画播放前，Web 版同口径）
     this.playResolution(outcome, outcome.score - before);
   }
 
@@ -515,6 +553,7 @@ export class GameBootstrap extends Component {
   }
 
   private afterResolve(): void {
+    this.tutorialAfterResolve(); // 消除一组后推进教学（step 1 → 2 / 拼满 3 组 → 完成）
     this.busy = false;
     if (!this.finished) this.setPaused(false);
     this.paintAll();
@@ -558,6 +597,7 @@ export class GameBootstrap extends Component {
    * 盘上留着的上一份存档才是交换前状态（§16 要求回滚到这儿）。
    */
   private handleHidden(): void {
+    if (this.tut) return; // 序章不写档：教学盘面绝不能落成正式断点（§16 之外的例外）
     if (this.busy || this.finished || !this.engine) return;
     this.setPaused(true);
     this.syncSession();
@@ -570,6 +610,7 @@ export class GameBootstrap extends Component {
    * 后台的 `schedule` 会被节流，逐秒扣不准，所以只能按 `savedAt` 算总账。
    */
   private handleVisible(): void {
+    if (this.tut) return; // 教学不计时：runTimeDemo 自己管演示窗口的表状态，这里别抢
     if (this.finished || !this.engine || !this.started) {
       if (!this.finished) this.setPaused(false);
       return;
@@ -802,9 +843,13 @@ export class GameBootstrap extends Component {
 
   private updateHud(): void {
     if (!this.hudTime) return;
-    this.hudLevel.string = `${MODE_LABEL[GS.mode]} · 第 ${this.levelIndex} 关`;
-    this.hudTime.string = fmtMMSS(this.timeLeft);
-    this.hudScore.string = `${this.engine ? this.engine.score : 0} 分`;
+    this.hudLevel.string = this.tut
+      ? TUTORIAL.drawerTitle
+      : `${MODE_LABEL[GS.mode]} · 第 ${this.levelIndex} 关`;
+    this.hudTime.string = this.tut ? TUTORIAL.timeFrozen : fmtMMSS(this.timeLeft);
+    this.hudScore.string = this.tut
+      ? `${this.engine ? this.engine.score : 0} / ${this.engine?.config.star3 ?? 3} 组`
+      : `${this.engine ? this.engine.score : 0} 分`;
     // 颜色即信息：剩 1 分钟转橙、剩 10 秒转红（原版 #hud-timer.warn / .danger）
     this.hudTime.color = this.timeLeft <= 10
       ? new Color(226, 68, 68, 255)
@@ -883,6 +928,463 @@ export class GameBootstrap extends Component {
   }
 
   /* ================================================================ 引导（§14 五步） */
+
+  /* ================================================================ 新手教学（序章） */
+
+  /**
+   * 进序章：**不走** startLevel/beginLevel —— 那里会扣体力、建断点、写进度，序章一样都不要。
+   * 序章不进排行榜 / 图鉴 / 星数（结算不走 settleLevel）。
+   */
+  startTutorial(mode: GameMode): void {
+    this.unschedule(this.onTick);
+    this.clearHint();
+    this.dialog.hide();
+    this.tutSpot.hide();
+    this.tutBanner.hide();
+
+    const cfg = tutorialConfig(mode);
+    this.cfg = cfg;
+    this.levelIndex = TUTORIAL_LEVEL;
+    this.levelSeed = TUTORIAL_SEED;
+    this.rng = new Rng(TUTORIAL_SEED);
+
+    // ⭐ 手工摆「3 缺 1」：引擎只在构造时接受快照，所以从这条入口把盘面塞进去。
+    //    规则决定缺块摆多远：简单 = 最远（远距一步到位）；困难 = 2 步（多走几步）
+    const built = buildTutorialLayout(cfg.rows, cfg.cols, cfg.imageIds, this.rng, cfg.swapRule);
+    this.engine = new PuzzleEngine(cfg, this.rng, {
+      cells: built.grid.toArray(),
+      score: 0,
+      eliminations: 0,
+    });
+
+    // 局内现场（对齐 beginLevel 的重置，但不扣体力、不建断点、不写进度）
+    this.timeLeft = cfg.timeLimit;
+    this.revived = false;
+    this.revivedUsed = false;
+    this.swapMisses = 0;
+    this.eliminatedOnce = false;
+    this.started = false;
+    this.finished = false;
+    this.busy = false;
+    this.pendingOutcome = null;
+    this.offlineSettle = false;
+    this.dragCells = [];
+    this.dragAnchor = -1;
+    this.dragging = false;
+    this.applyAudioSettings();
+
+    this.layout();
+    this.view.prewarm(cfg.imageIds);
+    this.paintAll();
+    this.view.playDropIn();
+    this.setPaused(true); // 序章不计时：onTick 也不 schedule，时间永远不走
+
+    const lay = built.layout;
+    this.tut = {
+      mode,
+      step: 1,
+      demoing: false,
+      locked: lay !== null,
+      targetIndex: lay?.targetIndex ?? -1,
+      gapIndex: lay?.gapIndex ?? -1,
+      fixed: lay?.fixed ?? [],
+      groupCells: [],
+    };
+
+    // 进过序章就算"见过"（老玩家不必再看抽屉自动展开）
+    if (!GS.tutorial.seen) GS.updateTutorial({ seen: true });
+
+    // 落盘动画结束后再摆教学视觉：此刻棋盘刚重建，早了会标到旧格子上
+    this.scheduleOnce(() => this.tutorialStep1(true), 1.2);
+  }
+
+  /** 教学「说一句话」：同一句既显示在横幅上，也念出来（Web 版 v4 口径） */
+  private tutorialSay(text: string): void {
+    if (!text) return;
+    this.tutBanner.show(text, tutorialSayDuration(text));
+    this.speech.speak(text);
+  }
+
+  /** 当前模式的语音文案（简单/困难两套，取不到的字段就是"这一步不讲"） */
+  private tutScript(): ReturnType<typeof tutorialScript> {
+    return tutorialScript(this.tut!.mode);
+  }
+
+  /** 开局说两句：先讲规则，5 秒后再讲这一步怎么拖（只说一次） */
+  private tutorialSayIntro(): void {
+    const s = this.tutScript();
+    this.tutorialSay(s.rule);
+    this.scheduleOnce(() => {
+      if (this.tut && this.tut.step === 1) this.tutorialSay(s.drag);
+    }, tutorialSayDuration(s.rule) / 1000);
+  }
+
+  /** 清掉「压暗 / 缺口框 / 脉冲」这些强制教学的视觉 */
+  private tutClearMarks(): void {
+    const total = this.cfg.rows * this.cfg.cols;
+    for (let i = 0; i < total; i++) {
+      const n = this.view.cellNode(i);
+      const dim = n.getChildByName('tutDim');
+      if (dim) dim.destroy();
+      const gap = n.getChildByName('tutGap');
+      if (gap) gap.destroy();
+      const pulse = n.getChildByName('tutPulse');
+      if (pulse) {
+        tween(pulse.getComponent(UIOpacity)!).stop();
+        pulse.destroy();
+      }
+    }
+    this.view.setHint([]); // 恢复提示缩放（BoardView 无 clearHint，空数组 = 全部还原）
+  }
+
+  /** 教学压暗：除 `keep` 之外的格子全盖上半透明罩 */
+  private tutDim(keep: number[]): void {
+    const total = this.cfg.rows * this.cfg.cols;
+    for (let i = 0; i < total; i++) {
+      const n = this.view.cellNode(i);
+      let dim = n.getChildByName('tutDim');
+      if (keep.includes(i)) {
+        if (dim) dim.destroy();
+        continue;
+      }
+      if (dim) continue;
+      dim = new Node('tutDim');
+      dim.layer = Layers.Enum.UI_2D;
+      dim.addComponent(UITransform).setContentSize(this.view.step - GAP, this.view.step - GAP);
+      const g = dim.addComponent(Graphics);
+      const s = this.view.step - GAP;
+      g.rect(-s / 2, -s / 2, s, s);
+      g.fillColor = new Color(40, 42, 52, 150);
+      g.fill();
+      dim.parent = n;
+      dim.setPosition(0, 0, 0);
+    }
+  }
+
+  /** 缺口框：金色描边提示"拖到这里" */
+  private tutGapBox(index: number): void {
+    const n = this.view.cellNode(index);
+    if (n.getChildByName('tutGap')) return;
+    const gap = new Node('tutGap');
+    gap.layer = Layers.Enum.UI_2D;
+    const s = this.view.step - GAP;
+    gap.addComponent(UITransform).setContentSize(s, s);
+    const g = gap.addComponent(Graphics);
+    g.roundRect(-s / 2 + 4, -s / 2 + 4, s - 8, s - 8, 12);
+    g.strokeColor = new Color(255, 214, 90, 255);
+    g.lineWidth = 6;
+    g.stroke();
+    gap.parent = n;
+    gap.setPosition(0, 0, 0);
+  }
+
+  /** 目标块脉冲：金色呼吸圈（循环 tween，玩家一按即被 guard 停掉） */
+  private tutPulse(index: number): void {
+    const n = this.view.cellNode(index);
+    if (!n || index < 0) return;
+    const old = n.getChildByName('tutPulse');
+    if (old) old.destroy();
+    const p = new Node('tutPulse');
+    p.layer = Layers.Enum.UI_2D;
+    const s = this.view.step - GAP;
+    p.addComponent(UITransform).setContentSize(s, s);
+    const g = p.addComponent(Graphics);
+    g.roundRect(-s / 2 - 6, -s / 2 - 6, s + 12, s + 12, 16);
+    g.strokeColor = new Color(255, 214, 90, 255);
+    g.lineWidth = 8;
+    g.stroke();
+    const op = p.addComponent(UIOpacity);
+    p.parent = n;
+    p.setPosition(0, 0, 0);
+    tween(op).repeatForever(tween(op).to(0.5, { opacity: 90 }).to(0.5, { opacity: 255 })).start();
+  }
+
+  /** 教学 step1：摆盘 + 演示落点（简单指缺口；困难指"下一步"） */
+  private tutorialStep1(sayIntro: boolean): void {
+    if (!this.tut) return;
+    this.tutHand.stop();
+    this.clearHint();
+    this.tutClearMarks();
+    if (!this.tut.locked) {
+      // 摆盘降级：不锁输入，退回引擎的「可拼提示」（保证不会卡死）
+      const picked = findHintCells(this.engine.board);
+      if (picked.length >= 2) this.view.setHint(picked.slice());
+      if (sayIntro) this.tutorialSayIntro();
+      return;
+    }
+    const all: number[] = [];
+    for (let i = 0; i < this.cfg.rows * this.cfg.cols; i++) all.push(i);
+    this.tutDim([this.tut.targetIndex]);
+    this.tutGapBox(this.tut.gapIndex);
+    this.tutPulse(this.tut.targetIndex);
+
+    // 演示落点：简单 = 直接指缺口（远距一步到位）；困难 = 指「下一步」那一格
+    const board = this.engine.board;
+    const from = board.index(board.rowOf(this.tut.targetIndex), board.colOf(this.tut.targetIndex));
+    const toIdx = this.tut.mode === 'nightmare' ? this.tutorialNextStep() : this.tut.gapIndex;
+    this.tutHand.play(this.cellCenter(from), this.cellCenter(toIdx));
+    if (sayIntro) this.tutorialSayIntro();
+  }
+
+  /** 格子中心（棋盘局部坐标，HandHint 与格子同一坐标系） */
+  private cellCenter(index: number): Vec3 {
+    const board = this.engine.board;
+    const row = board.rowOf(index);
+    const col = board.colOf(index);
+    return this.view.posOf(row, col);
+  }
+
+  /**
+   * 困难模式：缺块朝缺口挪一格应该落到哪一格（绕开已拼好的 3 块）。
+   * BFS 从缺口反推每格「还要挪几步」，再选相邻的、步数更少的那格。
+   */
+  private tutorialNextStep(): number {
+    if (!this.tut) return this.tut?.gapIndex ?? -1;
+    const board = this.engine.board;
+    const cols = board.cols;
+    const rows = board.rows;
+    const blocked = new Set(this.tut.fixed);
+    const from = this.tut.targetIndex;
+    const goal = this.tut.gapIndex;
+    const dist: Array<number | null> = new Array(rows * cols).fill(null);
+    dist[goal] = 0;
+    const queue = [goal];
+    for (let head = 0; head < queue.length; head++) {
+      const cur = queue[head]!;
+      const r = Math.floor(cur / cols);
+      const c = cur % cols;
+      for (const [nr, nc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]] as const) {
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        const next = nr * cols + nc;
+        if (blocked.has(next) || dist[next] !== null) continue;
+        dist[next] = dist[cur]! + 1;
+        queue.push(next);
+      }
+    }
+    const curDist = dist[from];
+    if (curDist === null) return goal;
+    const r0 = Math.floor(from / cols);
+    const c0 = from % cols;
+    for (const [nr, nc] of [[r0 - 1, c0], [r0 + 1, c0], [r0, c0 - 1], [r0, c0 + 1]] as const) {
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      const next = nr * cols + nc;
+      if (blocked.has(next)) continue;
+      if (dist[next] !== null && dist[next]! < curDist) return next;
+    }
+    return goal;
+  }
+
+  /** 【输入锁】按下时：不是"这一步该动的块"就直接不响应（+ 抖一下把视线拉回去） */
+  private tutorialGuardDown(index: number): boolean {
+    if (!this.tut) return true;
+    this.tutHand.stop(); // 玩家一按就停，动画不再打扰
+    if (!this.tut.locked) return true;
+    const allowed =
+      this.tut.step === 1
+        ? index === this.tut.targetIndex
+        : this.tut.step === 4
+          ? this.tut.groupCells.includes(index)
+          : true;
+    if (allowed) return true;
+    // 零文字反馈：按错的那块抖一下 + 目标块脉冲一次
+    this.view.playReject([index], 0, -8);
+    const hintAt = this.tut.step === 1 ? this.tut.targetIndex : this.tut.groupCells[0];
+    if (hintAt !== undefined && hintAt >= 0) this.tutPulse(hintAt);
+    return false;
+  }
+
+  /**
+   * 【落点锁】松手时：
+   *   - 简单（any）：必须一次远距拖到缺口（规则允许任意位置，所以直接要求落到缺口）；
+   *   - 困难（adjacent）：一次只能挪一格 —— 落点必须是「手指演示的那一格」，不许往别处绕。
+   */
+  private tutorialGuardMove(anchor: number, target: number): boolean {
+    if (!this.tut || !this.tut.locked || this.tut.step !== 1) return true;
+    const board = this.engine.board;
+    if (this.tut.mode === 'nightmare') {
+      const dr = Math.abs(board.rowOf(anchor) - board.rowOf(target));
+      const dc = Math.abs(board.colOf(anchor) - board.colOf(target));
+      const want = this.tutorialNextStep();
+      if (dr + dc !== 1 || target !== want) {
+        this.view.playReject([anchor], 0, -8); // 回弹：说明"一次只能挪一格、且要往缺口方向"
+        return false;
+      }
+      this.tut.targetIndex = target; // 缺块挪到新格了，教学标记跟着它走
+      return true;
+    }
+    if (target === this.tut.gapIndex) return true;
+    this.view.playReject([anchor], 0, -8); // 回弹：要放到缺口那一格
+    return false;
+  }
+
+  /** 一次成功移动之后推进教学（第 4 步：体验过「整片一起走」即通过） */
+  private tutorialAfterMove(): void {
+    if (!this.tut) return;
+    // 困难序章缺块要走好几步：挪一步提醒一句（只说话，视觉重摆在 afterResolve）
+    if (this.tut.step === 1 && this.tut.mode === 'nightmare') {
+      if (this.tut.targetIndex !== this.tut.gapIndex) this.tutorialSay(TUTORIAL_VOICE.nightmare.nextStep);
+      return;
+    }
+    if (this.tut.step !== 4) return;
+    this.tut.step = 5;
+    this.tut.locked = false;
+    this.tutHand.stop();
+    this.tutClearMarks();
+  }
+
+  /** 消除一组之后推进教学（由 afterResolve 调用） */
+  private tutorialAfterResolve(): void {
+    if (!this.tut) return;
+    if (this.tut.demoing) return;
+    this.tutHand.stop();
+    const score = this.engine.score;
+    this.updateHud();
+
+    if (score >= this.engine.config.star3) {
+      this.finishTutorial();
+      return;
+    }
+    if (this.tut.step === 1) {
+      // 困难序章：还没挪到缺口（这一步没拼成）→ 动画播完了，重摆教学视觉 + 演示下一步
+      if (this.tut.mode === 'nightmare' && this.tut.targetIndex !== this.tut.gapIndex) {
+        this.tutorialStep1(false);
+        return;
+      }
+      // S1 完成 → 解锁，讲旗子（聚光灯圈分数 = 过关分数；短句 + 一点后自动给"下一步"入口）
+      this.tut.locked = false;
+      this.tut.step = 2;
+      this.tutClearMarks();
+      this.scheduleOnce(() => {
+        if (!this.tut || this.tut.step !== 2) return;
+        const tip = this.tutScript().flag;
+        this.tutorialSay(tip);
+        this.tutSpot.show(this.hudRectOf('score'), {
+          tip,
+          onNext: () => this.tutorialStepTime(),
+        });
+      }, 0.9);
+    }
+  }
+
+  /**
+   * 讲完旗子 → 简单序章讲倒计时（困难不讲，直接自由拼）。
+   * ⚠️ 每一步都要玩家操作才推进：这里只把话讲完、把聚光灯挂着，玩家点「▾ 继续」才演示。
+   */
+  private tutorialStepTime(): void {
+    if (!this.tut) return;
+    if (this.tut.mode === 'nightmare') {
+      this.tut.step = 5;
+      return;
+    }
+    this.tut.step = 3;
+    this.tut.demoing = true;
+    const tip = this.tutScript().time ?? '';
+    this.tutorialSay(tip);
+    this.tutSpot.show(this.hudRectOf('time'), { tip, onNext: () => this.runTimeDemo() });
+  }
+
+  /** 玩家点了「继续」→ 让倒计时真的走 3 秒（眼见为实），走完再挂一次聚光灯 */
+  private runTimeDemo(): void {
+    if (!this.tut) return;
+    this.started = true;
+    this.setPaused(false);
+    this.scheduleOnce(() => {
+      if (!this.tut) return;
+      this.started = false; // ⚠️ 不能留成 true，否则序章后面会真的开始扣时间
+      this.setPaused(true);
+      this.timeLeft = this.engine.config.timeLimit;
+      this.updateHud();
+      this.tut.demoing = false;
+      // 演示完了 → 再等玩家点一次「继续」，不自动跳
+      const tip = this.tutScript().timeDone ?? '';
+      this.tutorialSay(tip);
+      this.tutSpot.show(this.hudRectOf('time'), { tip, onNext: () => this.tutorialStepGroup() });
+    }, 3);
+  }
+
+  /** 讲完时间 → 教整片拖拉：只准拖这一片（落点不限），手指演示指路 */
+  private tutorialStepGroup(): void {
+    if (!this.tut) return;
+    const group = this.engine.mergeGroups().find((g) => g.cells.length >= 2);
+    if (!group) {
+      this.tut.step = 5; // 场上没有成片的，跳过这一步
+      return;
+    }
+    this.tut.step = 4;
+    this.tut.locked = true;
+    const groupCells = group.cells.slice();
+    this.tut.groupCells = groupCells;
+    this.tutClearMarks();
+    this.tutDim(groupCells);
+    for (const i of groupCells) this.tutPulse(i);
+    this.tutorialSay(this.tutScript().group ?? '');
+
+    // 演示：把这一片往斜下方挪一格（落点不限，只是指个方向）
+    const board = this.engine.board;
+    const anchor = groupCells[0]!;
+    const toRow = board.rowOf(anchor) + 1;
+    const toCol = board.colOf(anchor) + (board.colOf(anchor) + 1 < board.cols ? 1 : -1);
+    if (board.inBounds(toRow, toCol)) {
+      const ok = groupCells.every((i) =>
+        board.inBounds(board.rowOf(i) + 1, board.colOf(i) + (board.colOf(anchor) + 1 < board.cols ? 1 : -1)));
+      if (ok) this.tutHand.play(this.cellCenter(anchor), this.cellCenter(board.index(toRow, toCol)));
+    }
+  }
+
+  /** 教学奖励：第 1 关免 1 颗体力 + 体力 +5（不送星、不送图鉴 —— 免得污染两套系统） */
+  private grantTutorialReward(): void {
+    GS.addStamina(Date.now(), 5);
+    GS.updateTutorial({ freeLevel: true });
+  }
+
+  /** 序章达成 3 星：结束教学（不写 progress / 不进排行榜 / 不进图鉴星数） */
+  finishTutorial(): void {
+    if (!this.tut) return;
+    const m = this.tut.mode;
+    this.tut = null;
+    this.tutBanner.hide();
+    this.tutHand.stop();
+    this.tutSpot.hide();
+    this.tutClearMarks();
+    this.finished = true;
+    this.setPaused(true);
+    if (m === 'nightmare') GS.updateTutorial({ nightmareCleared: true });
+    else GS.updateTutorial({ normalCleared: true });
+    this.grantTutorialReward();
+    GS.flush();
+    this.audio.play('win');
+    this.speech.speak(TUTORIAL_VOICE.done);
+    // 用结算弹窗底板：只有「教学完成 + 继续第 1 关 + 回首页」（用户要求能多简就多简）
+    this.dialog.show(TUTORIAL.doneTitle, [TUTORIAL.rewardFreeLevel], [
+      { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
+      { text: TUTORIAL.donePrimary, onClick: () => { this.dialog.hide(); this.startLevel(1); }, primary: true },
+    ]);
+  }
+
+  /** 跳过教学（横幅旁的「跳过」入口）—— 发奖励但不算完成 */
+  skipTutorial(): void {
+    if (!this.tut) return;
+    this.tut = null;
+    this.tutBanner.hide();
+    this.tutHand.stop();
+    this.tutSpot.hide();
+    this.tutClearMarks();
+    this.finished = true;
+    this.setPaused(true);
+    this.dialog.show(TUTORIAL.doneTitle, [], [
+      { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
+      { text: TUTORIAL.donePrimary, onClick: () => { this.dialog.hide(); this.startLevel(1); }, primary: true },
+    ]);
+  }
+
+  /** 教学期间 HUD：分数位显示「N / 3 组」进度（Web 版进度点 + 目标旗的等效物） */
+  /** 聚光灯目标矩形（顶栏固定坐标：bar y=885 / 高 150，hudText x=-330/0/300）。
+   *  用常量而非 getBoundingBoxToWorld / node.position —— 预览 shim 未实现这两个 API。 */
+  private hudRectOf(kind: 'score' | 'time'): SpotlightRect {
+    return kind === 'score'
+      ? { cx: 300, cy: 885, w: 360, h: 160 }
+      : { cx: 0, cy: 885, w: 320, h: 160 };
+  }
 
   private runGuide(step: number): void {
     if (GS.guideDone || step <= this.guideStep) return;

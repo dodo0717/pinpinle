@@ -163,8 +163,45 @@
     对比图 `_t/cmp320.png`）。微信主包 4MB + 总包 20MB → 分包容纳，**无需 CDN**。
     产物不入库（`.gitignore`），脚本可重跑。
   - **可移植性守卫**：`tools/check-portability.mjs` 扫描算法层禁止平台 API（document/localStorage/
-    wx.* 等）与反向依赖表现层，当前 20 文件全过 —— 算法层 100% 复用，Cocos 端 `import '../核心/'`
+    wx.* 等）与反向依赖表现层，当前 36 文件全过 —— 算法层 100% 复用，Cocos 端 `import '../核心/'`
     直接生效。退出码非 0 可接 CI。
+  - 另恢复归档「旧文件及素材\3-旧资源-font-map-ui」的 `map/`(4) `ui/`(19) `font/`(2) `layout/`(1)
+    到 `assets/resources/` —— `MapBootstrap` 引用 `map/w1_bg` 等，缺则资源加载失败。
+  - 修算法层 `核心/pieces.ts`：`TOTAL_IMAGES` 原先写死 36（素材已 108 张），改为 `MAX_ART_ID + 1`
+    派生；`pieces → ledger` 与算法层既有约定一致（`config`/`poolGen` 同样 import ledger）。
+  - ⚠️ **待办（构建前必须处理）**：
+    1. `assets/resources/font/` 两个 ttf 共 **16 MB**，小游戏包体装不下 —— 需子集化
+       （游戏实际用到约 1103 个非 ASCII 字符）或改用系统字体。环境无 fontTools，待装。
+    2. Cocos 地图 `场景/MapBootstrap.ts` 当前 `LEVEL_COUNT = 10`（1 个世界、单张底图 + 风车/水面/
+       角色浮层动画），而 Web 版已是 15 世界 × 12 关 = 180 关（数据驱动 `WORLDS` + `ROAD_X`）。
+       上小游戏要几关属产品决策，未定。
+    3. `preview/play.html`（地图页）在浏览器预览里跑不通：`addFloat` 依赖 `Node.position`，
+       而 `cc-shim.js` 对地图侧（Font/Mask/ScrollView）只是**占位实现**。地图需真实 Creator 验证；
+       局内玩法（`game.html`）才是 shim 能验证的部分，已通过。
+- **2026-10-30（Cocos 端 100% 移植启动：元系统 + 新手教学全家桶）**：用户拍板「Cocos 端完全移植
+  Web 版、功能 100%」。经探索代理盘点，差距分 8 批（元系统/教学/地图 180 关/关卡吊牌/图鉴整屏/
+  排行榜整屏/设置+结算/分享广告埋点），逐批推进：
+  - **① 元系统对齐（已完成）**：`玩法/meta.ts` 补 `Settings.voice` + `MetaState.tutorial` +
+    `clearedCount()`；`玩法/state.ts` 补 `setVoice`/`updateTutorial`/`tutorial` getter，
+    `syncMeta`/`metaFromSnapshot` 同步新字段（老档由核心层 `parseSave` 自动补齐，不升版本）；
+    `玩法/text.ts` 补 `TUTORIAL`/`TUTORIAL_VOICE`/`LEADERBOARD`/`MAP`/`TABBAR` 五组文案
+    （从 `web/ui/text.ts` 逐字移植），`SETTINGS` 补 voice/about/version。
+  - **② 新手教学全家桶（核心流程已完成，浏览器零异常）**：
+    - 新增 `玩法/speech.ts`（微信小游戏无 speechSynthesis → 静默实现，接口与 Web 版同形，
+      将来接真配音只换内部）、`玩法/spotlight.ts`（四块矩形拼挖洞聚光灯 + 短句 + ▾继续，
+      点暗区放行——触屏上强制点暗区像坏了）、`玩法/handHint.ts`（👆沿直线循环滑动 + 落位金光，
+      玩家一按即停）、`玩法/tutorial.ts`（序章配置/「3 缺 1」盘面 = 核心层 `buildTutorialGrid`、
+      抽屉、棋盘上方轻横幅；图解用真实贴纸切块 + 色块兜底）。
+    - `GameBootstrap` 挂入完整教学流程（对齐 `web/main.ts` 675~1150）：`startTutorial`（不走
+      beginLevel——不扣体力/不建断点/不写进度）、输入锁/落点锁（困难走 BFS 演示下一步）、
+      五步编排（拖动→旗子→倒计时演示 3s→整片→自由拼）、`finishTutorial`（奖励=体力+5+
+      第 1 关免单，不送星不送图鉴）、教学期间 HUD 显示「N / 3 组」。
+    - 关键修复：`handleHidden/handleVisible` 教学短路（序章盘面绝不能落成正式断点）；
+      `hudRectOf` 用顶栏常量坐标（shim 无 `getBoundingBoxToWorld`/`Node.position`）；
+      `window.setTimeout` → 全局 `setTimeout`（可移植性守卫抓获）。
+    - 验证：216/216 单测；`game.html` 冒烟——startTutorial → 摆盘(target 0/gap 7 不挨着) →
+      拼成 → step2+聚光灯 → 继续 → 倒计时演示 → 二次聚光灯，**零 JS 异常**。
+  - **待办**：教学抽屉/首页入口挂接 `MapBootstrap`（地图页需 Creator 验证）；③~⑧ 批次继续。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
