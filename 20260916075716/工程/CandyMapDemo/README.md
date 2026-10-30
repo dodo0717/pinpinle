@@ -110,12 +110,16 @@
     普通档现在有 107 关拿不到 3★（落在 2★）—— 这是**想要的**难度曲线，3★ 应该难。
     生手(4s/步) 139 → 77 关打不过（4 秒走一步的玩家在噩梦里本来就不该轻松）。
     简单模式依旧全 3★（时间变长后更松：生手平均 15 → 20.1 分）。
-- ⚠️ **已知问题：单元测试目前跑不起来（既有问题，非本次改动引入）** ——
+- ✅ **单元测试已恢复运行（2026-10-30 修，既有问题）**：原来**一行都跑不到**，卡在模块解析：
   `test/*.test.ts` 一律 import `../assets/scripts/core/...`（英文），但算法层目录实际叫
-  **`核心`**（中文），改名后一直没同步 → 一跑就 `ERR_MODULE_NOT_FOUND`。涉及 10 个测试文件
-  （`save` / `progress` / `config` / `engine` / `move` / `init` / `poolGen` / `matcher` / `merge` / `honor` 等）。
-  修法：把这些 import 路径里的 `core` 换成 `核心`（或改 `test/ts-resolve.mjs` 加一层目录别名）。
-  ⚠️ 在此之前，**改动算法层只有 `tools/simulate-levels.mjs` 这一道仿真验证**，没有单测兜底。
+  **`核心`**（中文），改名后没同步 → `ERR_MODULE_NOT_FOUND`。涉及 11 个测试文件。
+  - **修法**：在 `test/ts-resolve.mjs` 的解析钩子里加一层目录别名（`scripts/core/` → `scripts/核心/`），
+    改 1 处即可，不必动 11 个测试文件。⚠️ 易踩的第二层坑：改写 specifier 后**不能立刻 return**，
+    必须继续走下面「补 `.ts` 后缀」的逻辑（算法层是无扩展名导入），否则仍找不到文件。
+  - **跑法**（项目无 `package.json`，不是 `npm test`）：
+    `node --experimental-strip-types --import ./test/ts-resolve.mjs --test "test/*.test.ts"`
+  - 📊 **当前结果：216 个用例 / 198 通过 / 18 失败**。失败主要是**测试期望过时**（素材 36→108、
+    关卡 60→180 后没同步更新），另有 engine 移动相关 5 条待判是期望过时还是真 bug —— 见下条待办。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
