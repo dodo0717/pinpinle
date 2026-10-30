@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>萌宠拼拼乐 · 选关 → 可玩（跑真源码）</title>
+<style>
+  :root { color-scheme: dark; }
+  @font-face { font-family:'HarmonyOS Sans SC'; src:url('/assets/resources/font/HarmonyOS_Sans_SC_Medium.ttf'); font-weight:500; font-display:swap; }
+  @font-face { font-family:'HarmonyOS Sans SC'; src:url('/assets/resources/font/HarmonyOS_Sans_SC_Bold.ttf'); font-weight:700; font-display:swap; }
+  body { margin:0; background:#15171c; color:#ddd; font:14px/1.6 "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; display:flex; height:100vh; }
+  #panel { width:260px; padding:16px; box-sizing:border-box; border-right:1px solid #333; flex:none; overflow:auto; }
+  #stage { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+  canvas { background:#20242c; box-shadow:0 0 0 1px #444; display:block; touch-action:none; cursor:pointer; }
+  h1 { font-size:15px; margin:0 0 4px; }
+  .sub { font-size:12px; color:#7a8290; margin:0 0 14px; }
+  .row { margin-bottom:12px; }
+  label { display:block; font-size:12px; color:#9aa; margin-bottom:4px; }
+  button { width:100%; padding:7px; margin-bottom:6px; background:#2c3140; color:#ddd; border:1px solid #4a5266; border-radius:6px; cursor:pointer; font-size:13px; }
+  button:hover { background:#3a4152; }
+  #log { font:11px/1.6 ui-monospace,Consolas,monospace; color:#8fb; white-space:pre-wrap; background:#20232b; padding:8px; border-radius:6px; max-height:340px; overflow:auto; }
+  .note { font-size:12px; color:#6f7684; }
+  b { color:#cfd6e4; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>选关 → 可玩</h1>
+  <p class="sub">真源码入口：MapBootstrap（选关地图）+ GameBootstrap（对局）</p>
+
+  <div class="row">
+    <label>快捷操作</label>
+    <button id="toMap">回到选关地图</button>
+    <button id="restart">重开本关</button>
+    <button id="hint">提示</button>
+    <button id="reset">清空存档</button>
+  </div>
+
+  <div class="row"><label>日志</label><div id="log"></div></div>
+  <p class="note">
+    <b>地图</b>：滚轮或拖动空白处上下滚，点气球选中，再点一次（或点「开始第 N 关」）进关。<br>
+    <b>局内</b>：按住一块碎片拖动整片，把同一张图的 4 块拼成 2×2 即消除。
+  </p>
+</div>
+
+<div id="stage"><canvas id="cv" width="1080" height="1920"></canvas></div>
+
+<script type="importmap">
+{ "imports": { "cc": "/preview/cc-shim.js" } }
+</script>
+
+<script type="module">
+import { Renderer, Node, UITransform, Layers } from '/preview/cc-shim.js';
+import { MapBootstrap } from '/assets/scripts/场景/MapBootstrap.ts';
+import { GameBootstrap } from '/assets/scripts/玩法/GameBootstrap.ts';
+
+const logBox = document.getElementById('log');
+const log = (s) => { logBox.textContent += s + '\n'; logBox.scrollTop = logBox.scrollHeight; };
+window.addEventListener('error', (e) => log('[error] ' + (e.message || e)));
+
+/* 自适应：canvas 内部固定 1080×1920，CSS 缩放到窗口高度 */
+const cv = document.getElementById('cv');
+function fit() {
+  const stage = document.getElementById('stage');
+  const h = stage.clientHeight - 24;
+  const w = (h * 1080) / 1920;
+  cv.style.height = h + 'px';
+  cv.style.width = w + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+
+/* ---- 场景根：对应 Cocos 的 Canvas ---- */
+const root = new Node('Canvas');
+root.layer = Layers.Enum.UI_2D;
+root.addComponent(UITransform).setContentSize(1080, 1920);
+
+/* 选关地图（MapBootstrap.onLoad 里会自建兄弟节点 Game 挂 GameBootstrap） */
+const mapNode = new Node('Map');
+mapNode.parent = root;
+mapNode.layer = Layers.Enum.UI_2D;
+mapNode.addComponent(UITransform).setContentSize(1080, 1920);
+mapNode.addComponent(MapBootstrap);
+
+const renderer = new Renderer(cv, root);
+renderer.start();
+
+/* ---- 地图滚动：预览里 ScrollView 是空壳，这里直接推 content ---- */
+function findNode(n, name) {
+  if (n.name === name) return n;
+  for (const c of n.children) { const r = findNode(c, name); if (r) return r; }
+  return null;
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let content = null, base = 0, off = 0, MAX_OFF = 0;
+setTimeout(() => {
+  content = findNode(root, 'Content');
+  if (!content) { log('未找到地图 Content 节点'); return; }
+  // 尺寸从节点读，不写死 —— 地图加了上下留白后 content 高度会变
+  const t = content.comps.find((c) => c.constructor.name === 'UITransform');
+  const H = t ? t.height : 2880;
+  MAX_OFF = Math.max(0, H - 1920);
+  base = H / 2 - 960;
+  off = clamp(base - content.getPosition().y, 0, MAX_OFF);
+  log('地图已接管滚动，范围 0~' + Math.round(MAX_OFF));
+}, 300);
+function applyOff() { if (content) content.setPosition(0, base - off); }
+function syncOff() { if (content) off = clamp(base - content.getPosition().y, 0, MAX_OFF); }
+
+cv.addEventListener('wheel', (e) => {
+  if (!content) return;
+  e.preventDefault();
+  syncOff();
+  off = clamp(off + e.deltaY * 0.8, 0, MAX_OFF);
+  applyOff();
+}, { passive: false });
+
+let dragY = null, dragOff = 0;
+cv.addEventListener('pointerdown', (e) => {
+  // Renderer 命中了交互节点（气球 / 按钮）时会先 preventDefault，此时不抢拖动
+  if (!content || e.defaultPrevented) return;
+  dragY = e.clientY; dragOff = off;
+});
+cv.addEventListener('pointermove', (e) => {
+  if (dragY === null) return;
+  const k = cv.getBoundingClientRect().height / cv.height;
+  off = clamp(dragOff + (e.clientY - dragY) / k, 0, MAX_OFF);
+  applyOff();
+});
+window.addEventListener('pointerup', () => { dragY = null; });
+
+/* ---- 侧栏 ---- */
+function gb() {
+  const g = root.getChildByName('Game');
+  return g ? g.getComponent(GameBootstrap) : null;
+}
+document.getElementById('toMap').onclick = () => { const g = gb(); if (g) { g.exitToHome(); log('返回地图'); } };
+document.getElementById('restart').onclick = () => { const g = gb(); if (g) { g.restart(); log('重开本关'); } };
+document.getElementById('hint').onclick = () => { const g = gb(); if (g) g.showHint(); };
+document.getElementById('reset').onclick = () => {
+  localStorage.removeItem('mengchong.save.v1');
+  log('存档已清空，刷新页面生效');
+};
+
+window.__root = root;
+window.__renderer = renderer;   // 便于控制台 / 自动化核对坐标换算
+log('已加载：选关地图（10 关）→ 点气球 → 开始第 N 关');
+</script>
+</body>
+</html>

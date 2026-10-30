@@ -150,6 +150,21 @@
     导出清单同步。⚠️ **荣誉档位（`HONOR.tierLabel`：超神/王者/优秀）是另一套规则，保留**。
   - 验证：单测 216/216；浏览器实测关卡榜直跳第 120 关，步进器显示「◀ 第 120 关 ▶」无残留
     档位文案，零 JS 异常。
+- **2026-10-30（确定上微信小游戏：恢复 Cocos 移植端，不是从零移植）**：
+  - **关键发现**：工程本来就是 **Cocos Creator 3.8.8** 工程（根目录 `project.json`），2026-09-21
+    曾把表现层移植到 Cocos 并按 S1~S7 补齐（见 `docs/移植差距审计.md`），包体清理时（`afb9637`）
+    被归档到「旧文件及素材\2-旧Cocos端-场景玩法界面」。本次已恢复：`assets/scripts/玩法/`（14 文件）、
+    `场景/`、`界面/`、`assets/scenes/Map.scene`、`preview/game.html` + `play.html`、`settings/`。
+  - ✅ **浏览器实测**（`preview/game.html` 跑真源码 + `cc-shim.js` 模拟 cc 模块，**无需装 Creator**）：
+    4×3 棋盘、贴图切片、倒计时/计分/提示、存档断点弹窗（"继续上次的挑战"）全部正常，零 JS 异常。
+    `game.html` 关卡下拉从写死 60 改为 `TOTAL_LEVELS` 派生。
+  - **素材瘦身**：`tools/minify-assets.mjs`（ffmpeg WebP）把 64.4 MB 素材压到 **14.1 MB** 输出
+    `minigame/assets/`（贴纸 46.8→5.1、UI 切图 17.6→9.0；512 WebP q82 与原图并排对比无可见差异，
+    对比图 `_t/cmp320.png`）。微信主包 4MB + 总包 20MB → 分包容纳，**无需 CDN**。
+    产物不入库（`.gitignore`），脚本可重跑。
+  - **可移植性守卫**：`tools/check-portability.mjs` 扫描算法层禁止平台 API（document/localStorage/
+    wx.* 等）与反向依赖表现层，当前 20 文件全过 —— 算法层 100% 复用，Cocos 端 `import '../核心/'`
+    直接生效。退出码非 0 可接 CI。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
