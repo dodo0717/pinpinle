@@ -1,0 +1,48 @@
+{
+  "design": { "w": 1080, "h": 1920 },
+  "nodes": [
+    {
+      "id": "topbarLeft",
+      "type": "sprite",
+      "res": "ui/顶栏/home_topbar_left",
+      "w": 683, "h": 274, "x": -258, "dock": "top", "inset": 3,
+      "children": [
+        { "id": "avatar", "type": "sprite", "res": "ui/顶栏/home_avatar", "w": 180, "h": 180, "x": -200, "y": 10 },
+        { "id": "nickname", "type": "text", "w": 280, "h": 55, "x": 50, "y": 20, "fontSize": 34, "color": [90, 50, 25] },
+        { "id": "level", "type": "text", "w": 200, "h": 40, "x": 50, "y": -25, "fontSize": 28, "color": [90, 50, 25] }
+      ]
+    },
+    {
+      "id": "topbarRight",
+      "type": "sprite",
+      "res": "ui/顶栏/home_topbar_right",
+      "w": 692, "h": 163, "x": 288, "dock": "top", "inset": 26,
+      "children": [
+        { "id": "staminaNum", "type": "text", "w": 120, "h": 60, "x": 30, "y": 10, "fontSize": 40, "color": [255, 255, 255] },
+        { "id": "countdown", "type": "text", "w": 180, "h": 24, "x": 30, "y": -35, "fontSize": 22, "color": [255, 255, 255] },
+        { "id": "plusHit", "type": "node", "w": 90, "h": 90, "x": 220, "y": 0 }
+      ]
+    },
+    {
+      "id": "difficulty",
+      "type": "node",
+      "w": 880, "h": 180, "x": -228, "dock": "top", "inset": 290,
+      "children": [
+        { "id": "diffNormal", "type": "sprite", "res": "ui/难度/home_difficulty_normal", "w": 440, "h": 180, "x": -220, "y": 0 },
+        { "id": "diffHard", "type": "sprite", "res": "ui/难度/home_difficulty_hard", "w": 440, "h": 180, "x": 220, "y": 0 }
+      ]
+    },
+    {
+      "id": "tabbar",
+      "type": "sprite",
+      "res": "ui/底栏/home_tabbar_bg",
+      "w": 1080, "h": 260, "x": 0, "dock": "bottom", "inset": 0,
+      "children": [
+        { "id": "tabHome", "type": "sprite", "res": "ui/底栏/home_tab_home", "w": 200, "h": 180, "x": -405, "y": 0 },
+        { "id": "tabCollection", "type": "sprite", "res": "ui/底栏/home_tab_collection", "w": 200, "h": 180, "x": -135, "y": 0 },
+        { "id": "tabRank", "type": "sprite", "res": "ui/底栏/home_tab_rank", "w": 200, "h": 180, "x": 135, "y": 0 },
+        { "id": "tabSettings", "type": "sprite", "res": "ui/底栏/home_tab_settings", "w": 200, "h": 180, "x": 405, "y": 0 }
+      ]
+    }
+  ]
+}

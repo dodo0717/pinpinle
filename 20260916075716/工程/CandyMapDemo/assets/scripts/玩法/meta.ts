@@ -138,10 +138,13 @@ export function recordAdStamina(state: MetaState): void {
 
 /* ---------------------------------------------------------------- 图鉴（§10） */
 
-/** 图鉴总数 = 36（图 ID 0~35） */
+/**
+ * 图鉴总数 —— 从算法层的通关奖励表派生（当前 108，= MAX_ART_ID + 1）。
+ * ⚠️ 2026-10-30：原先写死「36（图 ID 0~35）」，素材扩到 108 张后已不同步，改为派生。
+ */
 export const COLLECTION_TOTAL = REWARD_LEVELS;
 
-/** 第 N 关的图鉴奖励图 ID；第 37~60 关无奖励（§10.2） */
+/** 第 N 关的图鉴奖励图 ID；超出奖励范围的关卡无奖励（§10.2） */
 export function rewardImageOfLevel(level: number): number | undefined {
   return LEVEL_REWARD_CONFIG[level];
 }
