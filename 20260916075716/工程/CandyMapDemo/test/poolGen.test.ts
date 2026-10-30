@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  GRID_BY_LEVEL,
   LEVEL_CONFUSION_CONFIG,
   MAX_ART_ID,
   TOTAL_LEVELS,
@@ -43,10 +44,10 @@ function assertPoolShape(imageIds: readonly number[], rows: number, cols: number
   }
 }
 
-describe('poolGen —— 素材齐全（36 张）', () => {
-  it('60 关全部可开，且图池构成逐关精确等于设计表（只数 + 每只动物的情绪数）', () => {
+describe(`poolGen —— 素材齐全（${MAX_ART_ID + 1} 张）`, () => {
+  it(`${TOTAL_LEVELS} 关全部可开，且图池构成逐关精确等于设计表（只数 + 每只动物的情绪数）`, () => {
     const plan = buildLevelPlan('normal', { availableIds: FULL });
-    assert.strictEqual(plan.levels.length, TOTAL_LEVELS, '素材齐全时应开放全部 60 关');
+    assert.strictEqual(plan.levels.length, TOTAL_LEVELS, `素材齐全时应开放全部 ${TOTAL_LEVELS} 关`);
     assert.deepStrictEqual(plan.skipped, []);
     assert.deepStrictEqual(plan.notes, [], '素材齐全时不应有任何图池诊断');
 
@@ -117,7 +118,7 @@ describe('poolGen —— 素材齐全（36 张）', () => {
 });
 
 describe('poolGen —— 素材不足', () => {
-  it('第一批 11 张已足够开满 60 关（最大图数需求是 5×4 的 10 张）', () => {
+  it(`第一批素材已足够开满全部 ${TOTAL_LEVELS} 关（最大图数需求是 5×4 的 10 张）`, () => {
     const plan = buildLevelPlan('normal', { availableIds: FIRST_BATCH });
     assert.strictEqual(plan.levels.length, TOTAL_LEVELS);
     assert.deepStrictEqual(plan.skipped, []);
@@ -126,9 +127,12 @@ describe('poolGen —— 素材不足', () => {
   it('图数超过到货张数的关卡被跳过，并给出说明', () => {
     const plan = buildLevelPlan('normal', { availableIds: PARTIAL_BATCH });
     assert.ok(plan.skipped.length > 0, '5×4 需 10 张、只到货 9 张，应有被跳过的关卡');
-    // 只有 5×4 的段位（第 36~60 关）会因张数不够而关闭
+    // 只有 5×4 段（第 36 关起，含后续新增关卡）会因张数不够而关闭 —— 不写死「60 关」
+    const firstFiveByFour = Object.keys(GRID_BY_LEVEL)
+      .map(Number)
+      .find((l) => GRID_BY_LEVEL[l]![0] === 5 && GRID_BY_LEVEL[l]![1] === 4)!;
     for (const level of plan.skipped) {
-      assert.ok(level >= 36 && level <= 60, `第${level}关不该被跳过`);
+      assert.ok(level >= firstFiveByFour, `第${level}关不该被跳过`);
     }
     assert.ok(
       plan.notes.some((n) => n.includes('暂不开放')),
@@ -180,7 +184,7 @@ describe('poolGen —— 素材不足', () => {
     );
   });
 
-  it('一张素材都没有 → 60 关全部跳过，不产出半个图池', () => {
+  it(`一张素材都没有 → 全部 ${TOTAL_LEVELS} 关跳过，不产出半个图池`, () => {
     const plan = buildLevelPlan('normal', { availableIds: [] });
     assert.strictEqual(plan.levels.length, 0);
     assert.strictEqual(plan.skipped.length, TOTAL_LEVELS);

@@ -7,12 +7,20 @@ import { Rng } from '../assets/scripts/core/rng';
 import { randomAdjacentPair } from './helpers';
 
 const CONFIGS = buildLevelConfigs();
-/** 全表实际使用的三种段位（每行 ≤4、每列 ≤5，24 格段位已取消） */
-const GRIDS: Array<[number, number]> = [
-  [3, 4],
-  [4, 4],
-  [5, 4],
-];
+/**
+ * 全表实际使用的段位 —— **从配置派生，不写死**。
+ *
+ * ⚠️ 2026-10-30：这里原先写死 `[[3,4],[4,4],[5,4]]`，而设计表在 2026-10-25 已把
+ * 第 1~15 关从 `3×4` 改成 `4×3`（竖屏少一列，格子放大约 1/3，见 `GRID_BY_LEVEL` 注释）。
+ * 结果 `configOf(3,4)` 直接抛「缺少配置」，**移动规则 / 整片拖动 / 结算动画 / 压测
+ * 整组连带失败**，看起来像引擎有 bug，实际是测试写死了过时的段位。
+ * 以后改段位、加关卡，这里会自动跟上。
+ */
+const GRIDS: Array<[number, number]> = Array.from(
+  new Map(
+    CONFIGS.map((c) => [`${c.rows}×${c.cols}`, [c.rows, c.cols] as [number, number]]),
+  ).values(),
+);
 
 function configOf(rows: number, cols: number) {
   const cfg = CONFIGS.find((c) => c.rows === rows && c.cols === cols);
@@ -29,14 +37,14 @@ function nightmareConfigOf(rows: number, cols: number) {
 
 describe('engine —— 移动规则（简单模式任意距离 / 困难模式只能 1 格）', () => {
   it('简单模式 ruleAllows 恒为 true：跨全盘、对角线都允许', () => {
-    const engine = new PuzzleEngine(configOf(4, 4), new Rng(3));
+    const engine = new PuzzleEngine(configOf(...GRIDS[1]!), new Rng(3));
     assert.ok(engine.ruleAllows(0, 15), '左上↔右下应允许');
     assert.ok(engine.ruleAllows(5, 6), '跨行不相邻应允许');
     assert.ok(engine.ruleAllows(0, 1), '相邻当然也允许');
   });
 
   it('噩梦模式只接受 1 格位移（上下左右），对角线与隔一格都不算', () => {
-    const engine = new PuzzleEngine(nightmareConfigOf(4, 4), new Rng(3));
+    const engine = new PuzzleEngine(nightmareConfigOf(...GRIDS[1]!), new Rng(3));
     assert.ok(engine.ruleAllows(0, 1), '左右相邻应允许');
     assert.ok(engine.ruleAllows(0, 4), '上下相邻应允许');
     assert.ok(!engine.ruleAllows(0, 5), '对角线不算相邻');
@@ -45,7 +53,7 @@ describe('engine —— 移动规则（简单模式任意距离 / 困难模式�
   });
 
   it('噩梦模式下位移超过 1 格被拒绝，且棋盘、得分完全不变', () => {
-    const engine = new PuzzleEngine(nightmareConfigOf(4, 4), new Rng(5));
+    const engine = new PuzzleEngine(nightmareConfigOf(...GRIDS[1]!), new Rng(5));
     const before = engine.board.toArray();
     const outcome = engine.move(0, 5);
     assert.strictEqual(outcome.accepted, false, '对角线不是 1 格位移，应被拒绝');
@@ -55,7 +63,7 @@ describe('engine —— 移动规则（简单模式任意距离 / 困难模式�
   });
 
   it('噩梦模式下 1 格位移被接受', () => {
-    const engine = new PuzzleEngine(nightmareConfigOf(4, 4), new Rng(5));
+    const engine = new PuzzleEngine(nightmareConfigOf(...GRIDS[1]!), new Rng(5));
     assert.strictEqual(engine.move(0, 1).accepted, true);
   });
 
@@ -85,7 +93,7 @@ describe('engine —— 标定接口 minSwapsToCompleteTarget（M8 方案A）', 
   });
 
   it('是纯计算：调用后棋盘、得分、消除数完全不变', () => {
-    const engine = new PuzzleEngine(configOf(5, 4), new Rng(7));
+    const engine = new PuzzleEngine(configOf(...GRIDS[2]!), new Rng(7));
     const before = engine.board.toArray();
     engine.minSwapsToCompleteTarget();
     assert.deepStrictEqual(engine.board.toArray(), before);
@@ -94,7 +102,7 @@ describe('engine —— 标定接口 minSwapsToCompleteTarget（M8 方案A）', 
   });
 
   it('配合「任意交换」规则：交换后仍能算出下一步最少交换数', () => {
-    const engine = new PuzzleEngine(configOf(5, 4), new Rng(11));
+    const engine = new PuzzleEngine(configOf(...GRIDS[2]!), new Rng(11));
     engine.move(0, 19);
     const swaps = engine.minSwapsToCompleteTarget();
     assert.ok(swaps !== null && swaps >= 0 && swaps <= 4);
@@ -103,20 +111,20 @@ describe('engine —— 标定接口 minSwapsToCompleteTarget（M8 方案A）', 
 
 describe('engine —— 移动事务（§6.1 / §6.3）', () => {
   it('任意两个格子（含非相邻）移动都被接受', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(1));
+    const engine = new PuzzleEngine(configOf(...GRIDS[0]!), new Rng(1));
     const out = engine.move(0, 5); // (0,0) ↔ (1,1) 斜对角
     assert.strictEqual(out.accepted, true);
   });
 
   it('原地不动（anchor === target）被拒绝', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(2));
+    const engine = new PuzzleEngine(configOf(...GRIDS[0]!), new Rng(2));
     const out = engine.move(3, 3);
     assert.strictEqual(out.accepted, false);
     assert.strictEqual(out.rejectReason, 'same');
   });
 
   it('1 格位移被接受，且移动后棋盘仍然满格', () => {
-    const engine = new PuzzleEngine(configOf(3, 4), new Rng(3));
+    const engine = new PuzzleEngine(configOf(...GRIDS[0]!), new Rng(3));
     const out = engine.move(0, 1);
     assert.strictEqual(out.accepted, true);
     assert.strictEqual(engine.board.emptyIndices().length, 0);

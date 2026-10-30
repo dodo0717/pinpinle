@@ -7,12 +7,16 @@ import { poolSnapshot } from '../assets/scripts/core/pools';
 import { Rng } from '../assets/scripts/core/rng';
 
 const CONFIGS = buildLevelConfigs();
-/** 全表实际使用的三种段位（每行 ≤4、每列 ≤5，24 格段位已取消） */
-const GRIDS: Array<[number, number]> = [
-  [3, 4],
-  [4, 4],
-  [5, 4],
-];
+/**
+ * 全表实际使用的段位 —— **从配置派生，不写死**（同 engine.test.ts）。
+ * 2026-10-30：原先写死 `[[3,4],[4,4],[5,4]]`，而第 1~15 关已改为 `4×3`，
+ * 导致 `configOf(3,4)` 抛「缺少配置」、整组测试连带失败。
+ */
+const GRIDS: Array<[number, number]> = Array.from(
+  new Map(
+    CONFIGS.map((c) => [`${c.rows}×${c.cols}`, [c.rows, c.cols] as [number, number]]),
+  ).values(),
+);
 
 function configOf(rows: number, cols: number) {
   const cfg = CONFIGS.find((c) => c.rows === rows && c.cols === cols);
