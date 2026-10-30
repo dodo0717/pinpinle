@@ -71,10 +71,32 @@ function minify(file, out, quality, vf) {
 const groups = [
   {
     label: '贴纸',
-    src: join(ROOT, 'assets', 'resources'),
+    // ⚠️ 2026-10-30：源目录从 `assets/resources`（整个 resources 递归）收窄为 `stickers`，
+    //    因为 resources 下还有 map/ ui/ 两个独立用途的目录，混在一起会输出同名且难用的路径。
+    src: join(ROOT, 'assets', 'resources', 'stickers'),
     dst: join(OUT, 'stickers'),
     quality: 82,
     // 图鉴有大图预览（全屏看），缩到 320 会软 → 只转格式，保留 512
+    vf: null,
+  },
+  {
+    // ⚠️ 2026-10-30 新增：15 张世界底图（1080×3840），是 Cocos 端第二大的包体来源。
+    //    实测（本机 ffmpeg libwebp）：1080 宽 q76 → 合计 7.60 MB；q70 → 6.71 MB；
+    //    降到 810 宽 q72 → 4.15 MB。默认走「不降分辨率」的 q76，
+    //    若将来需要塞进单个分包（≤4 MB），把 vf 改成 'scale=810:-1' 再重跑即可。
+    label: '世界底图',
+    src: join(ROOT, 'assets', 'resources', 'map'),
+    dst: join(OUT, 'map'),
+    quality: 76,
+    vf: null,
+  },
+  {
+    // ⚠️ 2026-10-30 新增：Cocos 端 UI 切图（assets/resources/ui，目录名是中文）。
+    //    实测 PNG 2.48 MB → WebP q80 = 0.17 MB（扁平色 + 大面积透明，压缩率极高）。
+    label: '界面切图',
+    src: join(ROOT, 'assets', 'resources', 'ui'),
+    dst: join(OUT, 'ui'),
+    quality: 80,
     vf: null,
   },
   {
@@ -123,6 +145,7 @@ console.log(
   `\n合计 ${(totalBefore / 1048576).toFixed(1)} MB → ${afterMB.toFixed(1)} MB（省 ${(100 - (totalAfter / totalBefore) * 100).toFixed(0)}%）`,
 );
 console.log(`输出：${OUT}`);
-console.log(
-  `微信小游戏：主包 ≤ 4 MB，总包 ≤ 20 MB → ${afterMB < 20 ? '可分包容纳，无需 CDN' : '仍需 CDN 或进一步压缩'}`,
-);
+// ⚠️ `UI 切图`（源：web/art）是 **web 预览版**用的，不计入 Cocos 小游戏素材；
+//    Cocos 端只取 贴纸 / 世界底图 / 界面切图 三组（见 docs/小游戏包体方案.md）。
+console.log('小游戏素材只看 贴纸 + 世界底图 + 界面切图 三组（web/art 属 web 预览版，不计入）。');
+console.log('微信主包 ≤ 4 MB、单分包 ≤ 4 MB、总包 ≤ 20 MB → 还需按 bundle 拆分，详见 docs/小游戏包体方案.md。');
