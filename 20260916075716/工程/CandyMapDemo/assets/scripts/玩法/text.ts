@@ -96,8 +96,15 @@ export const GUIDE = {
 export const COLLECTION = {
   title: '图鉴',
   progress: (n: number, total: number) => `已收集 ${n} / ${total}`,
+  /** 2026-10-30 补：与 web/ui/text.ts 的字段名对齐（整屏图鉴用） */
+  collected: (n: number, total: number) => `已收集 ${n} / ${total}`,
   locked: '通关对应关卡即可解锁',
   lockedHint: '？？？',
+  /** 点未解锁格子时的轻提示（Web 版 lockedToast） */
+  lockedToast: '通关对应关卡即可解锁',
+  download: '保存图片',
+  share: '分享',
+  back: '返回',
 } as const;
 
 export const BOARD = {

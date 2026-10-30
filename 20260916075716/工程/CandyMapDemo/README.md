@@ -201,7 +201,17 @@
       `window.setTimeout` → 全局 `setTimeout`（可移植性守卫抓获）。
     - 验证：216/216 单测；`game.html` 冒烟——startTutorial → 摆盘(target 0/gap 7 不挨着) →
       拼成 → step2+聚光灯 → 继续 → 倒计时演示 → 二次聚光灯，**零 JS 异常**。
-  - **待办**：教学抽屉/首页入口挂接 `MapBootstrap`（地图页需 Creator 验证）；③~⑧ 批次继续。
+  - **④ 关卡详情吊牌（已完成）**：新增 `界面/LevelPreview.ts`（麻绳 + 木牌下落 tween、难度切换、
+    1★/3★ 星线、Play；困难门槛 = 本关简单模式先拿 3 星，否则置灰 + 🔒 且点了不切）。
+    `MapBootstrap` 的「开始游戏」由直接进关改为先吊牌（handlers 里 `canNightmare` 用
+    `recordOf(progress, level).stars >= 3`，星线取自 `buildLevelConfigs(mode)`）。
+  - **⑤ 图鉴整屏（已完成）**：新增 `界面/CollectionScreen.ts`（3 列 × 36 行 = 108 格，
+    `ScrollView` 竖向滚动，卡底三色轮换程序绘制、贴纸复用 `stickers/sticker_N/spriteFrame`）
+    + `界面/PreviewScreen.ts`（大图 + 动物/心情/台词 + 保存/分享；保存分享只发事件不碰平台 API）。
+    取代原灰盒文字弹窗；首次点页签才创建（108 张缩略图不在进地图时加载）。
+    保存/分享在小游戏端待接 wx 能力（当前轻提示占位）。
+  - **待办**：③ 地图 180 关 + 教学抽屉/首页入口挂接 `MapBootstrap`（地图页需 Creator 验证）；
+    ⑥ 排行榜整屏；⑦ 设置整屏 + 结算吊牌；⑧ 分享/广告/埋点 + Creator 构建。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，

@@ -2,6 +2,9 @@ import { _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, 
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { HomeHUD } from '../界面/HomeHUD';
+import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
+import { CollectionScreen } from '../界面/CollectionScreen';
+import { PreviewScreen } from '../界面/PreviewScreen';
 import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
@@ -134,6 +137,11 @@ export class MapBootstrap extends Component {
     private countdownLabel: Label = null!;
     private dialog: GameDialog = null!;
     private toast: ToastLayer = null!;
+    /** 关卡详情吊牌（点「开始游戏」先吊下来，再按 Play 进关） */
+    private preview: LevelPreview = null!;
+    /** 图鉴整屏 / 大图预览（懒创建：首次点图鉴页签才建） */
+    private collection: CollectionScreen = null!;
+    private previewScreen: PreviewScreen = null!;
 
     onLoad() {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
@@ -671,7 +679,7 @@ export class MapBootstrap extends Component {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
         this.applyTab();
         if (i === 1) this.showBoardPanel();
-        else if (i === 2) this.showCollectionPanel();
+        else if (i === 2) this.showCollectionScreen();
         else if (i === 3) this.showSettingsPanel();
     }
 
@@ -688,17 +696,36 @@ export class MapBootstrap extends Component {
         this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
     }
 
-    /** 图鉴：36 格，已解锁显示图号，未解锁显示问号 */
-    private showCollectionPanel() {
-        const ids = new Set(unlockedImageIds(GS.progress));
-        const lines = [COLLECTION.progress(ids.size, COLLECTION_TOTAL)];
-        let row = '';
-        for (let i = 0; i < COLLECTION_TOTAL; i++) {
-            row += ids.has(i) ? `[${String(i + 1).padStart(2, '0')}] ` : '[??] ';
-            if ((i + 1) % 6 === 0) { lines.push(row.trimEnd()); row = ''; }
+    /**
+     * 图鉴整屏（取代原来的灰盒文字弹窗）—— 3 列网格 + 滚动 + 点开大图预览。
+     * 首次点击才创建：108 张缩略图不该在进地图时就全加载。
+     */
+    private showCollectionScreen() {
+        if (!this.collection) {
+            this.collection = CollectionScreen.create(this.node, {
+                onBack: () => { this.collection.hide(); this.previewScreen?.hide(); },
+                onOpen: (imageId) => this.openPreviewScreen(imageId),
+                onLockedTip: () => this.toast.show(COLLECTION.lockedToast, 1800),
+            });
+            this.collection.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
-        if (row) lines.push(row.trimEnd());
-        this.dialog.show(COLLECTION.title, lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
+        if (!this.previewScreen) {
+            this.previewScreen = PreviewScreen.create(this.node, {
+                onBack: () => this.previewScreen?.hide(),
+                // 保存/分享是小游戏平台能力，Cocos 端先给轻提示，接 wx 能力时替换这里
+                onDownload: () => this.toast.show(COLLECTION.download + '（待接入小游戏能力）', 2000),
+                onShare: () => this.toast.show(COLLECTION.share + '（待接入小游戏能力）', 2000),
+            });
+            this.previewScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
+        }
+        this.collection.render(new Set(unlockedImageIds(GS.progress)), COLLECTION_TOTAL);
+        this.collection.show();
+    }
+
+    private openPreviewScreen(imageId: number): void {
+        if (!this.previewScreen) return;
+        this.previewScreen.render(imageId);
+        this.previewScreen.show();
     }
 
     /** 设置：音效 / 背景音乐 / 重置存档 */
@@ -726,6 +753,34 @@ export class MapBootstrap extends Component {
     private buildUI() {
         this.mountHUD();
         this.createPlayButton();
+        this.createLevelPreview();
+    }
+
+    /**
+     * 关卡详情吊牌（对应 web/ui/levelPreview.ts）：显示关卡号、难度切换、1★/3★ 星线、Play。
+     * 困难模式有门槛 —— 本关简单模式没拿到 3 星时按钮置灰 + 🔒，点了也不切模式。
+     */
+    private createLevelPreview(): void {
+        this.preview = LevelPreview.create(this.node, {
+            starLines: (level, mode) => {
+                const cfg = buildLevelConfigs(mode)[level - 1];
+                return cfg ? [cfg.star1, cfg.star2, cfg.star3] as const : undefined;
+            },
+            onMode: (mode) => {
+                // 难度切换是全局的（换模式解锁范围会变），所以走地图原有的 setDifficulty
+                this.setDifficulty(mode === 'nightmare' ? 1 : 0);
+            },
+            canNightmare: (level) => recordOf(GS.progress, level).stars >= 3,
+            onClose: () => { /* 收起吊牌即可，地图不重建 */ },
+            onPlay: (level) => this.enterLevel(level),
+        });
+        // 吊牌必须压在 HUD / 关卡节点之上
+        this.preview.rootNode().setSiblingIndex(this.node.children.length - 1);
+    }
+
+    /** 「开始游戏」→ 吊出关卡详情牌（不再直接进关） */
+    private openPreview(level: number): void {
+        this.preview.open(level, (this.diffIndex === 1 ? 'nightmare' : 'normal') as LevelMode);
     }
 
     /**
@@ -764,7 +819,7 @@ export class MapBootstrap extends Component {
         this.playLabel = lb;
 
         n.on(Node.EventType.TOUCH_END, () => {
-            if (this.selectedLevel > 0) this.enterLevel(this.selectedLevel);
+            if (this.selectedLevel > 0) this.openPreview(this.selectedLevel);
         }, this);
 
         this.playBtn = n;
