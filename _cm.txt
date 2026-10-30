@@ -1,0 +1,21 @@
+chore: 清理包体 —— 旧 Cocos 端与旧素材归档到本地「旧文件及素材」（不删除、不入库）
+
+工程体积 142.3 MB → 65.5 MB（-76.8 MB）。
+
+移出（**未删除**，本地归档到 d:\拼拼乐项目\旧文件及素材\，该目录已加 .gitignore）：
+- 两个备份目录 43MB（旧贴纸 stickers_backup 24.8MB + 旧底图 map-v2_backup 18.5MB）
+- 旧 Cocos 端：assets/scenes、assets/scripts/场景（含 13.8MB 旧小镇图/动效）、
+  assets/scripts/玩法、assets/scripts/界面、settings/（Cocos 工程设置）、_backup
+- 旧资源：assets/resources/font（15.6MB 字体，web 版无任何 @font-face 引用）、
+  map（1.5MB）、ui（2.5MB）、layout（引用已移走的 ui/顶栏）
+- 旧预览页 preview/index.html、play.html、game.html（现用入口是 web/index.html）
+- 旧埋点日志 logs/
+
+保留：
+- web/（现用）、assets/scripts/核心（共享算法层）、assets/resources/stickers（108 张在用）
+- preview/serve.mjs（本地服务）与 preview/cc-shim.js（test 依赖）
+- test/、tools/（含路中线标定工具 balloon_locate / png_locate / scale_match，待办还要用）
+
+验证：
+- 关键资源全部 HTTP 200：贴纸 sticker_0/107、底图 town/starcastle、UI 图 mode-normal/card-blue/medal-1、ui.css、main.ts、核心/index.ts
+- web/ 与 tools/ 共 70 条相对 import，目标文件全部存在（归档未破坏引用链）
