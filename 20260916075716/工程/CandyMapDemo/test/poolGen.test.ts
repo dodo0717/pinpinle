@@ -15,7 +15,7 @@ import {
   moodCountsOfLevel,
 } from '../assets/scripts/core/index';
 
-/** 素材齐全：36 张全到货 */
+/** 素材齐全：全部素材到货（张数从台账取，不写死） */
 const FULL = allArtIds();
 /** 第一批到货：编号 0~10（猫 6 张 + 其余 5 只动物各 1 张） */
 const FIRST_BATCH = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];

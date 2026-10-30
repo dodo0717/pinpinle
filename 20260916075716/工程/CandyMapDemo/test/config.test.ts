@@ -241,7 +241,7 @@ describe(`设计表落地（网格 / 图池构成 / 只数 / 备注）—— 共
 });
 
 describe('玩法模式（普通 / 噩梦）', () => {
-  it('简单模式用任意交换，困难模式用相邻交换，都重刷 60 关', () => {
+  it('简单模式用任意交换，困难模式用相邻交换，都重刷全部关卡', () => {
     const normal = buildLevelConfigs('normal');
     const nightmare = buildLevelConfigs('nightmare');
     assert.strictEqual(normal.length, TOTAL_LEVELS);
@@ -278,7 +278,7 @@ describe('玩法模式（普通 / 噩梦）', () => {
     }
   });
 
-  it('噩梦星线表覆盖 1~60 关且逐关严格递增（噩梦难度需单独考虑，见 README §5.3）', () => {
+  it('噩梦星线表覆盖全部关卡且逐关严格递增（噩梦难度需单独考虑，见 README §5.3）', () => {
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       const line = NIGHTMARE_STAR_LINES[level];
       assert.ok(line, `第${level}关缺少噩梦星线`);
@@ -288,7 +288,7 @@ describe('玩法模式（普通 / 噩梦）', () => {
     }
   });
 
-  it('星线表覆盖 1~60 关，逐关严格递增，且与配置逐关一致（§8.4）', () => {
+  it('星线表覆盖全部关卡，逐关严格递增，且与配置逐关一致（§8.4）', () => {
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       const [s1, s2, s3] = LEVEL_STAR_LINES[level]!;
       assert.ok(s1 >= 1, `第${level}关 1★ 线必须 ≥1`);
@@ -305,7 +305,7 @@ describe('玩法模式（普通 / 噩梦）', () => {
 });
 
 describe('config —— 配置与校验（§5.4 / §8.4 / §10.2）', () => {
-  it('内置 60 关配置全部通过校验（0 条问题）', () => {
+  it('内置全部关卡配置通过校验（0 条问题）', () => {
     assert.deepStrictEqual(validateLevelConfigs(buildLevelConfigs()), []);
   });
 

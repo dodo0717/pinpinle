@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   HONOR_RULE,
+  TOTAL_LEVELS,
   boardSnapshot,
   honorForLevel,
   honorOf,
@@ -107,7 +108,8 @@ describe('M9 · 三档判定（§三 / §四）', () => {
 
 describe('M9 · 灰盒数据源（100 名模拟玩家）', () => {
   it('模拟分数全部 ≥ 本关 3★ 线，且人数固定', () => {
-    for (const level of [1, 15, 35, 60]) {
+    // 末关用 TOTAL_LEVELS 派生，不写死 60（关卡会继续扩充）
+    for (const level of [1, 15, 35, TOTAL_LEVELS]) {
       const scores = mockBoardScores(level, LINE);
       assert.strictEqual(scores.length, HONOR_RULE.mockPlayers);
       assert.ok(scores.every((s) => s >= LINE.star3), `第${level}关出现低于 3★ 线的分数`);

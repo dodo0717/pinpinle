@@ -196,14 +196,14 @@ test('两套模式的星数合并计算（切模式不影响图鉴）', () => {
   assert.deepEqual(unlockedImageIds(normal), [0]); // 只算一份时仍是 12 星
 });
 
-test('解锁张数上限 = 36 张（两模式 60 关满星 = 360 星）', () => {
+test('解锁张数上限 = 图鉴总数（两模式全部关卡满星）', () => {
   const all = Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1);
   const ids = unlockedImageIds(progressWithCleared(all), progressWithCleared(all));
   assert.equal(ids.length, COLLECTION_TOTAL);
   assert.equal(ids[ids.length - 1], COLLECTION_TOTAL - 1);
 });
 
-test('第 37 关之后不再有图鉴奖励（§10.2 只配到第 36 关）', () => {
+test('超过奖励关上限之后不再有图鉴奖励（§10.2 只配到 REWARD_LEVELS 关）', () => {
   assert.equal(LEVEL_REWARD_CONFIG[REWARD_LEVELS + 3], undefined);
   assert.equal(rewardImageOfLevel(REWARD_LEVELS + 3), undefined);
 });
@@ -312,7 +312,7 @@ test('排行榜「挑战本关」：未通关 / 未解锁 / 素材不足都必�
 
 /* ------------------------------------------------------------------ 段位表（§8.1） */
 
-test('段位表边界正确（含 60 关与越界）', () => {
+test(`段位表边界正确（含第 ${TOTAL_LEVELS} 关与越界）`, () => {
   assert.equal(tierOfLevel(1), '新手村');
   assert.equal(tierOfLevel(3), '新手村');
   assert.equal(tierOfLevel(4), '入门');
@@ -326,6 +326,8 @@ test('段位表边界正确（含 60 关与越界）', () => {
   assert.equal(tierOfLevel(36), '大师');
   assert.equal(tierOfLevel(50), '大师');
   assert.equal(tierOfLevel(51), '传说');
-  assert.equal(tierOfLevel(60), '传说');
-  assert.equal(tierOfLevel(61), '—');
+  // ⚠️ 末关与越界一律用 TOTAL_LEVELS 派生：原先写死 60/61，关卡扩到 180 后
+  //    第 61 关及以后会拿到 '—'（段位表末段没跟着扩），测试却仍判通过
+  assert.equal(tierOfLevel(TOTAL_LEVELS), '传说');
+  assert.equal(tierOfLevel(TOTAL_LEVELS + 1), '—');
 });
