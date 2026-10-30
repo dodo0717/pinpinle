@@ -10,7 +10,7 @@
  * 微信小游戏里会换成 `wx.shareAppMessage`（M8），所以这里把能力判断收在 `shareFiles()` 一处。
  */
 
-import { GAME_LINK, TITLE, tierOfLevel } from './text.ts';
+import { GAME_LINK, TITLE } from './text.ts';
 import { el, stickerURL, toast } from './dom.ts';
 
 function canShareFiles(file: File): boolean {
@@ -106,7 +106,7 @@ function drawScoreCard(input: ScoreCardInput): HTMLCanvasElement {
 
   ctx.font = '30px "PingFang SC", "Microsoft YaHei", sans-serif';
   ctx.fillStyle = '#a9835c';
-  ctx.fillText(`第 ${input.level} 关 · ${tierOfLevel(input.level)}`, W / 2, 280);
+  ctx.fillText(`第 ${input.level} 关`, W / 2, 280);
 
   // 星级
   ctx.font = '72px "PingFang SC", "Microsoft YaHei", sans-serif';

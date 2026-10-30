@@ -140,6 +140,16 @@
   ⚠️ 测试原先写死 `tierOfLevel(61) === '—'`（把「只有 60 关」当成了预期），**正好掩盖了这个
   问题** —— 改成 `TOTAL_LEVELS` / `TOTAL_LEVELS + 1` 后才会暴露。另把测试标题/注释里残留的
   「60 关」「36 张」措辞一并去掉（断言早已派生，只是描述过时）。
+- **2026-10-30（关卡段位规则整体移除，用户拍板）**：上面的修复暴露了更根本的问题 —— 段位表
+  （新手村→…→传说）本按 60 关设计，扩到 180 关后末段 51~180 全挤在「传说」，**已无区分度**。
+  用户确认「段位已经没有意义了」，故**整体删除**：
+  - 删 `web/ui/text.ts` 的 `TIERS` + `tierOfLevel()`（⚠️ `TOTAL_LEVELS` 的 import 保留，
+    `COLLECTION.unlockedCount` 还在用）；排行榜步进器去掉「· 档位」节点（`.lb-tier`）与样式；
+    分享图第二行「第 N 关 · 档位」改为「第 N 关」（`share.ts`）。
+  - 测试：`meta.test.ts` 段位表用例改为「断言 `tierOfLevel` 已不导出」，`ui-modules.test.ts`
+    导出清单同步。⚠️ **荣誉档位（`HONOR.tierLabel`：超神/王者/优秀）是另一套规则，保留**。
+  - 验证：单测 216/216；浏览器实测关卡榜直跳第 120 关，步进器显示「◀ 第 120 关 ▶」无残留
+    档位文案，零 JS 异常。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，

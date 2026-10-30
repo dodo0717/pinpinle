@@ -55,7 +55,7 @@ test('web/ui 每个模块都能被 import，且对外入口齐全', async () => 
   }
 
   const text = await import('../web/ui/text.ts');
-  for (const name of ['HOME', 'COLLECTION', 'LEADERBOARD', 'SETTINGS', 'SETTLEMENT', 'HONOR', 'FAIL', 'REVIVE', 'ADS', 'GUIDE', 'SAVE', 'STAR_PHRASE', 'tierOfLevel', 'VERSION', 'TITLE']) {
+  for (const name of ['HOME', 'COLLECTION', 'LEADERBOARD', 'SETTINGS', 'SETTLEMENT', 'HONOR', 'FAIL', 'REVIVE', 'ADS', 'GUIDE', 'SAVE', 'STAR_PHRASE', 'VERSION', 'TITLE']) {
     assert.ok(name in text, `text.${name} 缺失`);
   }
 

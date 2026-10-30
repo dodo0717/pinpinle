@@ -14,7 +14,7 @@
  */
 
 import { Rng, mockBoardNames, TOTAL_LEVELS, type LevelStatus } from '../../assets/scripts/核心/index.ts';
-import { LEADERBOARD, tierOfLevel } from './text.ts';
+import { LEADERBOARD } from './text.ts';
 import { buttonEl, el, toast } from './dom.ts';
 
 /** 《通关及排名》§七：每页 20 名（保留常量，逻辑页签已改为滚动列表） */
@@ -194,15 +194,15 @@ export function createLeaderboardScreen(handlers: LeaderboardHandlers): Leaderbo
   card.appendChild(tabs);
 
   // ⚠️ 这一行是**原有功能**（换肤不能丢）：
-  // 左 = 关卡步进器「◀ 第 N 关 · 档位 ▶」（下拉可直跳，◀▶ 逐关步进，到头置灰）
+  // 左 = 关卡步进器「◀ 第 N 关 ▶」（下拉可直跳，◀▶ 逐关步进，到头置灰）
+  // ⚠️ 2026-10-30：原先这里还有个「· 档位」（tierOfLevel），段位规则已去掉
   const meta = el('div', 'lb-meta');
   const levelBar = el('div', 'lb-header');
   const headerPrev = buttonEl('◀', 'lb-step', () => show(current - 1));
   const levelSel = el('select', 'lb-level-select') as HTMLSelectElement;
   levelSel.addEventListener('change', () => show(Number(levelSel.value)));
-  const levelTier = el('span', 'lb-tier');
   const headerNext = buttonEl('▶', 'lb-step', () => show(current + 1));
-  levelBar.append(headerPrev, levelSel, levelTier, headerNext);
+  levelBar.append(headerPrev, levelSel, headerNext);
   meta.appendChild(levelBar);
   meta.hidden = true;   // 默认总分榜，步进器整行隐藏（成绩单独占一行）
   card.appendChild(meta);
@@ -408,7 +408,6 @@ export function createLeaderboardScreen(handlers: LeaderboardHandlers): Leaderbo
       if (i === current) opt.selected = true;
       levelSel.appendChild(opt);
     }
-    levelTier.textContent = `· ${tierOfLevel(current)}`;
     headerPrev.classList.toggle('dim', current <= 1);
     headerNext.classList.toggle('dim', current >= maxLevel);
     render();

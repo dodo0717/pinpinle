@@ -404,30 +404,6 @@ export const SAVE = {
     `存档 ${kind} · 写入 ${writes} 次 · 因动画推迟 ${deferred} 次`,
 } as const;
 
-/* ---------------------------------------------------------------- 段位（§8.1） */
-
-/**
- * 关卡段位名（§8.1 段位表）。
- * ⚠️ 策划案在原表下注明「此表待策划最终确认」—— 表若定稿，只改这一处。
- */
-const TIERS: ReadonlyArray<readonly [number, number, string]> = [
-  [1, 3, '新手村'],
-  [4, 6, '入门'],
-  [7, 15, '进阶'],
-  [16, 20, '高手'],
-  [21, 35, '精英'],
-  [36, 50, '大师'],
-  // ⚠️ 2026-10-30 修：末段原先写死到第 60 关，而关卡已扩到 TOTAL_LEVELS(180) 关
-  //    —— 第 61 关及以后 tierOfLevel() 返回 '—'，排行榜「· 档位」会显示成「· —」。
-  //    上限改接 TOTAL_LEVELS，以后继续加关卡自动覆盖。
-  [51, TOTAL_LEVELS, '传说'],
-];
-
-export function tierOfLevel(level: number): string {
-  const hit = TIERS.find(([from, to]) => level >= from && level <= to);
-  return hit ? hit[2] : '—';
-}
-
 /* ---------------------------------------------------------------- 关卡地图（测试件） */
 
 /**

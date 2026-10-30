@@ -51,7 +51,7 @@ import {
   COLLECTION_TOTAL,
 } from '../web/ui/meta.ts';
 import { challengeState } from '../web/ui/leaderboard.ts';
-import { tierOfLevel } from '../web/ui/text.ts';
+import * as textModule from '../web/ui/text.ts';
 
 const T0 = new Date('2026-09-11T10:00:00').getTime();
 const MINUTE = 60 * 1000;
@@ -310,24 +310,13 @@ test('排行榜「挑战本关」：未通关 / 未解锁 / 素材不足都必�
   assert.ok(unplayable.hint.includes('素材'), `提示应当说明素材不足，实际是「${unplayable.hint}」`);
 });
 
-/* ------------------------------------------------------------------ 段位表（§8.1） */
+/* ------------------------------------------------------------------ 段位（§8.1） */
 
-test(`段位表边界正确（含第 ${TOTAL_LEVELS} 关与越界）`, () => {
-  assert.equal(tierOfLevel(1), '新手村');
-  assert.equal(tierOfLevel(3), '新手村');
-  assert.equal(tierOfLevel(4), '入门');
-  assert.equal(tierOfLevel(6), '入门');
-  assert.equal(tierOfLevel(7), '进阶');
-  assert.equal(tierOfLevel(15), '进阶');
-  assert.equal(tierOfLevel(16), '高手');
-  assert.equal(tierOfLevel(20), '高手');
-  assert.equal(tierOfLevel(21), '精英');
-  assert.equal(tierOfLevel(35), '精英');
-  assert.equal(tierOfLevel(36), '大师');
-  assert.equal(tierOfLevel(50), '大师');
-  assert.equal(tierOfLevel(51), '传说');
-  // ⚠️ 末关与越界一律用 TOTAL_LEVELS 派生：原先写死 60/61，关卡扩到 180 后
-  //    第 61 关及以后会拿到 '—'（段位表末段没跟着扩），测试却仍判通过
-  assert.equal(tierOfLevel(TOTAL_LEVELS), '传说');
-  assert.equal(tierOfLevel(TOTAL_LEVELS + 1), '—');
+// ⚠️ 2026-10-30：关卡段位规则已按用户要求**整体移除**（`tierOfLevel` / `TIERS` 从
+// `web/ui/text.ts` 删除）。原因：关卡扩充到 180 关后，段位表末段（51~180 全「传说」）
+// 已失去区分度。相关用例随之删除；荣誉档位（`HONOR.tierLabel` 超神/王者/优秀）是另一套
+// 规则，**不受影响**，仍在下面单独校验。
+test('不再导出关卡段位接口（段位规则已移除）', () => {
+  const mod = textModule as Record<string, unknown>;
+  assert.equal(mod['tierOfLevel'], undefined, 'tierOfLevel 应已删除');
 });
