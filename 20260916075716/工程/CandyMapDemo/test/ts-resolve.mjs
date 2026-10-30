@@ -13,6 +13,14 @@ import { fileURLToPath } from 'node:url';
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    // ⚠️ 2026-10-30 补：算法层目录从 `core` 改名为「核心」，但 test/*.test.ts 里的 import
+    // 仍写着 `../assets/scripts/core/...` —— 直接报 ERR_MODULE_NOT_FOUND，测试一行都跑不到。
+    // 这里做一层目录别名统一兜住（改 1 处即可，不用去改 11 个测试文件，也防以后再改名又全挂）。
+    // ⚠️ 只改写 specifier、不 return：改写后还要走下面「补 .ts 后缀」的逻辑 ——
+    // 算法层源码是无扩展名导入（`./config`），直接 nextResolve 会找不到文件。
+    if (specifier.includes('assets/scripts/core/')) {
+      specifier = specifier.replace('assets/scripts/core/', 'assets/scripts/核心/');
+    }
     if (specifier.startsWith('.') && context.parentURL) {
       const lastSegment = specifier.slice(specifier.lastIndexOf('/') + 1);
       if (lastSegment.length > 0 && !lastSegment.includes('.')) {

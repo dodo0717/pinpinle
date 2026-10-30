@@ -129,7 +129,11 @@
 /* 金框大卡：内部透出蓝天，网格在框内滚动 */
 .col-card {
   position: relative; flex: 1; min-height: 0;
-  margin: 8px 16px 158px; padding: 22px 14px 16px;
+  /* ⚠️ padding 必须大于金框切图（frame.png，100% 拉伸）的边框宽度（实测约占卡宽高 4~5%，
+     1080 设计分辨率下约 45~55px），否则首行/末行会被金框压住。
+     2026-10-30 二次修正：50 的底 padding 换算后与金框底边刚好贴线，末行仍被压住 → 加到 74；
+     横向 40 让开底部圆角（border-radius 118px 的弧线区域） */
+  margin: 8px 16px 158px; padding: 58px 40px 88px;
   display: flex; flex-direction: column;
   border-radius: 118px;
   background: linear-gradient(180deg, #5ea0e9 0%, #8dbcf0 55%, #c3e2fb 100%);
@@ -224,7 +228,8 @@
    底部 158px = 让开常驻页签栏（与 .screen.sheet 的 inset bottom 同口径） */
 .lb-card {
   position: relative; flex: 1; min-height: 0;
-  margin: 22px 27px 158px; padding: 40px 54px 50px;
+  /* ⚠️ 同 .col-card：padding 必须让开金框切图边框（约 45~55px）。底 88 给分页器留出与框底的余量 */
+  margin: 22px 27px 158px; padding: 54px 60px 88px;
   display: flex; flex-direction: column;
   border-radius: 118px;
   background: linear-gradient(180deg, #4e97e8 0%, #7fb4ee 55%, #b8dcfb 100%);
@@ -297,8 +302,8 @@
 .lb-mine-cell.c-score .lb-mine-v { color: #ffd54a; }
 .lb-mine-cell.c-star .lb-mine-v { color: #ffe066; }
 
-/* 分页器（《通关及排名》§七：每页 20 名） */
-.lb-pager { display: flex; align-items: center; justify-content: center; gap: 32px; padding: 6px 0 2px; flex: 0 0 auto; }
+/* 分页器（《通关及排名》§七：每页 20 名）。margin-top 让它与榜单末行留出间距，否则视觉上压着最后一行 */
+.lb-pager { display: flex; align-items: center; justify-content: center; gap: 32px; margin-top: 20px; padding: 6px 0 2px; flex: 0 0 auto; }
 .lb-page-btn {
   height: 66px; padding: 0 32px; border: 0; border-radius: 33px; cursor: pointer;
   font: inherit; font-size: 38px; font-weight: 800; color: #fff8e6;

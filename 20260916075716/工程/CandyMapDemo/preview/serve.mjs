@@ -95,6 +95,8 @@ http
       // no-store：改代码/素材后浏览器永远拿新的 —— 无头验证曾因缓存一直跑旧模块白折腾
       res.writeHead(200, {
         'Content-Type': MIME[path.extname(p).toLowerCase()] || 'application/octet-stream',
+        // ⚠️ 2026-10-30 补：静态文件以前没有 Cache-Control，浏览器会按启发式缓存长期留着，
+        //    改了 ui.css 后普通刷新甚至硬刷新都可能拿到旧的 —— 开发服务器一律不缓存
         'Cache-Control': 'no-store',
       });
       res.end(buf);

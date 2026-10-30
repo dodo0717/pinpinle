@@ -34,6 +34,8 @@
 > 2026-10-30 合并：`pure-code/minigame`（微信小游戏线）与 `main`（web 预览版 + 180 关 / 15 世界）合流。
 > 下面先列小游戏线的记录，再列 web 线的记录（原样保留）。
 
+- **2026-10-30（再合 main 11 个提交 → 分支 `merge/main2-into-minigame`）**：main 的包体清理把旧 Cocos 端和旧素材移到本地「旧文件及素材」。逐个核对后：小游戏在用的 `assets/scripts/玩法/` 12 个脚本（含 `geometry` / `saveManager` / `toast`）、`场景/MapBootstrap.ts`、`Map.scene`、`settings/v2/packages/project.json` 全部保留；main 删的旧 UI 切图 / 字体 / `HomeHUD` / `UIBuilder` / `LevelNode` / 旧预览页 `preview/game|index|play.html` 小游戏都不用，跟着删；main 的小镇分层浮层 `map/w1_*` 和挪到 `UI及角色/首页/小镇分层素材-来自main/` 的那批源素材，按 main 的口径移出仓库，本地留在 `旧文件及素材/`。其余带入：图鉴 / 排行榜金框边距修正（`web/ui.css`）、预览服务静态资源不缓存、`.gitignore` 新规则（`旧文件及素材/`、美术 zip）、单测目录别名修复。main 改的 4 个测试文件保留我们的版本（已按 180 关 / 4×3 改过，main 那边是同样口径的另一种写法）。测试 283 全过，冒烟通过，无头 Chrome 首页 8 块动画 + 12 关正常、无报错。
+
 - **2026-10-30（合入评审分支 `feat/product-review-optimizations` → `merge/gameplay-into-minigame`）**：合规 / 激励广告 / release 开关 / 排行分 / 金卡 / 章节宝箱 / 签到 / 每日挑战 / 回流 / 续命券 / 邀请 / 动效 / 埋点全部带入。规则冲突按 main：① 关卡时限用 main 的按关段（180 / 240 / 300 秒），评审分支只覆盖 60 关的逐关时长表 `LEVEL_TIME` 撤下，`timeLimitOf()` 保留签名改走 `timeLimitFor()`；② 续命加时用 main 的 `reviveSecondsFor(level)`（+60 / +90 / +120），计分侧 `onRevive` 照记；③ 困难模式解锁回到 3★（评审 P1-7 的 1★ 即开撤回）；④ 续命局回到恒记 1★（评审 P1-8 的最高 2★ 撤回），相关提示文案同步改。存档：main 的新手教学 `tutorial` 与评审分支的回访 `retention` 两段都保留；存档校验体力上限取 `STAMINA_MAX + MAX_STAMINA_BONUS`、时长上限取 `MAX_TIME_LIMIT`。⚠️ 评审分支按 60 关设计的数值未扩：章节宝箱只在第 40~60 关、金卡上限 36、每日挑战取第 4~30 关。
 
 - **2026-10-30（首页「一键回到当前关」）**：15 个世界翻远了不好找回来。地图左右换世界箭头中间加一个金色胶囊按钮「回到第 N 关」（N = 当前解锁到的关），只有不在当前关所在的世界或页时才显示。点了：在别的世界 → 走原有换世界动画切回去，换完自动定位到当前关那一页；同世界别的页 → 滑到那一页。文案在 `玩法/text.ts` 的 `MAP_TEXT.backToCurrent`。无头 Chrome 验证：起始页按钮隐藏；翻到另一页出现、点后回到原页并隐藏；切到第 6 个世界出现、点后回到小镇第 2 页并隐藏。255 测试通过。
@@ -267,6 +269,29 @@
 ### web 预览版线（main）
 
 
+- **2026-10-30（修「图鉴溢出框 / 排行榜分页器压行」，三次迭代）**：根因是 `.col-card` /
+  `.lb-card` 的 padding **小于金框切图（frame.png 以 100% 100% 拉伸铺满）的边框宽度**——
+  边框约占卡片宽高的 4~5%，1080 设计分辨率下约 45~55px，且框底还有 border-radius 118px
+  的圆角弧线，内容贴着边框时会被框条压住：
+  - 图鉴 `padding: 22px 14px 16px` → **58px 40px 88px**：原第一行顶出金框上沿、末行被框底
+    截断（108 贴纸后网格变 36 行，滚动区顶/底暴露更明显）；
+  - 排行榜 `padding: 40px 54px 50px` → **54px 60px 88px**，分页器加 `margin-top: 20px`
+    （原来与榜单末行间距为 0，视觉上压在一起）。
+  - ⚠️ **教训：第一轮修完看截图说"好了"，实际底 padding（50）换算后与金框底边刚好贴线，
+    末行仍被压住 —— 用户复看还是老样子**。"在框内"≠"看着没问题"：必须留出肉眼可见的余量，
+    并用 `getBoundingClientRect` 实测间距（首行距框顶 / 末行距框底 / pager 距框底）再下结论。
+  - **验证**：440×900 视口截图 + 盒模型实测（首行距框顶 23px、pager 距框底 33px、
+    pager 与列表间距 8px，屏幕像素）。
+  - ✅ **「结算页排版问题」已确认不是代码问题（2026-10-30 用户复核）**：用户在 **Chrome** 上
+    看到的错位，换 **Edge** 就完全正常 —— 是**浏览器缓存了旧 CSS**。清一次缓存即可，无需改代码。
+    排查期间也在 440×900 / 390×844 / 1280×900 三视口确认过续命弹窗与失败结算排版正常。
+  - 📌 **教训 2：让用户"刷新看效果"之前，先确认他用什么浏览器、缓存清没清** —— 这次用户用
+    Chrome（缓存旧样式）反馈"还是老样子"，而我全程用 Edge（无缓存）测的是好的，两边对不上
+    白折腾一轮。服务虽已加 `no-store`，但**对已经缓存进浏览器的旧资源无效，仍需用户硬刷新一次**
+    （Chrome/Edge：Ctrl+Shift+R）。
+  - 连带修复：`preview/serve.mjs` 静态资源补 `Cache-Control: no-store`（以前 CSS/图片无
+    缓存字段，浏览器启发式缓存导致改完样式用户刷新仍见旧布局）。
+
 网页预览版（`web/`，`node preview/serve.mjs` → `http://localhost:5181/web/index.html`）的改动，逐条记录见 **`web/UI_README.md` §8 更新日志**。要点：
 
 - **2026-10-21**：首页改正式皮肤（`web/art/home/`）；地图改 **5 世界 × 12 关**（每世界一张 1080×3840 底图 `web/art/map-v2/`，节点按 `ROAD_X` 路中线落位）；结算弹窗改吊牌骨架（新增 `web/ui/result.ts`）；顶部浮层 `✕` 关闭键统一；底部页签栏改常驻浮层。
@@ -297,6 +322,31 @@
     见 `web/UI_README.md` §32）；旧底图备份 `web/art/map-v2_backup_20261029/`。
   - ⚠️ **已知待办**：除小镇外 **14 张底图的路中线（`ROAD_X`）是居中曲线的兜底值**（自动标定两套办法
     都失败，根因是看不到图 + 各场景路面材质不同），需要人工目视校正 —— 改 `ROAD_X` 对应一行即可。
+- **2026-10-30（清理包体，旧文件归档到「旧文件及素材」）**：工程 **142.3 MB → 65.5 MB**（-76.8 MB）。
+  - ⚠️ **没有删除任何东西** —— 旧文件统一移到工作区外的 `d:\拼拼乐项目\旧文件及素材\`
+    （已加 `.gitignore`，**不入库**），随时可原样搬回：
+    ① 两个备份目录 **43MB**（旧贴纸 24.8 + 旧底图 18.5）；
+    ② 旧 Cocos 端：`assets/scenes`、`scripts/场景`（13.8MB 旧小镇图/动效）、`scripts/玩法`、
+       `scripts/界面`、`settings/`、`_backup`；
+    ③ 旧资源：`resources/font`（15.6MB —— web 版搜不到任何 `@font-face` 引用）、
+       `map` 1.5MB、`ui` 2.5MB、`layout`（引用已移走的 `ui/顶栏`）；
+    ④ 旧预览页 `preview/index|play|game.html`（现用入口是 `web/index.html`）；⑤ 旧埋点日志 `logs/`。
+  - ⚠️ **保留**：`web/`、`assets/scripts/核心`（共享算法层）、`assets/resources/stickers`（108 张在用）、
+    `preview/serve.mjs`（本地服务）+ `preview/cc-shim.js`（`test/` 依赖）、`test/`、`tools/`
+    （含路中线标定工具 `balloon_locate` / `png_locate` / `scale_match` —— 路中线待办还要用）。
+  - **验证**：关键资源全部 HTTP 200（贴纸 `sticker_0/107`、底图 `town/starcastle`、UI 图、`main.ts`、
+    `核心/index.ts`）；`web/` 与 `tools/` 共 **70 条相对 import 目标全部存在**，引用链未破坏。
+  - 📌 扫描过程教训：**「按文件名扫引用」不可靠** —— 会把 15 张正在用的 `map-v2` 底图误判成未引用
+    （它们按 `art` key 拼路径）。本次改为「按目录核对 + 实际 HTTP 请求验证」，不做自动删除。
+  - 📌 **后续可做（要出发布包时）**：包体 **71% 是贴纸**（108 张 512×512 PNG，平均 434 KB/张）。
+    出包前建议加**双份兜底**：额外转一份 WebP（同画质约省 50~70%，46.8 → 15~23 MB），
+    加载时**优先取 WebP、不支持则回退 PNG**。
+    - 探测方式：`document.createElement('canvas').toDataURL('image/webp').startsWith('data:image/webp')`
+      —— 一个 canvas 就能判，不用发请求。
+    - 改动点：贴纸路径是**动态拼**的（`sticker_${id}.png`），改格式要同步改拼路径那一处；
+      用 `<picture>` 也行，但贴纸是 JS 里按 ID 生成的，走探测 + 拼后缀更省事。
+    - ⚠️ **兜底必须有**：iOS 老版本（< 14）对 WebP 支持有限，只给 WebP 会让这部分玩家看不到贴纸。
+    - 本地跑（localhost:5181）不用管，只有要出包/上传平台时才值得做。
 - **2026-10-29（关卡时限与续命加时改为「按关段」，用户定）**：
   - **时限**：第 1~60 关 **180s**（3 分钟，原值）→ 第 61~120 关 **240s**（4 分钟）→ 第 121~180 关 **300s**（5 分钟）。
     入口是 `config.ts` 的 `timeLimitFor(level)` / `TIME_LIMIT_BY_SEGMENT`；
@@ -313,12 +363,29 @@
     普通档现在有 107 关拿不到 3★（落在 2★）—— 这是**想要的**难度曲线，3★ 应该难。
     生手(4s/步) 139 → 77 关打不过（4 秒走一步的玩家在噩梦里本来就不该轻松）。
     简单模式依旧全 3★（时间变长后更松：生手平均 15 → 20.1 分）。
-- ⚠️ **已知问题：单元测试目前跑不起来（既有问题，非本次改动引入）** ——
+- ✅ **单元测试已恢复运行（2026-10-30 修，既有问题）**：原来**一行都跑不到**，卡在模块解析：
   `test/*.test.ts` 一律 import `../assets/scripts/core/...`（英文），但算法层目录实际叫
-  **`核心`**（中文），改名后一直没同步 → 一跑就 `ERR_MODULE_NOT_FOUND`。涉及 10 个测试文件
-  （`save` / `progress` / `config` / `engine` / `move` / `init` / `poolGen` / `matcher` / `merge` / `honor` 等）。
-  修法：把这些 import 路径里的 `core` 换成 `核心`（或改 `test/ts-resolve.mjs` 加一层目录别名）。
-  ⚠️ 在此之前，**改动算法层只有 `tools/simulate-levels.mjs` 这一道仿真验证**，没有单测兜底。
+  **`核心`**（中文），改名后没同步 → `ERR_MODULE_NOT_FOUND`。涉及 11 个测试文件。
+  - **修法**：在 `test/ts-resolve.mjs` 的解析钩子里加一层目录别名（`scripts/core/` → `scripts/核心/`），
+    改 1 处即可，不必动 11 个测试文件。⚠️ 易踩的第二层坑：改写 specifier 后**不能立刻 return**，
+    必须继续走下面「补 `.ts` 后缀」的逻辑（算法层是无扩展名导入），否则仍找不到文件。
+  - **跑法**（项目无 `package.json`，不是 `npm test`）：
+    `node --experimental-strip-types --import ./test/ts-resolve.mjs --test "test/*.test.ts"`
+  - 📊 **当前结果：216 个用例 / 216 通过 / 0 失败**。
+- **2026-10-30（单测全部转绿，且「素材/关卡一律不写死」）**：修好解析后又暴露 18 条失败，逐条查证后
+  确认**没有一条是真 bug**，全是「设计已变更、测试没同步」，且**共同毛病是写死数字**。
+  按「素材与关卡会持续扩充，测试不能写死」的要求，全部改为**从配置派生**：
+  - `engine.test.ts` / `init.test.ts`：段位列表原先写死 `[[3,4],[4,4],[5,4]]`，而设计表
+    2026-10-25 已把第 1~15 关改成 `4×3` → `configOf(3,4)` 直接抛「缺少配置」，
+    **移动规则 / 整片拖动 / 结算动画 / 压测整组连带失败**（看着像引擎有 bug）。
+    现改为从 `buildLevelConfigs()` 推导段位。
+  - `config.test.ts`：`designGridOf()` 读 `GRID_BY_LEVEL`；素材台账改为「每只动物张数一致、
+    总数 = 台账长度」（不再写死 6 只 36 张）；混淆度改为「≤ `MAX_MOODS_PER_ANIMAL`、
+    最难关顶到上限」（ma 上限 2026-10-25 由 6 压到 3，原期望 `ma=5/6` 必然失败）；
+    备注结构的小BOSS/回落关、段BOSS、终极BOSS 均从 `LEVEL_TAGS` / `TOTAL_LEVELS` 派生。
+  - `poolGen.test.ts`：被跳过的关卡不再写死「第 36~60 关」，改为从 `GRID_BY_LEVEL` 找第一个 5×4 段。
+  - ✅ **移动规则经核对与策划一致，实现无需改动**：简单 `'any'` 任意两块互换、困难 `'adjacent'`
+    只认曼哈顿距离 1；已成片的 2~3 块按 `planGroupMove` 整体平移（两种规则都支持整片移动）。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
