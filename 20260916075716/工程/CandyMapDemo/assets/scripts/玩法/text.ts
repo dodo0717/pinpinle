@@ -87,6 +87,38 @@ export const ADS = {
   watched: '已看完广告',
 } as const;
 
+/**
+ * 广告被拦下来的原因 → 轻提示（批次⑧ 接线用）。
+ *
+ * 键名与 `平台/ads.ts` 的 `AdDenyReason` **逐字对齐**：那边说「为什么不行」，
+ * 这里只负责把它翻译成人话。没有 `window` / `navigator` 之类的平台依赖，纯查表。
+ */
+export const AD_DENY = {
+  unavailable: ADS.notReady,
+  disabled: '这个广告位暂时关闭了',
+  /** 有 SDK 但没填广告位 id —— 上线前必须把 `平台/ads.ts` 的 `AD_UNIT_IDS` 填上 */
+  noUnit: '广告位还没配置好，暂时看不了',
+  dailyLimit: ADS.dailyLimit,
+  cooldown: '刚看完一条，稍后再试',
+  busy: '广告正在播放，请稍等',
+  failedTooMuch: '广告一直加载失败，先歇一会儿',
+} as const;
+
+/** 分享文案（批次⑧ 接线用；对应 `平台/share.ts` 的三个分支） */
+export const SHARE = {
+  /** 结算吊牌上的按钮 */
+  btn: '分享成绩',
+  done: '已分享，谢谢！',
+  cancel: '已取消分享',
+  fail: '分享失败，稍后再试',
+  unavailable: '当前环境不支持分享',
+  /** 成绩卡标题（分享出去那张卡片的标题） */
+  resultTitle: (level: number, score: number, stars: number) =>
+    `我在《萌宠拼拼乐》第 ${level} 关拿到 ${score} 分（${'★'.repeat(stars) || '未通关'}）`,
+  /** 右上角「转发」的默认卡片标题 —— ⚠️ 待运营给最终文案 */
+  menuTitle: '萌宠拼拼乐 —— 拼出整只萌宠！',
+} as const;
+
 export const GUIDE = {
   step1: '同一张图被切成 4 块，把它们拼回一整张就能消掉',
   step2: '按住任意一块拖动，整片会跟着一起挪',

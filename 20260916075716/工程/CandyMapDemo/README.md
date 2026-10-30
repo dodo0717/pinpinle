@@ -242,15 +242,33 @@
     → 分页器（每页 20 名）→ **「挑战本关」通栏按钮**（仅关卡榜，产品硬要求）。
     ⚠️ 本机玩家那行黄色高亮；「挑战本关」置灰时**按钮上直接写原因**（如「通关前一关后解锁」），
     点了不触发回调。`MapBootstrap` 底导航页签 1 由灰盒弹窗改为整屏（结算后的小榜 `showBoardDialog` 未动）。
-  - **⑧ 平台适配层（已完成，未接插桩）**：新增 `assets/scripts/平台/`：`host.ts`（平台能力检测与注入，
+  - **⑧ 平台适配层（已完成，已接插桩）**：新增 `assets/scripts/平台/`：`host.ts`（平台能力检测与注入，
     **不裸调 `wx.*`**）、`ads.ts`（广告三分支：小游戏激励视频 / Web 无广告 / 不可用降级，含每日上限与冷却）、
-    `share.ts`、`track.ts`（埋点，无后端时降级本地缓冲不抛异常）。⚠️ **尚未接进 `GameBootstrap`**。
+    `share.ts`、`track.ts`（埋点，无后端时降级本地缓冲不抛异常）。
+    **接线层 `玩法/platformBridge.ts`（新增）**：持有三个平台实例 + 注入 toast，把「播广告 / 分享 / 埋点」
+    收成一眼能看懂的一个函数调用，**所有平台调用一律不抛**（返回降级结果，由调用方按返回值走分支）。
+    已接点位：`GameBootstrap` 续命广告 `watchRevive()`、结算分享 `shareResult()`、关卡漏斗埋点
+    （`reportLevelStart` / `reportLevelEnd` / `reportLevelFail`）；`MapBootstrap` 加体力广告
+    `onStaminaPlus()`、图鉴分享、右上角菜单转发 `setMenuShare()`、会话埋点 `startTracking()`。
+    ⚠️ 额度仍由 `GS.adStaminaLeft` 把关（唯一落盘口径），与 `ads.ts` 里「续命不限次」不一致的那处
+    属于既有规则，未在本批次改动 —— 见「待用户决策」。
+    **浏览器内实例化验证（`preview/game.html`，无 `wx`）**：单测 243/243、可移植性守卫 54 文件全过；
+    在页面里真跑一遍关键路径 —— 续命广告（`revived` false→true，倒计时 0→60s，额度 3→2）、
+    加体力广告（体力 6→7、额度 2→1；体力已满那一档直接返回并提示「体力已满（上限 10）」，不触发广告）、
+    关卡漏斗埋点（`level_start` / `level_end` / `level_fail` 均进本地缓冲，`stats().endpoint` 为「纯本地」）、
+    分享降级（`{ok:true, port:'web', reason:'ok'}`）。`Runtime.exceptionThrown` 与 `console.error` **均为 0**。
+    ⚠️ **未验证到的部分（shim 限制，非产品代码问题）**：`MapBootstrap` 在 `preview/cc-shim.js` 下
+    构造即抛 —— `createFloatLayers()` 读 `node.position.x`，而 shim 的 `Node` 没有 `position` 属性
+    （`MapBootstrap.ts:671`）。因此 `play.html` 的 `window.__root` 挂不上，**地图页真实实例上的**
+    `onStaminaPlus()` 无法在浏览器里跑；上面的加体力路径是改用 `MapBootstrap.prototype.onStaminaPlus.call()`
+    配假 toast 验证的（方法体本身只依赖 `this.toast`）。与真机相关的 UI 表现（HUD「+」按钮、图鉴分享按钮）
+    留到 Creator 里人工过一遍。
   - **⑧ 包体治理（方案已定稿，见 `docs/小游戏包体方案.md`）**：实测 `assets/resources` 合计 **78.3 MB**
     —— **最大头是贴纸 46.83 MB**（108 张），其次字体 15.63 MB、底图 13.37 MB、UI 2.48 MB。
     UI 切图 PNG 2.48 MB → WebP **0.17 MB**；底图 q76 → 7.60 MB（810 宽 q72 → 4.15 MB）；
     字体子集化字符表 1218 字（UTF-8 无 BOM）。⚠️ 配套代码改造未完成：`worlds.ts`、`MapBootstrap`
     （改 `assetManager.loadBundle` + 加载态兜底）、`CollectionScreen`（贴纸懒加载）。
-  - **待办**：⑧ 剩余 —— 平台层插桩（复活/体力广告、结算分享）、贴纸压缩实测、
+  - **待办**：⑧ 剩余 —— 贴纸压缩实测、
     包体配套代码改造、以及**构建验证（本机无 Cocos Creator，见文档内人工验证清单）**。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。

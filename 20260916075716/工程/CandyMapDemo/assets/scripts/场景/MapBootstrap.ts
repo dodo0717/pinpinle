@@ -13,7 +13,11 @@ import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { HOME, ADS, COLLECTION, SETTINGS, TUTORIAL } from '../玩法/text';
+import { HOME, ADS, SHARE, COLLECTION, SETTINGS, TUTORIAL } from '../玩法/text';
+import { STAMINA_PER_AD } from '../平台/ads';
+import {
+  adDenyText, playAd, setMenuShare, setPlatformToast, shareCard, startTracking,
+} from '../玩法/platformBridge';
 import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '../玩法/meta';
 import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
@@ -155,6 +159,9 @@ export class MapBootstrap extends Component {
         this.screenH = this.visibleSize.height || DESIGN_H;
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
+        startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
+        // 右上角菜单转发：只有小游戏有这个入口，别的宿主一律 false（这里不弹提示，没入口就当没有）
+        setMenuShare(() => ({ title: SHARE.menuTitle, query: 'from=menu' }));
         // 从「已解锁到的那一关」所在世界开局，而不是永远从第 1 世界（否则 180 关要一路翻过去）
         this.worldIndex = worldIndexOf(GS.progress.unlocked);
         this.buildBackdrop();
@@ -248,7 +255,13 @@ export class MapBootstrap extends Component {
         this.countdownLabel.string = cdText;
     }
 
-    /** 体力 + ：看广告（本地模拟），每日上限由 GS 收口 */
+    /**
+     * 体力 + ：看广告 —— 走 `平台/ads.ts` 的激励视频（批次⑧ 接线）。
+     *
+     * 与改动前一致的两道闸：**体力已满**不看、**今日额度用完**不看（额度仍由 `GS.adStaminaLeft` 把关，
+     * 它是唯一落盘的口径）。真看完（`watched`）才记一次额度并发体力；
+     * `skipped` / `failed` 一律不发 —— 与 `平台/ads.ts` 的三分支口径一致。
+     */
     private onStaminaPlus() {
         if (GS.stamina.available >= GS.staminaMax) {
             this.toast.show(ADS.staminaFull, 1400);
@@ -258,13 +271,20 @@ export class MapBootstrap extends Component {
             this.toast.show(ADS.dailyLimit, 2200);
             return;
         }
+        setPlatformToast((m) => this.toast.show(m, 2000));
         this.toast.show('广告播放中…', 1200);
-        this.scheduleOnce(() => {
-            GS.recordAd();
-            if (GS.gainStamina(1)) {
-                this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 1400);
-            }
-        }, 1.2);
+        void playAd('stamina')
+            .then((out) => {
+                if (out.result !== 'watched') {
+                    this.toast.show(adDenyText(out.reason), 2400);
+                    return;
+                }
+                GS.recordAd();
+                if (GS.gainStamina(STAMINA_PER_AD)) {
+                    this.toast.show(HOME.staminaGain(GS.stamina.available, GS.staminaMax), 1400);
+                }
+            })
+            .catch(() => this.toast.show(ADS.notReady, 2400));
     }
 
     /**
@@ -845,9 +865,18 @@ export class MapBootstrap extends Component {
         if (!this.previewScreen) {
             this.previewScreen = PreviewScreen.create(this.node, {
                 onBack: () => this.previewScreen?.hide(),
-                // 保存/分享是小游戏平台能力，Cocos 端先给轻提示，接 wx 能力时替换这里
+                // 保存到相册是另一条平台能力（`平台/` 这一批没有做），先留提示
                 onDownload: () => this.toast.show(COLLECTION.download + '（待接入小游戏能力）', 2000),
-                onShare: () => this.toast.show(COLLECTION.share + '（待接入小游戏能力）', 2000),
+                // 分享：走 `平台/share.ts`（小游戏转发 / 复制链接 / 不可用降级，批次⑧ 已接）
+                onShare: (_imageId, caption) => {
+                    setPlatformToast((m) => this.toast.show(m, 2000));
+                    void shareCard({ title: caption || COLLECTION.share, query: `img=${_imageId}` })
+                        .then((out) => {
+                            if (out.ok) { this.toast.show(SHARE.done, 2000); return; }
+                            this.toast.show(out.reason === 'cancel' ? SHARE.cancel : SHARE.fail, 2200);
+                        })
+                        .catch(() => this.toast.show(SHARE.fail, 2200));
+                },
             });
             this.previewScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
         }

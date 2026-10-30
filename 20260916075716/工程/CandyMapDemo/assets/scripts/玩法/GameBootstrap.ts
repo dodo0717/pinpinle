@@ -21,7 +21,11 @@ import { ToastLayer, fmtMMSS } from './toast';
 import { GameAudio } from './audio';
 import { GuideBar } from './guide';
 import { GS } from './state';
-import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD, TUTORIAL, TUTORIAL_VOICE } from './text';
+import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, SHARE, GUIDE, BOARD, TUTORIAL, TUTORIAL_VOICE } from './text';
+import {
+  adDenyText, flushTracking, playAd, reportLevelEnd, reportLevelFail, reportLevelStart,
+  setPlatformToast, shareCard, sharer, startTracking,
+} from './platformBridge';
 import { unlockedImageIds, clearedCount } from './meta';
 import { createSpeech, type GameSpeech } from './speech';
 import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
@@ -86,6 +90,10 @@ export class GameBootstrap extends Component {
   private levelSeed = 0;
   /** 未达星线时的结算结论，续命失败后用它出失败弹窗 */
   private pendingOutcome: LevelOutcome | null = null;
+  /** 开局时刻（埋点的 durationSec 用它算，不靠 timeLeft 反推 —— 续命会把时间加回去） */
+  private levelStartedAt = 0;
+  /** 本次打开里每关的尝试次数（埋点 level_start 的 attempt） */
+  private attempts = new Map<number, number>();
 
   /* ---------------------------------------------------------------- 拖动 */
   private dragCells: number[] = [];
@@ -144,6 +152,7 @@ export class GameBootstrap extends Component {
     // 动画播放中不落盘（§16）：此刻引擎里已是「交换后」状态，写下去等于承认这次交换
     GS.canWrite = () => !this.busy;
     GS.init();
+    startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
     this.announceSaveResult();
 
     this.bindInput();
@@ -309,9 +318,12 @@ export class GameBootstrap extends Component {
       this.swapMisses = 0;
       this.eliminatedOnce = false;
       this.started = false;
+      // 埋点的 attempt：同一次打开里第几次开这一关（通关后清零，见 onLevelEnd）
+      this.attempts.set(level, (this.attempts.get(level) ?? 0) + 1);
     }
 
     this.finished = false;
+    this.levelStartedAt = Date.now();
     this.busy = false;
     this.pendingOutcome = null;
     this.lastUnlocked = unlockedImageIds(GS.progress).length;
@@ -342,6 +354,11 @@ export class GameBootstrap extends Component {
     this.syncSession();
     GS.flush();
     this.updateHud();
+    reportLevelStart({
+      level: this.levelIndex,
+      mode: GS.mode,
+      attempt: this.attempts.get(this.levelIndex) ?? 1,
+    });
     this.schedule(this.onTick, 1);
     this.runGuide(1);
 
@@ -607,6 +624,7 @@ export class GameBootstrap extends Component {
     this.setPaused(true);
     this.syncSession();
     GS.flush();
+    flushTracking();   // 切后台：把攒下的埋点尽力交出去（没有端点时只是整理本地缓冲）
   }
 
   /**
@@ -671,6 +689,16 @@ export class GameBootstrap extends Component {
       const after = recordOf(next, this.levelIndex);
       GS.setProgress(next);
       GS.flush();
+      // 埋点：通关（分数 / 星级 / 是否续命 / 耗时）；这一关打过了，尝试次数归零
+      reportLevelEnd({
+        level: this.levelIndex,
+        mode: GS.mode,
+        score: outcome.score,
+        stars: settlement.stars,
+        revived: outcome.revived,
+        durationSec: Math.max(0, Math.round((Date.now() - this.levelStartedAt) / 1000)),
+      });
+      this.attempts.delete(this.levelIndex);
       this.audio.play('win');
       this.announceUnlocks(next);
       this.showHonorDialog(outcome, settlement, after.boardBest);
@@ -716,6 +744,8 @@ export class GameBootstrap extends Component {
     row1.push({ text: HONOR.retry, onClick: () => this.restart(), primary: row1.length === 0 });
     const row2: ResultButton[] = [];
     if (boardBest > 0) row2.push({ text: HONOR.rank, onClick: () => this.showBoardDialog(boardBest) });
+    // 分享入口：宿主没有分享能力时**连按钮都不摆**（摆了点不动比没有更糟）
+    if (sharer().available()) row2.push({ text: SHARE.btn, onClick: () => this.shareResult(outcome, settlement) });
     row2.push({ text: HONOR.backHome, onClick: () => this.exitToHome() });
 
     this.result.show({
@@ -746,6 +776,8 @@ export class GameBootstrap extends Component {
 
   /** 失败结算也走吊牌（同一骨架，没到星线就不画星级） */
   private showFailDialog(outcome: LevelOutcome): void {
+    // 埋点：走到这里才是「确认失败」（弹续命窗那一档不算，见 `平台/track.ts`）
+    reportLevelFail({ level: outcome.level, mode: GS.mode, score: outcome.score });
     this.result.show({
       mode: 'lose',
       title: FAIL.title,
@@ -772,19 +804,61 @@ export class GameBootstrap extends Component {
     ]);
   }
 
-  /** 广告续命（本地模拟：1.2 秒「观看」） */
+  /**
+   * 广告续命 —— 走 `平台/ads.ts` 的激励视频（批次⑧ 接线）。
+   *
+   * 三分支怎么落地：
+   *   - `watched`（看完）→ 发奖励，加时继续；
+   *   - `skipped`（没看完）→ 不给奖励，**回到续命弹窗**让玩家再选一次（放弃 / 再看）；
+   *   - `failed`（加载失败 / 被拦）→ 提示原因，同样回到续命弹窗。
+   *
+   * ⚠️ 额度仍由 `GS.adStaminaLeft` 把关（与改动前一致）：它是唯一落盘的口径。
+   *    `平台/ads.ts` 里 `revive` 的每日上限是「不限」（§13.4），两者不一致的那一处
+   *   属于既有规则，未在本批次改动 —— 见 README「待用户决策」。
+   */
   private watchRevive(): void {
     if (GS.adStaminaLeft <= 0) {
       this.toast.show(ADS.dailyLimit, 2600);
       return;
     }
-    GS.recordAd();
+    setPlatformToast((m) => this.toast.show(m, 2200));
     this.toast.show('广告播放中…', 1200);
     this.busy = true;
-    this.scheduleOnce(() => {
-      this.busy = false;
-      this.revive();
-    }, 1.2);
+    void playAd('revive')
+      .then((out) => {
+        this.busy = false;
+        if (out.result === 'watched') {
+          GS.recordAd();
+          this.revive();
+          return;
+        }
+        this.toast.show(
+          out.result === 'skipped' ? '没看完广告，续命没生效' : adDenyText(out.reason),
+          2600,
+        );
+        this.showReviveDialog();
+      })
+      .catch(() => {
+        this.busy = false;
+        this.toast.show(ADS.notReady, 2600);
+      });
+  }
+
+  /**
+   * 分享本关成绩（结算吊牌上的「分享成绩」）。
+   *
+   * ⚠️ `imageUrl` 现在**不传**：小游戏会退回首屏截图，成绩卡那张图要等美术给；
+   *    真要固定卡片图，把地址填在这里即可（`平台/share.ts` 建议 500×400 横图）。
+   */
+  private shareResult(outcome: LevelOutcome, settlement: LevelSettlement): void {
+    setPlatformToast((m) => this.toast.show(m, 2200));
+    const title = SHARE.resultTitle(outcome.level, outcome.score, settlement.stars);
+    void shareCard({ title, query: `level=${outcome.level}&score=${outcome.score}` })
+      .then((out) => {
+        if (out.ok) { this.toast.show(SHARE.done, 2000); return; }
+        this.toast.show(out.reason === 'cancel' ? SHARE.cancel : SHARE.fail, 2200);
+      })
+      .catch(() => this.toast.show(SHARE.fail, 2200));
   }
 
   private revive(): void {

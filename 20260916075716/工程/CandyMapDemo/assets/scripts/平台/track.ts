@@ -179,6 +179,9 @@ export function createTracker(config: TrackerConfig = {}): Tracker {
   let seq = 0;
   let started = false;
   let lastFlushAt = 0;
+  /** 上次落盘的时刻（写盘节流用）；⚠️ 2026-10-30 补：原来漏了这两个声明，
+   *  一调 `exportAll()` / `flush()` 就 `ReferenceError` —— 埋点层不该有能抛出去了的口子 */
+  let lastSaveAt = 0;
   /** 全量缓冲：**唯一真相**，有没有端点都往这里写 */
   let buffer: Envelope[] = [];
   /** 待发送队列（只有端点存在时才非空） */
@@ -271,6 +274,9 @@ export function createTracker(config: TrackerConfig = {}): Tracker {
     if (buffer.length > maxBuffer) buffer = buffer.slice(-maxBuffer);
     writeStore(BUFFER_KEY, JSON.stringify(buffer));
   }
+
+  /** 两次落盘之间的最小间隔毫秒（原版那个 200ms 定时器的等价物） */
+  const SAVE_MS = 200;
 
   /**
    * 写盘节流：连续 track 时不要每条都序列化 3000 条（原版是 200ms 定时器，
