@@ -46,6 +46,22 @@
     见 `web/UI_README.md` §32）；旧底图备份 `web/art/map-v2_backup_20261029/`。
   - ⚠️ **已知待办**：除小镇外 **14 张底图的路中线（`ROAD_X`）是居中曲线的兜底值**（自动标定两套办法
     都失败，根因是看不到图 + 各场景路面材质不同），需要人工目视校正 —— 改 `ROAD_X` 对应一行即可。
+- **2026-10-30（清理包体，旧文件归档到「旧文件及素材」）**：工程 **142.3 MB → 65.5 MB**（-76.8 MB）。
+  - ⚠️ **没有删除任何东西** —— 旧文件统一移到工作区外的 `d:\拼拼乐项目\旧文件及素材\`
+    （已加 `.gitignore`，**不入库**），随时可原样搬回：
+    ① 两个备份目录 **43MB**（旧贴纸 24.8 + 旧底图 18.5）；
+    ② 旧 Cocos 端：`assets/scenes`、`scripts/场景`（13.8MB 旧小镇图/动效）、`scripts/玩法`、
+       `scripts/界面`、`settings/`、`_backup`；
+    ③ 旧资源：`resources/font`（15.6MB —— web 版搜不到任何 `@font-face` 引用）、
+       `map` 1.5MB、`ui` 2.5MB、`layout`（引用已移走的 `ui/顶栏`）；
+    ④ 旧预览页 `preview/index|play|game.html`（现用入口是 `web/index.html`）；⑤ 旧埋点日志 `logs/`。
+  - ⚠️ **保留**：`web/`、`assets/scripts/核心`（共享算法层）、`assets/resources/stickers`（108 张在用）、
+    `preview/serve.mjs`（本地服务）+ `preview/cc-shim.js`（`test/` 依赖）、`test/`、`tools/`
+    （含路中线标定工具 `balloon_locate` / `png_locate` / `scale_match` —— 路中线待办还要用）。
+  - **验证**：关键资源全部 HTTP 200（贴纸 `sticker_0/107`、底图 `town/starcastle`、UI 图、`main.ts`、
+    `核心/index.ts`）；`web/` 与 `tools/` 共 **70 条相对 import 目标全部存在**，引用链未破坏。
+  - 📌 扫描过程教训：**「按文件名扫引用」不可靠** —— 会把 15 张正在用的 `map-v2` 底图误判成未引用
+    （它们按 `art` key 拼路径）。本次改为「按目录核对 + 实际 HTTP 请求验证」，不做自动删除。
 - **2026-10-29（关卡时限与续命加时改为「按关段」，用户定）**：
   - **时限**：第 1~60 关 **180s**（3 分钟，原值）→ 第 61~120 关 **240s**（4 分钟）→ 第 121~180 关 **300s**（5 分钟）。
     入口是 `config.ts` 的 `timeLimitFor(level)` / `TIME_LIMIT_BY_SEGMENT`；
