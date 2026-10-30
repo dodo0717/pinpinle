@@ -31,6 +31,8 @@ export const HONOR = {
   kingLine: (pct: string) => `你超越了本关 ${pct}% 的玩家！`,
   starLine: (stars: number) => `本关评价 ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`,
   scoreLine: (score: number) => `本关得分 ${score}`,
+  /** 2026-10-30 补：结算吊牌得分卡的标签（Web 版 result 的 scoreLabel 默认值） */
+  scoreLabel: '本关得分',
   bestLine: (best: number) => `历史最高 ${best}`,
   next: '下一关',
   retry: '再玩一次',

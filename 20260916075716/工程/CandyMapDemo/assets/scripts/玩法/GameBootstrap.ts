@@ -24,6 +24,7 @@ import { GS } from './state';
 import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, GUIDE, BOARD, TUTORIAL, TUTORIAL_VOICE } from './text';
 import { unlockedImageIds, clearedCount } from './meta';
 import { createSpeech, type GameSpeech } from './speech';
+import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
 import { HandHint } from './handHint';
 import {
@@ -60,6 +61,8 @@ export class GameBootstrap extends Component {
 
   private view: BoardView = null!;
   private dialog: GameDialog = null!;
+  /** 结算吊牌（星级 + 滚动分数；与通用 dialog 共存 —— 复活/提示仍走 dialog） */
+  private result: ResultPopup = null!;
   private toast: ToastLayer = null!;
   private audio: GameAudio = null!;
   private guide: GuideBar = null!;
@@ -131,6 +134,8 @@ export class GameBootstrap extends Component {
     this.view = host.addComponent(BoardView);
 
     this.dialog = this.mount('Dialog', GameDialog);
+    this.result = ResultPopup.create(this.node);
+    this.result.rootNode().setSiblingIndex(this.node.children.length - 1); // 压在 HUD 之上
     this.toast = this.mount('Toast', ToastLayer);
     this.audio = this.mount('Audio', GameAudio);
     this.guide = this.mount('Guide', GuideBar);
@@ -705,19 +710,26 @@ export class GameBootstrap extends Component {
         : HONOR.starLine(settlement.stars);
     this.audio.play(honor.tier === 'god' ? 'honorGod' : honor.tier === 'king' ? 'honorKing' : 'honorPass');
 
-    const lines = [
-      HONOR.scoreLine(outcome.score),
-      tierLine,
-      boardBest > 0 ? HONOR.bestLine(boardBest) : '',
-    ].filter(Boolean);
+    // 结算吊牌（对齐 web/ui/result.ts）：星级英雄区 + 滚动分数 + 按钮两行，✕ = 回主界面
+    const row1: ResultButton[] = [];
+    if (this.levelIndex < TOTAL_LEVELS) row1.push({ text: HONOR.next, onClick: () => this.nextLevel(), primary: true });
+    row1.push({ text: HONOR.retry, onClick: () => this.restart(), primary: row1.length === 0 });
+    const row2: ResultButton[] = [];
+    if (boardBest > 0) row2.push({ text: HONOR.rank, onClick: () => this.showBoardDialog(boardBest) });
+    row2.push({ text: HONOR.backHome, onClick: () => this.exitToHome() });
 
-    const buttons: { text: string; onClick: () => void; primary?: boolean }[] = [];
-    if (this.levelIndex < TOTAL_LEVELS) buttons.push({ text: HONOR.next, onClick: () => this.nextLevel(), primary: true });
-    buttons.push({ text: HONOR.retry, onClick: () => this.restart(), primary: buttons.length === 0 });
-    if (boardBest > 0) buttons.push({ text: HONOR.rank, onClick: () => this.showBoardDialog(boardBest) });
-    buttons.push({ text: HONOR.backHome, onClick: () => this.exitToHome() });
-
-    this.dialog.show(title, lines, buttons.slice(0, 3), settlement.stars, hero);
+    this.result.show({
+      mode: 'win',
+      stars: settlement.stars,
+      icon: hero,              // 星级优先（stars 传了就用星级，icon 只作兜底）
+      title,
+      sub: tierLine,
+      score: outcome.score,
+      scoreLabel: HONOR.scoreLabel,
+      hint: boardBest > 0 ? HONOR.bestLine(boardBest) : '',
+      rows: [row1, row2],
+      onHome: () => this.exitToHome(),
+    });
   }
 
   /** 排行榜（灰盒 100 人 + 本机） */
@@ -732,15 +744,21 @@ export class GameBootstrap extends Component {
     this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
   }
 
+  /** 失败结算也走吊牌（同一骨架，没到星线就不画星级） */
   private showFailDialog(outcome: LevelOutcome): void {
-    this.dialog.show(FAIL.title, [
-      FAIL.line1(outcome.score),
-      FAIL.line2(this.cfg.star1, this.cfg.star2, this.cfg.star3),
-      FAIL.line3,
-    ], [
-      { text: FAIL.backHome, onClick: () => this.exitToHome() },
-      { text: FAIL.retry, onClick: () => this.restart(), primary: true },
-    ]);
+    this.result.show({
+      mode: 'lose',
+      title: FAIL.title,
+      sub: FAIL.line1(outcome.score),
+      score: outcome.score,
+      scoreLabel: HONOR.scoreLabel,
+      note: `${FAIL.line2(this.cfg.star1, this.cfg.star2, this.cfg.star3)}　${FAIL.line3}`,
+      rows: [[
+        { text: FAIL.backHome, onClick: () => this.exitToHome() },
+        { text: FAIL.retry, onClick: () => this.restart(), primary: true },
+      ]],
+      onHome: () => this.exitToHome(),
+    });
   }
 
   private showReviveDialog(): void {
