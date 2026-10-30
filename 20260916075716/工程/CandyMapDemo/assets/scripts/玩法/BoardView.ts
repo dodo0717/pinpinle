@@ -12,6 +12,8 @@ const FLOAT_SEC = 0.5;
 export const GAP = 12;
 /** 贴图源尺寸（sticker_*.png 为 512×512，四象限各 256） */
 const TEX_SIZE = 512;
+/** 贴纸下载失败后的自动重试间隔（秒）：共试 3 次，再不行才交给玩家点「重试」 */
+const TEX_RETRY_DELAYS = [0.6, 1.5];
 const QUAD = TEX_SIZE / 2;
 
 /** 动效时长（秒）—— 与 DOM 版 web/main.ts 的 *_MS 一一对应 */
@@ -493,14 +495,34 @@ export class BoardView extends Component {
     return sf;
   }
 
+  /**
+   * 下载一张贴纸，失败按 TEX_RETRY_DELAYS 自动重试。贴纸走远程素材，真机网络抖一下
+   * 单次请求失败很常见 —— 原来失败一次就记成缺失、再也不请求，整盘显示白块（2026-10-30）。
+   */
+  private fetchTexture(imageId: number, done: (ok: boolean) => void, attempt = 0): void {
+    resources.load(`stickers/sticker_${imageId}/texture`, Texture2D, (err, tex) => {
+      if (!err && tex) {
+        this.texCache.set(imageId, tex);
+        this.repaintImage(imageId);
+        done(true);
+        return;
+      }
+      const delay = TEX_RETRY_DELAYS[attempt];
+      if (delay !== undefined) {
+        this.scheduleOnce(() => this.fetchTexture(imageId, done, attempt + 1), delay);
+        return;
+      }
+      console.warn(`[board] 贴图加载失败 sticker_${imageId}（已重试 ${attempt} 次）`);
+      done(false);
+    });
+  }
+
   private loadTexture(imageId: number): void {
     if (this.loading.has(imageId) || this.missing.has(imageId)) return;
     this.loading.add(imageId);
-    resources.load(`stickers/sticker_${imageId}/texture`, Texture2D, (err, tex) => {
+    this.fetchTexture(imageId, (ok) => {
       this.loading.delete(imageId);
-      if (err || !tex) { this.missing.add(imageId); console.warn('[board] 贴图缺失 sticker_' + imageId); return; }
-      this.texCache.set(imageId, tex);
-      this.repaintImage(imageId);
+      if (!ok) this.missing.add(imageId);
     });
   }
 
@@ -521,13 +543,19 @@ export class BoardView extends Component {
         continue;
       }
       this.loading.add(id);
-      resources.load(`stickers/sticker_${id}/texture`, Texture2D, (err, tex) => {
+      this.fetchTexture(id, (ok) => {
         this.loading.delete(id);
-        if (err || !tex) { this.missing.add(id); missing.push(id); }
-        else { this.texCache.set(id, tex); this.repaintImage(id); }
+        if (!ok) { this.missing.add(id); missing.push(id); }
         if (--left === 0) onDone?.(missing);
       });
     }
+  }
+
+  /** 玩家点「重试」：清掉缺失记录，把这些图再完整下载一遍（同样带自动重试） */
+  retryMissing(onDone?: (missing: number[]) => void): void {
+    const ids = Array.from(this.missing);
+    this.missing.clear();
+    this.prewarm(ids, onDone);
   }
 
   private repaintImage(imageId: number): void {

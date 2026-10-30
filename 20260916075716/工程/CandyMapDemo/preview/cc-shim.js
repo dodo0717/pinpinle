@@ -120,7 +120,12 @@ export function loadImage(url) {
       img._ccReady = true;
       resolve(img);
     };
-    img.onerror = () => reject(new Error('图片加载失败 ' + url));
+    img.onerror = () => {
+      // 失败的不能留在缓存里：否则同一张图之后再请求也直接拿到这次的失败，
+      // 网络抖一下就永远加载不出来（2026-10-30 真机对局整盘白块）
+      imgCache.delete(url);
+      reject(new Error('图片加载失败 ' + url));
+    };
     img.src = url;
   });
   imgCache.set(url, p);

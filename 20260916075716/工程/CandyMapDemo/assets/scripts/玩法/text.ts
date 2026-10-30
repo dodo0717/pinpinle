@@ -269,6 +269,16 @@ export const BOARD = {
   next: '下一页',
 } as const;
 
+/** 对局贴纸下载失败（自动重试 3 次后仍失败）时的提示弹窗 */
+export const STICKER = {
+  failTitle: '图片没加载出来',
+  failLines: (n: number) => [`有 ${n} 张贴纸下载失败`, '可能是网络不太好，点「重试」再下载一次'],
+  retry: '重试',
+  back: '回地图',
+  retrying: '正在重新下载…',
+  recovered: '图片已加载完成',
+} as const;
+
 export const SETTINGS = {
   title: '设置',
   sound: '音效',

@@ -34,7 +34,7 @@ import { screenH, screenInsets } from './paint';
 import { WebHud, webLayout } from './webHud';
 import { showWebResult, type WebButton } from './webResult';
 import {
-  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL, DAILY, TICKET, SHARE,
+  MODE_LABEL, HOME, REVIVE, SAVE, ADS, GUIDE, BOARD, PANEL, DAILY, TICKET, SHARE, STICKER,
   WEB_HONOR, WEB_FAIL, WEB_REVIVE, WEB_GUIDE, webScoreLabel,
 } from './text';
 import { unlockedImageIds, AD_STAMINA_GAIN } from './meta';
@@ -418,11 +418,11 @@ export class GameBootstrap extends Component {
     this.dragging = false;
 
     this.layout();
-    // 先探一遍本关贴图（原版 probeStickers）：避免开局铺一盘空白再一张张冒出来
+    // 先探一遍本关贴图（原版 probeStickers）：避免开局铺一盘空白再一张张冒出来。
+    // 自动重试后仍失败 → 停表 + 弹窗让玩家重试（原来只弹一条 toast，棋盘一直白块，2026-10-30）
+    const engine = this.engine;
     this.view.prewarm(this.cfg.imageIds, (missing) => {
-      if (missing.length > 0) {
-        this.toast.show(`第 ${level} 关有 ${missing.length} 张图未到货，显示为灰块`, 3200);
-      }
+      if (missing.length > 0 && this.engine === engine && !this.finished) this.showStickerFail(missing.length);
     });
     this.paintAll();
     if (from) {
@@ -755,6 +755,32 @@ export class GameBootstrap extends Component {
       return;
     }
     this.updateHud();
+  }
+
+  /**
+   * 本关有贴纸下载失败（已自动重试过）：停表，弹窗给「重试 / 回地图」。
+   * 回地图走 exitToHome —— 本局没开始玩，体力会退回。
+   */
+  private showStickerFail(count: number): void {
+    const engine = this.engine;
+    const wasPaused = this.paused;
+    this.setPaused(true);
+    this.dialog.show(STICKER.failTitle, STICKER.failLines(count), [
+      { text: STICKER.back, onClick: () => this.exitToHome() },
+      {
+        text: STICKER.retry,
+        primary: true,
+        onClick: () => {
+          this.toast.show(STICKER.retrying, 1600);
+          this.view.retryMissing((still) => {
+            if (this.engine !== engine || this.finished) return;
+            if (still.length > 0) { this.showStickerFail(still.length); return; }
+            this.toast.show(STICKER.recovered, 1600);
+            this.setPaused(wasPaused);
+          });
+        },
+      },
+    ]);
   }
 
   private setPaused(v: boolean): void {
