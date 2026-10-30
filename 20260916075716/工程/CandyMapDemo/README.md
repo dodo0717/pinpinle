@@ -220,9 +220,23 @@
     `SettingsScreen.create / TutorialDrawer.create + open`，确认节点树建成且零 JS 异常
     （设置屏 5 子节点 / 抽屉 2 子节点）。比只 import 强得多，将来新增整屏都可照此验证。
     另：新模块一律用「动态 import 检查」兜住 shim 缺导出（`ImageAsset`、`setTexture` 都是这么发现的）。
-  - **待办**：③ 地图 180 关 + 首页教学入口（首启自动进序章 / 首页按钮，隐藏条件
-    `clearedCount >= 10`）；⑥ 排行榜整屏；⑦ 剩**结算吊牌** `result.ts`（星级 + 滚动分数，
-    需细读 GameBootstrap 结算分支）；⑧ 分享/广告/埋点 + Creator 构建。
+  - **⑨ 结算吊牌（已完成）**：新增 `界面/ResultPopup.ts`（从 `web/ui/result.ts` 移植）——
+    吊牌骨架 + 星级英雄区（⭐ 1~3 点亮，emoji 兜底）+ 滚动分数卡（不传 score 就不画，
+    教学完成弹窗走这条）+ 按钮按行 + ✕=回主界面。`GameBootstrap` 的荣誉三档与失败结算
+    由通用 dialog 改走吊牌；复活/提示仍用 `GameDialog`（置灰语义已有）。
+  - **③ 地图 180 关（已完成）**：新增 `场景/worlds.ts`（15 世界 × 12 关，`WORLDS` +
+    `ROAD_X` 归一化路中线 + 换算），`MapBootstrap` 改为**按世界渲染** —— content 里永远
+    只有一张底图 + 12 个节点，`‹ 世界名 关卡区间 ›` 切换条换世界（避免 15 张 3840 长图
+    同时入内存）；开局定位到「已解锁关所在世界」。资源：15 张世界底图
+    （`web/art/map-v2/*.jpg` → `assets/resources/map/w1_town…w15_starcastle.jpg`，共 12.7 MB）
+    + 3 张节点珠（替代**从来不存在的** `level_balloon_1~10`）。
+    ⚠️ 首页教学入口一并完成：首启自动开教学抽屉（`!seen`），首页按钮在
+    `clearedCount >= 10` 后隐藏（设置页回看入口永久保留）。
+  - **⚠️ 两个待用户决策的坑**：① 15 张底图 12.7 MB —— 微信主包 4 MB，**必须走分包/CDN**
+    （留到 ⑧ 批次处理）；② `ROAD_X` 只有 `town` 是像素验证过的（L1 x=944 = 0.874×1080，
+    与 Web 版一致），其余 14 张是「居中正弦」兜底值，**节点不保证压在真实路面上** ——
+    需在 Creator 里挨个世界看一眼校正（改 `worlds.ts` 里那一行 12 个数即可，不动布局公式）。
+  - **待办**：⑥ 排行榜整屏；⑧ 分享/广告/埋点 + 包体分包 + Creator 构建验证。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，
