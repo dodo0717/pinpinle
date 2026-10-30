@@ -20,6 +20,15 @@ import { LEVEL_STAR_LINES, NIGHTMARE_STAR_LINES, TOTAL_LEVELS } from './config';
 import { mockBoardNames } from './honor';
 import { starsFor } from './progress';
 import { Rng } from './rng';
+import { pointsOfGroups } from './scoring';
+
+/**
+ * 排行规则版本（2026-10-27 评审 P1-2 冻结）。规则任何改动都 +1，并同步改
+ * text.ts `PANEL.rulesLines` 与服务端 ProgressMerge —— 三处口径必须一致。
+ *   v1 2026-10-25 有效成绩 / 困难 ×1.5 / 关卡榜 ≥3★
+ *   v2 2026-10-27 分数改为排行分（每组 100 + 速度分）；续命局记 1★（2026-10-30 按 main 规则）
+ */
+export const RANK_RULES_VERSION = 2;
 
 export const RANK_RULE = {
   /** 困难关卡分在总积分里的加权 */
@@ -178,12 +187,13 @@ export function mockTotalRivals(): TotalBoardRow[] {
     for (let lv = 1; lv <= reach; lv++) {
       const [s1, s2, s3] = LEVEL_STAR_LINES[lv] ?? [1, 2, 3];
       const sc = Math.max(s1, Math.round(s3 * (0.6 + 0.8 * skill)) + rng.int(3) - 1);
-      simple += sc;
+      // 2026-10-27 排行分：组数 ×100 + 手速越好速度分越多（每组 0~60）
+      simple += pointsOfGroups(sc) + Math.round(sc * 60 * skill * rng.next());
       stars += starsFor(sc, s1, s2, s3);
       if (skill > 0.6 && rng.next() < 0.5) {
         const [h1, h2, h3] = NIGHTMARE_STAR_LINES[lv] ?? [1, 2, 3];
         const hs = Math.max(h1, Math.round(h3 * (0.7 + 0.6 * skill)));
-        hard += hs;
+        hard += pointsOfGroups(hs) + Math.round(hs * 40 * skill * rng.next());
         stars += starsFor(hs, h1, h2, h3);
       }
     }

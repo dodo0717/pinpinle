@@ -23,6 +23,8 @@ import {
   TOTAL_LEVELS,
   MAX_TIME_LIMIT,
   STAMINA_MAX,
+  MAX_STAMINA_BONUS,
+  ownedRewards,
   preDeductStamina,
   confirmStamina,
   refundStamina,
@@ -42,16 +44,21 @@ import {
   staminaCountdown,
   adStaminaLeft,
   recordAdStamina,
+  AD_REVIVE_DAILY_MAX,
+  adReviveLeft,
+  recordAdRevive,
                  
 } from './meta.js';
 
 /** 存档字段的合法区间（由 core 给真值，避免这里再抄一份策划案数字） */
 export const SAVE_LIMITS             = {
   totalLevels: TOTAL_LEVELS,
-  staminaMax: STAMINA_MAX,
+  // 体力上限会被章节宝箱加成（核心/rewards.ts），存档校验要放得下加成后的值
+  staminaMax: STAMINA_MAX + MAX_STAMINA_BONUS,
   // 存档校验只取「上界」：各关时限已分段（180/240/300），精确值由 timeLimitFor() 给
   timeLimit: MAX_TIME_LIMIT,
   adStaminaDailyMax: AD_STAMINA_DAILY_MAX,
+  adReviveDailyMax: AD_REVIVE_DAILY_MAX,
 };
 
 /** 元系统有变化时的订阅（地图顶栏据此刷新体力/倒计时） */
@@ -92,6 +99,7 @@ class GameState {
     const result = parseSave(this.save.read(), fresh, SAVE_LIMITS, now);
     this.data = result.data;
     this.meta = metaFromSnapshot(this.data, now);
+    this.applyRewardBonus();
     this.readResult = result;
     // 悬空的预扣体力只能在读档这一刻退还：此时没有任何「局内」上下文，
     // 再往后就无法区分「正在进关」和「上次进关时崩了」
@@ -122,8 +130,10 @@ class GameState {
       nextRecoverAt: this.meta.nextRecoverAt,
       adDay: this.meta.adDay,
       adStaminaUsed: this.meta.adStaminaUsed,
+      adReviveUsed: this.meta.adReviveUsed,
       settings: { ...this.meta.settings },
       guideDone: this.meta.guideDone,
+      retention: { ...this.meta.retention },
     };
     this.data.savedAt = Date.now();
   }
@@ -143,7 +153,13 @@ class GameState {
 
   setProgress(next              )       {
     this.data.progress[this.mode] = next;
+    this.applyRewardBonus();
     this.markDirty();
+  }
+
+  /** 按进度重算章节宝箱带来的体力上限加成（只涨不扣当前体力） */
+          applyRewardBonus()       {
+    this.meta.staminaMax = STAMINA_MAX + ownedRewards(this.data.progress.normal).staminaBonus;
   }
 
   /* ------------------------------------------------------------ 体力（§12.4 三态） */
@@ -171,7 +187,7 @@ class GameState {
   /** 中途退出 / 加载超时 → 退还 */
   refundStamina()       {
     if (this.meta.stamina.pending <= 0) return;
-    this.meta.stamina = refundStamina(this.meta.stamina);
+    this.meta.stamina = refundStamina(this.meta.stamina, this.staminaMax);
     this.markDirty();
     this.notify();
   }
@@ -183,9 +199,12 @@ class GameState {
     return ok;
   }
 
-  get staminaMax()         { return STAMINA_MAX; }
+  get staminaMax()         { return this.meta.staminaMax ?? STAMINA_MAX; }
   get adStaminaLeft()         { return adStaminaLeft(this.meta, Date.now()); }
   recordAd()       { recordAdStamina(this.meta); this.markDirty(); }
+  /** 续命广告额度（与加体力分开计数） */
+  get adReviveLeft()         { return adReviveLeft(this.meta, Date.now()); }
+  recordAdRevive()       { recordAdRevive(this.meta); this.markDirty(); }
   countdownText()                { return staminaCountdown(this.meta, Date.now()); }
 
   /* ------------------------------------------------------------ 元系统心跳 */
@@ -239,6 +258,7 @@ class GameState {
     removeSave();
     this.data = createSaveData('normal', now);
     this.meta = createMeta(now);
+    this.applyRewardBonus();
     this.flush();
     this.notify();
   }
@@ -253,8 +273,10 @@ function metaFromSnapshot(data          , now        )            {
     nextRecoverAt: m?.nextRecoverAt ?? null,
     adDay: m?.adDay ?? base.adDay,
     adStaminaUsed: m?.adStaminaUsed ?? 0,
+    adReviveUsed: m?.adReviveUsed ?? 0,
     settings: m?.settings ?? base.settings,
     guideDone: m?.guideDone ?? false,
+    retention: m?.retention ? { ...m.retention } : base.retention,
   };
 }
 

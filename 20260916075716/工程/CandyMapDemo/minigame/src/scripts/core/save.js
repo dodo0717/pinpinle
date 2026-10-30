@@ -16,6 +16,8 @@
 import { GRID_BY_LEVEL,               } from './config.js';
                                    
 import { STAMINA_MAX, createProgress,                                                    INITIAL_UNLOCKED } from './progress.js';
+import { LEGACY_POINTS_PER_GROUP } from './scoring.js';
+import { createRetention,                     } from './retention.js';
 
 /** 存档格式版本；改动字段含义时必须 +1（旧档会整档作废，见 `parseSave`） */
 export const SAVE_VERSION = 1;
@@ -31,6 +33,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                       
                      
                     
+                            
+                                      
                             
  
 
@@ -72,6 +76,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                                
                 
                         
+                                              
+                       
                          
                      
      
@@ -80,6 +86,8 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                           
      
                           
+                                                                  
+                            
  
 
 /**
@@ -113,12 +121,25 @@ export const GAME_MODES                      = ['normal', 'nightmare'];
                        
                      
                           
+                                                             
+                 
+                                                 
+                       
                                                     
                   
  
 
+/**
+ * 记录里「分」的单位（2026-10-27 评审 P1-1）。
+ * 缺这个字段 = 老存档，三个最高分还是组数 → 读档时 × LEGACY_POINTS_PER_GROUP 迁移。
+ * 不升 SAVE_VERSION：版本不符会整档作废，迁移只该动分数。
+ */
+export const SCORE_UNIT = 'points';
+
                            
                   
+                              
+                               
                  
                   
                
@@ -159,9 +180,34 @@ export function createMetaSnapshot(now        )               {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
+    adReviveUsed: 0,
     settings: { sound: true, bgm: true, voice: true },
     guideDone: false,
     tutorial: createTutorialState(),
+    retention: createRetention(),
+  };
+}
+
+/** 回访状态修复：字段逐个兜底，坏了只丢这一项，不影响别的 */
+function sanitizeRetention(raw         , issues          )                 {
+  const fb = createRetention();
+  if (raw === undefined) return fb;   // 老存档：迁移，不算修复
+  if (!isObj(raw)) {
+    issues.push('回访数据不是对象，已按默认处理');
+    return fb;
+  }
+  const n = (v         , max = Number.MAX_SAFE_INTEGER)         => intIn(v, 0, max) ?? 0;
+  const s = (v         )         => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  return {
+    checkinDays: n(raw.checkinDays),
+    lastCheckinDay: s(raw.lastCheckinDay),
+    dailyDay: s(raw.dailyDay),
+    dailyPlays: n(raw.dailyPlays, 99),
+    dailyCleared: boolOr(raw.dailyCleared, false),
+    dailyBest: n(raw.dailyBest),
+    lastLoginDay: s(raw.lastLoginDay),
+    reviveTickets: n(raw.reviveTickets, 999),
+    bonusGold: n(raw.bonusGold, 36),
   };
 }
 
@@ -171,6 +217,7 @@ export function createSaveData(mode          , now        )           {
   for (const m of GAME_MODES) progress[m] = createProgress(m);
   return {
     version: SAVE_VERSION,
+    scoreUnit: SCORE_UNIT,
     savedAt: now,
     mode,
     progress,
@@ -202,8 +249,22 @@ function boolOr(v         , fb         )          {
   return typeof v === 'boolean' ? v : fb;
 }
 
-/** 关卡记录修复：星级 0~3、分数非负（越界即视为损坏，用 0 兜底并记一条） */
-function sanitizeRecord(raw         , level        , issues          )              {
+/**
+ * 关卡记录修复：星级 0~3、分数非负（越界即视为损坏，用 0 兜底并记一条）。
+ * `scale`：老存档（分数是组数）传 LEGACY_POINTS_PER_GROUP，新存档传 1。
+ */
+function sanitizeRecord(raw         , level        , issues          , scale = 1)              {
+  const rec = sanitizeRecordRaw(raw, level, issues);
+  if (scale === 1) return rec;
+  return {
+    stars: rec.stars,
+    personalBest: rec.personalBest * scale,
+    boardBest: rec.boardBest * scale,
+    validBest: rec.validBest * scale,
+  };
+}
+
+function sanitizeRecordRaw(raw         , level        , issues          )              {
   if (!isObj(raw)) {
     issues.push(`第 ${level} 关记录不是对象，已按全 0 处理`);
     return { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
@@ -235,7 +296,7 @@ function sanitizeRecord(raw         , level        , issues          )          
  * ⚠️ `unlocked` 必须夹在 `[1, totalLevels]`：存档被改成 999 之后主界面会显示
  * 「第 999 关」，而关卡数据里根本没有这一关 —— 这种错必须在这里挡掉。
  */
-function sanitizeProgress(raw         , mode          , limits            , issues          )               {
+function sanitizeProgress(raw         , mode          , limits            , issues          , scale = 1)               {
   const fb = createProgress(mode);
   if (!isObj(raw)) {
     issues.push(`${mode} 进度不是对象，已按新档处理`);
@@ -258,7 +319,7 @@ function sanitizeProgress(raw         , mode          , limits            , issu
       issues.push(`${mode} 存在越界关卡记录「${key}」，已丢弃`);
       continue;
     }
-    levels[level] = sanitizeRecord(value, level, issues);
+    levels[level] = sanitizeRecord(value, level, issues, scale);
   }
 
   // 通关第 L 关必然已解锁第 L+1 关（首次通关即解锁，只增不减），否则把 unlocked 抬上去，
@@ -308,6 +369,11 @@ function sanitizeMeta(raw         , limits            , now        , issues     
     issues.push(`广告次数非法（${String(raw.adStaminaUsed)}），已按 0 处理`);
   }
 
+  const adReviveUsed = intIn(raw.adReviveUsed, 0, limits.adReviveDailyMax ?? Number.MAX_SAFE_INTEGER);
+  if (adReviveUsed === null && raw.adReviveUsed !== undefined) {
+    issues.push(`续命广告次数非法（${String(raw.adReviveUsed)}），已按 0 处理`);
+  }
+
   const rawSettings = isObj(raw.settings) ? raw.settings : {};
 
   return {
@@ -315,6 +381,7 @@ function sanitizeMeta(raw         , limits            , now        , issues     
     nextRecoverAt,
     adDay: typeof raw.adDay === 'string' && raw.adDay ? raw.adDay : fb.adDay,
     adStaminaUsed: adStaminaUsed ?? 0,
+    adReviveUsed: adReviveUsed ?? 0,
     settings: {
       sound: boolOr(rawSettings.sound, fb.settings.sound),
       bgm: boolOr(rawSettings.bgm, fb.settings.bgm),
@@ -333,6 +400,7 @@ function sanitizeMeta(raw         , limits            , now        , issues     
         freeLevel: boolOr(rawT.freeLevel, fbT.freeLevel),
       };
     })(),
+    retention: sanitizeRetention(raw.retention, issues),
   };
 }
 
@@ -393,6 +461,16 @@ function sanitizeSession(raw         , limits            , issues          )    
   const timeLeft = intIn(raw.timeLeft, 0, limits.timeLimit);
   if (timeLeft === null) return drop(`剩余时间非法（${String(raw.timeLeft)}）`);
 
+  // 2026-10-27 排行分：老断点没有这两个字段 → 按组数 ×100、速度基准取当前剩余时间（不白送速度分）
+  const points = raw.points === undefined
+    ? score * LEGACY_POINTS_PER_GROUP
+    : intIn(raw.points, 0, Number.MAX_SAFE_INTEGER);
+  if (points === null) return drop(`排行分非法（${String(raw.points)}）`);
+  const lastTimeLeft = raw.lastTimeLeft === undefined
+    ? timeLeft
+    : intIn(raw.lastTimeLeft, 0, limits.timeLimit);
+  if (lastTimeLeft === null) return drop(`速度分基准非法（${String(raw.lastTimeLeft)}）`);
+
   // ⚠️ `savedAt` 是「离开时刻」的基准：兜底 0 会让恢复时按「已经过去很久」直接扣到 0
   // （本局判负）。对一条损坏的档来说，这比「白送一次暂停」更符合新规则，故保留 0 兜底。
   const savedAt = intIn(raw.savedAt, 0, Number.MAX_SAFE_INTEGER) ?? 0;
@@ -411,6 +489,8 @@ function sanitizeSession(raw         , limits            , issues          )    
     revivedUsed: boolOr(raw.revivedUsed, false),
     swapMisses: intIn(raw.swapMisses, 0, 999) ?? 0,
     eliminatedOnce: boolOr(raw.eliminatedOnce, false),
+    points,
+    lastTimeLeft,
     savedAt,
   };
 }
@@ -460,10 +540,14 @@ export function parseSave(raw         , fallback          , limits            , 
     issues.push(`模式非法（${String(obj.mode)}），已按简单模式处理`);
   }
 
+  // 2026-10-27：没有 scoreUnit 的是老存档，分数是组数 → ×100 迁移（不算「修复」，不记 issue）
+  const legacy = obj.scoreUnit !== SCORE_UNIT;
+  const scale = legacy ? LEGACY_POINTS_PER_GROUP : 1;
+
   const rawProgress = isObj(obj.progress) ? obj.progress : {};
   if (!isObj(obj.progress)) issues.push('进度表不是对象，已按新档处理');
   const progress = {}                                  ;
-  for (const m of GAME_MODES) progress[m] = sanitizeProgress(rawProgress[m], m, limits, issues);
+  for (const m of GAME_MODES) progress[m] = sanitizeProgress(rawProgress[m], m, limits, issues, scale);
 
   const meta = sanitizeMeta(obj.meta, limits, now, issues);
   const session = sanitizeSession(obj.session, limits, issues);
@@ -471,7 +555,7 @@ export function parseSave(raw         , fallback          , limits            , 
   const savedAt = intIn(obj.savedAt, 0, Number.MAX_SAFE_INTEGER) ?? now;
 
   return {
-    data: { version: SAVE_VERSION, savedAt, mode: mode ?? fallback.mode, progress, meta, session },
+    data: { version: SAVE_VERSION, scoreUnit: SCORE_UNIT, savedAt, mode: mode ?? fallback.mode, progress, meta, session },
     recovered: issues.length > 0,
     discarded: false,
     issues,

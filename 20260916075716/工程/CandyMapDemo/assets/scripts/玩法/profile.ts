@@ -15,6 +15,7 @@
  */
 
 import { cloudSync } from './cloud';
+import { withPrivacy } from './privacy';
 
 /** 预设头像：美术出图前用 emoji 占位；出图后把 src 填成资源路径（如 'avatar/avatar-1'），面板与木牌自动换图 */
 export const PRESET_AVATARS: ReadonlyArray<{ emoji: string; src: string; bg: string }> = [
@@ -203,6 +204,11 @@ export function applyWxInfo(info: { nickName?: unknown; avatarUrl?: unknown } | 
 export function trySilentWxProfile(): void {
   const wx = wxApi();
   if (!wx || current.edited || typeof wx.getSetting !== 'function' || typeof wx.getUserInfo !== 'function') return;
+  // 隐私协议没同意就不拿资料（privacy.ts，评审 P0-1）；拒绝时保持默认头像昵称
+  withPrivacy(() => silentFetch(wx));
+}
+
+function silentFetch(wx: any): void {
   try {
     wx.getSetting({
       success: (r: { authSetting?: Record<string, boolean> }) => {

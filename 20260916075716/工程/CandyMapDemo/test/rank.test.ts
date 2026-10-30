@@ -31,7 +31,7 @@ describe('rank · 总积分与总星数', () => {
 
   it('结算链路：续命局不抬有效分，未续命 1★ 局会抬', () => {
     const line = LEVEL_STAR_LINES[3]!;
-    const o = (score: number, revived: boolean): LevelOutcome => ({ level: 3, score, star1: line[0], star2: line[1], star3: line[2], revived });
+    const o = (score: number, revived: boolean): LevelOutcome => ({ level: 3, score, points: score, star1: line[0], star2: line[1], star3: line[2], revived });
     let r = applySettlement(undefined, o(4, false), settleLevel(o(4, false))!);
     assert.equal(r.validBest, 4);
     r = applySettlement(r, o(20, true), settleLevel(o(20, true), r)!);
@@ -90,9 +90,9 @@ describe('rank · 示例对手', () => {
     assert.equal(a.length, 100);
     assert.equal(mockTotalRivals(), a, '缓存：每次同一批');
     const max = Math.max(...a.map((r) => r.total));
-    // 40 关 × 3★线 ~9 × 1.4 ≈ 500 上下；旧示例是 380~980 的随机数
-    assert.ok(max < 1200, `示例对手最高分 ${max} 不该离谱`);
-    assert.ok(a.some((r) => r.total < 30), '应有刚入门的对手（新玩家不至于垫底）');
+    // 排行分单位（2026-10-27）：40 关 × 3★线 ~9 组 × ~130 分 ≈ 5 万上下
+    assert.ok(max < 120000, `示例对手最高分 ${max} 不该离谱`);
+    assert.ok(a.some((r) => r.total < 3000), '应有刚入门的对手（新玩家不至于垫底）');
     assert.ok(a.every((r) => r.stars <= RANK_RULE.maxStars));
   });
 });

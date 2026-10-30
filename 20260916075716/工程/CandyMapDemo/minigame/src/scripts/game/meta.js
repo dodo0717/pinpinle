@@ -10,8 +10,10 @@ import {
   LEVEL_REWARD_CONFIG,
   REWARD_LEVELS,
   STAMINA_MAX,
+  createRetention,
                     
                
+                      
 } from '../core/index.js';
 
 /** 秒 → mm:ss（原在 web/ui/dom.ts，纯函数，随模块搬过来） */
@@ -24,8 +26,20 @@ export function fmtMMSS(sec        )         {
 /** 加体力广告每日上限（§13.3：所有加体力入口共用 5 次） */
 export const AD_STAMINA_DAILY_MAX = 5;
 
-/** 体力恢复间隔：每 20 分钟 1 颗（§13.1） */
-export const STAMINA_RECOVER_MS = 20 * 60 * 1000;
+/**
+ * 续命广告每日上限（2026-10-26 评审 P0-2）：与加体力**分开计数** ——
+ * 原来两者共用 5 次，续命几次之后就加不了体力了。
+ */
+export const AD_REVIVE_DAILY_MAX = 10;
+
+/**
+ * 体力恢复间隔：每 15 分钟 1 颗（2026-10-27 评审 P1-5，原 §13.1 为 20 分钟）。
+ * 0 → 回满 10 颗约 2.5 小时，适合「中午 + 晚上」两次回访。
+ */
+export const STAMINA_RECOVER_MS = 15 * 60 * 1000;
+
+/** 看一次广告加几颗体力（评审 P1-5：原来 +1，一次广告只值一局，改 +2） */
+export const AD_STAMINA_GAIN = 2;
 
                            
                                                                        
@@ -43,10 +57,24 @@ export const STAMINA_RECOVER_MS = 20 * 60 * 1000;
                 
                       
                         
+                                            
+                       
                      
                           
                      
+                                                   
+                            
+     
+                                                           
+                                         
+     
+                      
  
+
+/** 本状态的体力上限 */
+export function staminaMaxOf(state           )         {
+  return state.staminaMax ?? STAMINA_MAX;
+}
 
 function dayKey(now        )         {
   const d = new Date(now);
@@ -60,17 +88,20 @@ export function createMeta(now        )            {
     nextRecoverAt: null,
     adDay: dayKey(now),
     adStaminaUsed: 0,
+    adReviveUsed: 0,
     settings: { sound: true, bgm: true },
     guideDone: false,
+    retention: createRetention(),
   };
 }
 
-/** 跨天 → 加体力广告次数归零（§13.3「每日 5 次」） */
+/** 跨天 → 加体力 / 续命广告次数都归零（§13.3「每日 5 次」） */
 export function rollOverDay(state           , now        )          {
   const key = dayKey(now);
   if (state.adDay === key) return false;
   state.adDay = key;
   state.adStaminaUsed = 0;
+  state.adReviveUsed = 0;
   return true;
 }
 
@@ -82,17 +113,18 @@ export function rollOverDay(state           , now        )          {
  */
 export function tickMeta(state           , now        )          {
   let changed = rollOverDay(state, now);
+  const max = staminaMaxOf(state);
 
-  if (state.stamina.available < STAMINA_MAX) {
+  if (state.stamina.available < max) {
     if (state.nextRecoverAt === null) state.nextRecoverAt = now + STAMINA_RECOVER_MS;
-    while (state.stamina.available < STAMINA_MAX && now >= state.nextRecoverAt) {
+    while (state.stamina.available < max && now >= state.nextRecoverAt) {
       state.stamina = { available: state.stamina.available + 1, pending: state.stamina.pending };
       state.nextRecoverAt += STAMINA_RECOVER_MS;
       changed = true;
     }
   }
   // 满格 → 不再显示倒计时，计时器也停掉（否则下次消耗前的时间会被白算）
-  if (state.stamina.available >= STAMINA_MAX && state.nextRecoverAt !== null) {
+  if (state.stamina.available >= max && state.nextRecoverAt !== null) {
     state.nextRecoverAt = null;
     changed = true;
   }
@@ -101,16 +133,17 @@ export function tickMeta(state           , now        )          {
 
 /** 消耗体力后调用：把恢复计时器点起来（如果还没点） */
 export function armRecovery(state           , now        )       {
-  if (state.stamina.available < STAMINA_MAX && state.nextRecoverAt === null) {
+  if (state.stamina.available < staminaMaxOf(state) && state.nextRecoverAt === null) {
     state.nextRecoverAt = now + STAMINA_RECOVER_MS;
   }
 }
 
 /** 加体力（广告 / 开发工具）；满格时返回 false，调用方给「体力已满」 */
 export function addStamina(state           , now        , count = 1)          {
-  if (state.stamina.available >= STAMINA_MAX) return false;
+  const max = staminaMaxOf(state);
+  if (state.stamina.available >= max) return false;
   state.stamina = {
-    available: Math.min(STAMINA_MAX, state.stamina.available + count),
+    available: Math.min(max, state.stamina.available + count),
     pending: state.stamina.pending,
   };
   armRecovery(state, now);
@@ -120,7 +153,7 @@ export function addStamina(state           , now        , count = 1)          {
 
 /** 「下颗体力 MM:SS」；体力已满返回 null（§11.1：满格不显示倒计时） */
 export function staminaCountdown(state           , now        )                {
-  if (state.stamina.available >= STAMINA_MAX) return null;
+  if (state.stamina.available >= staminaMaxOf(state)) return null;
   if (state.nextRecoverAt === null) return fmtMMSS(STAMINA_RECOVER_MS / 1000);
   return fmtMMSS(Math.max(0, state.nextRecoverAt - now) / 1000);
 }
@@ -136,12 +169,26 @@ export function recordAdStamina(state           )       {
   state.adStaminaUsed += 1;
 }
 
+/** 今日还剩几次续命广告 */
+export function adReviveLeft(state           , now        )         {
+  rollOverDay(state, now);
+  return Math.max(0, AD_REVIVE_DAILY_MAX - state.adReviveUsed);
+}
+
+/** 记一次续命广告（看完才算） */
+export function recordAdRevive(state           )       {
+  state.adReviveUsed += 1;
+}
+
 /* ---------------------------------------------------------------- 图鉴（§10） */
 
 /** 图鉴总数 = 36（图 ID 0~35） */
 export const COLLECTION_TOTAL = REWARD_LEVELS;
 
-/** 第 N 关的图鉴奖励图 ID；第 37~60 关无奖励（§10.2） */
+/**
+ * 第 N 关的图鉴奖励图 ID（§10.2 旧口径，仅老界面 / 测试还在读）。
+ * ⚠️ 图鉴实际按「每 10 颗星一张」解锁（见 unlockedImageIds）；后段奖励是金卡 + 章节宝箱（核心/rewards.ts）。
+ */
 export function rewardImageOfLevel(level        )                     {
   return LEVEL_REWARD_CONFIG[level];
 }

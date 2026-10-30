@@ -35,7 +35,10 @@ import {
  
 
                            
+                                               
                 
+                                         
+                 
                                   
                    
                     
@@ -115,11 +118,12 @@ export class ThemeHud {
 
   /** 每秒 / 每次得分调一次 */
   update(s          )       {
-    this.scoreL.string = fmtNum(s.score);
+    this.scoreL.string = fmtNum(s.points);
     this.timeL.string = fmtClock(s.timeLeft);
     this.energyL.string = this.t.id === 'candy' ? `${s.stamina}/${s.staminaMax}` : `体力 ${s.stamina}/${s.staminaMax}`;
+    // 下一条星线按「张」显示：分数牌是排行分，星线是拼好几张，两个单位不能混着写数字
     const next = s.lines.find((v) => v > s.score);
-    if (this.nextL) this.nextL.string = next === undefined ? 'MAX' : fmtNum(next);
+    if (this.nextL) this.nextL.string = next === undefined ? 'MAX' : `${s.score}/${next}张`;
 
     // 星插座 / 星节点
     for (let i = 0; i < 3; i++) {

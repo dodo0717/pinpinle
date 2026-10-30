@@ -477,11 +477,14 @@ export class Node {
  * 微信开发者工具 / 真机里看不到控制台时，错误直接画在屏幕顶部一条红底文字上（点一下消失），
  * 截图就能看到是哪一行出的错。同一条错误只记一次。 */
 const RUNTIME_ERRORS = [];
+/** 红条开关：正式包关掉（由 release.ts 经 玩法/runtimeError.ts 设置），错误只进 console */
+let ERROR_BAR = true;
+export function setErrorBarEnabled(on) { ERROR_BAR = !!on; if (!ERROR_BAR) RUNTIME_ERRORS.length = 0; }
 export function reportError(where, err) {
   const msg = `${where}: ${err && err.message ? err.message : String(err)}`;
   const top = err && err.stack ? String(err.stack).split('\n').slice(1, 3).map((l) => l.trim()).join(' <- ') : '';
   console.error('[runtime] ' + msg, err && err.stack ? err.stack : '');
-  if (RUNTIME_ERRORS.some((e) => e.msg === msg)) return;
+  if (!ERROR_BAR || RUNTIME_ERRORS.some((e) => e.msg === msg)) return;
   RUNTIME_ERRORS.push({ msg, top });
   if (RUNTIME_ERRORS.length > 3) RUNTIME_ERRORS.shift();
 }

@@ -113,5 +113,24 @@ await sleep(1500);
 assert.equal(game.finished, true, '倒计时归零后应进入结算');
 console.log('✓ 结算：倒计时归零 → finished=true，弹窗已弹出');
 
+/* ---------- 每日挑战（2026-10-27 评审 P1-6）：不耗体力、固定种子、结算记次数 ---------- */
+const { GS } = await import('../assets/scripts/玩法/state.ts');
+const { dailyLevel, dailySeed, dayKeyOf } = await import('../assets/scripts/核心/index.ts');
+const today = dayKeyOf(Date.now());
+const staminaBefore = GS.stamina.available;
+const playsBefore = GS.meta.retention.dailyPlays;
+assert.equal(game.startDaily(), true, '每日挑战应能开局');
+await sleep(120);
+assert.equal(game.levelIndex, dailyLevel(today), '每日挑战关卡按日期');
+assert.equal(game.levelSeed, dailySeed(today), '每日挑战种子按日期');
+assert.equal(GS.stamina.available, staminaBefore, '每日挑战不耗体力');
+assert.equal(GS.meta.retention.dailyPlays, playsBefore + 1, '开局记一次');
+assert.equal(GS.session, null, '每日挑战不落断点');
+game.timeLeft = 1;
+game.started = true;
+await sleep(1500);
+assert.equal(game.finished, true, '每日挑战倒计时归零后结算');
+console.log(`✓ 每日挑战：第 ${game.levelIndex} 关、不耗体力、不落断点、结算完成`);
+
 console.log('\n对局层冒烟通过');
 process.exit(0);

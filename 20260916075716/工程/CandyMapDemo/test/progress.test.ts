@@ -19,8 +19,13 @@ import {
 /** 一关的星线（第 15 关的真实数值：5 / 7 / 9） */
 const LINES = { star1: 5, star2: 7, star3: 9 };
 
+/**
+ * 一局结果。`points`（排行分）默认等于 `score`（组数）：本文件只测「哪个最高分被抬、哪个不抬」，
+ * 让两者同值断言最直观；分数单位换算另见 scoring.test.ts。
+ */
 function outcome(partial: Partial<LevelOutcome> = {}): LevelOutcome {
-  return { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  const base = { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  return { points: base.score, ...base };
 }
 
 describe('M4 · 星级折算（§7.2）', () => {
@@ -63,10 +68,24 @@ describe('M4 · 结算判定（§7.2 / §7.4 / §12.1）', () => {
     assert.strictEqual(starsFor(12, 7, 9, 11), 3, '超过 3★ 线继续拿 3★（分数没有上限）');
   });
 
-  it('续命局统一判 1 星，哪怕分数够到 3★（§7.4）', () => {
-    const s = settleLevel(outcome({ score: 12, revived: true }));
-    assert.ok(s);
-    assert.strictEqual(s.stars, 1, '续命局不能被判成 3 星');
+  it('续命局统一判 1★（§7.4 main 规则；评审 P1-8 的最高 2★ 已撤回）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.stars, 1, '够到 3★ 也只记 1★');
+    assert.strictEqual(settleLevel(outcome({ score: 7, revived: true }))!.stars, 1);
+    assert.strictEqual(settleLevel(outcome({ score: 5, revived: true }))!.stars, 1, '只够 1★ 就是 1★');
+  });
+
+  it('首次 3★ 返还 1 颗体力；以前拿过 3★ / 续命局 / 没到 3★ 都不返（评审 P1-5）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 9 }))!.refundStamina, true, '首次通关就 3★');
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 2, personalBest: 8, boardBest: 0, validBest: 8 })!.refundStamina,
+      true, '以前 2★，这次首次 3★',
+    );
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 })!.refundStamina,
+      false, '以前拿过 3★',
+    );
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.refundStamina, false, '续命局到不了 3★');
+    assert.strictEqual(settleLevel(outcome({ score: 8 }))!.refundStamina, false);
   });
 
   it('续命也没救回来（分数没够 1★）仍然是失败', () => {

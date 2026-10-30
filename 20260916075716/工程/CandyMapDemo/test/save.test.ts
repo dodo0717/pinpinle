@@ -67,6 +67,8 @@ function realSession(level = 1, overrides: Partial<LevelSession> = {}): LevelSes
     revivedUsed: false,
     swapMisses: 0,
     eliminatedOnce: false,
+    points: 0,
+    lastTimeLeft: cfg.timeLimit,
     savedAt: T0,
     ...overrides,
   };
@@ -98,6 +100,23 @@ describe('save —— 往返一致与出厂值', () => {
     assert.equal(result.data.progress.normal.levels[2]?.validBest, 40);
     assert.equal(result.data.progress.normal.levels[3]?.validBest, 9);
     assert.equal(result.recovered, false, '迁移不算修复，不该弹「存档已修复」');
+  });
+
+  it('老存档没有 adReviveUsed：按 0 迁移，不算修复；非法值按 0 并记一条（2026-10-26 续命额度拆分）', () => {
+    const raw = JSON.parse(serializeSave(fresh()));
+    delete raw.meta.adReviveUsed;
+    const old = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(old.data.meta.adReviveUsed, 0);
+    assert.equal(old.recovered, false, '缺字段是迁移，不该弹「存档已修复」');
+
+    raw.meta.adReviveUsed = -3;
+    const bad = parseSave(JSON.stringify(raw), fresh(), { ...LIMITS, adReviveDailyMax: 10 }, T0);
+    assert.equal(bad.data.meta.adReviveUsed, 0);
+    assert.equal(bad.recovered, true);
+
+    raw.meta.adReviveUsed = 7;
+    const ok = parseSave(JSON.stringify(raw), fresh(), { ...LIMITS, adReviveDailyMax: 10 }, T0);
+    assert.equal(ok.data.meta.adReviveUsed, 7);
   });
 
   it('老存档 unlocked 小于出厂解锁数 → 读档抬到出厂值（2026-10-26 真机只显示 1、2 关）', () => {

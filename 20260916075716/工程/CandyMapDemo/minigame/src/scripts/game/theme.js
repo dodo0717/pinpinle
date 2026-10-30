@@ -152,7 +152,7 @@ export const THEMES                             = {
       nextLevel: '下一关',
       backToMap: '返回地图',
       failTitle: '时间到',
-      failSub: (n) => `再得 ${n} 分就能拿第 1 颗星`,
+      failSub: (n) => `再拼好 ${n} 张就能拿第 1 颗星`,
       failFinalSub: '再来一局试试',
       reviveTitle: (s) => `续命 ${s} 秒`,
       reviveSub: '',
@@ -188,11 +188,12 @@ export const THEMES                             = {
       nextLevel: '下一关 ▶',
       backToMap: '返回地图',
       failTitle: '时间到！',
-      failSub: (n) => `就差 ${n} 分就能拿第 1 颗星`,
+      failSub: (n) => `就差 ${n} 张就能拿第 1 颗星`,
       failFinalSub: '这次没拿到星，换个思路再来一局',
       reviveTitle: (s) => `续命 ${s} 秒`,
       reviveSub: '接着刚才的分数继续，已拼好的进度都还在',
-      reviveAd: (s) => `▶ 看广告免费续命 · 加 ${s} 秒`,
+      // 续命规则事前告知（续命局记 1★、不计入排行榜；2026-10-30 按 main 规则）
+      reviveAd: (s) => `▶ 看广告续命 +${s} 秒 · 记 1★ 不计排行`,
       reviveBtn: (s) => `续命 ${s} 秒`,
       giveUp: '就这样吧，回地图',
       retry: '再来一局',
@@ -225,10 +226,10 @@ export const THEMES                             = {
       nextLevel: '下一关',
       backToMap: '返回地图',
       failTitle: '就差一点点',
-      failSub: (n) => `再得 ${n} 分就能摘下第 1 颗星`,
+      failSub: (n) => `再拼好 ${n} 张就能摘下第 1 颗星`,
       failFinalSub: '这局没摘到星，再来一局试试',
       reviveTitle: (s) => `续命 ${s} 秒`,
-      reviveSub: '接着刚才的分数继续\n已拼好的进度都还在',
+      reviveSub: '已拼好的进度都还在\n续命局记 1★，不计入排行榜',
       reviveAd: () => '▶ 免费广告',
       reviveBtn: () => '▶ 看广告，继续拼',
       giveUp: '回地图',
@@ -261,10 +262,10 @@ export const THEMES                             = {
       nextLevel: '下一页 ▶',
       backToMap: '回地图',
       failTitle: '这一页还差一点…',
-      failSub: (n) => `再得 ${n} 分就能摘下第 1 颗星\n贴纸们等你回来继续`,
+      failSub: (n) => `再贴好 ${n} 张就能摘下第 1 颗星\n贴纸们等你回来继续`,
       failFinalSub: '这一页先放一放\n换个思路再贴一次吧',
       reviveTitle: (s) => `续命 ${s} 秒`,
-      reviveSub: '已拼好的进度都在\n接着刚才的分数继续',
+      reviveSub: '已拼好的进度都在\n续命局记 1★，不计入排行榜',
       reviveAd: () => '▶ 看免费广告',
       reviveBtn: (s) => `续命 ${s} 秒`,
       giveUp: '回地图',
@@ -278,23 +279,30 @@ export const THEMES                             = {
 
 const ORDER            = ['classic', 'candy', 'clean', 'journal'];
 
-/** 关卡 → 主题（10-25）：第 2/3/4 关是三原型，其余关卡（含第 1 关）是原样式 */
-const LEVEL_THEME                          = { 2: 'candy', 3: 'clean', 4: 'journal' };
+/**
+ * 「全关统一皮肤」方案（2026-10-27 评审 P1-3，**暂未启用**，见下方 `UNIFIED_SKIN`）：
+ * 全部关卡用玩家选的对局皮肤，默认贴纸手账；糖果嘉年华 / 果冻乐园由章节宝箱解锁
+ * （核心/rewards.ts，第 45 / 55 关），在设置页切换。拥有与否由调用方判断（MapBootstrap showSkinPicker）。
+ */
+export const DEFAULT_SKIN          = 'journal';
+/** 可选皮肤（设置页列表顺序） */
+export const SKINS                     = ['journal', 'candy', 'clean'];
 const KEY = 'pinpin.theme';
+const SKIN_KEY = 'pinpin.skin';
 
                                        
 const listeners             = [];
 
-function readStored()                 {
+function readStored(key = KEY)                 {
   try {
     const wx = (globalThis                ).wx;
     if (wx && typeof wx.getStorageSync === 'function') {
-      const v = wx.getStorageSync(KEY);
+      const v = wx.getStorageSync(key);
       if (typeof v === 'string' && v in THEMES) return v           ;
     }
     const ls = (globalThis                              ).localStorage;
     if (ls) {
-      const v = ls.getItem(KEY);
+      const v = ls.getItem(key);
       if (v && v in THEMES) return v           ;
     }
   } catch {
@@ -303,24 +311,54 @@ function readStored()                 {
   return null;
 }
 
-function writeStored(id         )       {
+function writeStored(id         , key = KEY)       {
   try {
     const wx = (globalThis                ).wx;
     if (wx && typeof wx.setStorageSync === 'function') {
-      wx.setStorageSync(KEY, id);
+      wx.setStorageSync(key, id);
       return;
     }
     const ls = (globalThis                              ).localStorage;
-    if (ls) ls.setItem(KEY, id);
+    if (ls) ls.setItem(key, id);
   } catch {
     /* 存不上就内存态 */
   }
 }
 
+/** 玩家选的对局皮肤（只认 SKINS 里的；读不到 / 老值 classic → 默认贴纸手账） */
+let skinId          = (()          => {
+  const v = readStored(SKIN_KEY);
+  return v && SKINS.includes(v) ? v : DEFAULT_SKIN;
+})();
+
+// 进关时 setThemeForLevel 会按关卡重设；这里只是启动时的初值
 let currentId          = readStored() ?? 'classic';
 
-/** 关卡 → 主题：第 2 关糖果嘉年华 / 第 3 关果冻乐园 / 第 4 关贴纸手账，其余原样式。进关时由 GameBootstrap 调用 */
+/** 当前选的皮肤 */
+export function selectedSkin()          {
+  return skinId;
+}
+
+/** 换皮肤（设置页）；是否已拥有由调用方先判断。返回是否真的换了 */
+export function setSkin(id         )          {
+  if (!SKINS.includes(id) || id === skinId) return false;
+  skinId = id;
+  writeStored(id, SKIN_KEY);
+  return true;
+}
+
+/**
+ * 关卡 → 主题。
+ *
+ * 2026-10-27 用户决定：主视觉还没定，**先恢复原来的按关绑定**（第 2 关糖果嘉年华 / 第 3 关果冻乐园 /
+ * 第 4 关贴纸手账，其余关卡原样式），三套对比着看。「全关统一 + 设置页选皮肤」的代码保留，
+ * 由 `UNIFIED_SKIN` 开关控制，定稿后把它改成 true 即可（设置页皮肤入口跟着出现）。
+ */
+export const UNIFIED_SKIN = false;
+const LEVEL_THEME                          = { 2: 'candy', 3: 'clean', 4: 'journal' };
+
 export function themeForLevel(level        )            {
+  if (UNIFIED_SKIN) return THEMES[skinId];
   return THEMES[LEVEL_THEME[level] ?? 'classic'];
 }
 

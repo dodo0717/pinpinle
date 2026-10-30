@@ -23,7 +23,7 @@
  * 浏览器预览：无 `wx` → cloudSync() 返回 null，全部路径变 no-op。
  */
 
-import { recordOf, TOTAL_LEVELS } from '../core/index.js';
+import { recordOf, TOTAL_LEVELS, LEGACY_POINTS_PER_GROUP } from '../core/index.js';
                                                 
                                             
 
@@ -46,6 +46,8 @@ export const REPORT_MODES                      = ['normal', 'nightmare'];
                                                               
                   
                     
+                                                                  
+                                      
                  
                       
               
@@ -69,16 +71,30 @@ export const REPORT_MODES                      = ['normal', 'nightmare'];
                                  
  
 
+/**
+ * 分数单位（2026-10-27 评审 P1-1）：上报带 `scoreUnit: 'points'`；服务端存档 JSON 带 `unit: 'points'`。
+ * 云档没有 `unit` = 服务端还没迁移这一行（分数是组数）→ 读进来时 ×LEGACY_POINTS_PER_GROUP。
+ */
+export const CLOUD_SCORE_UNIT = 'points';
+
+function scaleMap(m         , k        )                         {
+  const out                         = {};
+  if (!m || typeof m !== 'object') return out;
+  for (const [key, v] of Object.entries(m                           )) out[key] = Math.max(0, Math.floor(Number(v) || 0)) * k;
+  return out;
+}
+
 function asCloudShape(raw         )                    {
   if (!raw || typeof raw !== 'object') return null;
   const stars = (raw                       ).stars;
   const best = (raw                      ).best;
   if (!stars || typeof stars !== 'object' || !best || typeof best !== 'object') return null;
   const valid = (raw                       ).valid;
+  const k = (raw                      ).unit === CLOUD_SCORE_UNIT ? 1 : LEGACY_POINTS_PER_GROUP;
   return {
     stars: stars                          ,
-    best: best                          ,
-    valid: valid && typeof valid === 'object' ? (valid                          ) : undefined,
+    best: scaleMap(best, k),
+    valid: valid && typeof valid === 'object' ? scaleMap(valid, k) : undefined,
   };
 }
 
@@ -141,7 +157,7 @@ export function cloudDiff(local              , cloud         )                  
     const better = rec.stars > (Number(cloudStars[key]) || 0)
       || rec.validBest > (Number(cloudValid[key]) || 0);
     if (!better) continue;
-    out.push({ level, win: true, stars: rec.stars, score: rec.validBest, mode: local.mode, revived: false });
+    out.push({ level, win: true, stars: rec.stars, score: rec.validBest, mode: local.mode, revived: false, scoreUnit: CLOUD_SCORE_UNIT });
   }
   return out.sort((a, b) => a.level - b.level);
 }
@@ -226,7 +242,7 @@ export class CloudSync {
   /** 结算上报：成功即返回，失败入队（≤200 条），下次 flush() 补传。 */
   async report(r                  )                {
     if (!this.enabled) return;
-    const item                   = { ...r, ts: Date.now() };
+    const item                   = { ...r, scoreUnit: CLOUD_SCORE_UNIT, ts: Date.now() };
     const ok = this.token ? await this.postResult(item) : false;
     if (!ok) this.enqueue(item);
   }
@@ -279,6 +295,8 @@ export class CloudSync {
         header: { 'Wx-Authorization': `Bearer ${this.token}` },
         data: {
           level: item.level, win: item.win, stars: item.stars, score: item.score,
+          // 离线队列里 2026-10-27 之前入队的条目分数是组数：那时还没有 scoreUnit 字段，原样不带
+          ...(item.scoreUnit ? { scoreUnit: item.scoreUnit } : {}),
           mode: item.mode ?? 'normal', revived: !!item.revived,
           moves: item.moves, durationMs: item.durationMs,
         },

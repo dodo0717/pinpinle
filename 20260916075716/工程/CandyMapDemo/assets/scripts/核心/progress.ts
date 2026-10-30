@@ -9,6 +9,7 @@
  */
 
 import type { GameMode } from './config';
+import { RELEASE } from './release';
 
 /* ------------------------------------------------------------------ 类型 */
 
@@ -18,7 +19,12 @@ export type LevelStatus = 'locked' | 'unlocked' | 'cleared';
 /** 结算弹窗的 4 种形态（§12.1.1 ~ §12.1.4） */
 export type SettlementKind = 'first' | 'repeat' | 'first-revived' | 'repeat-revived';
 
-/** 一关的历史记录 */
+/**
+ * 一关的历史记录。
+ *
+ * ⚠️ 2026-10-27 起三个最高分的单位是**排行分**（`scoring.ts`：每组 100 + 速度分），不再是组数。
+ * 老存档按 ×100 迁移（save.ts `scoreUnit`）。
+ */
 export interface LevelRecord {
   /** 历史最高星级 0~3 */
   stars: number;
@@ -54,7 +60,13 @@ export interface LevelRecord {
  */
 export interface LevelOutcome {
   level: number;
+  /** 本局消除组数（拼好几张）—— **只用来判星**，与三条星线同一单位 */
   score: number;
+  /**
+   * 本局排行分（2026-10-27 评审 P1-1，`scoring.ts`）：每组 100 + 速度分。
+   * 记录里的 personalBest / boardBest / validBest 从此都是这个单位。
+   */
+  points: number;
   /** 本关三条星线（来自 `LevelConfig`，即设计表逐关给定值） */
   star1: number;
   star2: number;
@@ -66,8 +78,10 @@ export interface LevelOutcome {
 /** 一次结算的结论（界面据此决定弹窗形态与按钮） */
 export interface LevelSettlement {
   kind: SettlementKind;
-  /** 最终星级 1~3（续命局恒为 1） */
+  /** 最终星级 1~3（续命局最高 2） */
   stars: number;
+  /** 首次拿到 3★ → 返还本局体力 1 颗（2026-10-27 评审 P1-5） */
+  refundStamina: boolean;
   /** 是否首次拿到 ≥1 星 → 是否解锁下一关 */
   unlockNext: boolean;
 }
@@ -111,7 +125,8 @@ export function boardEligible(outcome: LevelOutcome, stars?: number): boolean {
  * 规则：
  *   1. 得分没够到 1★ 线 → **未通关**，返回 `null`（界面走失败结算 §12.2）；
  *      续命也没救回来同样是失败，不能因为「看广告了」就算过。
- *   2. 续命局**统一判 1 星**（§7.4），哪怕最终分数够到了 2★/3★。
+ *   2. 续命局**统一判 1 星**（§7.4），哪怕最终分数够到了 2★/3★；续命局不上排行榜。
+ *      （评审 P1-8 曾改为最高 2★，2026-10-30 合并时按 main 规则撤回，上限见 REVIVED_MAX_STARS）
  *   3. 只有**首次**通关才解锁下一关（§7.3.3）；重复挑战不改变关卡进度。
  *
  * ⚠️ 2026-09-12 修订（《通关及排名》）：删掉了 `showNext` 字段。
@@ -130,7 +145,8 @@ export function settleLevel(
   const raw = starsFor(outcome.score, outcome.star1, outcome.star2, outcome.star3);
   if (raw === 0) return null;
 
-  const stars = outcome.revived ? 1 : raw;
+  // 续命局星级上限 REVIVED_MAX_STARS（main 规则 §7.4：恒 1★）；仍不上榜
+  const stars = outcome.revived ? Math.min(raw, REVIVED_MAX_STARS) : raw;
   const firstClear = (before?.stars ?? 0) === 0;
   const kind: SettlementKind = firstClear
     ? outcome.revived
@@ -140,8 +156,13 @@ export function settleLevel(
       ? 'repeat-revived'
       : 'repeat';
 
-  return { kind, stars, unlockNext: firstClear };
+  // 首次 3★ 返还 1 颗体力：只看「以前没拿过 3★」，续命局到不了 3★ 自然不返
+  const refundStamina = stars >= 3 && (before?.stars ?? 0) < 3;
+  return { kind, stars, unlockNext: firstClear, refundStamina };
 }
+
+/** 续命局的星级上限：§7.4 恒为 1（2026-10-30 合并时按 main 规则，评审 P1-8 的 2★ 撤回） */
+export const REVIVED_MAX_STARS = 1;
 
 /** 把一次结算写进记录（不修改入参） */
 export function applySettlement(
@@ -151,16 +172,17 @@ export function applySettlement(
 ): LevelRecord {
   const rec: LevelRecord = before ?? { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 };
   const prevValid = typeof rec.validBest === 'number' ? rec.validBest : rec.personalBest;
+  // 三个最高分记的都是排行分（points），判星仍看组数（outcome.score）
   return {
     stars: Math.max(rec.stars, settlement.stars),
-    personalBest: Math.max(rec.personalBest, outcome.score),
+    personalBest: Math.max(rec.personalBest, outcome.points),
     // 续命局不上榜（§7.4）；1★ / 2★ 同样不上榜（《通关及排名》2026-09-12）
     boardBest: boardEligible(outcome, settlement.stars)
-      ? Math.max(rec.boardBest, outcome.score)
+      ? Math.max(rec.boardBest, outcome.points)
       : rec.boardBest,
     // 有效成绩：未续命（能走到这里已保证 ≥1★）
     // 老记录没有 validBest（commitSettlement 直接传 data.levels[x]，不经 recordOf 迁移）→ 按个人最高分兜底
-    validBest: outcome.revived ? prevValid : Math.max(prevValid, outcome.score),
+    validBest: outcome.revived ? prevValid : Math.max(prevValid, outcome.points),
   };
 }
 
@@ -169,9 +191,10 @@ export function applySettlement(
 /**
  * 出厂就解锁的关卡数（2026-10-24：用户要求第 2/3/4 关默认可玩，三套对局主题对比用）。
  * 读档时也按它兜底（2026-10-26：老存档 unlocked=2 的真机只显示 1、2 关）。
- * 正式上线前视产品口径改回 1；服务端 sys_config `game.level.initialUnlocked` 要同步改。
+ * 取值由发布口径决定（`release.ts`：测试 4 / 正式 1）；服务端 sys_config
+ * `game.level.initialUnlocked` 要同步改（见 docs/上线核对清单.md）。
  */
-export const INITIAL_UNLOCKED = 4;
+export const INITIAL_UNLOCKED = RELEASE.initialUnlocked;
 
 export function createProgress(mode: GameMode): ProgressData {
   return { mode, unlocked: INITIAL_UNLOCKED, levels: {} };
@@ -248,7 +271,8 @@ export function confirmStamina(state: Stamina): Stamina {
  *
  * 退还时按上限截断：否则「预扣 → 退还」循环能把体力刷到超过上限。
  */
-export function refundStamina(state: Stamina): Stamina {
+export function refundStamina(state: Stamina, max: number = STAMINA_MAX): Stamina {
   if (state.pending <= 0) return state;
-  return { available: Math.min(STAMINA_MAX, state.available + 1), pending: 0 };
+  // max：当前体力上限（章节宝箱会加成，2026-10-27 评审 P0-4）
+  return { available: Math.min(max, state.available + 1), pending: 0 };
 }

@@ -607,6 +607,15 @@ export const LEVEL_STAR_LINES                                           = {
  */
 export const NIGHTMARE_STAR_LINES                                           = { ...LEVEL_STAR_LINES };
 
+/**
+ * 某关某模式的时长（秒）。2026-10-30 合入评审分支时，按「规则冲突以 main 为准」改走 `timeLimitFor()`
+ * 按关段取值（180 / 240 / 300），两种模式同一时长；评审分支的逐关时长表（只覆盖 60 关）已撤下。
+ * 保留这个签名，是因为对局 / 存档里已有按模式调用的地方。
+ */
+export function timeLimitOf(level        , _mode           = 'normal')         {
+  return timeLimitFor(level);
+}
+
 /** 按模式索引星线表 */
 export const STAR_LINES_BY_MODE                                                             = {
   normal: LEVEL_STAR_LINES,

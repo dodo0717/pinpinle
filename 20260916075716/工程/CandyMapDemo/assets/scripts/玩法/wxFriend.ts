@@ -19,6 +19,9 @@
 import { GS } from './state';
 import { rankTotals } from '../核心/index';
 import { cloudSync } from './cloud';
+import { track } from './analytics';
+import { withPrivacy } from './privacy';
+import { SERVER_RETENTION_API } from '../核心/release';
 
 /** 开放数据域按同一个 key 读（open-data/index.js 里的 RANK_KEY 必须一致） */
 const RANK_KEY = 'pinpin_rank';
@@ -34,6 +37,11 @@ let friendSize = '';
 export function syncFriendRank(): void {
   const wx = (globalThis as { wx?: any }).wx;
   if (!wx || typeof wx.setUserCloudStorage !== 'function') return;
+  // 托管 KV 属于关系链数据：先确认隐私协议已同意（privacy.ts），拒绝就不上报
+  withPrivacy(() => writeFriendKV(wx));
+}
+
+function writeFriendKV(wx: any): void {
   try {
     // 与总榜同一口径（核心/rank.ts）：总积分 = 简单 + 困难×1.5（只认有效成绩），总星数两模式合计
     const t = rankTotals(GS.data.progress.normal, GS.data.progress.nightmare);
@@ -88,8 +96,41 @@ export function friendRankCanvas(w: number, h: number, scale: number): CanvasIma
 
 /* ================================================================ 分享卡片（带邀请人） */
 
+/** 「从分享卡打开」每次启动只报一次（getInviter 可能被调用多次） */
+let shareOpenTracked = false;
+
 /** 分享卡片标题（糖果小镇同款做法：文案写在 wxFeatures 侧） */
 const SHARE_TITLE = '萌宠拼拼乐，一起闯关！';
+
+/**
+ * 最近一次通关（2026-10-27 评审 P2-2）：有就用挑战式标题，卡片 query 带上关卡号，
+ * 好友从卡片打开直接弹这一关的详情窗（getLaunchLevel）。
+ */
+let lastChallenge: { level: number; stars: number } | null = null;
+
+/** 结算通关后调用：之后右上角转发就是「我第 N 关 3★，你敢来吗」 */
+export function setShareChallenge(level: number, stars: number): void {
+  lastChallenge = { level, stars };
+}
+
+function shareTitle(): string {
+  if (!lastChallenge) return SHARE_TITLE;
+  const { level, stars } = lastChallenge;
+  return stars >= 3 ? `我第 ${level} 关拿了 3★，你敢来挑战吗？` : `我过了萌宠拼拼乐第 ${level} 关，来比比谁更快！`;
+}
+
+/** 从分享卡启动时卡片里的关卡号；没有 / 非法返回 null（调用方再判断是否已解锁） */
+export function getLaunchLevel(): number | null {
+  const wx = (globalThis as { wx?: any }).wx;
+  if (!wx || typeof wx.getLaunchOptionsSync !== 'function') return null;
+  try {
+    const q = (wx.getLaunchOptionsSync() as { query?: Record<string, unknown> }).query || {};
+    const n = Number(q.level);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 读取启动 / 分享参数里的邀请人 id（inviter）。非微信或无参数时返回 null。
@@ -101,7 +142,9 @@ export function getInviter(): string | null {
   try {
     const q = (wx.getLaunchOptionsSync() as { query?: Record<string, unknown> }).query || {};
     const v = q.inviter;
-    return typeof v === 'string' && v.length > 0 ? v : null;
+    if (typeof v !== 'string' || v.length === 0) return null;
+    if (!shareOpenTracked) { shareOpenTracked = true; track('share_open', { inviter: v }); }
+    return v;
   } catch {
     return null;
   }
@@ -115,22 +158,57 @@ export function enableShare(myPlayerId: string | number | null): void {
   const wx = (globalThis as { wx?: any }).wx;
   if (!wx || typeof wx.onShareAppMessage !== 'function') return;
   try {
-    wx.onShareAppMessage(() => ({
-      title: SHARE_TITLE,
-      query: myPlayerId == null ? '' : `inviter=${encodeURIComponent(String(myPlayerId))}`,
-    }));
+    wx.onShareAppMessage(() => {
+      track('share', { from: 'menu', level: lastChallenge?.level ?? 0 });
+      const q: string[] = [];
+      if (myPlayerId != null) q.push(`inviter=${encodeURIComponent(String(myPlayerId))}`);
+      if (lastChallenge) q.push(`level=${lastChallenge.level}`);
+      return { title: shareTitle(), query: q.join('&') };
+    });
   } catch {
     /* 忽略：分享开关失败不影响游戏 */
   }
 }
 
 /**
- * 上报「我是被谁邀请来的」。好友系统是后端**二期**，/game/api/invite 还没上线：
- * 404 / 失败一律静默（尽力而为），接口上线后自动开始生效。
+ * 上报「我是被谁邀请来的」（2026-10-27 服务端 GameRetentionController /invite）。
+ * 返回受邀者这一份奖励体力（无效邀请 / 老服务端 404 / 失败一律 0，静默）。
  */
-export async function reportInviter(inviter: string): Promise<void> {
-  if (!inviter) return;
+export async function reportInviter(inviter: string): Promise<number> {
+  if (!inviter || !SERVER_RETENTION_API) return 0;
   const cloud = cloudSync();
-  if (!cloud) return;
-  await cloud.api('POST', '/game/api/invite', { inviter });
+  if (!cloud) return 0;
+  const res = await cloud.api('POST', '/game/api/invite', { inviter });
+  const n = Number(res?.reward);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** 邀请人领取累计的邀请奖励（登录后调一次）；返回本次领到的体力，没有 / 失败为 0 */
+export async function claimInviteRewards(): Promise<number> {
+  if (!SERVER_RETENTION_API) return 0;
+  const cloud = cloudSync();
+  if (!cloud) return 0;
+  const res = await cloud.api('POST', '/game/api/invite/claim');
+  const n = Number(res?.reward);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
+ * 结算弹窗「挑战好友」按钮（评审 P2-2）：主动拉起转发，卡片与右上角转发同一套标题 / query。
+ * 必须在点击回调里调（微信规矩）。非微信返回 false，调用方给提示。
+ */
+export function shareChallengeNow(): boolean {
+  const wx = (globalThis as { wx?: any }).wx;
+  if (!wx || typeof wx.shareAppMessage !== 'function') return false;
+  try {
+    const q: string[] = [];
+    const pid = cloudSync()?.playerId;
+    if (pid != null) q.push(`inviter=${encodeURIComponent(String(pid))}`);
+    if (lastChallenge) q.push(`level=${lastChallenge.level}`);
+    track('share', { from: 'result', level: lastChallenge?.level ?? 0 });
+    wx.shareAppMessage({ title: shareTitle(), query: q.join('&') });
+    return true;
+  } catch {
+    return false;
+  }
 }

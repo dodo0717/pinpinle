@@ -256,9 +256,9 @@ test('百名榜：分数降序、名次升序且唯一、条目名次不超过 1
 });
 
 test('百名榜：我的上榜成绩会并进榜单，并给出我的名次', () => {
-  const snap = boardSnapshot(5, LINES, 999);
+  const snap = boardSnapshot(5, LINES, 99999);
   assert.equal(snap.totalPlayers, 101, '本机上榜后总玩家数 +1');
-  assert.equal(snap.myRank, 1, '999 分必然第一');
+  assert.equal(snap.myRank, 1, '99999 分必然第一');
   assert.equal(snap.rows.filter((row) => row.mine).length, 1, '「我」只能出现一次');
 });
 
@@ -272,6 +272,7 @@ function progressWithStars(stars: number[]): ReturnType<typeof createProgress> {
     const outcome: LevelOutcome = {
       level,
       score: want * 10,
+      points: want * 1000,
       star1: 10,
       star2: 20,
       star3: 30,

@@ -27,7 +27,9 @@ import { cloudSync } from '../game/cloud.js';
 import { AvatarView } from './ProfilePanel.js';
 import { PRESET_AVATARS } from '../game/profile.js';
 import { unlockedImageIds, COLLECTION_TOTAL } from '../game/meta.js';
+import { THEMES, selectedSkin, UNIFIED_SKIN } from '../game/theme.js';
 import {
+  goldCardIds,
   boardSnapshot, recordOf, levelStatus, STAR_LINES_BY_MODE, TOTAL_LEVELS,
   rankTotals, totalBoard, mockTotalRivals, gapToAhead, RANK_RULE,
   IMAGE_MOOD, IMAGE_TEXT_PLACEHOLDER, animalOf,                                  
@@ -50,6 +52,12 @@ import {
                                        
                            
                       
+                                                     
+                                                           
+                                     
+                      
+                                    
+                     
  
 
 /* ------------------------------------------------------------------ 布局常量（1080 设计坐标，取自 web/ui.css） */
@@ -544,7 +552,11 @@ export class MapPanels {
       text = !gap ? PANEL.hintFirst
         : gap.score > 0 ? PANEL.hintAhead(gap.name, gap.score) : PANEL.hintAheadStars(gap.name, gap.stars);
     }
-    this.label(box, 'Text', '💡 ' + text, 32, new Color(43, 74, 115), w - 40, h, 0, 0);
+    this.label(box, 'Text', '💡 ' + text, 32, new Color(43, 74, 115), w - 190, h, -75, 0);
+    // 右端「❓ 怎么上榜」：点开 4 行规则说明卡（评审 P1-2，弹窗由宿主弹）
+    const rules = this.button(box, 'Rules', 170, h - 10, w / 2 - 95, 0, () => this.host.onRules());
+    this.roundRect(rules.addComponent(Graphics), -85, -(h - 10) / 2, 170, h - 10, 22, new Color(43, 74, 115, 40));
+    this.label(rules, 'Text', PANEL.rulesEntry, 28, new Color(43, 74, 115), 160, h - 10);
   }
 
           setBoardTab(tab                              )       {
@@ -615,12 +627,14 @@ export class MapPanels {
       }
       scoreLabel = PANEL.mineLevelScoreLabel;
     }
+    // 星数与分数并存（2026-10-27 用户要求改回）：星数是收集进度，分数是竞技成绩，两个都要看得见；
+    // 总榜同分时也按星数排，玩家需要知道自己有几颗星
     const cells                                 = [
       [PANEL.mineRankLabel, PANEL.rankValue(rank), new Color(255, 233, 176)],
       [scoreLabel, `${score}`, new Color(255, 213, 74)],
       [PANEL.mineStarsLabel, `${PANEL.starsValue(stars)}/${RANK_RULE.maxStars}`, new Color(255, 224, 102)],
     ];
-    const cw = (w - 36) / 3;
+    const cw = (w - 36) / cells.length;
     cells.forEach(([k, v, color], i) => {
       const x = -w / 2 + 18 + cw * (i + 0.5);
       if (i > 0) {
@@ -885,9 +899,12 @@ export class MapPanels {
 
           renderCollection()       {
     const top = this.chrome(PANEL.collectionTitle, `${ART}/collection/back`);
-    const owned = new Set(unlockedImageIds(GS.data.progress.normal, GS.data.progress.nightmare));
-    this.label(this.root, 'Count', PANEL.collected(owned.size, COLLECTION_TOTAL), 58, new Color(217, 236, 125),
-      900, 80, 0, top - 6 - 35, { outline: C_TITLE_EDGE, outlineWidth: 4 });
+    const ownedIds = unlockedImageIds(GS.data.progress.normal, GS.data.progress.nightmare);
+    const owned = new Set(ownedIds);
+    // 金卡（评审 P0-4）：困难 3★ 把已解锁的普通卡按图号升成金卡
+    const gold = new Set(goldCardIds(ownedIds, GS.data.progress.nightmare));
+    this.label(this.root, 'Count', `${PANEL.collected(owned.size, COLLECTION_TOTAL)}   ${PANEL.goldCollected(gold.size, COLLECTION_TOTAL)}`,
+      50, new Color(217, 236, 125), 1000, 80, 0, top - 6 - 35, { outline: C_TITLE_EDGE, outlineWidth: 4 });
 
     const cTop = top - 6 - 70 - 14 - 8;
     const cw = W - 32;
@@ -921,18 +938,19 @@ export class MapPanels {
       if (id >= COLLECTION_TOTAL) break;
       const x = ((k % 3) - 1) * (cellW + CELL_GAP);
       const y = startY - Math.floor(k / 3) * (cellH + CELL_GAP);
-      this.collectionCell(card, id, owned.has(id), cellW, cellH, x, y);
+      this.collectionCell(card, id, owned.has(id), cellW, cellH, x, y, gold.has(id));
     }
 
     this.pager(card, pagerY, this.colPage, pages, (p) => { this.colPage = p; this.render(); });
     this.cardFrame(card, cw, ch);
   }
 
-          collectionCell(card      , id        , owned         , w        , h        , x        , y        )       {
+          collectionCell(card      , id        , owned         , w        , h        , x        , y        , gold = false)       {
     const cell = this.button(card, 'Cell_' + id, w, h, x, y, () => {
       if (owned) this.openSticker(id);
       else this.host.toast(PANEL.lockedToast, 1800);
     });
+    if (gold) this.goldFrame(cell, w, h);
     const skin = owned ? CARD_SKINS[id % CARD_SKINS.length] : 'card-locked';
     this.sprite(cell, 'Skin', `${ART}/collection/${skin}`, w, h);
     if (!owned) return;
@@ -943,6 +961,36 @@ export class MapPanels {
     const sp = n.addComponent(Sprite);
     sp.sizeMode = Sprite.SizeMode.CUSTOM;
     this.stickerFrame(id, iw / ih, (sf) => { if (sp.isValid) sp.spriteFrame = sf; });
+    // 金边 / 星标最后加，压在贴纸上面（贴纸是异步加载，但节点顺序已定）
+    if (gold) this.goldFrameTop(cell, w, h);
+  }
+
+  /** 金卡外框第一层（代码绘制，不用新出图）：卡底下垫一圈金色光晕，排在卡皮之下 */
+          goldFrame(cell      , w        , h        )       {
+    const glow = this.node(cell, 'GoldGlow', w + 24, h + 24);
+    const g = glow.addComponent(Graphics);
+    this.roundRect(g, -w / 2 - 12, -h / 2 - 12, w + 24, h + 24, 30, new Color(255, 206, 64, 150));
+    this.roundRect(g, -w / 2 - 6, -h / 2 - 6, w + 12, h + 12, 26, new Color(255, 236, 150, 200));
+  }
+
+  /** 金卡要压在贴纸上面的部分：双线金边 + 右上角「★」 */
+          goldFrameTop(cell      , w        , h        )       {
+    const n = this.node(cell, 'GoldEdge', w, h);
+    const g = n.addComponent(Graphics);
+    g.lineWidth = 8;
+    g.strokeColor = new Color(232, 168, 32);
+    g.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 22);
+    g.stroke();
+    g.lineWidth = 3;
+    g.strokeColor = new Color(255, 244, 190);
+    g.roundRect(-w / 2 + 12, -h / 2 + 12, w - 24, h - 24, 16);
+    g.stroke();
+    const badge = this.node(cell, 'GoldBadge', 64, 64, w / 2 - 30, h / 2 - 30);
+    const bg = badge.addComponent(Graphics);
+    bg.fillColor = new Color(232, 168, 32);
+    bg.circle(0, 0, 30);
+    bg.fill();
+    this.label(badge, 'Star', '★', 40, C_WHITE, 60, 60);
   }
 
   /** 贴纸纹理按目标宽高比居中裁切（cover），裁切靠 SpriteFrame.rect，不改原图 */
@@ -1033,10 +1081,28 @@ export class MapPanels {
     });
     this.cardFrame(card, cw, ch);
 
-    const cardBottom = cTop - ch;
-    this.label(this.root, 'Version', PANEL.version, 40, new Color(68, 80, 122), 600, 56, 0, cardBottom - 14 - 28);
+    // 第二张木牌：合规入口（评审 P0-1）—— 与音乐 / 音效同一套木牌 + 条目样式，
+    // 条目矮一档、右侧「›」表示点进去看，不再是飘在蓝天上的三个小字
+    // 第一行：对局皮肤（评审 P1-3，默认贴纸手账，其余靠章节宝箱解锁）；其后三行合规入口
+    // 皮肤入口只在「全关统一皮肤」启用后出现（theme.ts UNIFIED_SKIN，主视觉定稿前关闭）
+    const legal                                                                    = [
+      ...(UNIFIED_SKIN ? [['🎨', PANEL.skin(THEMES[selectedSkin()].name), 'skin']                            ] : []),
+      ['🛡️', PANEL.privacy, 'privacy'], ['📄', PANEL.agreement, 'agreement'], ['🎈', PANEL.ageTip, 'age'],
+    ];
+    const lRowH = 112;
+    const lGap = 20;
+    const lch = 40 + lRowH * legal.length + lGap * (legal.length - 1) + 40;
+    const lTop = cTop - ch - 36;
+    const lcard = this.cardBase(lTop, cw, lch, new Color(92, 58, 39));
+    const lFirstY = lch / 2 - 40 - lRowH / 2;
+    legal.forEach(([icon, text, kind], i) => {
+      this.linkRow(lcard, rowW, lRowH, lFirstY - i * (lRowH + lGap), icon, text,
+        () => (kind === 'skin' ? this.host.onSkin() : this.host.onLegal(kind)));
+    });
+    this.cardFrame(lcard, cw, lch);
 
-    const resetY = cardBottom - 14 - 56 - 40 - 45;
+    const cardBottom = lTop - lch;
+    const resetY = cardBottom - 36 - 45;
     const reset = this.button(this.root, 'Reset', 360, 90, 0, resetY, () => this.host.onReset());
     const g = reset.addComponent(Graphics);
     this.roundRect(g, -180, -45, 360, 90, 45, new Color(255, 255, 255, 220));
@@ -1045,6 +1111,22 @@ export class MapPanels {
     g.roundRect(-180, -45, 360, 90, 45);
     g.stroke();
     this.label(reset, 'Text', PANEL.reset, 36, new Color(150, 100, 40), 320, 80);
+
+    // 版本号放到最底：信息层级最低
+    this.label(this.root, 'Version', PANEL.version, 34, new Color(68, 80, 122, 200), 600, 50, 0, resetY - 45 - 24 - 25);
+  }
+
+  /** 设置页的「点进去看」条目：木色底 + 图标 + 文字 + 右侧箭头（样式同 settingRow，矮一档） */
+          linkRow(card      , w        , h        , y        , icon        , text        , onTap            )       {
+    const row = this.button(card, 'Link_' + text, w, h, 0, y, onTap);
+    const g = row.addComponent(Graphics);
+    this.roundRect(g, -w / 2, -h / 2 - 6, w, h, 30, new Color(30, 15, 5, 70));
+    this.roundRect(g, -w / 2, -h / 2, w, h, 30, new Color(110, 72, 49));
+    this.roundRect(g, -w / 2 + 6, h / 2 - 12, w - 12, 6, 3, new Color(255, 255, 255, 30));
+    this.label(row, 'Icon', icon, 52, C_WHITE, 80, 80, -w / 2 + 40 + 40, 0);
+    this.label(row, 'Label', text, 46, new Color(255, 233, 196), w - 300, 70, -w / 2 + 40 + 80 + 24 + (w - 300) / 2, 0,
+      { align: 'left', shadow: true });
+    this.label(row, 'Arrow', '›', 64, new Color(255, 214, 150), 60, 80, w / 2 - 40 - 30, 4);
   }
 
           settingRow(

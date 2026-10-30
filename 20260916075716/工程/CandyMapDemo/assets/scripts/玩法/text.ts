@@ -6,7 +6,7 @@
  */
 
 import { STAMINA_MAX } from '../核心/index';
-import { AD_STAMINA_DAILY_MAX } from './meta';
+import { AD_STAMINA_DAILY_MAX, AD_REVIVE_DAILY_MAX } from './meta';
 
 /** 2026-10 命名统一：「普通」一律改叫「简单」，全项目不再出现「普通」二字 */
 export const MODE_LABEL = { normal: '简单', nightmare: '困难' } as const;
@@ -16,7 +16,14 @@ export const HOME = {
   modeNightmare: '困难模式',
   staminaFull: '体力已满',
   staminaShort: '体力不够啦',
-  staminaGain: (n: number, max: number) => `体力 +${n}（当前 ${n}/${max}）`,
+  staminaGain: (n: number, max: number) => `体力已补充（当前 ${n}/${max}）`,
+  staminaRefund: '首次三星！返还 1 点体力',
+  /** 邀请奖励（2026-10-27 服务端 /invite） */
+  inviteeGain: (n: number) => `好友邀请你来玩，体力 +${n}`,
+  inviterGain: (n: number) => `好友接受了你的邀请，体力 +${n}`,
+  /** 结算新得奖励（评审 P0-4） */
+  goldGain: (n: number) => `✨ 图鉴升级金卡 ×${n}`,
+  chestGain: (name: string) => `🎁 章节宝箱：${name}`,
   adLeft: (n: number) => `今日还可看 ${n} 次广告加体力`,
   adNone: '今日加体力次数已用完',
   lockedToast: '先通关前面的关卡哦',
@@ -30,12 +37,13 @@ export const MAP_TEXT = {
   avatar: '🐶',
   staminaCountdown: (mmss: string) => `下颗体力 ${mmss}`,
   locked: (prev: number) => `先通关第 ${prev} 关`,
-  /** 困难模式门槛：同一关必须先在简单模式拿到 3 星 */
+  /** 困难模式门槛：同一关必须先在简单模式拿到 3 星（2026-10-30 合并：规则冲突按 main，评审分支的 1★ 即开撤回） */
   nightmareLocked: '三星通关后开启困难模式',
   level: (level: number) => `第 ${level} 关`,
   /** 首页「一键回到当前关」按钮：翻到别的世界 / 别的页时出现 */
   backToCurrent: (level: number) => `回到第 ${level} 关`,
-  starLine: (s1: number, s3: number) => `1星 ${s1} 分   |   3星 ${s3} 分`,
+  // 星线是「拼好几张」（组数），与排行分不是一个单位（2026-10-27 评审 P1-1）
+  starLine: (s1: number, s3: number) => `1星 ${s1} 张   |   3星 ${s3} 张`,
   play: 'Play',
   loading: (pct: number) => `${pct}%`,
 } as const;
@@ -54,8 +62,22 @@ export const PANEL = {
   colTotal: '总分',
   level: (level: number) => `第 ${level} 关`,
   mineRankLabel: '我的排名',
+  // 三格并排（排名 / 分数 / 星数），标签要短，否则缩字缩得看不清
   mineScoreLabel: '总积分',
   mineLevelScoreLabel: '本关最高分',
+  /** 「怎么上榜」说明卡（评审 P1-2：压成 4 行；规则改动时同步改 rank.ts RANK_RULES_VERSION） */
+  rulesTitle: '怎么上榜',
+  rulesLines: [
+    '① 每拼好一张得 100 分，拼得越快加分越多（最多 +60）',
+    '② 不续命、通关的成绩才计入排行',
+    '③ 本关拿到 3★ 才能上关卡榜',
+    '④ 总榜 = 各关最好成绩之和，困难模式 ×1.5',
+    '⑤ 同分时星星多的排前面（累计星数含续命局）',
+  ],
+  rulesEntry: '❓ 怎么上榜',
+  /** 结算时没上榜的原因（评审 P1-2） */
+  offBoardRevived: '续命局不计入排行榜',
+  offBoardStars: '拿到 3★ 才能上本关排行榜',
   mineStarsLabel: '累计星数',
   rankValue: (rank: number) => (rank > 0 ? `${rank}` : '未上榜'),
   starsValue: (stars: number) => `⭐${stars}`,
@@ -64,7 +86,7 @@ export const PANEL = {
   hintAheadStars: (name: string, stars: number) => `和「${name}」同分，再多 ${stars} 颗星就能超过`,
   hintFirst: '你是第 1 名，保持住！',
   hintJoinTotal: '打出一局不续命的通关成绩即可上榜',
-  hintJoinLevel: (score: number) => `本关拿到 3★（${score} 分）且不续命即可上榜`,
+  hintJoinLevel: (n: number) => `本关拼好 ${n} 张（3★）且不续命即可上榜`,
   sampleNote: '示例数据 · 联网后显示真实排名',
   liveTotal: '全服实时排名',
   liveLevel: (n: number) => `本关 ${n} 人上榜 · 实时排名`,
@@ -83,6 +105,18 @@ export const PANEL = {
   sfx: '音效',
   version: '版本 v1.0',
   reset: '重置存档',
+  /** 图鉴金卡计数（2026-10-27 评审 P0-4：困难 3★ 把普通卡升成金卡） */
+  goldCollected: (n: number, total: number) => `金卡 ${n} / ${total}`,
+  goldHint: '困难模式每拿一个 3★，升级一张金卡',
+  /** 设置页「对局皮肤」（评审 P1-3） */
+  skin: (name: string) => `对局皮肤：${name}`,
+  skinTitle: '选择对局皮肤',
+  skinLocked: (level: number) => `简单模式通关第 ${level} 关宝箱解锁`,
+  skinChanged: (name: string) => `已换成「${name}」，下一局生效`,
+  privacy: '隐私保护指引',
+  agreement: '用户协议',
+  ageTip: '适龄提示',
+  privacyUnsupported: '请在微信内查看《隐私保护指引》',
 } as const;
 
 export const TABBAR = {
@@ -110,7 +144,7 @@ export const HONOR = {
 export const REVIVE = {
   title: '差一点点！',
   line1: (sec: number) => `再看一段广告，加 ${sec} 秒继续拼`,
-  line2: '（每局限一次，续命局最多 1★）',
+  line2: '（每局限一次，续命局记 1★，不计入排行榜）',
   watch: '看广告续命',
   giveUp: '放弃本局',
   gained: (sec: number) => `已加时 ${sec} 秒，继续！`,
@@ -147,10 +181,67 @@ export const SAVE = {
   sessionDropped: (level: number) => `上次的第 ${level} 关素材尚未补齐，断点已作废`,
 } as const;
 
+/** 回访系统（2026-10-27 评审 P1-6）：每日挑战 / 签到 / 回流 / 续命券 */
+export const DAILY = {
+  label: '每日挑战',
+  entry: '每日挑战',
+  noPlays: '今天的 3 次挑战已用完，明天再来',
+  playsLeft: (n: number) => `今日还可挑战 ${n} 次`,
+  resultTitle: '每日挑战',
+  resultLine: (points: number, best: number) => `本局 ${points} 分 · 今日最好 ${best} 分`,
+  cleared: '挑战成功！',
+  failed: '没够到 1★，换个思路再来',
+  firstClear: (n: number) => `今日首次通关，体力 +${n}`,
+  again: '再挑战一次',
+  back: '回地图',
+  boardTodo: '每日排行榜即将开放',
+  /** 日榜（服务端 /daily/result 回来的名次） */
+  boardRank: (rank: number, total: number) => `今日排行 第 ${rank} 名 / ${total} 人`,
+  boardOffline: '联网后可查看今日排行',
+} as const;
+
+/** 结算弹窗「挑战好友」（评审 P2-2） */
+export const SHARE = {
+  btn: '📤 挑战好友',
+  na: '请在微信里分享给好友',
+} as const;
+
+export const CHECKIN = {
+  entry: '签到',
+  title: '7 日签到',
+  dayLabel: (d: number) => `第 ${d} 天`,
+  done: '今天已经签到啦，明天再来',
+  btn: '签到领取',
+  close: '稍后',
+  got: (text: string) => `签到成功：${text}`,
+  rewardText: (r: { stamina?: number; reviveTickets?: number; gold?: number }) =>
+    [r.stamina ? `体力 +${r.stamina}` : '', r.reviveTickets ? `续命券 +${r.reviveTickets}` : '', r.gold ? `金卡 +${r.gold}` : '']
+      .filter(Boolean).join('、'),
+  note: '断签不清零，第 7 天领金卡大奖',
+  remind: '🔔 开启提醒',
+  remindOk: '已开启提醒，体力回满会通知你',
+  remindNA: '提醒功能即将开放',
+  tickets: (n: number) => `续命券 ${n} 张（续命时优先使用）`,
+} as const;
+
+export const COMEBACK = {
+  title: '欢迎回来！',
+  lines: ['好久不见，送你一份回归礼包：', '体力补满 + 续命券 ×1'],
+  btn: '收下',
+} as const;
+
+export const TICKET = {
+  used: (left: number) => `已使用续命券（剩 ${left} 张）`,
+} as const;
+
 export const ADS = {
   staminaFull: `体力已满（上限 ${STAMINA_MAX}）`,
   dailyLimit: `今日加体力次数已用完（${AD_STAMINA_DAILY_MAX} 次）`,
+  reviveLimit: `今日续命次数已用完（${AD_REVIVE_DAILY_MAX} 次）`,
   notReady: '广告还没准备好，稍后再试',
+  /** 中途关闭：不发奖、不扣次数 */
+  notEnded: '看完才能领取哦',
+  playing: '广告播放中…',
   watched: '已看完广告',
 } as const;
 
@@ -226,7 +317,7 @@ export const WEB_FAIL = {
   title: '差一点就成功了',
   gap: (gap: number) => `(还差 ${gap} 组)`,
   btnRetry: '重试',
-  btnAdStamina: '📺 看广告 +1体力',
+  btnAdStamina: '📺 看广告 +2体力',
   btnHome: '返回主页',
   reviveUsed: '本局的续命机会已经用掉了',
   offline: '离开期间倒计时已走完，本局按离开时的分数结算',
@@ -235,10 +326,10 @@ export const WEB_FAIL = {
 export const WEB_REVIVE = {
   title: '时间到',
   gap: (gap: number) => `还差 ${gap} 组就能通关`,
-  ask: '要再试一次吗？',
+  ask: '要再试一次吗？续命局记 1★，不计入排行榜',
   btnAd: '📺 看广告 +1分钟',
   btnGiveUp: '❌ 放弃',
-  granted: '续命 +60 秒，继续本局（统一记 1 星，不上排行榜）',
+  granted: '续命成功，继续本局（续命局记 1★，不上排行榜）',
 } as const;
 
 /** 结算分数标签：按模式叫「简单分数」/「困难分数」 */
