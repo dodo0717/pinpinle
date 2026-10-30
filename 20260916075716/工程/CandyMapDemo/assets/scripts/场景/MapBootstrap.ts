@@ -5,6 +5,8 @@ import { HomeHUD } from '../界面/HomeHUD';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
+import { SettingsScreen } from '../界面/SettingsScreen';
+import { TutorialDrawer } from '../玩法/tutorial';
 import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
@@ -142,6 +144,9 @@ export class MapBootstrap extends Component {
     /** 图鉴整屏 / 大图预览（懒创建：首次点图鉴页签才建） */
     private collection: CollectionScreen = null!;
     private previewScreen: PreviewScreen = null!;
+    /** 设置整屏 / 新手教学抽屉（懒创建） */
+    private settingsScreen: SettingsScreen = null!;
+    private drawer: TutorialDrawer = null!;
 
     onLoad() {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
@@ -680,7 +685,7 @@ export class MapBootstrap extends Component {
         this.applyTab();
         if (i === 1) this.showBoardPanel();
         else if (i === 2) this.showCollectionScreen();
-        else if (i === 3) this.showSettingsPanel();
+        else if (i === 3) this.showSettingsScreen();
     }
 
     /** 排行榜：当前关的百名榜（灰盒 100 人 + 本机） */
@@ -728,17 +733,54 @@ export class MapBootstrap extends Component {
         this.previewScreen.show();
     }
 
-    /** 设置：音效 / 背景音乐 / 重置存档 */
-    private showSettingsPanel() {
-        const s = GS.meta.settings;
-        this.dialog.show(SETTINGS.title, [
-            `${SETTINGS.sound}：${s.sound ? SETTINGS.on : SETTINGS.off}`,
-            `${SETTINGS.bgm}：${s.bgm ? SETTINGS.on : SETTINGS.off}`,
-        ], [
-            { text: `音效 ${s.sound ? SETTINGS.off : SETTINGS.on}`, onClick: () => { GS.setSound(!s.sound); this.showSettingsPanel(); } },
-            { text: `音乐 ${s.bgm ? SETTINGS.off : SETTINGS.on}`, onClick: () => { GS.setBgm(!s.bgm); this.showSettingsPanel(); } },
-            { text: SETTINGS.reset, onClick: () => this.confirmReset() },
-        ]);
+    /**
+     * 设置整屏（取代原来的灰盒弹窗）：音乐 / 音效 / 教学语音三个开关**即时生效**，
+     * 另有新手教学回看入口（首页按钮会按进度隐藏，设置页永久保留 —— 策划案 §14 决策 3）。
+     * ⚠️ 重置存档放在整屏底部：整屏没有按钮位给第三级弹窗，仍走 dialog.confirm。
+     */
+    private showSettingsScreen(): void {
+        if (!this.settingsScreen) {
+            this.settingsScreen = SettingsScreen.create(this.node, {
+                onBack: () => this.settingsScreen.hide(),
+                onChange: (p) => {
+                    if (p.sound !== undefined) GS.setSound(p.sound);
+                    if (p.bgm !== undefined) GS.setBgm(p.bgm);
+                    if (p.voice !== undefined) GS.setVoice(p.voice);
+                    this.settingsScreen.render(GS.meta.settings);
+                },
+                onTutorial: () => this.openTutorialDrawer(),
+            });
+            this.settingsScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
+        }
+        this.settingsScreen.render(GS.meta.settings);
+        this.settingsScreen.show();
+    }
+
+    /** 新手教学抽屉：困难序章要求先完成简单序章（由 setStatus 置灰按钮挡一道） */
+    private openTutorialDrawer(): void {
+        if (!this.drawer) {
+            this.drawer = TutorialDrawer.create(this.node, {
+                onStartNormal: () => { this.drawer.close(); this.enterTutorial('normal'); },
+                onStartNightmare: () => { this.drawer.close(); this.enterTutorial('nightmare'); },
+                onClose: () => { if (!GS.tutorial.seen) GS.updateTutorial({ seen: true }); },
+            });
+            this.drawer.rootNode().setSiblingIndex(this.node.children.length - 1);
+        }
+        this.drawer.setStatus(GS.tutorial.normalCleared, GS.tutorial.nightmareCleared);
+        this.drawer.open();
+    }
+
+    /** 进序章：与 enterLevel 同构，但走 startTutorial（不扣体力 / 不建断点 / 不写进度） */
+    private enterTutorial(mode: GameMode): void {
+        const game = this.gameNode?.isValid ? this.gameNode : this.ensureGameNode();
+        const gb = game?.getComponent(GameBootstrap);
+        if (!game || !gb) {
+            this.toast.show('进入教学失败：缺少 Game 节点', 2000);
+            return;
+        }
+        this.node.active = false;
+        game.active = true;
+        gb.scheduleOnce(() => gb.startTutorial(mode), 0);
     }
 
     private confirmReset() {

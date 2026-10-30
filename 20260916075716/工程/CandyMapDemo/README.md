@@ -210,8 +210,19 @@
     + `界面/PreviewScreen.ts`（大图 + 动物/心情/台词 + 保存/分享；保存分享只发事件不碰平台 API）。
     取代原灰盒文字弹窗；首次点页签才创建（108 张缩略图不在进地图时加载）。
     保存/分享在小游戏端待接 wx 能力（当前轻提示占位）。
-  - **待办**：③ 地图 180 关 + 教学抽屉/首页入口挂接 `MapBootstrap`（地图页需 Creator 验证）；
-    ⑥ 排行榜整屏；⑦ 设置整屏 + 结算吊牌；⑧ 分享/广告/埋点 + Creator 构建。
+  - **⑦ 设置整屏 + 教学抽屉挂接（已完成）**：新增 `界面/SettingsScreen.ts`（蓝天 + 棕返回钮 +
+    金框木卡；音乐/音效/**教学语音**三开关即时生效 + 新手教学回看入口 + 版本号）。
+    `MapBootstrap` 页签 3 由灰盒弹窗改为整屏；并顺带把教学抽屉挂上（设置页入口 →
+    `openTutorialDrawer()` → `enterTutorial(mode)` → `GameBootstrap.startTutorial`），
+    困难序章按钮由 `setStatus()` 置灰挡一道。
+  - **验证手段（重要）**：地图页在 shim 预览里跑不通（`addFloat` 依赖 `Node.position`），
+    所以整屏类组件改用「**浏览器里真实实例化**」验证 —— 在 `game.html` 页面里
+    `SettingsScreen.create / TutorialDrawer.create + open`，确认节点树建成且零 JS 异常
+    （设置屏 5 子节点 / 抽屉 2 子节点）。比只 import 强得多，将来新增整屏都可照此验证。
+    另：新模块一律用「动态 import 检查」兜住 shim 缺导出（`ImageAsset`、`setTexture` 都是这么发现的）。
+  - **待办**：③ 地图 180 关 + 首页教学入口（首启自动进序章 / 首页按钮，隐藏条件
+    `clearedCount >= 10`）；⑥ 排行榜整屏；⑦ 剩**结算吊牌** `result.ts`（星级 + 滚动分数，
+    需细读 GameBootstrap 结算分支）；⑧ 分享/广告/埋点 + Creator 构建。
 - **2026-10-29（180 关「模拟真人」通关性仿真）**：新增 `tools/simulate-levels.mjs`
   （跑法 `node --experimental-strip-types tools/simulate-levels.mjs`）。
   用**真实的 `engine.move()`** 走棋（不是瞬移钩子），噩梦模式按规则逐格挪，

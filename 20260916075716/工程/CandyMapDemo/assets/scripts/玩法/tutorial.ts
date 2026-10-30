@@ -422,7 +422,11 @@ export class TutorialDrawer {
     resources.load(`stickers/sticker_${imageId}/texture`, Texture2D, (err, tex) => {
       if (err || !tex || !node.isValid) return;
       const sf = new SpriteFrame();
-      sf.setTexture(tex);
+      // 真 Creator 用 setTexture(Texture2D)；预览 shim 的 SpriteFrame 是占位实现（无此方法），
+      // 兜底直接赋 texture —— 两条路都不影响教学功能（图解缺图只是退化为色块）
+      const anySf = sf as unknown as { setTexture?: (t: Texture2D) => void; texture?: Texture2D };
+      if (typeof anySf.setTexture === 'function') anySf.setTexture(tex);
+      else anySf.texture = tex;
       const half = tex.width / 2;
       // pos 0=左上 1=右上 2=左下 3=右下（贴图坐标 y 向上，与棋盘一致）
       const rx = (pos % 2) * half;
@@ -437,6 +441,11 @@ export class TutorialDrawer {
 
   isOpen(): boolean {
     return this.isOpenState;
+  }
+
+  /** 根节点（挂接方用来提到最上层 / 调整层级） */
+  rootNode(): Node {
+    return this.root;
   }
 
   open(): void {
