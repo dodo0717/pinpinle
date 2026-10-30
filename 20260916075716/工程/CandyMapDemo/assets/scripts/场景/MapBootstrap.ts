@@ -251,6 +251,9 @@ export class MapBootstrap extends Component {
     private countdownLabel: Label = null!;
     private navPrev: Node = null!;
     private navNext: Node = null!;
+    /** 「回到第 N 关」按钮（不在当前关所在的世界 / 页时显示） */
+    private backBtn: Node | null = null;
+    private backLabel: Label = null!;
     private pageUp: Node = null!;
     private pageDown: Node = null!;
     private dots: Graphics[] = [];
@@ -1132,6 +1135,53 @@ export class MapBootstrap extends Component {
         };
         this.navPrev = make('WorldPrev', '‹', -DESIGN_W / 2 + 22 + r, -1);
         this.navNext = make('WorldNext', '›', DESIGN_W / 2 - 22 - r, 1);
+
+        // 一键回到当前关：和左右箭头同一行、居中；不在当前关所在的世界 / 页时才显示
+        const bw = 380;
+        const bh = 100;
+        this.backBtn = this.makeButton(this.node, 'BackToCurrent', bw, bh, 0, y, () => this.goToCurrent());
+        this.paintGoldPill(this.backBtn.addComponent(Graphics), bw, bh);
+        this.backLabel = this.makeLabel(this.backBtn, 'Text', '', 40, C_WHITE, bw, bh, 0, 4, { shadow: true });
+        this.backBtn.active = false;
+    }
+
+    /** 金色胶囊（与 paintGoldCircle 同一套配色） */
+    private paintGoldPill(g: Graphics, w: number, h: number) {
+        const r = h / 2;
+        g.clear();
+        g.fillColor = new Color(140, 70, 10, 128);
+        g.roundRect(-w / 2, -h / 2 - 7, w, h, r);
+        g.fill();
+        g.fillColor = new Color(247, 177, 63);
+        g.roundRect(-w / 2, -h / 2, w, h, r);
+        g.fill();
+        g.fillColor = new Color(255, 228, 155, 160);
+        g.roundRect(-w / 2 + 18, 2, w - 36, h / 2 - 10, (h / 2 - 10) / 2);
+        g.fill();
+        g.lineWidth = 5;
+        g.strokeColor = new Color(255, 243, 214);
+        g.roundRect(-w / 2 + 2.5, -h / 2 + 2.5, w - 5, h - 5, r - 2.5);
+        g.stroke();
+    }
+
+    /** 当前关在别的世界 → 换世界（换完 renderMap(true) 会自动定位到当前关那页）；同世界 → 滑到那一页 */
+    private goToCurrent() {
+        const w = worldIndexOf(this.currentLevel());
+        if (w !== this.world) this.flipTo(w);
+        else this.focusWorld(true);
+    }
+
+    /** 已经停在当前关所在的世界和页上就藏起来 */
+    private refreshBackButton() {
+        if (!this.backBtn) return;
+        const level = this.currentLevel();
+        let here = false;
+        if (worldIndexOf(level) === this.world) {
+            const hit = this.nodes.find((n) => n.level === level);
+            here = !hit || pageOfY(hit.y) === this.page;
+        }
+        this.backBtn.active = !here;
+        this.backLabel.string = MAP_TEXT.backToCurrent(level);
     }
 
     private buildPager() {
@@ -1153,6 +1203,7 @@ export class MapBootstrap extends Component {
     }
 
     private paintPager() {
+        this.refreshBackButton();
         if (!this.pageUp) return;
         // r=49 与 buildPager 一致：翻到顶页 / 底页时对应箭头置灰
         this.setDisabled(this.pageUp, this.page <= 0, (g, gray) => this.paintGoldCircle(g, 49, gray));

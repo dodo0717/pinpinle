@@ -33,6 +33,8 @@ export const MAP_TEXT = {
   /** 困难模式门槛：同一关必须先在简单模式拿到 3 星 */
   nightmareLocked: '三星通关后开启困难模式',
   level: (level: number) => `第 ${level} 关`,
+  /** 首页「一键回到当前关」按钮：翻到别的世界 / 别的页时出现 */
+  backToCurrent: (level: number) => `回到第 ${level} 关`,
   starLine: (s1: number, s3: number) => `1星 ${s1} 分   |   3星 ${s3} 分`,
   play: 'Play',
   loading: (pct: number) => `${pct}%`,
