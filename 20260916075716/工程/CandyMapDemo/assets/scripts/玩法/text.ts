@@ -162,6 +162,8 @@ export const LEADERBOARD = {
   colSimple: '简单',
   colHard: '困难',
   colTotal: '总分',
+  /** 本机玩家在榜上的名字（与核心层 `MY_BOARD_NAME` 同值，改名时两处一起改） */
+  mineName: '我',
   levelSelect: (level: number): string => `第 ${level} 关 ▼`,
   header: (level: number): string => `第 ${level} 关`,
   mineRankLabel: '我的排名',

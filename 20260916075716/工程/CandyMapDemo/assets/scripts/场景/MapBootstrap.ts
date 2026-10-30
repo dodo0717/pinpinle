@@ -6,13 +6,15 @@ import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
 import { SettingsScreen } from '../界面/SettingsScreen';
+import { LeaderboardScreen } from '../界面/LeaderboardScreen';
+import { challengeState, type LeaderboardView } from '../界面/leaderboardModel';
 import { TutorialDrawer } from '../玩法/tutorial';
 import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { HOME, ADS, COLLECTION, BOARD, SETTINGS, TUTORIAL } from '../玩法/text';
-import { unlockedImageIds, clearedCount, COLLECTION_TOTAL } from '../玩法/meta';
+import { HOME, ADS, COLLECTION, SETTINGS, TUTORIAL } from '../玩法/text';
+import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '../玩法/meta';
 import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
 import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtPath } from './worlds';
@@ -144,6 +146,8 @@ export class MapBootstrap extends Component {
     /** 设置整屏 / 新手教学抽屉（懒创建） */
     private settingsScreen: SettingsScreen = null!;
     private drawer: TutorialDrawer = null!;
+    /** 排行榜整屏（懒创建：首次点排行榜页签才建，100 行榜单不该在进地图时就摆一遍） */
+    private leaderboard: LeaderboardScreen = null!;
 
     onLoad() {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
@@ -747,22 +751,82 @@ export class MapBootstrap extends Component {
     private setTab(i: number) {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
         this.applyTab();
-        if (i === 1) this.showBoardPanel();
+        if (i === 1) this.showLeaderboardScreen();
         else if (i === 2) this.showCollectionScreen();
         else if (i === 3) this.showSettingsScreen();
     }
 
-    /** 排行榜：当前关的百名榜（灰盒 100 人 + 本机） */
-    private showBoardPanel() {
-        const level = Math.min(GS.progress.unlocked, LEVEL_COUNT);
+    /**
+     * 排行榜整屏（取代原来的灰盒文字弹窗）—— 双页签（总分榜 / 关卡榜）+ 金银铜奖杯台
+     * + 我的成绩条与「我」行高亮 + 关卡榜内的**「挑战本关」**按钮。
+     *
+     * ⚠️ 榜单名次一律由核心层 `boardSnapshot` 算，界面不自己排一遍（避免两处口径分叉）；
+     *    模拟玩家只有一份成绩 → 只落在当前模式那一列，另一列 0（不按比例拆分数）。
+     */
+    private showLeaderboardScreen() {
+        if (!this.leaderboard) {
+            this.leaderboard = LeaderboardScreen.create(this.node, {
+                onBack: () => this.leaderboard.hide(),
+                // 「挑战本关」= 收起整屏 + 吊出关卡牌（Web 版同口径：先回主页再开吊牌，让玩家选模式）
+                onChallenge: (level) => { this.leaderboard.hide(); this.openPreview(level); },
+                view: (level) => this.leaderboardView(level),
+                myTotals: () => ({ simple: this.totalScoreOf('normal'), hard: this.totalScoreOf('nightmare') }),
+                // 累计星数 = 两套模式之和（与图鉴「每 10 星解锁一张」同一口径）
+                myStars: () => totalStars(GS.data.progress.normal) + totalStars(GS.data.progress.nightmare),
+                onHint: (msg) => this.toast.show(msg, 2200),
+            });
+            this.leaderboard.rootNode().setSiblingIndex(this.node.children.length - 1);
+        }
+        // 默认落在「已解锁到的那一关」：还没打过的关看榜没有意义
+        const level = Math.min(Math.max(1, GS.progress.unlocked), LEVEL_COUNT);
+        this.leaderboard.render(level, LEVEL_COUNT);
+        this.leaderboard.show();
+    }
+
+    /**
+     * 某关的榜单数据（与 web/main.ts 的 `leaderboardView` 同口径）。
+     *
+     * 「简单 / 困难」两列只能取两套进度的真值（`myScores`），绝不由单个分数按比例拆。
+     */
+    private leaderboardView(level: number): LeaderboardView {
+        const progress = GS.progress;
+        const rec = recordOf(progress, level);
+        const status = levelStatus(progress, level);
         const cfg = buildLevelConfigs(GS.mode)[level - 1];
-        if (!cfg) return;
-        const best = recordOf(GS.progress, level).boardBest;
-        const snap = boardSnapshot(level, { star1: cfg.star1, star2: cfg.star2, star3: cfg.star3 }, best);
-        const lines = [`第 ${level} 关 · ${BOARD.total(snap.totalPlayers)}`];
-        for (const r of snap.rows.slice(0, 8)) lines.push(`${r.rank}. ${r.name}　${r.score} 分`);
-        lines.push(snap.myRank ? BOARD.myRank(snap.myRank) : BOARD.notOnBoard);
-        this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
+        const line = cfg ? { star1: cfg.star1, star2: cfg.star2, star3: cfg.star3 } : { star1: 1, star2: 2, star3: 3 };
+        const board = boardSnapshot(level, line, rec.boardBest);
+        return {
+            level,
+            rows: board.rows,
+            totalPlayers: board.totalPlayers,
+            myRank: board.myRank,
+            boardBest: board.myBoardBest,
+            personalBest: rec.personalBest,
+            myScores: {
+                simple: recordOf(GS.data.progress.normal, level).personalBest,
+                hard: recordOf(GS.data.progress.nightmare, level).personalBest,
+            },
+            mode: GS.mode,
+            // 已通关但素材不足（被跳过）的关卡也进不去，challengeState 会给出对应文案
+            challenge: challengeState(level, status, !!cfg),
+        };
+    }
+
+    /**
+     * 某模式下「所有关卡本关最高分之和」= 该模式的累计分（总分榜用）。
+     *
+     * 累加的是 `personalBest`（每关取历史最高），所以重复挑战只会刷新单关最高分，
+     * 不会重复累加；没玩过的模式自然得 0 —— 不去虚构另一模式的分。
+     */
+    private totalScoreOf(mode: GameMode): number {
+        const p = GS.data.progress[mode];
+        let sum = 0;
+        for (const key of Object.keys(p.levels)) {
+            const level = Number(key);
+            if (!Number.isFinite(level)) continue;
+            sum += recordOf(p, level).personalBest;
+        }
+        return sum;
     }
 
     /**
