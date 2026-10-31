@@ -1,0 +1,4139 @@
+{
+  "url": "http://127.0.0.1:5181/preview/play.html",
+  "probe": "cocos-home",
+  "at": "2026-10-31T11:14:47.722Z",
+  "viewport": [
+    1080,
+    1886
+  ],
+  "exceptions": [],
+  "data": {
+    "screen": "home",
+    "stageScale": 1,
+    "items": [
+      {
+        "key": "Canvas",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Backdrop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content",
+        "x": 0,
+        "y": -1920,
+        "w": 1080,
+        "h": 3840,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/BgMain",
+        "x": 0,
+        "y": -1920,
+        "w": 1080,
+        "h": 3840,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Bead",
+        "x": 873,
+        "y": 1520.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Num",
+        "x": 873,
+        "y": 1557.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 53,
+        "color": "rgba(122,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Crown",
+        "x": 985.9,
+        "y": 1466.5,
+        "w": 53,
+        "h": 53,
+        "opacity": 1,
+        "text": "👑",
+        "fontSize": 53,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Ring",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2",
+        "x": 702,
+        "y": 1246,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Bead",
+        "x": 702,
+        "y": 1249.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Num",
+        "x": 702,
+        "y": 1286.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "2",
+        "fontSize": 53,
+        "color": "rgba(255,246,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Ring",
+        "x": 702,
+        "y": 1246,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3",
+        "x": 419,
+        "y": 976,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Bead",
+        "x": 419,
+        "y": 979.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Num",
+        "x": 419,
+        "y": 1016.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "3",
+        "fontSize": 53,
+        "color": "rgba(255,246,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Pet",
+        "x": 528.1,
+        "y": 1054.7,
+        "w": 53,
+        "h": 53,
+        "opacity": 1,
+        "text": "🐶",
+        "fontSize": 53,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Ring",
+        "x": 419,
+        "y": 976,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4",
+        "x": 598,
+        "y": 705,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Bead",
+        "x": 598,
+        "y": 708.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Num",
+        "x": 598,
+        "y": 745.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "4",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Lock",
+        "x": 629,
+        "y": 736,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5",
+        "x": 671,
+        "y": 434,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Bead",
+        "x": 671,
+        "y": 437.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Num",
+        "x": 671,
+        "y": 474.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Lock",
+        "x": 702,
+        "y": 465,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6",
+        "x": 366,
+        "y": 164,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Bead",
+        "x": 366,
+        "y": 167.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Num",
+        "x": 366,
+        "y": 204.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "6",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Lock",
+        "x": 397,
+        "y": 195,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7",
+        "x": 563,
+        "y": -107,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Bead",
+        "x": 563,
+        "y": -103.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Num",
+        "x": 563,
+        "y": -66.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "7",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Lock",
+        "x": 594,
+        "y": -76,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8",
+        "x": 565,
+        "y": -377,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Bead",
+        "x": 565,
+        "y": -373.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Num",
+        "x": 565,
+        "y": -336.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "8",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Lock",
+        "x": 596,
+        "y": -346,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9",
+        "x": 509,
+        "y": -648,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Bead",
+        "x": 509,
+        "y": -644.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Num",
+        "x": 509,
+        "y": -607.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "9",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Lock",
+        "x": 540,
+        "y": -617,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10",
+        "x": 548,
+        "y": -919,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Bead",
+        "x": 548,
+        "y": -915.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Num",
+        "x": 548,
+        "y": -878.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Lock",
+        "x": 579,
+        "y": -888,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11",
+        "x": 464,
+        "y": -1189,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Bead",
+        "x": 464,
+        "y": -1185.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Num",
+        "x": 464,
+        "y": -1148.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "11",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Lock",
+        "x": 495,
+        "y": -1158,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12",
+        "x": 455,
+        "y": -1460,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Bead",
+        "x": 455,
+        "y": -1456.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Num",
+        "x": 455,
+        "y": -1419.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "12",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Lock",
+        "x": 486,
+        "y": -1429,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnBack",
+        "x": 36,
+        "y": 28,
+        "w": 122,
+        "h": 124,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser",
+        "x": 112,
+        "y": 31,
+        "w": 468,
+        "h": 118,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Img",
+        "x": 112,
+        "y": 31,
+        "w": 468,
+        "h": 118,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Txt",
+        "x": 204,
+        "y": 48,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "text": "🐶",
+        "fontSize": 56,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Txt",
+        "x": 306,
+        "y": 56,
+        "w": 124,
+        "h": 68,
+        "opacity": 1,
+        "text": "玩家",
+        "fontSize": 40,
+        "color": "rgba(255,233,199,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina",
+        "x": 744,
+        "y": 28,
+        "w": 300,
+        "h": 108,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Img",
+        "x": 744,
+        "y": 28,
+        "w": 300,
+        "h": 108,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Heart",
+        "x": 764,
+        "y": 47,
+        "w": 78,
+        "h": 70,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Txt",
+        "x": 856,
+        "y": 66,
+        "w": 76,
+        "h": 32,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 32,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Plus",
+        "x": 946,
+        "y": 39,
+        "w": 84,
+        "h": 86,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Txt",
+        "x": 744,
+        "y": 176,
+        "w": 226,
+        "h": 26,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 22,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnTutorial",
+        "x": 818.83,
+        "y": 154,
+        "w": 225,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnTutorial/Txt",
+        "x": 818.83,
+        "y": 154,
+        "w": 225,
+        "h": 84,
+        "opacity": 1,
+        "text": "❓教学",
+        "fontSize": 44,
+        "color": "rgba(107,58,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft",
+        "x": 22,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 0.30196078431372547
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft/Hit",
+        "x": 39.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft/Txt",
+        "x": 22,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1,
+        "text": "‹",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight",
+        "x": 940,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight/Hit",
+        "x": 957.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight/Txt",
+        "x": 940,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1,
+        "text": "›",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp",
+        "x": 964,
+        "y": 825,
+        "w": 98,
+        "h": 98,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp/Hit",
+        "x": 978.5,
+        "y": 839.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp/Txt",
+        "x": 964,
+        "y": 825,
+        "w": 98,
+        "h": 98,
+        "opacity": 1,
+        "text": "▲",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown",
+        "x": 964,
+        "y": 997,
+        "w": 98,
+        "h": 98,
+        "opacity": 0.30196078431372547
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown/Hit",
+        "x": 978.5,
+        "y": 1011.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown/Txt",
+        "x": 964,
+        "y": 997,
+        "w": 98,
+        "h": 98,
+        "opacity": 1,
+        "text": "▼",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDot0",
+        "x": 1004,
+        "y": 937,
+        "w": 18,
+        "h": 18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDot1",
+        "x": 1004,
+        "y": 965,
+        "w": 18,
+        "h": 18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar",
+        "x": 24,
+        "y": 1731,
+        "w": 1032,
+        "h": 169,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0",
+        "x": 55,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Sel",
+        "x": 55,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Icon",
+        "x": 130.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Txt",
+        "x": 55,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "首页",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1",
+        "x": 300,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Sel",
+        "x": 300,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Icon",
+        "x": 375.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Txt",
+        "x": 300,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 26,
+        "color": "rgba(109,61,10,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2",
+        "x": 545,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Sel",
+        "x": 545,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Icon",
+        "x": 620.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Txt",
+        "x": 545,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "图鉴",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3",
+        "x": 790,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Sel",
+        "x": 790,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Icon",
+        "x": 865.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Txt",
+        "x": 790,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "设置",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop",
+        "x": 130,
+        "y": 0,
+        "w": 820,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/rope",
+        "x": 534,
+        "y": 0,
+        "w": 12,
+        "h": 619.5,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card",
+        "x": 130,
+        "y": 611.5,
+        "w": 820,
+        "h": 689,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/closeBtn",
+        "x": 864,
+        "y": 633.5,
+        "w": 60,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/closeBtn/t",
+        "x": 864,
+        "y": 638.5,
+        "w": 60,
+        "h": 50,
+        "opacity": 1,
+        "text": "✕",
+        "fontSize": 34,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 96,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal",
+        "x": 437,
+        "y": 827.5,
+        "w": 206,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal/t",
+        "x": 443,
+        "y": 846.5,
+        "w": 194,
+        "h": 56,
+        "opacity": 1,
+        "text": "简单",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare",
+        "x": 437,
+        "y": 827.5,
+        "w": 206,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare/t",
+        "x": 443,
+        "y": 846.5,
+        "w": 194,
+        "h": 56,
+        "opacity": 1,
+        "text": "困难",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars",
+        "x": 192,
+        "y": 949.5,
+        "w": 696,
+        "h": 79,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "1星 ",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 360,
+        "y": 951,
+        "w": 360,
+        "h": 76,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 60,
+        "color": "rgba(232,161,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": " 分",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "|",
+        "fontSize": 52,
+        "color": "rgba(201,168,106,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "3星 ",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 360,
+        "y": 951,
+        "w": 360,
+        "h": 76,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 60,
+        "color": "rgba(232,161,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": " 分",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play",
+        "x": 350.74,
+        "y": 1074.5,
+        "w": 378.52,
+        "h": 138,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play/t",
+        "x": 350.74,
+        "y": 1104.5,
+        "w": 378.52,
+        "h": 78,
+        "opacity": 1,
+        "text": "Play",
+        "fontSize": 62,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/Dialog",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Toast",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Toast/ToastLayer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/bg",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/back",
+        "x": 44,
+        "y": 38,
+        "w": 150,
+        "h": 150,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/back/t",
+        "x": 44,
+        "y": 60,
+        "w": 150,
+        "h": 98,
+        "opacity": 1,
+        "text": "‹",
+        "fontSize": 84,
+        "color": "rgba(245,191,93,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 90,
+        "y": 52,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 90,
+        "y": 64,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 96,
+        "y": 58,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 84,
+        "y": 58,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 95,
+        "y": 53,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 95,
+        "y": 63,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 85,
+        "y": 53,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 85,
+        "y": 63,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(90,45,10,0.549)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/t",
+        "x": 90,
+        "y": 58,
+        "w": 900,
+        "h": 110,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 96,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card",
+        "x": 27,
+        "y": 226,
+        "w": 1026,
+        "h": 1404,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn",
+        "x": 178.5,
+        "y": 307,
+        "w": 340,
+        "h": 122,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn/t",
+        "x": 198.5,
+        "y": 329,
+        "w": 300,
+        "h": 78,
+        "opacity": 1,
+        "text": "总分榜",
+        "fontSize": 64,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn",
+        "x": 561.5,
+        "y": 307,
+        "w": 340,
+        "h": 122,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn/t",
+        "x": 581.5,
+        "y": 329,
+        "w": 300,
+        "h": 78,
+        "opacity": 1,
+        "text": "关卡榜",
+        "fontSize": 64,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta",
+        "x": 87,
+        "y": 446,
+        "w": 906,
+        "h": 74,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/btn",
+        "x": 318,
+        "y": 448,
+        "w": 70,
+        "h": 70,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/btn/t",
+        "x": 318,
+        "y": 454,
+        "w": 70,
+        "h": 54,
+        "opacity": 1,
+        "text": "◀",
+        "fontSize": 40,
+        "color": "rgba(255,248,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/select",
+        "x": 404,
+        "y": 448,
+        "w": 272,
+        "h": 70,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/t",
+        "x": 404,
+        "y": 456,
+        "w": 272,
+        "h": 54,
+        "opacity": 1,
+        "text": "第 3 关",
+        "fontSize": 40,
+        "color": "rgba(255,248,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/btn",
+        "x": 692,
+        "y": 448,
+        "w": 70,
+        "h": 70,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/meta/btn/t",
+        "x": 692,
+        "y": 454,
+        "w": 70,
+        "h": 54,
+        "opacity": 1,
+        "text": "▶",
+        "fontSize": 40,
+        "color": "rgba(255,248,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine",
+        "x": 97,
+        "y": 532,
+        "w": 886,
+        "h": 151.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/shell",
+        "x": 97,
+        "y": 532,
+        "w": 886,
+        "h": 151.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell0",
+        "x": 115.01,
+        "y": 542,
+        "w": 283.33,
+        "h": 131.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell0/t",
+        "x": 115.01,
+        "y": 536.48,
+        "w": 283.33,
+        "h": 44,
+        "opacity": 1,
+        "text": "我的排名",
+        "fontSize": 30,
+        "color": "rgba(207,224,245,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell0/t",
+        "x": 115.01,
+        "y": 573.28,
+        "w": 283.33,
+        "h": 102,
+        "opacity": 1,
+        "text": "未上榜",
+        "fontSize": 88,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell1",
+        "x": 398.34,
+        "y": 542,
+        "w": 283.33,
+        "h": 131.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell1/t",
+        "x": 398.34,
+        "y": 536.48,
+        "w": 283.33,
+        "h": 44,
+        "opacity": 1,
+        "text": "本关最高分",
+        "fontSize": 30,
+        "color": "rgba(207,224,245,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell1/t",
+        "x": 398.34,
+        "y": 573.28,
+        "w": 283.33,
+        "h": 102,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 88,
+        "color": "rgba(255,213,74,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/split",
+        "x": 396.84,
+        "y": 550.19,
+        "w": 3,
+        "h": 115.18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell2",
+        "x": 681.66,
+        "y": 542,
+        "w": 283.33,
+        "h": 131.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell2/t",
+        "x": 681.66,
+        "y": 536.48,
+        "w": 283.33,
+        "h": 44,
+        "opacity": 1,
+        "text": "累计星数",
+        "fontSize": 30,
+        "color": "rgba(207,224,245,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/cell2/t",
+        "x": 681.66,
+        "y": 573.28,
+        "w": 283.33,
+        "h": 102,
+        "opacity": 1,
+        "text": "⭐5",
+        "fontSize": 88,
+        "color": "rgba(255,224,102,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/mine/split",
+        "x": 680.16,
+        "y": 550.19,
+        "w": 3,
+        "h": 115.18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium",
+        "x": 87,
+        "y": 699.55,
+        "w": 906,
+        "h": 274,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium0",
+        "x": 86.96,
+        "y": 765.97,
+        "w": 280.47,
+        "h": 207.58,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium0/base",
+        "x": 86.96,
+        "y": 896.55,
+        "w": 280.47,
+        "h": 77,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium0/cup",
+        "x": 168.2,
+        "y": 765.97,
+        "w": 118,
+        "h": 135.58,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium1",
+        "x": 373.47,
+        "y": 700,
+        "w": 333.06,
+        "h": 273.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium1/base",
+        "x": 373.47,
+        "y": 868.55,
+        "w": 333.06,
+        "h": 105,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium1/base/t",
+        "x": 480,
+        "y": 900.55,
+        "w": 120,
+        "h": 66,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 52,
+        "color": "rgba(255,217,78,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium1/cup",
+        "x": 455,
+        "y": 700,
+        "w": 170,
+        "h": 181.55,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium2",
+        "x": 712.56,
+        "y": 765.97,
+        "w": 280.47,
+        "h": 207.58,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium2/base",
+        "x": 712.56,
+        "y": 896.55,
+        "w": 280.47,
+        "h": 77,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/podium/podium2/cup",
+        "x": 793.8,
+        "y": 765.97,
+        "w": 118,
+        "h": 135.58,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead",
+        "x": 87,
+        "y": 989.55,
+        "w": 906,
+        "h": 79,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead/t",
+        "x": 127,
+        "y": 1001.05,
+        "w": 100,
+        "h": 56,
+        "opacity": 1,
+        "text": "排名",
+        "fontSize": 42,
+        "color": "rgba(124,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead/t",
+        "x": 255,
+        "y": 1001.05,
+        "w": 274,
+        "h": 56,
+        "opacity": 1,
+        "text": "昵称",
+        "fontSize": 42,
+        "color": "rgba(124,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead/t",
+        "x": 531,
+        "y": 1001.05,
+        "w": 124,
+        "h": 56,
+        "opacity": 1,
+        "text": "简单",
+        "fontSize": 42,
+        "color": "rgba(124,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead/t",
+        "x": 667,
+        "y": 1001.05,
+        "w": 124,
+        "h": 56,
+        "opacity": 1,
+        "text": "困难",
+        "fontSize": 42,
+        "color": "rgba(124,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/thead/t",
+        "x": 803,
+        "y": 1001.05,
+        "w": 156,
+        "h": 56,
+        "opacity": 1,
+        "text": "总分",
+        "fontSize": 42,
+        "color": "rgba(124,74,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list",
+        "x": 87,
+        "y": 1095.55,
+        "w": 906,
+        "h": 240.45,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content",
+        "x": 87,
+        "y": 1095.55,
+        "w": 906,
+        "h": 2186,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0",
+        "x": 87,
+        "y": 1095.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/medal",
+        "x": 129,
+        "y": 1096.55,
+        "w": 84,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/medal/t",
+        "x": 129,
+        "y": 1119.55,
+        "w": 84,
+        "h": 60,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 46,
+        "color": "rgba(255,207,67,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/avatar",
+        "x": 233,
+        "y": 1101.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/avatar/t",
+        "x": 233,
+        "y": 1114.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "月",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/t",
+        "x": 331,
+        "y": 1112.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "月光柚子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/t",
+        "x": 531,
+        "y": 1112.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "19",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/t",
+        "x": 667,
+        "y": 1112.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row0/t",
+        "x": 803,
+        "y": 1109.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "19",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1",
+        "x": 87,
+        "y": 1205.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/medal",
+        "x": 129,
+        "y": 1206.55,
+        "w": 84,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/medal/t",
+        "x": 129,
+        "y": 1229.55,
+        "w": 84,
+        "h": 60,
+        "opacity": 1,
+        "text": "2",
+        "fontSize": 46,
+        "color": "rgba(255,207,67,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/avatar",
+        "x": 233,
+        "y": 1211.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/avatar/t",
+        "x": 233,
+        "y": 1224.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "抱",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/t",
+        "x": 331,
+        "y": 1222.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "抱抱柚子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/t",
+        "x": 531,
+        "y": 1222.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/t",
+        "x": 667,
+        "y": 1222.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row1/t",
+        "x": 803,
+        "y": 1219.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2",
+        "x": 87,
+        "y": 1315.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/medal",
+        "x": 129,
+        "y": 1316.55,
+        "w": 84,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/medal/t",
+        "x": 129,
+        "y": 1339.55,
+        "w": 84,
+        "h": 60,
+        "opacity": 1,
+        "text": "2",
+        "fontSize": 46,
+        "color": "rgba(255,207,67,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/avatar",
+        "x": 233,
+        "y": 1321.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/avatar/t",
+        "x": 233,
+        "y": 1334.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "懒",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/t",
+        "x": 331,
+        "y": 1332.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "懒懒奶糖",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/t",
+        "x": 531,
+        "y": 1332.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/t",
+        "x": 667,
+        "y": 1332.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row2/t",
+        "x": 803,
+        "y": 1329.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3",
+        "x": 87,
+        "y": 1425.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/medal",
+        "x": 129,
+        "y": 1426.55,
+        "w": 84,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/medal/t",
+        "x": 129,
+        "y": 1449.55,
+        "w": 84,
+        "h": 60,
+        "opacity": 1,
+        "text": "2",
+        "fontSize": 46,
+        "color": "rgba(255,207,67,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/avatar",
+        "x": 233,
+        "y": 1431.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/avatar/t",
+        "x": 233,
+        "y": 1444.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "甜",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/t",
+        "x": 331,
+        "y": 1442.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "甜心汤圆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/t",
+        "x": 531,
+        "y": 1442.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/t",
+        "x": 667,
+        "y": 1442.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row3/t",
+        "x": 803,
+        "y": 1439.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "18",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4",
+        "x": 87,
+        "y": 1535.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/rank",
+        "x": 131,
+        "y": 1543.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/rank/t",
+        "x": 131,
+        "y": 1551.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/avatar",
+        "x": 233,
+        "y": 1541.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/avatar/t",
+        "x": 233,
+        "y": 1554.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "薄",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/t",
+        "x": 331,
+        "y": 1552.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "薄荷奶糖",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/t",
+        "x": 531,
+        "y": 1552.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/t",
+        "x": 667,
+        "y": 1552.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row4/t",
+        "x": 803,
+        "y": 1549.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5",
+        "x": 87,
+        "y": 1645.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/rank",
+        "x": 131,
+        "y": 1653.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/rank/t",
+        "x": 131,
+        "y": 1661.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/avatar",
+        "x": 233,
+        "y": 1651.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/avatar/t",
+        "x": 233,
+        "y": 1664.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "咕",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/t",
+        "x": 331,
+        "y": 1662.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "咕噜包子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/t",
+        "x": 531,
+        "y": 1662.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/t",
+        "x": 667,
+        "y": 1662.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row5/t",
+        "x": 803,
+        "y": 1659.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6",
+        "x": 87,
+        "y": 1755.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/rank",
+        "x": 131,
+        "y": 1763.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/rank/t",
+        "x": 131,
+        "y": 1771.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/avatar",
+        "x": 233,
+        "y": 1761.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/avatar/t",
+        "x": 233,
+        "y": 1774.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "咕",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/t",
+        "x": 331,
+        "y": 1772.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "咕噜芝麻",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/t",
+        "x": 531,
+        "y": 1772.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/t",
+        "x": 667,
+        "y": 1772.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row6/t",
+        "x": 803,
+        "y": 1769.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7",
+        "x": 87,
+        "y": 1865.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/rank",
+        "x": 131,
+        "y": 1873.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/rank/t",
+        "x": 131,
+        "y": 1881.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/avatar",
+        "x": 233,
+        "y": 1871.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/avatar/t",
+        "x": 233,
+        "y": 1884.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "甜",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/t",
+        "x": 331,
+        "y": 1882.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "甜心花卷",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/t",
+        "x": 531,
+        "y": 1882.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/t",
+        "x": 667,
+        "y": 1882.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row7/t",
+        "x": 803,
+        "y": 1879.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8",
+        "x": 87,
+        "y": 1975.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/rank",
+        "x": 131,
+        "y": 1983.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/rank/t",
+        "x": 131,
+        "y": 1991.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/avatar",
+        "x": 233,
+        "y": 1981.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/avatar/t",
+        "x": 233,
+        "y": 1994.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "元",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/t",
+        "x": 331,
+        "y": 1992.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "元气汤圆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/t",
+        "x": 531,
+        "y": 1992.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/t",
+        "x": 667,
+        "y": 1992.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row8/t",
+        "x": 803,
+        "y": 1989.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "17",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9",
+        "x": 87,
+        "y": 2085.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/rank",
+        "x": 131,
+        "y": 2093.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/rank/t",
+        "x": 131,
+        "y": 2101.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/avatar",
+        "x": 233,
+        "y": 2091.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/avatar/t",
+        "x": 233,
+        "y": 2104.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "抱",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/t",
+        "x": 331,
+        "y": 2102.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "抱抱奶糖",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/t",
+        "x": 531,
+        "y": 2102.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/t",
+        "x": 667,
+        "y": 2102.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row9/t",
+        "x": 803,
+        "y": 2099.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10",
+        "x": 87,
+        "y": 2195.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/rank",
+        "x": 131,
+        "y": 2203.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/rank/t",
+        "x": 131,
+        "y": 2211.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/avatar",
+        "x": 233,
+        "y": 2201.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/avatar/t",
+        "x": 233,
+        "y": 2214.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "咕",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/t",
+        "x": 331,
+        "y": 2212.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "咕噜团子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/t",
+        "x": 531,
+        "y": 2212.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/t",
+        "x": 667,
+        "y": 2212.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row10/t",
+        "x": 803,
+        "y": 2209.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11",
+        "x": 87,
+        "y": 2305.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/rank",
+        "x": 131,
+        "y": 2313.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/rank/t",
+        "x": 131,
+        "y": 2321.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/avatar",
+        "x": 233,
+        "y": 2311.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/avatar/t",
+        "x": 233,
+        "y": 2324.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "奶",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/t",
+        "x": 331,
+        "y": 2322.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "奶盖汤圆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/t",
+        "x": 531,
+        "y": 2322.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/t",
+        "x": 667,
+        "y": 2322.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row11/t",
+        "x": 803,
+        "y": 2319.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12",
+        "x": 87,
+        "y": 2415.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/rank",
+        "x": 131,
+        "y": 2423.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/rank/t",
+        "x": 131,
+        "y": 2431.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/avatar",
+        "x": 233,
+        "y": 2421.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/avatar/t",
+        "x": 233,
+        "y": 2434.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "月",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/t",
+        "x": 331,
+        "y": 2432.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "月光豆豆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/t",
+        "x": 531,
+        "y": 2432.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/t",
+        "x": 667,
+        "y": 2432.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row12/t",
+        "x": 803,
+        "y": 2429.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "16",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13",
+        "x": 87,
+        "y": 2525.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/rank",
+        "x": 131,
+        "y": 2533.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/rank/t",
+        "x": 131,
+        "y": 2541.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/avatar",
+        "x": 233,
+        "y": 2531.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/avatar/t",
+        "x": 233,
+        "y": 2544.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "薄",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/t",
+        "x": 331,
+        "y": 2542.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "薄荷年糕",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/t",
+        "x": 531,
+        "y": 2542.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/t",
+        "x": 667,
+        "y": 2542.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row13/t",
+        "x": 803,
+        "y": 2539.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14",
+        "x": 87,
+        "y": 2635.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/rank",
+        "x": 131,
+        "y": 2643.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/rank/t",
+        "x": 131,
+        "y": 2651.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/avatar",
+        "x": 233,
+        "y": 2641.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/avatar/t",
+        "x": 233,
+        "y": 2654.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "抱",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/t",
+        "x": 331,
+        "y": 2652.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "抱抱汤圆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/t",
+        "x": 531,
+        "y": 2652.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/t",
+        "x": 667,
+        "y": 2652.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row14/t",
+        "x": 803,
+        "y": 2649.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15",
+        "x": 87,
+        "y": 2745.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/rank",
+        "x": 131,
+        "y": 2753.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/rank/t",
+        "x": 131,
+        "y": 2761.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/avatar",
+        "x": 233,
+        "y": 2751.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/avatar/t",
+        "x": 233,
+        "y": 2764.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "软",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/t",
+        "x": 331,
+        "y": 2762.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "软糯花卷",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/t",
+        "x": 531,
+        "y": 2762.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/t",
+        "x": 667,
+        "y": 2762.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row15/t",
+        "x": 803,
+        "y": 2759.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16",
+        "x": 87,
+        "y": 2855.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/rank",
+        "x": 131,
+        "y": 2863.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/rank/t",
+        "x": 131,
+        "y": 2871.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/avatar",
+        "x": 233,
+        "y": 2861.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/avatar/t",
+        "x": 233,
+        "y": 2874.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "小",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/t",
+        "x": 331,
+        "y": 2872.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "小只豆豆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/t",
+        "x": 531,
+        "y": 2872.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/t",
+        "x": 667,
+        "y": 2872.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row16/t",
+        "x": 803,
+        "y": 2869.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17",
+        "x": 87,
+        "y": 2965.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/rank",
+        "x": 131,
+        "y": 2973.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/rank/t",
+        "x": 131,
+        "y": 2981.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/avatar",
+        "x": 233,
+        "y": 2971.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/avatar/t",
+        "x": 233,
+        "y": 2984.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "小",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/t",
+        "x": 331,
+        "y": 2982.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "小只汤圆",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/t",
+        "x": 531,
+        "y": 2982.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/t",
+        "x": 667,
+        "y": 2982.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row17/t",
+        "x": 803,
+        "y": 2979.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18",
+        "x": 87,
+        "y": 3075.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/rank",
+        "x": 131,
+        "y": 3083.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/rank/t",
+        "x": 131,
+        "y": 3091.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/avatar",
+        "x": 233,
+        "y": 3081.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/avatar/t",
+        "x": 233,
+        "y": 3094.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "元",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/t",
+        "x": 331,
+        "y": 3092.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "元气包子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/t",
+        "x": 531,
+        "y": 3092.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/t",
+        "x": 667,
+        "y": 3092.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row18/t",
+        "x": 803,
+        "y": 3089.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19",
+        "x": 87,
+        "y": 3185.55,
+        "w": 906,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/rank",
+        "x": 131,
+        "y": 3193.55,
+        "w": 80,
+        "h": 80,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/rank/t",
+        "x": 131,
+        "y": 3201.55,
+        "w": 80,
+        "h": 60,
+        "opacity": 1,
+        "text": "14",
+        "fontSize": 46,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/avatar",
+        "x": 233,
+        "y": 3191.55,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/avatar/t",
+        "x": 233,
+        "y": 3204.55,
+        "w": 84,
+        "h": 54,
+        "opacity": 1,
+        "text": "月",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/t",
+        "x": 331,
+        "y": 3202.55,
+        "w": 188,
+        "h": 62,
+        "opacity": 1,
+        "text": "月光包子",
+        "fontSize": 48,
+        "color": "rgba(95,58,18,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/t",
+        "x": 531,
+        "y": 3202.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 48,
+        "color": "rgba(46,164,79,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/t",
+        "x": 667,
+        "y": 3202.55,
+        "w": 124,
+        "h": 62,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 48,
+        "color": "rgba(240,138,36,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/list/content/row19/t",
+        "x": 803,
+        "y": 3199.55,
+        "w": 156,
+        "h": 68,
+        "opacity": 1,
+        "text": "15",
+        "fontSize": 54,
+        "color": "rgba(245,184,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager",
+        "x": 87,
+        "y": 1356,
+        "w": 906,
+        "h": 74,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager/btn",
+        "x": 158.13,
+        "y": 1362,
+        "w": 227.33,
+        "h": 66,
+        "opacity": 0.6196078431372549
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager/btn/t",
+        "x": 178.13,
+        "y": 1369,
+        "w": 187.33,
+        "h": 52,
+        "opacity": 1,
+        "text": "◀ 上一页",
+        "fontSize": 38,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager/t",
+        "x": 417.5,
+        "y": 1366.5,
+        "w": 245,
+        "h": 57,
+        "opacity": 1,
+        "text": "第 1 / 5 页",
+        "fontSize": 43,
+        "color": "rgba(255,248,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager/btn",
+        "x": 694.54,
+        "y": 1362,
+        "w": 227.33,
+        "h": 66,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/pager/btn/t",
+        "x": 714.54,
+        "y": 1369,
+        "w": 187.33,
+        "h": 52,
+        "opacity": 1,
+        "text": "下一页 ▶",
+        "fontSize": 38,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn",
+        "x": 124,
+        "y": 1438,
+        "w": 832,
+        "h": 104,
+        "opacity": 0.6196078431372549
+      },
+      {
+        "key": "Canvas/Map/LeaderboardScreen/card/btn/t",
+        "x": 144,
+        "y": 1459,
+        "w": 792,
+        "h": 62,
+        "opacity": 1,
+        "text": "通关后解锁",
+        "fontSize": 48,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Game",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ScreenBg",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard",
+        "x": 8,
+        "y": 8,
+        "w": 1064,
+        "h": 1904,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar",
+        "x": 18,
+        "y": 18,
+        "w": 1044,
+        "h": 240,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudExit",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudExit/Txt",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "text": "←",
+        "fontSize": 44,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudGoalFlag",
+        "x": 240.4,
+        "y": 102,
+        "w": 60,
+        "h": 72,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudGoalNum",
+        "x": 294,
+        "y": 102,
+        "w": 72,
+        "h": 72,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 66,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore",
+        "x": 468,
+        "y": 57,
+        "w": 246,
+        "h": 162,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapTens",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapTens/Face",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapUnits",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapUnits/Face",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer",
+        "x": 816,
+        "y": 108,
+        "w": 228,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer/TimerClock",
+        "x": 816.4,
+        "y": 111,
+        "w": 74,
+        "h": 54,
+        "opacity": 1,
+        "text": "🕒",
+        "fontSize": 54,
+        "color": "rgba(255,248,231,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer/TimerNum",
+        "x": 902,
+        "y": 108,
+        "w": 142,
+        "h": 60,
+        "opacity": 1,
+        "text": "03:00",
+        "fontSize": 60,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Game/BoardHost",
+        "x": 18,
+        "y": 268,
+        "w": 1044,
+        "h": 1634,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint",
+        "x": 540,
+        "y": 1085,
+        "w": 0,
+        "h": 0,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint/hand",
+        "x": 492,
+        "y": 1037,
+        "w": 96,
+        "h": 96,
+        "opacity": 1,
+        "text": "👆",
+        "fontSize": 72,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint/flash",
+        "x": 470,
+        "y": 1015,
+        "w": 140,
+        "h": 140,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/Dialog",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop/rope",
+        "x": 340,
+        "y": 0,
+        "w": 400,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop/card",
+        "x": 220,
+        "y": 530,
+        "w": 640,
+        "h": 780,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Toast",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Toast/ToastLayer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Audio",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide/GuideBar",
+        "x": 100,
+        "y": 1455,
+        "w": 880,
+        "h": 130,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide/GuideBar/Text",
+        "x": 130,
+        "y": 1465,
+        "w": 820,
+        "h": 110,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 30,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Game/TutorialBanner",
+        "x": 100,
+        "y": 214,
+        "w": 880,
+        "h": 92,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/TutorialBanner/text",
+        "x": 120,
+        "y": 220,
+        "w": 840,
+        "h": 80,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Game/Spotlight",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/Spotlight/shade",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Spotlight/tip",
+        "x": 540,
+        "y": 960,
+        "w": 0,
+        "h": 0,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(70,40,20,1.000)"
+      },
+      {
+        "key": "Canvas/Game/Spotlight/next",
+        "x": 500,
+        "y": 932,
+        "w": 80,
+        "h": 56,
+        "opacity": 1,
+        "text": "▾",
+        "fontSize": 52,
+        "color": "rgba(255,255,255,1.000)"
+      }
+    ],
+    "levelNodes": [
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12",
+        "x": 455,
+        "y": -1460,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11",
+        "x": 464,
+        "y": -1189,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10",
+        "x": 548,
+        "y": -919,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9",
+        "x": 509,
+        "y": -648,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8",
+        "x": 565,
+        "y": -377,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7",
+        "x": 563,
+        "y": -107,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6",
+        "x": 366,
+        "y": 164,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5",
+        "x": 671,
+        "y": 434,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4",
+        "x": 598,
+        "y": 705,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3",
+        "x": 419,
+        "y": 976,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2",
+        "x": 702,
+        "y": 1246,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      }
+    ],
+    "scrollY": -1920,
+    "contentKey": "Canvas/Map/ScrollView/view/Content",
+    "saveRaw": "{\"version\":1,\"savedAt\":1793445027784,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":true,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":3,\"levels\":{\"1\":{\"stars\":3,\"best\":100,\"attempts\":1,\"unlocked\":true},\"2\":{\"stars\":2,\"b",
+    "t1": null,
+    "t2": null
+  }
+}

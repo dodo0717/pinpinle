@@ -280,6 +280,140 @@ function webPreviewProbeSource() {
 })()`;
 }
 
+/* ------------------------------------------------------------------ 探针（Web · 排行榜整屏） */
+
+/**
+ * 排行榜整屏 `#screen-leaderboard` 的实测几何。
+ * 前提是先切到这一屏 —— 用 `--click=".tabbar .tab:nth-child(2)"`（底栏第 2 个页签 = 排行榜）；
+ * 默认是**总分榜**，再叠一个 `--click=".lb-tab:nth-child(2)"` 切到**关卡榜**
+ * （关卡榜才有步进器与「挑战本关」，这是产品硬要求的一项）。
+ */
+const WEB_LB_KEYS = {
+  screen: '#screen-leaderboard',
+  top: '.lb-top',
+  back: '.lb-back',
+  title: '.lb-title',
+  card: '.lb-card',
+  tabs: '.lb-tabs',
+  tabTotal: '.lb-tabs .lb-tab:nth-child(1)',
+  tabLevel: '.lb-tabs .lb-tab:nth-child(2)',
+  meta: '.lb-meta',
+  header: '.lb-header',
+  stepPrev: '.lb-header .lb-step:nth-child(1)',
+  levelSelect: '.lb-level-select',
+  stepNext: '.lb-header .lb-step:nth-child(3)',
+  mineCard: '.lb-mine-card',
+  mineCells: '.lb-mine-cells',
+  mineCell0: '.lb-mine-cell:nth-child(1)',
+  mineCell1: '.lb-mine-cell:nth-child(2)',
+  mineCell2: '.lb-mine-cell:nth-child(3)',
+  mineK0: '.lb-mine-cell:nth-child(1) .lb-mine-k',
+  mineV0: '.lb-mine-cell:nth-child(1) .lb-mine-v',
+  mineV1: '.lb-mine-cell:nth-child(2) .lb-mine-v',
+  mineV2: '.lb-mine-cell:nth-child(3) .lb-mine-v',
+  podium: '.lb-podium',
+  podiumSilver: '.lb-podium-item.silver',
+  podiumGold: '.lb-podium-item.gold',
+  podiumBronze: '.lb-podium-item.bronze',
+  cupGold: '.lb-podium-item.gold .lb-cup',
+  cupSilver: '.lb-podium-item.silver .lb-cup',
+  baseGold: '.lb-podium-item.gold .lb-base',
+  baseSilver: '.lb-podium-item.silver .lb-base',
+  baseNum: '.lb-base-num',
+  thead: '.lb-thead',
+  theadRank: '.lb-thead .lb-c-rank',
+  theadName: '.lb-thead .lb-c-name',
+  theadSimple: '.lb-thead .h-simple',
+  theadHard: '.lb-thead .h-hard',
+  theadTotal: '.lb-thead .h-total',
+  scroll: '.lb-scroll',
+  list: '.lb-list',
+  row0: '.lb-list .lb-row:nth-child(1)',
+  row1: '.lb-list .lb-row:nth-child(2)',
+  rowMine: '.lb-list .lb-row.mine',
+  medal: '.lb-row .lb-medal',
+  rankNum: '.lb-row .lb-rank-num',
+  name: '.lb-row .lb-name',
+  av: '.lb-row .lb-name .av',
+  nm: '.lb-row .lb-name .nm',
+  cSimple: '.lb-row .lb-c.simple',
+  cHard: '.lb-row .lb-c.hard',
+  cTotal: '.lb-row .lb-c.total',
+  pager: '.lb-pager',
+  pagePrev: '.lb-pager .lb-page-btn:nth-child(1)',
+  pageLabel: '.lb-page-label',
+  pageNext: '.lb-pager .lb-page-btn:nth-child(3)',
+  challenge: '.lb-challenge',
+  tabbar: '#tabbar',
+};
+
+function webLeaderboardProbeSource() {
+  return `(() => {
+  const KEYS = ${JSON.stringify(WEB_LB_KEYS)};
+  const stage = document.getElementById('stage');
+  const base = stage.getBoundingClientRect();
+  const s = (base.width || 1080) / 1080;
+  const L = (r) => ({
+    x: +((r.left - base.left) / s).toFixed(2),
+    y: +((r.top - base.top) / s).toFixed(2),
+    w: +(r.width / s).toFixed(2),
+    h: +(r.height / s).toFixed(2),
+  });
+  const cs = (el) => {
+    const c = getComputedStyle(el);
+    return {
+      color: c.color, fontSize: c.fontSize, fontWeight: c.fontWeight, lineHeight: c.lineHeight,
+      bg: c.backgroundColor, bgImage: c.backgroundImage.slice(0, 160),
+      radius: c.borderTopLeftRadius, shadow: c.boxShadow.slice(0, 160),
+      textShadow: c.textShadow.slice(0, 140), opacity: c.opacity,
+      margin: c.marginTop + ' ' + c.marginRight + ' ' + c.marginBottom + ' ' + c.marginLeft,
+      padding: c.paddingTop + ' ' + c.paddingRight + ' ' + c.paddingBottom + ' ' + c.paddingLeft,
+      gap: c.gap, cols: c.gridTemplateColumns, hidden: el.hidden === true,
+    };
+  };
+  /**
+   * 文字的**真实包围盒**（用 Range 量文本节点，不含 padding / border）。
+   * 有了它才能把"Cocos 的 Label 节点中心"和"Web 里字真正画在哪"对齐 ——
+   * 盒子里带 padding 的元素（例如表头里 .h-simple 有 padding-left 21 + border 6），
+   * 盒中心并不是字的中心。
+   */
+  const tr = (el) => {
+    if (el.children.length || !(el.textContent || '').trim()) return null;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const b = r.getBoundingClientRect();
+    return {
+      x: +((b.left - base.left) / s).toFixed(2),
+      y: +((b.top - base.top) / s).toFixed(2),
+      w: +(b.width / s).toFixed(2),
+      h: +(b.height / s).toFixed(2),
+    };
+  };
+  const out = [];
+  for (const [k, sel] of Object.entries(KEYS)) {
+    const el = document.querySelector(sel);
+    if (!el) { out.push({ key: k, missing: true }); continue; }
+    out.push(Object.assign({ key: k, cls: el.className, text: (el.textContent || '').trim().slice(0, 30) }, L(el.getBoundingClientRect()), cs(el), { textRect: tr(el) }));
+  }
+  const rows = Array.from(document.querySelectorAll('.lb-list .lb-row'));
+  const podium = Array.from(document.querySelectorAll('.lb-podium-item'));
+  return {
+    screen: 'leaderboard', stageScale: s, items: out,
+    rowCount: rows.length,
+    // 行间距：CSS gap 14px，这里用实测的相邻行顶边之差（行高 + 间距）
+    rowPitch: rows.length > 1
+      ? +((rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) / s).toFixed(2)
+      : null,
+    podiumCount: podium.length,
+    activeTab: (() => {
+      const t = document.querySelector('.lb-tab.on');
+      return t ? t.textContent : null;
+    })(),
+    scrollTop: (() => { const sc = document.querySelector('.lb-scroll'); return sc ? sc.scrollTop : null; })(),
+  };
+})()`;
+}
+
 /* ------------------------------------------------------------------ 探针（Cocos / cc-shim） */
 
 function cocosProbeSource() {
@@ -538,7 +672,9 @@ const src = PROBE === 'cocos-home'
       ? webHomeProbeSource()
       : PROBE === 'web-preview'
         ? webPreviewProbeSource()
-        : webProbeSource();
+        : PROBE === 'web-leaderboard'
+          ? webLeaderboardProbeSource()
+          : webProbeSource();
 const res = await cdp.send('Runtime.evaluate', { expression: src, returnByValue: true, awaitPromise: true });
 let data;
 if (res.exceptionDetails) {

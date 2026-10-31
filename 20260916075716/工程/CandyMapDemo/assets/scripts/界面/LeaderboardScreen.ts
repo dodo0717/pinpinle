@@ -1,22 +1,37 @@
 /**
- * 排行榜整屏（从 web/ui/leaderboard.ts 移植，2026-10-30）
+ * 排行榜整屏（从 web/ui/leaderboard.ts 移植，**2026-10-31 按 Web 实测逐元素重排**）
  *
- * 结构同图鉴 / 设置整屏：蓝天底 + 棕返回圆钮 + 标题 + 一张金框木卡。
- * 卡内自上而下 = 胶囊双 Tab（总分榜 / 关卡榜）→ 关卡步进器（仅关卡榜）
- * → 我的成绩条（排名 / 分数 / 星数）→ 金银铜奖杯领奖台 → 表头条 → 榜单行（可滚动）
+ * 结构：整屏蓝天 + 棕返回圆钮 + 白字描边标题 → 一张 1026×1404 的金框大卡。
+ * 卡内自上而下 = 胶囊双 Tab（总分榜 / 关卡榜）→ 关卡步进器（仅关卡榜，整行下推 85px）
+ * → 我的成绩条（排名 / 分数 / 星数）→ 金银铜奖杯领奖台 → 表头条 → 榜单行（可滚动、裁剪）
  * → 分页器（每页 20 名）→ **「挑战本关」通栏按钮**（仅关卡榜，产品硬要求）。
  *
- * ⚠️ 本机玩家那一行黄色高亮（`MINE_BG`），总分榜里永远有「我」，关卡榜按 `view.myRank` 判。
- * ⚠️ 「挑战本关」只在关卡榜出现；置灰时按钮上直接写原因（Web 版同口径），
- *    点了才走 `onHint` 提示 —— 不静默吞掉点击。
+ * 【数值来源】`docs/dump/web-leaderboard.json`（总分榜）与 `web-leaderboard-level.json`（关卡榜）；
+ * 颜色来源是 `web/art/leaderboard/*.png` 在页面里 canvas 采样的**真实均色**（不是目测）：
+ *   屏底渐变 #3f83d8→#6fa9ea(42%)→#a9d0f5     卡内渐变 #4e97e8→#7fb4ee(55%)→#b8dcfb
+ *   金框 #c79651（frame）   Tab 选/未选 #f98639 / #383542   表头条 #e7c39e
+ *   行 #f5d7b9（我 #fedb79）  奖杯 金#c38c45 银#9a878c 铜#ab674f
+ *   底座 红#bf5c54 / 橙#d37330  装饰 丝带 #54a661/#5270ce/#eeb031、星 #ecb755
+ * ⚠️ 卡片圆角 118 —— 竖向渐变必须**按每行在圆角内的实际宽度**画（见 `fillVGrad`），
+ *    否则方角填充会溢出圆角，卡片看着是方的。
  *
- * 素材：杯 / 奖牌 / 头像 / 领奖台全部**程序绘制**（Graphics + Label），
- * 不引入任何新切图 —— 本项目一贯做法。数据口径在 `leaderboardModel.ts`（可单测）。
+ * ⚠️ 「挑战本关」只在关卡榜出现；置灰时按钮上直接写原因（Web 同口径），点了走 `onHint` 提示。
+ * ⚠️ 本机玩家那一行黄色高亮（`ROW_MINE`）。
+ *
+ * 【手段差异（视觉对齐、手段不同）】
+ *   - 全部切图（杯 / 奖牌 / 头像 / 领奖台 / 丝带 / 星星）一律**程序绘制**，不引入切图；
+ *     颜色取切图实测均色，色值 ≈ 但形状是简化（丝带=旋转圆角条，星=五角星）
+ *   - 标题的 96px 描边用**八向错位文本**（shim 没有 `LabelOutline`）；行内数字的细节描边用
+ *     `LabelShadow`（shim 不画，真引擎会画）
+ *   - 关卡下拉 `<select>` → 同尺寸胶囊 + 文本（shim 没有下拉控件），◀▶ 步进保留
+ *   - 卡片/按钮的 `box-shadow` 用低透明同心圆角矩形近似高斯模糊
+ *   - 列表用 `ScrollView` + `Mask` 裁剪（shim 里不滚动，只裁剪到首屏；真引擎可滚）
+ *
+ * 数据口径在 `leaderboardModel.ts`（可单测）。
  */
 
-import { Node, UITransform, Graphics, Label, Color, Layers, ScrollView } from 'cc';
+import { Node, UITransform, Graphics, Label, LabelShadow, Color, Layers, ScrollView, Mask, UIOpacity, Vec2 } from 'cc';
 import { LEADERBOARD } from '../玩法/text';
-import { mkLabel } from './CollectionScreen';
 import {
   LEADERBOARD_PAGE_SIZE,
   LEADERBOARD_MAX_LEVEL,
@@ -44,78 +59,208 @@ export interface LeaderboardHandlers {
   onHint: (msg: string) => void;
 }
 
-/* ------------------------------------------------------------------ 布局常量（1080×1920 基准） */
+/* ------------------------------------------------------------------ 布局常量（Web 实测，1080×1920、y 从顶向下） */
 
-const CARD_W = 960;
-const CARD_H = 1440;
-const CARD_Y = -60;
+/** 卡片：屏幕 (27,226)，1026×1404 → 节点位置 (0, +32) */
+const CARD_W = 1026;
+const CARD_H = 1404;
+const CARD_TOP = 226;
+/** 卡片圆角 118；金框让开 50px（Web `frame.png` 的边框宽度 45~55） */
+const CARD_R = 118;
+const CARD_FRAME = 50;
 
-const TAB_W = 380;
-const TAB_H = 92;
-const TAB_Y = 640;
+/** 顶栏：返回钮 150×150 @(44,38)；标题 96px 居中，盒中心 y=113 */
+const BACK_SIZE = 150;
+const BACK_X = 44;
+const BACK_Y = 38;
+const TITLE_FS = 96;
+const TITLE_CY = 113;
 
-const STEP_Y = 530;
-const STEP_BTN_W = 96;
-const STEP_BTN_H = 76;
+/** 双 Tab：340×122，中心间距 383（gap 43） */
+const TAB_W = 340;
+const TAB_H = 122;
+const TAB_X = 191.5;
+const TAB_FS = 64;
 
-const MINE_Y = 420;
-const MINE_H = 130;
-const MINE_CELL_W = 280;
+/** 关卡步进器（仅关卡榜）：906×74，◀/▶ 70×70 圆、下拉胶囊 272×70 */
+const META_W = 906;
+const META_H = 74;
+const STEP_SIZE = 70;
+const STEP_X = 187;
+const SELECT_W = 272;
+const SELECT_H = 70;
+const CTRL_FS = 40;
 
-const PODIUM_Y = 225;
-const PODIUM_H = 250;
-/** 领奖台三档：亚军银（左）/ 冠军金（中，抬高）/ 季军铜（右） */
+/** 我的成绩条：886×151.55，三格等分 283.33 */
+const MINE_W = 886;
+const MINE_H = 151.55;
+const MINE_CELL_W = 283.33;
+/** 三格是容器内的内容区（`padding: 10px 18px`），比外壳矮 20px —— 与 Web 的盒对齐 */
+const MINE_CELL_H = 131.55;
+const MINE_K_FS = 30;
+const MINE_V_FS = 88;
+const MINE_K_DY = 49.3;
+const MINE_V_DY = -16.5;
+
+/** 领奖台：906×274；银(左) / 金(中，抬高) / 铜(右) */
+const PODIUM_W = 906;
+const PODIUM_H = 274;
 const PODIUM_SPEC = [
-  { pos: 'silver', x: -280, cup: new Color(206, 212, 222, 255), base: new Color(238, 150, 60, 255), baseH: 95, cupH: 68 },
-  { pos: 'gold', x: 0, cup: new Color(255, 206, 84, 255), base: new Color(214, 90, 80, 255), baseH: 130, cupH: 80 },
-  { pos: 'bronze', x: 280, cup: new Color(205, 150, 96, 255), base: new Color(238, 150, 60, 255), baseH: 95, cupH: 68 },
+  // cupGap: 杯底压进底座的像素（Web `margin-bottom: -5 / -13`）
+  { pos: 'silver', x: -312.8, w: 280.47, h: 207.58, cupW: 118, cupH: 135.58, baseH: 77, cupGap: -5 },
+  { pos: 'gold', x: 0, w: 333.06, h: 273.55, cupW: 170, cupH: 181.55, baseH: 105, cupGap: -13 },
+  { pos: 'bronze', x: 312.8, w: 280.47, h: 207.58, cupW: 118, cupH: 135.58, baseH: 77, cupGap: -5 },
 ] as const;
 
-const HEAD_Y = 55;
-const ROW_H = 76;
-const LIST_W = 880;
-const LIST_H = 485;
-const LIST_Y = -228;
+/** 表头条：906×79 */
+const HEAD_W = 906;
+const HEAD_H = 79;
+const HEAD_FS = 42;
 
-const PAGER_Y = -535;
-const CHALLENGE_Y = -640;
-const CHALLENGE_W = 760;
-const CHALLENGE_H = 110;
+/** 榜单：行 906×96、间距 14（pitch 110）。关卡榜时列表矮 197px（让给步进器与挑战钮） */
+const LIST_W = 906;
+const LIST_H_TOTAL = 437.45;
+const LIST_H_LEVEL = 240.45;
+const ROW_H = 96;
+const ROW_PITCH = 110;
+const ROW_R = 44;
 
-/** 表头 / 行的五列 x（与 Web 版五栏对齐：排名 / 昵称 / 简单 / 困难 / 总分） */
-const COL = { rank: -400, name: -170, simple: 60, hard: 220, total: 380 };
-const COL_W = { rank: 70, name: 280, simple: 120, hard: 120, total: 140 };
+/** 分页器：906×74，翻页钮 227.33×66 */
+const PAGER_W = 906;
+const PAGER_H = 74;
+const PAGE_BTN_W = 227.33;
+const PAGE_BTN_H = 66;
+const PAGE_BTN_X = 268.2;
+const PAGE_FS = 38;
+const PAGE_LABEL_FS = 43;
 
-const SKY = new Color(155, 215, 242, 255);
-const CARD_BG = new Color(158, 112, 66, 255);
-const CARD_LINE = new Color(240, 196, 110, 255);
-const TEXT_BROWN = new Color(90, 50, 25, 255);
-const TEXT_CREAM = new Color(255, 245, 225, 255);
-const GOLD = new Color(255, 196, 92, 255);
-const GOLD_DEEP = new Color(240, 176, 64, 255);
-const DIM = new Color(118, 118, 126, 255);
-const ROW_BG = new Color(255, 248, 232, 255);
-/** 本机玩家行高亮（Web 版 `lb-row.mine`） */
-const MINE_BG = new Color(255, 222, 130, 255);
-/** 头像三种程序配色（对应 Web 版 3 张头像切图） */
-const AVATAR_COLORS = [
-  new Color(126, 176, 232, 255),
-  new Color(247, 176, 186, 255),
-  new Color(150, 210, 160, 255),
+/** 「挑战本关」：832×104 */
+const CHALLENGE_W = 832;
+const CHALLENGE_H = 104;
+const CHALLENGE_FS = 48;
+
+/**
+ * 卡片内的局部 y（Cocos 里 y 向上）= CARD_H/2 − (y_screen − CARD_TOP)。
+ * 关卡榜多一行步进器（74 + margin-top 11 = 85），所以它下面的整块要下移 85。
+ */
+const localY = (yScreen: number): number => CARD_H / 2 - (yScreen - CARD_TOP);
+
+/** tabs / 步进器 / 我的成绩条 / 领奖台 / 表头条，按各自盒子的实测中心换算 */
+const Y = {
+  tab: localY(368),                 // 340×122 盒中心 y=368
+  meta: localY(483),                // 906×74 盒中心
+  mine: localY(522.78),             // 886×151.55 盒中心
+  podium: localY(751.55),           // 906×274 盒中心
+  head: localY(944.05),             // 906×79 盒中心（总分榜）
+  pagerTotal: localY(1505),         // 总分榜
+  pagerLevel: localY(1393),         // 关卡榜
+  challenge: localY(1490),          // 832×104 盒中心（关卡榜）
+  /** 列表顶边（盒子顶，不是中心）—— 高度会变，定位要靠顶边 */
+  listTopTotal: localY(1010.55),
+  listTopLevel: localY(1095.55),
+  /** 步进器把下面整块下推的距离 */
+  metaPush: 85,
+};
+
+/**
+ * 表头与行列：局部 x（相对卡内容中心 540）。
+ * ⚠️ 三栏数字取**行内**列中心（593 / 729 / 881）—— 表头自己的盒中心是 587（差 2px 是 Web 自身
+ * 的 padding/border 造成的），表头与行共用一组值，视觉上表头才压在数字列正上方。
+ * 昵称列：表头盒 274 宽且左对齐（含 `padding-left:16`）；行内昵称起点在头像右侧。
+ */
+const COL = { rank: -363, nameBox: -148, nameLeft: -285, simple: 53, hard: 189, total: 341 };
+/** 表头三道竖分隔线的位置：Web 是 `.h-*` 的 `border-left` + `margin-left:-11`（盒左 525/661/797） */
+const COL_HEAD_LINE = [-23, 113, 249];
+const COL_W = { rank: 100, nameBox: 274, name: 188, simple: 124, hard: 124, total: 156 };
+/** 行内元素的局部 x（名次徽章 / 头像 / 昵称） */
+const ROW_X = { badge: -369, avatar: -265, nameLeft: -209 };
+
+/* ------------------------------------------------------------------ 颜色（切图实测均色） */
+
+const SKY_A = new Color(63, 131, 216, 255);      // #3f83d8
+const SKY_B = new Color(111, 169, 234, 255);     // #6fa9ea
+const SKY_C = new Color(169, 208, 245, 255);     // #a9d0f5
+
+const CARD_A = new Color(78, 151, 232, 255);     // #4e97e8
+const CARD_B = new Color(127, 180, 238, 255);    // #7fb4ee
+const CARD_C = new Color(184, 220, 251, 255);    // #b8dcfb
+const FRAME_GOLD = new Color(199, 150, 81, 255); // #c79651（frame 均色）
+const FRAME_EDGE = new Color(220, 173, 98, 255); // #dcad62（frame 亮边）
+const CARD_SHADOW_C = new Color(20, 55, 120, Math.round(0.35 * 255));
+
+const BACK_BG = new Color(131, 72, 47, 255);     // #83482f（back 均色）
+const BACK_GLYPH = new Color(245, 191, 93, 255); // #f5bf5d（back 中心，箭头色）
+const TITLE_STROKE = new Color(90, 45, 10, Math.round(0.55 * 255));
+
+const TAB_ON = new Color(249, 134, 57, 255);     // #f98639
+const TAB_OFF = new Color(56, 53, 66, 255);      // #383542
+const TAB_EDGE = new Color(255, 255, 255, Math.round(0.22 * 255));
+
+/** 半透明深蓝控件底（步进器 / 下拉 / 翻页钮）：rgba(40,70,120,.5) */
+const CTRL_BG = new Color(40, 70, 120, 128);
+const CTRL_TEXT = new Color(255, 248, 230, 255); // #fff8e6
+
+const MINE_A = new Color(30, 56, 102, 219);      // rgba(30,56,102,.86)
+const MINE_B = new Color(18, 34, 68, 235);       // rgba(18,34,68,.92)
+const MINE_LINE = new Color(255, 201, 94, 230);  // rgba(255,201,94,.9)
+const MINE_SPLIT = new Color(255, 201, 94, 89);  // rgba(255,201,94,.35)
+const MINE_K = new Color(207, 224, 245, 255);    // #cfe0f5
+const MINE_V_RANK = new Color(255, 233, 176, 255); // #ffe9b0
+const MINE_V_SCORE = new Color(255, 213, 74, 255); // #ffd54a
+const MINE_V_STAR = new Color(255, 224, 102, 255); // #ffe066
+
+const PODIUM_RED = new Color(191, 92, 84, 255);     // #bf5c54
+const PODIUM_ORANGE = new Color(211, 115, 48, 255); // #d37330
+const CUP_GOLD = new Color(195, 140, 69, 255);      // #c38c45
+const CUP_SILVER = new Color(154, 135, 140, 255);   // #9a878c
+const CUP_BRONZE = new Color(171, 103, 79, 255);    // #ab674f
+const BASE_NUM = new Color(255, 217, 78, 255);      // #ffd94e
+const RIBBON = [
+  new Color(84, 166, 97, 255),   // #54a661 绿
+  new Color(82, 112, 206, 255),  // #5270ce 蓝
+  new Color(238, 176, 49, 255),  // #eeb031 金
 ];
-/** 1~4 名的盾牌徽章配色 */
-const MEDAL_COLORS = [
-  new Color(255, 206, 84, 255),
-  new Color(206, 212, 222, 255),
-  new Color(205, 150, 96, 255),
-  new Color(170, 206, 150, 255),
+const STAR_C = new Color(236, 183, 85, 255);   // #ecb755
+
+const HEAD_BG = new Color(231, 195, 158, 255);  // #e7c39e
+const HEAD_TEXT = new Color(124, 74, 18, 255);  // #7c4a12
+const HEAD_LINE = new Color(160, 110, 50, 89);  // rgba(160,110,50,.35)
+
+const ROW_BG = new Color(245, 215, 185, 255);   // #f5d7b9
+const ROW_MINE_BG = new Color(254, 219, 121, 255); // #fedb79
+const NAME_TEXT = new Color(95, 58, 18, 255);   // #5f3a12
+const C_SIMPLE = new Color(46, 164, 79, 255);   // #2ea44f
+const C_HARD = new Color(240, 138, 36, 255);    // #f08a24
+const C_TOTAL = new Color(245, 184, 0, 255);    // #f5b800
+const RANK_A = new Color(143, 168, 200, 255);   // #8fa8c8
+const RANK_B = new Color(95, 118, 148, 255);    // #5f7694
+/** medal-1~4 的均色（盾牌主体） */
+const MEDAL = [
+  new Color(216, 132, 127, 255),
+  new Color(233, 165, 82, 255),
+  new Color(175, 140, 170, 255),
+  new Color(118, 168, 202, 255),
 ];
+const MEDAL_NUM = new Color(255, 207, 67, 255); // #ffcf43
+/** avatar-1~3 的均色 */
+const AVATAR = [
+  new Color(115, 87, 81, 255),
+  new Color(163, 121, 79, 255),
+  new Color(158, 114, 95, 255),
+];
+const EMPTY_TEXT = new Color(238, 246, 255, 255); // #eef6ff
+const WHITE = new Color(255, 255, 255, 255);
+
+/** Web 的 `.dim` = opacity .38；`.lb-challenge.dim` = opacity .62 */
+const OP_DIM = Math.round(0.38 * 255);
+const OP_DIM_BIG = Math.round(0.62 * 255);
 
 interface Btn {
   node: Node;
   label: Label;
-  /** 重画：换填充色 + 换文字（置灰态走这一条） */
-  paint: (fill: Color, textColor: Color) => void;
+  /** 置灰（Web 的 .dim：整体半透明，仍可点 → 点了走提示） */
+  setDim: (dim: boolean) => void;
+  setText: (s: string) => void;
 }
 
 export class LeaderboardScreen {
@@ -128,13 +273,19 @@ export class LeaderboardScreen {
   private page = 1;
 
   private tabBtns: Record<'total' | 'level', Btn> = null!;
-  private stepBar: Node = null!;
+  private meta: Node = null!;
   private stepLabel: Label = null!;
   private stepPrev: Btn = null!;
   private stepNext: Btn = null!;
   private mineCells: Node = null!;
+  /** 成绩条的外壳（深蓝渐变 + inset 金边）：只建一次，别每次刷新都 addComponent */
+  private mineShell: Node = null!;
   private podium: Node = null!;
+  private head: Node = null!;
+  private scroll: Node = null!;
+  private maskG: Graphics = null!;
   private content: Node = null!;
+  private pager: Node = null!;
   private pageLabel: Label = null!;
   private pagePrev: Btn = null!;
   private pageNext: Btn = null!;
@@ -161,175 +312,306 @@ export class LeaderboardScreen {
     root.active = false;
     this.root = root;
 
+    // 整屏蓝天渐变（屏底是 .screen.leaderboard 的 background，卡下面露出来的那部分）
     const bg = new Node('bg');
     bg.layer = Layers.Enum.UI_2D;
     bg.addComponent(UITransform).setContentSize(1080, 1920);
-    const g = bg.addComponent(Graphics);
-    g.rect(-540, -960, 1080, 1920);
-    g.fillColor = SKY;
-    g.fill();
+    fillVGrad(bg.addComponent(Graphics), 1080, 1920, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
     bg.parent = root;
 
+    // 顶栏：150×150 棕圆返回钮 + 96px 白字描边标题
     const back = new Node('back');
     back.layer = Layers.Enum.UI_2D;
-    back.addComponent(UITransform).setContentSize(96, 96);
-    back.setPosition(-450, 850, 0);
+    back.addComponent(UITransform).setContentSize(BACK_SIZE, BACK_SIZE);
+    back.setPosition(BACK_X + BACK_SIZE / 2 - 540, 960 - (BACK_Y + BACK_SIZE / 2), 0);
     const bgc = back.addComponent(Graphics);
-    bgc.circle(0, 0, 48);
-    bgc.fillColor = new Color(150, 106, 62, 255);
+    bgc.circle(0, 0, BACK_SIZE / 2);
+    bgc.fillColor = BACK_BG;
     bgc.fill();
+    bgc.lineWidth = 6;
+    bgc.strokeColor = BACK_GLYPH;
+    bgc.circle(0, 0, BACK_SIZE / 2 - 3);
+    bgc.stroke();
     back.parent = root;
-    mkLabel(back, '‹', 64, 0, 4, new Color(255, 255, 255), 96);
+    mkText(back, '‹', 84, 0, 4, BACK_GLYPH, BACK_SIZE, true, 'center');
     back.on(Node.EventType.TOUCH_END, () => this.h.onBack());
 
-    mkLabel(root, LEADERBOARD.title, 56, 0, 850, TEXT_BROWN, 400);
+    // 标题：白色 96px + 深棕描边（八向错位文本近似，shim 没有 LabelOutline）
+    const ty = 960 - TITLE_CY;
+    for (const [dx, dy] of OUTLINE_8) {
+      mkText(root, LEADERBOARD.title, TITLE_FS, dx, ty + dy, TITLE_STROKE, 900, true, 'center');
+    }
+    mkText(root, LEADERBOARD.title, TITLE_FS, 0, ty, WHITE, 900, true, 'center');
 
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
-    card.setPosition(0, CARD_Y, 0);
-    const cg = card.addComponent(Graphics);
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 30);
-    cg.fillColor = CARD_BG;
-    cg.fill();
-    cg.lineWidth = 10;
-    cg.strokeColor = CARD_LINE;
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 30);
-    cg.stroke();
+    card.setPosition(0, 960 - (CARD_TOP + CARD_H / 2), 0);
+    this.paintCard(card.addComponent(Graphics));
     card.parent = root;
 
-    // 双 Tab：总分榜（左）/ 关卡榜（右），默认总分榜
+    // 双 Tab：总分榜（左）/ 关卡榜（右）
     this.tabBtns = {
-      total: this.mkPill(card, LEADERBOARD.tabTotal, -TAB_W / 2 - 10, TAB_Y, () => this.setTab('total')),
-      level: this.mkPill(card, LEADERBOARD.tabLevel, TAB_W / 2 + 10, TAB_Y, () => this.setTab('level')),
+      total: this.mkCapsule(card, LEADERBOARD.tabTotal, -TAB_X, Y.tab, () => this.setTab('total'), TAB_W, TAB_H, TAB_FS),
+      level: this.mkCapsule(card, LEADERBOARD.tabLevel, TAB_X, Y.tab, () => this.setTab('level'), TAB_W, TAB_H, TAB_FS),
     };
 
-    // 关卡步进器「‹ 第 N 关 ›」—— 只有关卡榜显示（总分榜没有「本关」概念）
-    this.stepBar = new Node('stepBar');
-    this.stepBar.layer = Layers.Enum.UI_2D;
-    this.stepBar.addComponent(UITransform).setContentSize(CARD_W - 80, STEP_BTN_H);
-    this.stepBar.setPosition(0, STEP_Y, 0);
-    this.stepBar.parent = card;
-    this.stepPrev = this.mkSquare(this.stepBar, '‹', -240, 0, () => this.render(this.curLevel - 1, this.maxLevel));
-    this.stepLabel = mkLabel(this.stepBar, '', 44, 0, 0, TEXT_CREAM, 320);
-    this.stepNext = this.mkSquare(this.stepBar, '›', 240, 0, () => this.render(this.curLevel + 1, this.maxLevel));
+    // 关卡步进器（仅关卡榜）
+    this.meta = new Node('meta');
+    this.meta.layer = Layers.Enum.UI_2D;
+    this.meta.addComponent(UITransform).setContentSize(META_W, META_H);
+    this.meta.setPosition(0, Y.meta, 0);
+    this.meta.parent = card;
+    this.stepPrev = this.mkRound(this.meta, '◀', -STEP_X, 0, () => this.render(this.curLevel - 1, this.maxLevel), STEP_SIZE, CTRL_FS);
+    // 先胶囊后文字：同层节点按加入顺序绘制，先加的在下
+    this.selectShell(this.meta, 0, 0);
+    this.stepLabel = mkText(this.meta, '', CTRL_FS, 0, 0, CTRL_TEXT, SELECT_W, true, 'center');
+    this.stepNext = this.mkRound(this.meta, '▶', STEP_X, 0, () => this.render(this.curLevel + 1, this.maxLevel), STEP_SIZE, CTRL_FS);
 
-    // 我的成绩条：三格等分（排名 / 分数 / 星数）
+    // 我的成绩条（三格等分）：外壳常驻，三格每次刷新重建
     this.mineCells = new Node('mine');
     this.mineCells.layer = Layers.Enum.UI_2D;
-    this.mineCells.addComponent(UITransform).setContentSize(CARD_W - 80, MINE_H);
-    this.mineCells.setPosition(0, MINE_Y, 0);
+    this.mineCells.addComponent(UITransform).setContentSize(MINE_W, MINE_H);
+    this.mineCells.setPosition(0, Y.mine, 0);
     this.mineCells.parent = card;
+    this.mineShell = new Node('shell');
+    this.mineShell.layer = Layers.Enum.UI_2D;
+    this.mineShell.addComponent(UITransform).setContentSize(MINE_W, MINE_H);
+    this.mineShell.parent = this.mineCells;
+    const msg = this.mineShell.addComponent(Graphics);
+    msg.fillColor = new Color(10, 22, 42, Math.round(0.35 * 255));
+    msg.roundRect(-MINE_W / 2, -MINE_H / 2 - 6, MINE_W, MINE_H, 44);
+    msg.fill();
+    fillVGrad(msg, MINE_W, MINE_H, MINE_A, MINE_A, MINE_B, 0.5, 44, 12);
+    msg.lineWidth = 4;
+    msg.strokeColor = MINE_LINE;
+    msg.roundRect(-MINE_W / 2 + 2, -MINE_H / 2 + 2, MINE_W - 4, MINE_H - 4, 42);
+    msg.stroke();
 
-    // 领奖台（前三 = 金银铜奖杯）
+    // 领奖台（含常驻的丝带 / 星星装饰）
     this.podium = new Node('podium');
     this.podium.layer = Layers.Enum.UI_2D;
-    this.podium.addComponent(UITransform).setContentSize(CARD_W - 80, PODIUM_H);
-    this.podium.setPosition(0, PODIUM_Y, 0);
+    this.podium.addComponent(UITransform).setContentSize(PODIUM_W, PODIUM_H);
+    this.podium.setPosition(0, Y.podium, 0);
     this.podium.parent = card;
+    this.paintDecor(this.podium.addComponent(Graphics));
 
-    // 表头条
+    // 表头条（卡片局部坐标，放在 body 之外单独跟随）
     const head = new Node('thead');
     head.layer = Layers.Enum.UI_2D;
-    head.addComponent(UITransform).setContentSize(LIST_W, 50);
-    head.setPosition(0, HEAD_Y, 0);
+    head.addComponent(UITransform).setContentSize(HEAD_W, HEAD_H);
+    head.setPosition(0, Y.head, 0);
     head.parent = card;
-    mkLabel(head, LEADERBOARD.colRank, 30, COL.rank, 0, TEXT_CREAM, COL_W.rank);
-    mkLabel(head, LEADERBOARD.colName, 30, COL.name, 0, TEXT_CREAM, COL_W.name);
-    mkLabel(head, LEADERBOARD.colSimple, 30, COL.simple, 0, TEXT_CREAM, COL_W.simple);
-    mkLabel(head, LEADERBOARD.colHard, 30, COL.hard, 0, TEXT_CREAM, COL_W.hard);
-    mkLabel(head, LEADERBOARD.colTotal, 30, COL.total, 0, TEXT_CREAM, COL_W.total);
+    this.paintHead(head.addComponent(Graphics));
+    mkText(head, LEADERBOARD.colRank, HEAD_FS, COL.rank, 0, HEAD_TEXT, COL_W.rank, true, 'center');
+    // 昵称列：盒宽 274 与 Web 一致，文字左对齐（Web `.lb-c-name` 的 padding-left 16）
+    mkText(head, LEADERBOARD.colName, HEAD_FS, COL.nameBox, 0, HEAD_TEXT, COL_W.nameBox, true, 'left');
+    mkText(head, LEADERBOARD.colSimple, HEAD_FS, COL.simple, 0, HEAD_TEXT, COL_W.simple, true, 'center');
+    mkText(head, LEADERBOARD.colHard, HEAD_FS, COL.hard, 0, HEAD_TEXT, COL_W.hard, true, 'center');
+    mkText(head, LEADERBOARD.colTotal, HEAD_FS, COL.total, 0, HEAD_TEXT, COL_W.total, true, 'center');
+    this.head = head;
 
-    // 榜单行（可滚动；表头与领奖台固定）
-    const svNode = new Node('list');
-    svNode.layer = Layers.Enum.UI_2D;
-    svNode.addComponent(UITransform).setContentSize(LIST_W, LIST_H);
-    svNode.setPosition(0, LIST_Y, 0);
-    svNode.parent = card;
-    const sv = svNode.addComponent(ScrollView);
+    // 榜单行：ScrollView + Mask 裁剪（shim 里不滚动，只裁剪到首屏；真引擎可滚）
+    this.scroll = new Node('list');
+    this.scroll.layer = Layers.Enum.UI_2D;
+    this.scroll.addComponent(UITransform).setContentSize(LIST_W, LIST_H_TOTAL);
+    this.scroll.setPosition(0, Y.listTopTotal - LIST_H_TOTAL / 2, 0);
+    this.scroll.parent = card;
+    const sv = this.scroll.addComponent(ScrollView);
     sv.vertical = true;
     sv.horizontal = false;
+    const mask = this.scroll.addComponent(Mask);
+    mask.type = Mask.Type.GRAPHICS_STENCIL;
+    this.maskG = mask.graphics;
+    this.paintMask(LIST_H_TOTAL);
     const content = new Node('content');
     content.layer = Layers.Enum.UI_2D;
     content.addComponent(UITransform).setContentSize(LIST_W, ROW_H);
-    content.parent = svNode;
+    content.parent = this.scroll;
     sv.content = content;
     this.content = content;
 
-    // 分页器（每页 20 名）
-    const pager = new Node('pager');
-    pager.layer = Layers.Enum.UI_2D;
-    pager.addComponent(UITransform).setContentSize(CARD_W - 80, 70);
-    pager.setPosition(0, PAGER_Y, 0);
-    pager.parent = card;
-    this.pagePrev = this.mkSquare(pager, '‹', -300, 0, () => this.goPage(this.page - 1));
-    this.pageLabel = mkLabel(pager, '', 32, 0, 0, TEXT_CREAM, 340);
-    this.pageNext = this.mkSquare(pager, '›', 300, 0, () => this.goPage(this.page + 1));
+    // 分页器
+    this.pager = new Node('pager');
+    this.pager.layer = Layers.Enum.UI_2D;
+    this.pager.addComponent(UITransform).setContentSize(PAGER_W, PAGER_H);
+    this.pager.setPosition(0, Y.pagerTotal, 0);
+    this.pager.parent = card;
+    // Web `.lb-pager` 是 `padding: 6px 0 2px` → 内容中心比盒中心低 2px
+    const py = -2;
+    this.pagePrev = this.mkCapsule(this.pager, LEADERBOARD.prevPage, -PAGE_BTN_X, py, () => this.goPage(this.page - 1), PAGE_BTN_W, PAGE_BTN_H, PAGE_FS);
+    this.pageLabel = mkText(this.pager, '', PAGE_LABEL_FS, 0, py, CTRL_TEXT, 245, true, 'center');
+    this.pageNext = this.mkCapsule(this.pager, LEADERBOARD.nextPage, PAGE_BTN_X, py, () => this.goPage(this.page + 1), PAGE_BTN_W, PAGE_BTN_H, PAGE_FS);
 
     // 「挑战本关」通栏按钮（仅关卡榜）
-    this.challengeBtn = this.mkPill(
-      card,
-      LEADERBOARD.challenge,
-      0,
-      CHALLENGE_Y,
-      () => this.onChallengeTap(),
-      CHALLENGE_W,
-      CHALLENGE_H,
-      34,
+    this.challengeBtn = this.mkCapsule(card, LEADERBOARD.challenge, 0, Y.challenge, () => this.onChallengeTap(), CHALLENGE_W, CHALLENGE_H, CHALLENGE_FS);
+  }
+
+  /* ------------------------------------------------------------ 绘制（卡片 / 表头 / 装饰） */
+
+  /** 卡片：金框（外）+ 卡内蓝渐变（内缩 50），竖向渐变按圆角逐行收窄 */
+  private paintCard(g: Graphics): void {
+    g.clear();
+    // box-shadow 0 26px 70px rgba(20,55,120,.35)：5 层低透明同心圆角矩形
+    for (let i = 4; i >= 0; i--) {
+      const spread = (i / 4) * 70;
+      g.fillColor = new Color(CARD_SHADOW_C.r, CARD_SHADOW_C.g, CARD_SHADOW_C.b, Math.round(CARD_SHADOW_C.a * (0.15 + 0.055 * (4 - i))));
+      g.roundRect(
+        -CARD_W / 2 - spread, -CARD_H / 2 - spread - 26,
+        CARD_W + spread * 2, CARD_H + spread * 2, CARD_R + spread,
+      );
+      g.fill();
+    }
+    // 金框：整卡铺金，再把内部换成蓝渐变
+    g.fillColor = FRAME_GOLD;
+    g.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_R);
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeColor = FRAME_EDGE;
+    g.roundRect(-CARD_W / 2 + 2, -CARD_H / 2 + 2, CARD_W - 4, CARD_H - 4, CARD_R - 2);
+    g.stroke();
+    // 内部蓝渐变（内缩 CARD_FRAME）
+    fillVGrad(
+      g, CARD_W - CARD_FRAME * 2, CARD_H - CARD_FRAME * 2,
+      CARD_A, CARD_B, CARD_C, 0.55, Math.max(0, CARD_R - CARD_FRAME), 40,
     );
+  }
+
+  /** 表头条：米色胶囊条 + 三道竖分隔线 */
+  private paintHead(g: Graphics): void {
+    g.clear();
+    g.fillColor = HEAD_BG;
+    g.roundRect(-HEAD_W / 2, -HEAD_H / 2, HEAD_W, HEAD_H, HEAD_H / 2);
+    g.fill();
+    const lineH = HEAD_H * 0.76;
+    for (const x of COL_HEAD_LINE) {
+      g.fillColor = HEAD_LINE;
+      g.roundRect(x - 3, -lineH / 2, 6, lineH, 3);
+      g.fill();
+    }
+  }
+
+  /** 领奖台的常驻装饰：3 条丝带（旋转圆角条）+ 3 颗五角星（Web `.lb-deco` 的实测位置） */
+  private paintDecor(g: Graphics): void {
+    g.clear();
+    // 绿 107×195.7 @left21,top48 / 蓝 80×116.5 @right37,top80,r18 / 金 91×71.3 @right155,top6,r-14
+    const ribbons: Array<[number, number, number, number, number, number]> = [
+      [161.5, 48 + 195.7 / 2, 107, 195.7, 0, 0],
+      [993 - 37 - 40, 80 + 116.5 / 2, 80, 116.5, 18, 1],
+      [993 - 155 - 45.5, 6 + 71.3 / 2, 91, 71.3, -14, 2],
+    ];
+    for (const [cx, cyTop, w, h, deg, ci] of ribbons) {
+      const x = cx - 540;
+      const y = PODIUM_H / 2 - cyTop;
+      const rad = (deg * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      // 旋转后的飘带（矩形 + 底部 V 形剪口，像奖旗的旗尾；节点不转，直接算顶点）
+      const hw = w / 2, hh = h / 2, cut = h * 0.16;
+      const pts: Array<[number, number]> = [
+        [-hw, hh], [hw, hh], [hw, -hh], [0, -hh + cut], [-hw, -hh],
+      ].map(([px, py]) => [x + px * cos - py * sin, y + px * sin + py * cos] as [number, number]);
+      g.fillColor = RIBBON[ci]!;
+      g.moveTo(pts[0]![0], pts[0]![1]);
+      for (let i = 1; i < 5; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+      g.close();
+      g.fill();
+      // 中间一道浅色高光，避免一块死色
+      g.fillColor = lerpColor(RIBBON[ci]!, WHITE, 0.28);
+      const innerW = w * 0.42;
+      const ipts: Array<[number, number]> = [
+        [-innerW / 2, hh * 0.86], [innerW / 2, hh * 0.86], [innerW / 2, -hh * 0.5], [-innerW / 2, -hh * 0.5],
+      ].map(([px, py]) => [x + px * cos - py * sin, y + px * sin + py * cos] as [number, number]);
+      g.moveTo(ipts[0]![0], ipts[0]![1]);
+      for (let i = 1; i < 4; i++) g.lineTo(ipts[i]![0], ipts[i]![1]);
+      g.close();
+      g.fill();
+    }
+    // 星：59 @left139,top171 / 43 @left256,top21 / 48 @right256,top176
+    const stars: Array<[number, number, number]> = [
+      [87 + 139 + 29.5, 171 + 56.9 / 2, 59],
+      [87 + 256 + 21.5, 21 + 41.5 / 2, 43],
+      [993 - 256 - 24, 176 + 46.3 / 2, 48],
+    ];
+    for (const [cx, cyTop, w] of stars) {
+      drawStar(g, cx - 540, PODIUM_H / 2 - cyTop, w / 2, STAR_C);
+    }
+  }
+
+  /** 列表裁剪区（高度会随页签变） */
+  private paintMask(h: number): void {
+    const g = this.maskG;
+    g.clear();
+    g.rect(-LIST_W / 2, -h / 2, LIST_W, h);
+    g.fill();
   }
 
   /* ------------------------------------------------------------ 小控件 */
 
-  /** 胶囊按钮（Tab / 挑战本关）：可改填充色与文字色 */
-  private mkPill(
-    parent: Node,
-    text: string,
-    x: number,
-    y: number,
-    onTap: () => void,
-    w = TAB_W,
-    h = TAB_H,
-    fontSize = 40,
+  /** 胶囊按钮（Tab / 翻页 / 挑战本关） */
+  private mkCapsule(
+    parent: Node, text: string, x: number, y: number, onTap: () => void,
+    w: number, h: number, fontSize: number,
   ): Btn {
     const node = new Node('btn');
     node.layer = Layers.Enum.UI_2D;
     node.addComponent(UITransform).setContentSize(w, h);
     node.setPosition(x, y, 0);
-    const g = node.addComponent(Graphics);
     node.parent = parent;
-    const label = mkLabel(node, text, fontSize, 0, 0, TEXT_BROWN, w - 40);
-    const paint = (fill: Color, textColor: Color): void => {
+    const g = node.addComponent(Graphics);
+    const label = mkText(node, text, fontSize, 0, 0, WHITE, Math.max(80, w - 40), true, 'center');
+    const op = node.addComponent(UIOpacity);
+    const paint = (fill: Color): void => {
       g.clear();
       g.roundRect(-w / 2, -h / 2, w, h, h / 2);
       g.fillColor = fill;
       g.fill();
-      label.color = textColor;
+      // 切图有一圈内高光
+      g.lineWidth = 4;
+      g.strokeColor = TAB_EDGE;
+      g.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, h / 2 - 2);
+      g.stroke();
     };
-    paint(GOLD, TEXT_BROWN);
+    paint(TAB_ON);
     node.on(Node.EventType.TOUCH_END, onTap);
-    return { node, label, paint };
+    return {
+      node, label,
+      setDim: (dim: boolean) => { op.opacity = dim ? OP_DIM_BIG : 255; },
+      setText: (s: string) => { label.string = s; },
+    };
   }
 
-  /** 方形小钮（步进 / 翻页）：置灰时画灰底 */
-  private mkSquare(parent: Node, text: string, x: number, y: number, onTap: () => void): Btn {
+  /** 圆形小钮（关卡步进 ◀/▶）：半透明深蓝底 */
+  private mkRound(parent: Node, text: string, x: number, y: number, onTap: () => void, size: number, fontSize: number): Btn {
     const node = new Node('btn');
     node.layer = Layers.Enum.UI_2D;
-    node.addComponent(UITransform).setContentSize(STEP_BTN_W, STEP_BTN_H);
+    node.addComponent(UITransform).setContentSize(size, size);
     node.setPosition(x, y, 0);
-    const g = node.addComponent(Graphics);
     node.parent = parent;
-    const label = mkLabel(node, text, 44, 0, 0, TEXT_BROWN, STEP_BTN_W);
-    const paint = (fill: Color, textColor: Color): void => {
-      g.clear();
-      g.roundRect(-STEP_BTN_W / 2, -STEP_BTN_H / 2, STEP_BTN_W, STEP_BTN_H, 18);
-      g.fillColor = fill;
-      g.fill();
-      label.color = textColor;
-    };
-    paint(GOLD, TEXT_BROWN);
+    const g = node.addComponent(Graphics);
+    g.circle(0, 0, size / 2);
+    g.fillColor = CTRL_BG;
+    g.fill();
+    const label = mkText(node, text, fontSize, 0, 2, CTRL_TEXT, size, true, 'center');
+    const op = node.addComponent(UIOpacity);
     node.on(Node.EventType.TOUCH_END, onTap);
-    return { node, label, paint };
+    return {
+      node, label,
+      setDim: (dim: boolean) => { op.opacity = dim ? OP_DIM : 255; },
+      setText: (s: string) => { label.string = s; },
+    };
+  }
+
+  /** 关卡下拉（Web 是 `<select>`，shim 没有下拉控件 → 同尺寸胶囊 + 文本，◀▶ 步进保留） */
+  private selectShell(parent: Node, x: number, y: number): void {
+    const n = new Node('select');
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(SELECT_W, SELECT_H);
+    n.setPosition(x, y, 0);
+    const g = n.addComponent(Graphics);
+    g.roundRect(-SELECT_W / 2, -SELECT_H / 2, SELECT_W, SELECT_H, SELECT_H / 2);
+    g.fillColor = CTRL_BG;
+    g.fill();
+    n.parent = parent;
   }
 
   /* ------------------------------------------------------------ 渲染 */
@@ -340,8 +622,8 @@ export class LeaderboardScreen {
     this.curLevel = Math.min(Math.max(1, level), this.maxLevel);
     this.page = 1; // 换关 / 打开回到第 1 页
     this.stepLabel.string = LEADERBOARD.header(this.curLevel);
-    this.stepPrev.paint(this.curLevel <= 1 ? DIM : GOLD, this.curLevel <= 1 ? TEXT_CREAM : TEXT_BROWN);
-    this.stepNext.paint(this.curLevel >= this.maxLevel ? DIM : GOLD, this.curLevel >= this.maxLevel ? TEXT_CREAM : TEXT_BROWN);
+    this.stepPrev.setDim(this.curLevel <= 1);
+    this.stepNext.setDim(this.curLevel >= this.maxLevel);
     this.refresh();
   }
 
@@ -379,26 +661,40 @@ export class LeaderboardScreen {
     const view = this.h.view(this.curLevel);
     return view.rows.map((r) => {
       if (r.mine) {
-        return {
-          ...r,
-          simple: view.myScores.simple,
-          hard: view.myScores.hard,
-          total: view.myScores.simple + view.myScores.hard,
-        };
+        return { ...r, simple: view.myScores.simple, hard: view.myScores.hard, total: view.myScores.simple + view.myScores.hard };
       }
       return { ...r, ...mockRowScores(r.score, view.mode) };
     });
+  }
+
+  /**
+   * 页签切换时**布局也要跟着变**：关卡榜多一行步进器（整块下推 85px），
+   * 且列表矮 197px（让给步进器 85 + 挑战钮 112），分页器与挑战钮位置随之改。
+   */
+  private applyTabLayout(): void {
+    const isLevel = this.tab === 'level';
+    this.meta.active = isLevel;
+    this.challengeBtn.node.active = isLevel;
+    // 步进器下面的整块（成绩条 / 领奖台 / 表头条 / 列表顶）下移 85
+    this.mineCells.setPosition(0, Y.mine - (isLevel ? Y.metaPush : 0), 0);
+    this.podium.setPosition(0, Y.podium - (isLevel ? Y.metaPush : 0), 0);
+    this.head.setPosition(0, Y.head - (isLevel ? Y.metaPush : 0), 0);
+    const lh = isLevel ? LIST_H_LEVEL : LIST_H_TOTAL;
+    const top = isLevel ? Y.listTopLevel : Y.listTopTotal;
+    this.scroll.getComponent(UITransform)!.setContentSize(LIST_W, lh);
+    this.scroll.setPosition(0, top - lh / 2, 0);
+    this.paintMask(lh);
+    this.pager.setPosition(0, isLevel ? Y.pagerLevel : Y.pagerTotal, 0);
   }
 
   private refresh(): void {
     const rows = this.currentRows();
     const isLevel = this.tab === 'level';
 
-    // Tab：选中金底棕字，未选中暗金底奶字；步进器与「挑战本关」只出现在关卡榜
-    this.tabBtns.total.paint(isLevel ? GOLD_DEEP : GOLD, isLevel ? TEXT_CREAM : TEXT_BROWN);
-    this.tabBtns.level.paint(isLevel ? GOLD : GOLD_DEEP, isLevel ? TEXT_BROWN : TEXT_CREAM);
-    this.stepBar.active = isLevel;
-    this.challengeBtn.node.active = isLevel;
+    this.applyTabLayout();
+    // Tab：选中橙底、未选深灰底（Web `tab-on` / `tab-off`）
+    this.repaintCapsule(this.tabBtns.total.node, isLevel ? TAB_OFF : TAB_ON);
+    this.repaintCapsule(this.tabBtns.level.node, isLevel ? TAB_ON : TAB_OFF);
 
     this.renderMine(rows);
     this.renderPodium(rows);
@@ -408,14 +704,30 @@ export class LeaderboardScreen {
     if (isLevel) {
       const view = this.h.view(this.curLevel);
       const dim = view.challenge.dim;
-      this.challengeBtn.label.string = dim ? view.challenge.hint : LEADERBOARD.challenge;
-      this.challengeBtn.paint(dim ? DIM : GOLD, dim ? TEXT_CREAM : TEXT_BROWN);
+      this.challengeBtn.setText(dim ? view.challenge.hint : LEADERBOARD.challenge);
+      this.challengeBtn.setDim(dim);
     }
   }
 
-  /** 我的成绩单：三格等分 —— 我的排名 / 分数（总分榜=累计总分，关卡榜=本关最高分）/ 累计星数 */
+  private repaintCapsule(node: Node, fill: Color): void {
+    const t = node.getComponent(UITransform)!;
+    const w = t.width, h = t.height;
+    const g = node.getComponent(Graphics)!;
+    g.clear();
+    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
+    g.fillColor = fill;
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeColor = TAB_EDGE;
+    g.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, h / 2 - 2);
+    g.stroke();
+  }
+
+  /** 我的成绩单：三格等分（排名 / 分数 / 星数），标签 30px 小字 + 数值 88px 大字 */
   private renderMine(rows: LeaderboardRow[]): void {
-    for (const c of this.mineCells.children.slice()) c.destroy();
+    // 只清三格与分隔线，外壳（mineShell）留着
+    for (const c of this.mineCells.children.slice()) if (c !== this.mineShell) c.destroy();
+
     const isLevel = this.tab === 'level';
     const mine = rows.find((r) => r.mine);
     const stars = this.h.myStars();
@@ -427,109 +739,86 @@ export class LeaderboardScreen {
       const t = this.h.myTotals();
       score = t.simple + t.hard;
     }
-    const cells: Array<[string, string]> = [
-      [LEADERBOARD.mineRankLabel, LEADERBOARD.rankValue(mine ? mine.rank : 0)],
-      [isLevel ? LEADERBOARD.mineLevelScoreLabel : LEADERBOARD.mineScoreLabel, LEADERBOARD.scoreValue(score)],
-      [LEADERBOARD.mineStarsLabel, LEADERBOARD.starsValue(stars)],
+    const cells: Array<[string, string, Color]> = [
+      [LEADERBOARD.mineRankLabel, LEADERBOARD.rankValue(mine ? mine.rank : 0), MINE_V_RANK],
+      [isLevel ? LEADERBOARD.mineLevelScoreLabel : LEADERBOARD.mineScoreLabel, LEADERBOARD.scoreValue(score), MINE_V_SCORE],
+      [LEADERBOARD.mineStarsLabel, LEADERBOARD.starsValue(stars), MINE_V_STAR],
     ];
-    cells.forEach(([label, value], i) => {
+    cells.forEach(([label, value, vColor], i) => {
+      const x = (i - 1) * MINE_CELL_W;
       const box = new Node('cell' + i);
       box.layer = Layers.Enum.UI_2D;
-      box.addComponent(UITransform).setContentSize(MINE_CELL_W, MINE_H);
-      box.setPosition((i - 1) * (MINE_CELL_W + 12), 0, 0);
-      const g = box.addComponent(Graphics);
-      g.roundRect(-MINE_CELL_W / 2, -MINE_H / 2, MINE_CELL_W, MINE_H, 24);
-      g.fillColor = new Color(120, 82, 48, 255);
-      g.fill();
-      g.lineWidth = 4;
-      g.strokeColor = CARD_LINE;
-      g.roundRect(-MINE_CELL_W / 2, -MINE_H / 2, MINE_CELL_W, MINE_H, 24);
-      g.stroke();
+      box.addComponent(UITransform).setContentSize(MINE_CELL_W, MINE_CELL_H);
+      box.setPosition(x, 0, 0);
       box.parent = this.mineCells;
-      mkLabel(box, label, 26, 0, 32, TEXT_CREAM, MINE_CELL_W);
-      mkLabel(box, value, 48, 0, -22, GOLD, MINE_CELL_W);
+      // 格间竖分隔线（不占布局）
+      if (i > 0) {
+        const sp = new Node('split');
+        sp.layer = Layers.Enum.UI_2D;
+        sp.addComponent(UITransform).setContentSize(3, MINE_H * 0.76);
+        sp.setPosition(x - MINE_CELL_W / 2, 0, 0);
+        const sg = sp.addComponent(Graphics);
+        sg.roundRect(-1.5, -MINE_H * 0.38, 3, MINE_H * 0.76, 1.5);
+        sg.fillColor = MINE_SPLIT;
+        sg.fill();
+        sp.parent = this.mineCells;
+      }
+      mkText(box, label, MINE_K_FS, 0, MINE_K_DY, MINE_K, MINE_CELL_W, true, 'center');
+      mkText(box, value, MINE_V_FS, 0, MINE_V_DY, vColor, MINE_CELL_W, true, 'center');
     });
   }
 
-  /** 领奖台：前三名换上金银铜奖杯，冠军底座抬高并写「1」 */
+  /** 领奖台：银(左) / 金(中，抬高并写「1」) / 铜(右)，底座上站奖杯 */
   private renderPodium(rows: LeaderboardRow[]): void {
-    for (const c of this.podium.children.slice()) c.destroy();
-    const bottom = -PODIUM_H / 2;
+    // 装饰是常驻的，只清三个领奖位
+    for (const c of this.podium.children.slice()) if (c.name.indexOf('podium') === 0) c.destroy();
     for (let i = 0; i < PODIUM_SPEC.length; i++) {
       const spec = PODIUM_SPEC[i]!;
       const row = rows[i];
       const item = new Node('podium' + i);
       item.layer = Layers.Enum.UI_2D;
-      item.addComponent(UITransform).setContentSize(240, PODIUM_H);
-      item.setPosition(spec.x, 0, 0);
+      item.addComponent(UITransform).setContentSize(spec.w, spec.h);
+      // ⚠️ Web 的领奖台是 `align-items: flex-end` —— **底部对齐**（冠军个子高，所以往上长）
+      item.setPosition(spec.x, spec.h / 2 - PODIUM_H / 2, 0);
       item.parent = this.podium;
       if (!row) continue;
 
-      // 杯（程序绘制：梯形杯身 + 两侧把手 + 杯脚）
-      const cup = new Node('cup');
-      cup.layer = Layers.Enum.UI_2D;
-      cup.addComponent(UITransform).setContentSize(120, spec.cupH);
-      cup.setPosition(0, bottom + spec.baseH + 6 + spec.cupH / 2, 0);
-      cup.parent = item;
-      this.drawCup(cup.addComponent(Graphics), spec.cup, spec.cupH);
-
-      // 底座（冠军更高一截，写「1」）
+      const baseTop = -spec.h / 2 + spec.baseH;   // 底座顶面（item 内）
+      // 底座
       const base = new Node('base');
       base.layer = Layers.Enum.UI_2D;
-      base.addComponent(UITransform).setContentSize(220, spec.baseH);
-      base.setPosition(0, bottom + spec.baseH / 2, 0);
+      base.addComponent(UITransform).setContentSize(spec.w, spec.baseH);
+      base.setPosition(0, -spec.h / 2 + spec.baseH / 2, 0);
       const bg = base.addComponent(Graphics);
-      bg.roundRect(-110, -spec.baseH / 2, 220, spec.baseH, 16);
-      bg.fillColor = spec.base;
+      bg.roundRect(-spec.w / 2, -spec.baseH / 2, spec.w, spec.baseH, 16);
+      bg.fillColor = i === 1 ? PODIUM_RED : PODIUM_ORANGE;
       bg.fill();
       base.parent = item;
-      mkLabel(base, String(row.rank), 44, 0, spec.baseH / 2 - 42, new Color(255, 255, 255), 120);
-      mkLabel(base, row.name, 28, 0, -spec.baseH / 2 + 30, new Color(255, 255, 255), 200);
+      // 只有冠军底座写「1」52px 金色（Web `.lb-base-num`）
+      if (i === 1) mkText(base, '1', 52, 0, -spec.baseH / 2 + 40, BASE_NUM, 120, true, 'center');
 
-      // 分数（杯上方）
-      mkLabel(
-        item,
-        LEADERBOARD.scoreValue(row.total ?? row.score),
-        30,
-        0,
-        bottom + spec.baseH + 6 + spec.cupH + 20,
-        TEXT_CREAM,
-        240,
+      // 奖杯：杯底压进底座 cupGap（= Web 的 `margin-bottom: -5 / -13`），向上坐标要 +cupGap
+      const cup = new Node('cup');
+      cup.layer = Layers.Enum.UI_2D;
+      cup.addComponent(UITransform).setContentSize(spec.cupW, spec.cupH);
+      cup.setPosition(0, baseTop + spec.cupGap + spec.cupH / 2, 0);
+      cup.parent = item;
+      drawCup(
+        cup.addComponent(Graphics),
+        i === 1 ? CUP_GOLD : i === 0 ? CUP_SILVER : CUP_BRONZE,
+        spec.cupH, spec.cupW,
       );
     }
   }
 
-  /** 奖杯：杯身梯形 + 两条把手弧 + 杯脚（不引入切图） */
-  private drawCup(g: Graphics, color: Color, h: number): void {
-    const w = 92;
-    const top = h / 2;
-    const neck = -h / 6;
-    g.fillColor = color;
-    g.moveTo(-w / 2, top);
-    g.lineTo(w / 2, top);
-    g.lineTo((w / 2) * 0.55, neck);
-    g.lineTo((-w / 2) * 0.55, neck);
-    g.close();
-    g.fill();
-    g.lineWidth = 8;
-    g.strokeColor = color;
-    g.moveTo(-w / 2, top - 10);
-    g.quadraticCurveTo(-w / 2 - 26, 0, (-w / 2) * 0.6, neck + 6);
-    g.stroke();
-    g.moveTo(w / 2, top - 10);
-    g.quadraticCurveTo(w / 2 + 26, 0, (w / 2) * 0.6, neck + 6);
-    g.stroke();
-    g.fillColor = color;
-    g.rect(-9, neck - 26, 18, 26);
-    g.fill();
-    g.roundRect(-34, neck - 42, 68, 16, 6);
-    g.fill();
-  }
-
   private renderRows(rows: LeaderboardRow[]): void {
-    const ct = this.content.getComponent(UITransform)!;
     const shown = pageRows(rows, this.page);
-    ct.setContentSize(LIST_W, Math.max(ROW_H, shown.length * ROW_H));
+    const listH = shown.length === 0 ? ROW_H : shown.length * ROW_PITCH - (ROW_PITCH - ROW_H);
+    const ct = this.content.getComponent(UITransform)!;
+    ct.setContentSize(LIST_W, listH);
+    // content 顶边贴住列表顶（Web 的滚动初始位置）
+    const svH = this.scroll.getComponent(UITransform)!.height;
+    this.content.setPosition(0, svH / 2 - listH / 2, 0);
 
     for (const c of this.content.children.slice()) c.destroy();
     if (shown.length === 0) {
@@ -537,54 +826,64 @@ export class LeaderboardScreen {
       empty.layer = Layers.Enum.UI_2D;
       empty.addComponent(UITransform).setContentSize(LIST_W, ROW_H);
       empty.parent = this.content;
-      mkLabel(empty, LEADERBOARD.empty, 34, 0, 0, TEXT_BROWN, LIST_W);
+      mkText(empty, LEADERBOARD.empty, 52, 0, 0, EMPTY_TEXT, LIST_W, true, 'center');
       return;
     }
 
-    const top = ct.height / 2 - ROW_H / 2;
+    const top = listH / 2 - ROW_H / 2;
     shown.forEach((row, i) => {
       const item = new Node('row' + i);
       item.layer = Layers.Enum.UI_2D;
       item.addComponent(UITransform).setContentSize(LIST_W, ROW_H);
-      item.setPosition(0, top - i * ROW_H, 0);
+      item.setPosition(0, top - i * ROW_PITCH, 0);
       const g = item.addComponent(Graphics);
-      g.roundRect(-LIST_W / 2, -ROW_H / 2 + 4, LIST_W, ROW_H - 8, 16);
-      g.fillColor = row.mine ? MINE_BG : ROW_BG;
+      g.roundRect(-LIST_W / 2, -ROW_H / 2, LIST_W, ROW_H, ROW_R);
+      g.fillColor = row.mine ? ROW_MINE_BG : ROW_BG;
       g.fill();
       item.parent = this.content;
 
-      // 名次：1-4 名用盾牌徽章，其后用数字
+      // 名次：1-4 名盾牌徽章，其后数字圆牌
       if (row.rank >= 1 && row.rank <= 4) {
         const badge = new Node('medal');
         badge.layer = Layers.Enum.UI_2D;
-        badge.addComponent(UITransform).setContentSize(56, 56);
-        badge.setPosition(COL.rank, 0, 0);
-        const bgc = badge.addComponent(Graphics);
-        bgc.circle(0, 0, 28);
-        bgc.fillColor = MEDAL_COLORS[row.rank - 1]!;
-        bgc.fill();
+        badge.addComponent(UITransform).setContentSize(84, 94);
+        badge.setPosition(ROW_X.badge, 0, 0);
         badge.parent = item;
-        mkLabel(badge, String(row.rank), 32, 0, 0, TEXT_BROWN, 56);
+        drawShield(badge.addComponent(Graphics), MEDAL[row.rank - 1]!, 84, 94);
+        mkText(badge, String(row.rank), 46, 0, -6, MEDAL_NUM, 84, true, 'center');
       } else {
-        mkLabel(item, String(row.rank), 32, COL.rank, 0, TEXT_BROWN, COL_W.rank);
+        const rk = new Node('rank');
+        rk.layer = Layers.Enum.UI_2D;
+        rk.addComponent(UITransform).setContentSize(80, 80);
+        rk.setPosition(ROW_X.badge, 0, 0);
+        const rg = rk.addComponent(Graphics);
+        fillVGrad(rg, 80, 80, RANK_A, RANK_A, RANK_B, 0.5, 40, 8);
+        rk.parent = item;
+        mkText(rk, String(row.rank), 46, 0, 2, WHITE, 80, true, 'center');
       }
 
-      // 头像：程序绘制的圆底 + 昵称首字（同一玩家配色稳定）
+      // 头像：84×84 圆（Web 是切图，这里用切图实测均色 + 昵称首字）
       const av = new Node('avatar');
       av.layer = Layers.Enum.UI_2D;
-      av.addComponent(UITransform).setContentSize(56, 56);
-      av.setPosition(COL.rank + 78, 0, 0);
+      av.addComponent(UITransform).setContentSize(84, 84);
+      av.setPosition(ROW_X.avatar, 0, 0);
       const ag = av.addComponent(Graphics);
-      ag.circle(0, 0, 28);
-      ag.fillColor = AVATAR_COLORS[avatarIndexOf(row.name)]!;
+      ag.circle(0, 0, 42);
+      ag.fillColor = AVATAR[avatarIndexOf(row.name)]!;
       ag.fill();
       av.parent = item;
-      mkLabel(av, row.name.slice(0, 1), 30, 0, 0, new Color(255, 255, 255), 56);
+      mkText(av, row.name.slice(0, 1), 40, 0, 2, WHITE, 84, true, 'center');
 
-      mkLabel(item, row.name, 30, COL.name, 0, TEXT_BROWN, COL_W.name);
-      mkLabel(item, String(row.simple ?? 0), 30, COL.simple, 0, TEXT_BROWN, COL_W.simple);
-      mkLabel(item, String(row.hard ?? 0), 30, COL.hard, 0, TEXT_BROWN, COL_W.hard);
-      mkLabel(item, String(row.total ?? row.score), 34, COL.total, 0, GOLD_DEEP, COL_W.total);
+      mkText(item, row.name, 48, ROW_X.nameLeft + COL_W.name / 2, 0, NAME_TEXT, COL_W.name, true, 'center');
+      const cSimple = mkText(item, String(row.simple ?? 0), 48, COL.simple, 0, C_SIMPLE, COL_W.simple, true, 'center');
+      const cHard = mkText(item, String(row.hard ?? 0), 48, COL.hard, 0, C_HARD, COL_W.hard, true, 'center');
+      const cTotal = mkText(item, String(row.total ?? row.score), 54, COL.total, 0, C_TOTAL, COL_W.total, true, 'center');
+      // 行内数字的白描边 / 投影（shim 不画，真引擎会画）
+      for (const [lb, dy] of [[cSimple, -3], [cHard, -3], [cTotal, -5]] as Array<[Label, number]>) {
+        const sh = lb.node.addComponent(LabelShadow);
+        sh.shadowColor = new Color(255, 255, 255, Math.round(0.6 * 255));
+        sh.shadowOffset = new Vec2(0, dy);
+      }
     });
   }
 
@@ -592,8 +891,8 @@ export class LeaderboardScreen {
     const pages = pageCountOf(count);
     this.page = clampPage(this.page, count);
     this.pageLabel.string = LEADERBOARD.page(this.page, pages);
-    this.pagePrev.paint(this.page <= 1 ? DIM : GOLD, this.page <= 1 ? TEXT_CREAM : TEXT_BROWN);
-    this.pageNext.paint(this.page >= pages ? DIM : GOLD, this.page >= pages ? TEXT_CREAM : TEXT_BROWN);
+    this.pagePrev.setDim(this.page <= 1);
+    this.pageNext.setDim(this.page >= pages);
   }
 
   /* ------------------------------------------------------------ 开关 */
@@ -607,4 +906,138 @@ export class LeaderboardScreen {
   currentTab(): 'total' | 'level' { return this.tab; }
   /** 每页行数（《通关及排名》§七：20）—— 与数据层同一常量，避免两处分叉 */
   static get pageSize(): number { return LEADERBOARD_PAGE_SIZE; }
+}
+
+/* ------------------------------------------------------------------ 绘制小工具 */
+
+/** 八向错位（模拟 CSS 的文字描边） */
+const OUTLINE_8: Array<[number, number]> = [[0, 6], [0, -6], [6, 0], [-6, 0], [5, 5], [5, -5], [-5, 5], [-5, -5]];
+
+function mkText(
+  parent: Node, text: string, size: number, x: number, y: number, color: Color, w: number,
+  bold: boolean, align: 'center' | 'left',
+): Label {
+  const n = new Node('t');
+  n.layer = Layers.Enum.UI_2D;
+  n.addComponent(UITransform).setContentSize(w, size + 14);
+  const l = n.addComponent(Label);
+  l.string = text;
+  l.fontSize = size;
+  l.lineHeight = size + 10;
+  l.color = color;
+  if (bold) {
+    const b = l as unknown as { isBold?: boolean; enableBold?: boolean };
+    b.isBold = true;
+    b.enableBold = true;
+  }
+  if (align === 'left') l.horizontalAlign = 0; // HorizontalTextAlignment.LEFT
+  n.parent = parent;
+  n.setPosition(x, y, 0);
+  return l;
+}
+
+/** 三段渐变取色（t=0 顶 → t=1 底，midAt 处取中段色） */
+function gradColor(top: Color, mid: Color, bot: Color, t: number, midAt: number): Color {
+  if (t <= midAt) return lerpColor(top, mid, midAt === 0 ? 0 : t / midAt);
+  return lerpColor(mid, bot, (t - midAt) / (1 - midAt));
+}
+
+function lerpColor(a: Color, b: Color, t: number): Color {
+  return new Color(
+    Math.round(a.r + (b.r - a.r) * t),
+    Math.round(a.g + (b.g - a.g) * t),
+    Math.round(a.b + (b.b - a.b) * t),
+    Math.round(a.a + (b.a - a.a) * t),
+  );
+}
+
+/**
+ * 圆角矩形内的竖向渐变。
+ * ⚠️ 每一条带都按「该行在圆角内的实际半宽」收窄 —— 否则矩形条带会溢出圆角，
+ *    卡片看着是方角的（圆角 118 的大卡尤其明显）。
+ */
+function fillVGrad(
+  g: Graphics, w: number, h: number, top: Color, mid: Color, bot: Color,
+  midAt: number, r: number, bands: number,
+): void {
+  const lim = h / 2 - r;
+  const halfAt = (y: number): number => {
+    const ay = Math.abs(y);
+    if (r <= 0 || ay <= lim) return w / 2;
+    const dy = ay - lim;
+    return w / 2 - r + Math.sqrt(Math.max(0, r * r - dy * dy));
+  };
+  const bh = h / bands;
+  for (let i = 0; i < bands; i++) {
+    const yTop = h / 2 - i * bh;
+    const t = bands === 1 ? 0 : (bands - 1 - i) / (bands - 1);
+    g.fillColor = gradColor(top, mid, bot, t, midAt);
+    const hw = Math.min(halfAt(yTop), halfAt(yTop - bh));
+    g.rect(-hw, yTop - bh, hw * 2, bh + 0.6);
+    g.fill();
+  }
+}
+
+/** 五角星 */
+function drawStar(g: Graphics, cx: number, cy: number, r: number, color: Color): void {
+  g.fillColor = color;
+  for (let i = 0; i < 10; i++) {
+    const rad = (Math.PI / 5) * i - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.42;
+    const x = cx + Math.cos(rad) * rr;
+    const y = cy + Math.sin(rad) * rr;
+    if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+  }
+  g.close();
+  g.fill();
+}
+
+/** 奖杯：杯身梯形 + 两侧把手 + 杯脚（替代 cup-*.png） */
+function drawCup(g: Graphics, color: Color, h: number, w: number): void {
+  const top = h / 2;
+  const neck = -h / 6;
+  const bw = w * 0.62;
+  g.fillColor = color;
+  g.moveTo(-bw / 2, top);
+  g.lineTo(bw / 2, top);
+  g.lineTo(bw / 2 * 0.55, neck);
+  g.lineTo(-bw / 2 * 0.55, neck);
+  g.close();
+  g.fill();
+  g.lineWidth = Math.max(6, w * 0.07);
+  g.strokeColor = color;
+  g.moveTo(-bw / 2, top - h * 0.06);
+  g.quadraticCurveTo(-bw / 2 - w * 0.17, h * 0.02, -bw / 2 * 0.6, neck + h * 0.04);
+  g.stroke();
+  g.moveTo(bw / 2, top - h * 0.06);
+  g.quadraticCurveTo(bw / 2 + w * 0.17, h * 0.02, bw / 2 * 0.6, neck + h * 0.04);
+  g.stroke();
+  g.fillColor = color;
+  g.rect(-w * 0.06, neck - h * 0.16, w * 0.12, h * 0.16);
+  g.fill();
+  g.roundRect(-w * 0.22, neck - h * 0.25, w * 0.44, h * 0.1, w * 0.04);
+  g.fill();
+}
+
+/** 盾牌徽章（替代 medal-1~4.png） */
+function drawShield(g: Graphics, color: Color, w: number, h: number): void {
+  const hw = w / 2;
+  const top = h / 2;
+  g.fillColor = color;
+  g.moveTo(-hw, top);
+  g.lineTo(hw, top);
+  g.lineTo(hw, h * 0.12);
+  g.quadraticCurveTo(hw * 0.85, -h * 0.18, 0, -top);
+  g.quadraticCurveTo(-hw * 0.85, -h * 0.18, -hw, h * 0.12);
+  g.close();
+  g.fill();
+  g.lineWidth = 5;
+  g.strokeColor = MEDAL_NUM;
+  g.moveTo(-hw + 3, top - 3);
+  g.lineTo(hw - 3, top - 3);
+  g.lineTo(hw - 3, h * 0.1);
+  g.quadraticCurveTo(hw * 0.82 - 3, -h * 0.18, 0, -top + 3);
+  g.quadraticCurveTo(-hw * 0.82 + 3, -h * 0.18, -hw + 3, h * 0.1);
+  g.close();
+  g.stroke();
 }
