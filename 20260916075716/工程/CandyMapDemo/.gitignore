@@ -1,0 +1,19 @@
+#///////////////////////////
+# Cocos Creator 生成物（官方模板口径）
+#///////////////////////////
+/library/
+/temp/
+/local/
+/build/
+/profiles/
+/native/engine/android/**/*/assets
+
+#///////////////////////////
+# 其它
+#///////////////////////////
+node_modules/
+.vscode/
+.idea/
+.playwright-cli/
+_s.log
+_s.err
