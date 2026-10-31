@@ -1,4 +1,8 @@
-import { _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers, Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite, SpriteFrame, resources, Font } from 'cc';
+import {
+  _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers,
+  Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite,
+  SpriteFrame, resources, Font, tween, Vec3, EventTouch,
+} from 'cc';
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { HomeHUD } from '../界面/HomeHUD';
@@ -33,13 +37,26 @@ const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
 
 /**
- * 地图上下留白 —— 顶栏 / 底导航是浮在地图之上的，如果没有留白：
- * 滚到底时 L1 落在底栏热区里（点气球 = 点排行榜）、滚到顶时 L10 被顶栏压住。
- * 留白让首尾关卡都能滚进「顶栏底边 ~ 底栏顶边」这条安全区。
+ * 上下留白 —— 与 Web 同口径（web/ui/map.ts 的 PAD_TOP 755 / PAD_BOTTOM 472 是**轨道坐标**，
+ * 乘 fitScale = 1080/1536 = 0.703125 落到 1080 宽的图上）：
+ *   PAD_TOP    = 755 × 0.703125 ≈ 531   —— 顶边到第 12 关（本世界最后一关）
+ *   PAD_BOTTOM = 472 × 0.703125 ≈ 332   —— 第 1 关到底边
+ * 这两段留白在**图内**（不是额外加的滚动空白），所以内容高度就是图高本身，
+ * 页面数 = 3840 / 1920 = 2 屏，与 Web 的 `pageOfY()` 一致。
  */
-const PAD_TOP = 560;
-const PAD_BOTTOM = 340;
-const CONTENT_H = MAP_H + PAD_TOP + PAD_BOTTOM;
+const PAD_TOP = 531;
+const PAD_BOTTOM = 332;
+const CONTENT_H = MAP_H;
+/** 一屏高（翻页步长）：内容 3840 恰好 2 屏 */
+const PAGE_H = 1920;
+const PAGES = 2;
+/** 翻页物理参数（web/ui/map.ts 同名常量） */
+const MAX_FLING = 64;      // 单帧最大甩动速度
+const FLING_PROJECT = 14;  // 松手后按速度外推的帧数
+const CLICK_SLOP = 14;     // 超过这个位移就算拖动，不再当成点击
+const SNAP_MS = 420;       // 吸附时长（easeOutCubic）
+const FLIP_OUT_MS = 280;   // 换世界：翻出
+const FLIP_IN_MS = 420;    // 换世界：翻入
 
 /**
  * 分层浮层资源 —— 全部 ≤1M：
@@ -59,26 +76,6 @@ const FLOAT = {
  * 现在按 `roadPoint(level)` 取，换底图/校正路中线只改 `worlds.ts` 那张表。
  */
 
-/** UI 落位（1080×1920 基准，Cocos 坐标，屏幕中心为原点）—— 与美术落位文档一致 */
-const UI_POS = {
-    topbarLeft:  { w: 683,  h: 274, x: -258, y: 820 },
-    avatar:      { w: 180,  h: 180, x: -200, y: 10 },     // 相对 topbarLeft
-    nickname:    { w: 280,  h: 55,  x: 50,   y: 20 },     // 相对 topbarLeft
-    level:       { w: 200,  h: 40,  x: 50,   y: -25 },    // 相对 topbarLeft
-    topbarRight: { w: 692,  h: 163, x: 288,  y: 852 },
-    staminaNum:  { w: 120,  h: 60,  x: 30,   y: 10 },      // 相对 topbarRight
-    countdown:   { w: 180,  h: 24,  x: 30,   y: -35 },     // 相对 topbarRight
-    plusHit:     { w: 90,   h: 90,  x: 220,  y: 0 },        // 相对 topbarRight
-    difficulty:  { w: 880,  h: 180, x: -228, y: 580 },
-    diffBtnW:    400,
-    diffBtnH:    180,
-    diffHit:     { w: 360,  h: 160, dx: 220 },             // 相对 difficulty 中心
-    tabbar:      { w: 1080, h: 260, x: 0,    y: -826 },
-    tabSliceW:   270,                                      // 1080 / 4
-    tabIcon:     { w: 200,  h: 180, dx: 270, dy: 0 },     // 相对 tabbar 中心
-    tabHit:      { w: 220,  h: 220, dx: 270, dy: 0 },
-};
-
 /**
  * 节点珠三态（从 web/art/map/node/ 拷来）：未通关 / 1~2 星 / 3 星。
  * ⚠️ 取代旧的 `level_balloon_1~10` —— 那 10 个贴图**从来就不存在**（运行时一直走「贴图缺失」
@@ -89,8 +86,8 @@ const BEADS = {
     star1: 'map/node/node-star1',
     star3: 'map/node/node-star3',
 } as const;
-const BALLOON_W = 240;
-const BALLOON_H = 320;
+/** 节点盒：Web 实测 `.node` = 142.08 屏幕 px（= 轨道 202 px × fitScale），取 142 */
+const NODE_BOX = 142;
 
 /**
  * 兜底背景层配色 —— 采样自底图上下边缘，保证铺满时与地图无缝衔接：
@@ -98,17 +95,6 @@ const BALLOON_H = 320;
  */
 const BACKDROP_TOP = new Color(122, 169, 202, 255);
 const BACKDROP_BOTTOM = new Color(184, 195, 68, 255);
-
-/** 选中 / 未选中：只差色调（Sprite 只能乘色变暗，故「高亮」= 保持原色，未选中压暗） */
-const TINT_ON = new Color(255, 255, 255, 255);
-const TINT_OFF = new Color(150, 150, 150, 255);
-
-/**
- * 难度切换 —— 素材只有「普通=黄 / 困难=灰」两张常态图，没有按下 / 置灰态：
- * 选中 = 相乘着色偏暖黄（两张都会变黄），未选中 = 留原色 + 叠灰罩压成灰调。
- */
-const TINT_DIFF_ON = new Color(255, 236, 150, 255);
-const TINT_DIFF_OFF = new Color(255, 255, 255, 255);
 
 const TEXT_BROWN = new Color(90, 50, 25);
 const TEXT_WHITE = new Color(255, 255, 255);
@@ -128,21 +114,20 @@ export class MapBootstrap extends Component {
     private viewH = 0;
 
     private levelNodes: LevelNode[] = [];
-    private diffNormalYellow: Sprite = null!;
-    private diffNormalGray: Sprite = null!;
-    private diffHardYellow: Sprite = null!;
-    private diffHardGray: Sprite = null!;
-    private tabSprites: Sprite[] = [];
-    private selectedLevel = 0;        // 已选中的关卡；0 = 未选中任何关
-    private playBtn: Node = null!;    // 「开始」按钮：选中关卡后才出现，点击进入
-    private playLabel: Label = null!;
     private gameNode: Node = null!;   // 玩法层（挂 GameBootstrap），与本节点互为兄弟
-    private hud: HomeHUD = null!;     // HUD 层：由 layout/home_hud.json 驱动，换场景直接复用
-    private diffIndex = 0;   // 0 = 普通，1 = 困难（互斥，必选其一）
-    private tabIndex = 0;    // 0 首页 / 1 排行 / 2 图鉴 / 3 设置（互斥，必选其一）
+    private hud: HomeHUD = null!;     // HUD 层：顶栏 + 换世界箭头 + 翻页 + 底栏（Web 版逐元素重建）
+    private diffIndex = 0;   // 0 = 简单，1 = 困难（互斥，必选其一）
+    private tabIndex = 0;    // 0 首页 / 1 排行榜 / 2 图鉴 / 3 设置（顺序与 Web 一致）
+    /** 翻页：当前页 / 总页数（每个世界 2 屏） */
+    private page = 0;
+    /** 拖动状态：地图整屏拖动 + 甩动吸附（Web 的 drag/fling/snap 同口径） */
+    private drag: {
+        active: boolean; startY: number; startOffset: number;
+        lastY: number; vel: number; moved: boolean;
+    } | null = null;
+    /** 拖动位移超过 CLICK_SLOP 后，本次手势末尾的点击不当成点关卡 */
+    private tapSuppressedUntil = 0;
 
-    private staminaLabel: Label = null!;
-    private countdownLabel: Label = null!;
     private dialog: GameDialog = null!;
     private toast: ToastLayer = null!;
     /** 关卡详情吊牌（点「开始游戏」先吊下来，再按 Play 进关） */
@@ -243,19 +228,14 @@ export class MapBootstrap extends Component {
         this.refreshTopbar();
     }
 
-    /** 顶栏：体力数字 + 恢复倒计时（满格不显示倒计时，§11.1） */
+    /** 顶栏：体力数字 + 恢复倒计时（Web：满体力时倒计时是**空串**，不显示「已满」） */
     private refreshTopbar() {
-        const cur = String(GS.stamina.available);
+        if (!this.hud) return;
+        this.hud.setStamina(String(GS.stamina.available));
         const cd = GS.countdownText();
-        const cdText = cd ? `${cd} 后 +1` : '已满';
-        if (this.hud) {
-            this.hud.setText('staminaNum', cur);
-            this.hud.setText('countdown', cdText);
-            return;
-        }
-        if (!this.staminaLabel) return;
-        this.staminaLabel.string = cur;
-        this.countdownLabel.string = cdText;
+        this.hud.setCountdown(cd ? HOME.staminaCountdown(cd) : '');
+        // 教学按钮：困难模式累计通关 ≥10 → 长期隐藏（Web 同条件）
+        this.hud.setTutorialVisible(clearedCount(GS.progress) < GameBootstrap.TUTORIAL_HIDE_AFTER);
     }
 
     /**
@@ -363,150 +343,14 @@ export class MapBootstrap extends Component {
         return n;
     }
 
-    // ========== 顶栏 ==========
-    private buildTopbar() {
-        const L = UI_POS.topbarLeft;
-        const left = new Node('TopbarLeft');
-        left.parent = this.node;
-        left.layer = Layers.Enum.UI_2D;
-        left.addComponent(UITransform).setContentSize(L.w, L.h);
-        left.setPosition(L.x, this.topY(L.h / 2));
-        this.makeSprite(left, 'Bg', 'ui/顶栏/home_topbar_left', L.w, L.h, 0, 0);
-
-        // 真实兔子头像（新素材切片 006）
-        const av = new Node('Avatar');
-        av.parent = left;
-        av.layer = Layers.Enum.UI_2D;
-        av.addComponent(UITransform).setContentSize(UI_POS.avatar.w, UI_POS.avatar.h);
-        av.setPosition(UI_POS.avatar.x, UI_POS.avatar.y);
-        this.makeSprite(av, 'AvatarImg', 'ui/顶栏/home_avatar', UI_POS.avatar.w, UI_POS.avatar.h, 0, 0);
-
-        this.makeLabel(left, 'Nickname', '小兔兔', UI_POS.nickname.x, UI_POS.nickname.y, 34, TEXT_BROWN, UI_POS.nickname.w, UI_POS.nickname.h);
-        this.makeLabel(left, 'Level', 'Lv.23', UI_POS.level.x, UI_POS.level.y, 26, TEXT_BROWN, UI_POS.level.w, UI_POS.level.h);
-
-        const R = UI_POS.topbarRight;
-        const right = new Node('TopbarRight');
-        right.parent = this.node;
-        right.layer = Layers.Enum.UI_2D;
-        right.addComponent(UITransform).setContentSize(R.w, R.h);
-        right.setPosition(R.x, R.y);
-        this.makeSprite(right, 'Bg', 'ui/顶栏/home_topbar_right', R.w, R.h, 0, 0);
-
-        this.staminaLabel = this.makeLabel(right, 'StaminaNum', '0', UI_POS.staminaNum.x, UI_POS.staminaNum.y, 34, TEXT_WHITE, UI_POS.staminaNum.w, UI_POS.staminaNum.h);
-        this.countdownLabel = this.makeLabel(right, 'Countdown', '', UI_POS.countdown.x, UI_POS.countdown.y, 18, TEXT_WHITE, UI_POS.countdown.w, UI_POS.countdown.h);
-        this.makeHit(right, 'PlusHit', UI_POS.plusHit.w, UI_POS.plusHit.h, UI_POS.plusHit.x, UI_POS.plusHit.y, () => this.onStaminaPlus());
-        this.refreshTopbar();
-    }
-
-    // ========== 难度切换（互斥两态：简单/困难） ==========
-    /** 用户要求"底图互换"：选中项显示黄底，未选中项显示灰底，文字固定为简单/困难 */
-    private buildModePanel() {
-        const D = UI_POS.difficulty;
-        const panel = new Node('ModeSwitch');
-        panel.parent = this.node;
-        panel.layer = Layers.Enum.UI_2D;
-        panel.addComponent(UITransform).setContentSize(D.w, D.h);
-        panel.setPosition(D.x, D.y);
-
-        const bw = D.diffBtnW;
-        const bh = D.diffBtnH;
-        const gap = 80;
-
-        // 简单按钮
-        const normal = new Node('Normal');
-        normal.parent = panel;
-        normal.layer = Layers.Enum.UI_2D;
-        normal.addComponent(UITransform).setContentSize(bw, bh);
-        normal.setPosition(-bw / 2 - gap / 2, 0);
-        this.diffNormalYellow = this.makeSprite(normal, 'Yellow', 'ui/难度/home_difficulty_yellow', bw, bh, 0, 0);
-        this.diffNormalGray = this.makeSprite(normal, 'Gray', 'ui/难度/home_difficulty_gray', bw, bh, 0, 0);
-        this.makeLabel(normal, 'Label', '简单', 0, 0, 44, TEXT_BROWN, 200, 70);
-
-        // 困难按钮
-        const hard = new Node('Hard');
-        hard.parent = panel;
-        hard.layer = Layers.Enum.UI_2D;
-        hard.addComponent(UITransform).setContentSize(bw, bh);
-        hard.setPosition(bw / 2 + gap / 2, 0);
-        this.diffHardYellow = this.makeSprite(hard, 'Yellow', 'ui/难度/home_difficulty_yellow', bw, bh, 0, 0);
-        this.diffHardGray = this.makeSprite(hard, 'Gray', 'ui/难度/home_difficulty_gray', bw, bh, 0, 0);
-        this.makeLabel(hard, 'Label', '困难', 0, 0, 44, TEXT_BROWN, 200, 70);
-
-        const hit = UI_POS.diffHit;
-        this.makeHit(panel, 'NormalHit', hit.w, hit.h, -hit.dx, 0, () => this.setDifficulty(0));
-        this.makeHit(panel, 'HardHit', hit.w, hit.h, hit.dx, 0, () => this.setDifficulty(1));
-
-        this.applyDifficulty();
-    }
-
     /**
      * 切换难度 = 切换模式（两套进度分别存，切模式不丢）。
-     * 必须重建关卡节点：解锁范围与星级都跟着模式变。
+     * 只有**关卡吊牌**里才有难度切换 —— Web 版已删掉首页的入口，这里只保留模式切换本身。
      */
     private setDifficulty(i: number) {
         this.diffIndex = i === 1 ? 1 : 0;   // 只能 0 或 1，不能都选 / 都不选
         GS.setMode((this.diffIndex === 1 ? 'nightmare' : 'normal') as GameMode);
-        this.selectedLevel = 0;             // 换模式解锁范围会变，清空选中免得选到锁定关
-        this.applyDifficulty();
-        this.hud?.setDifficulty(this.diffIndex);
         this.rebuildLevelNodes();
-    }
-
-    private applyDifficulty() {
-        const normalOn = this.diffIndex === 0;
-        this.diffNormalYellow.node.active = normalOn;
-        this.diffNormalGray.node.active = !normalOn;
-        this.diffHardYellow.node.active = !normalOn;
-        this.diffHardGray.node.active = normalOn;
-    }
-
-    // ========== 底部导航（互斥四选一） ==========
-    /** 底条背景 + 四个独立图标，选中后高亮（放大+原色），未选中压暗 */
-    private buildNavbar() {
-        const T = UI_POS.tabbar;
-        const nav = new Node('Navbar');
-        nav.parent = this.node;
-        nav.layer = Layers.Enum.UI_2D;
-        nav.addComponent(UITransform).setContentSize(T.w, T.h);
-        nav.setPosition(T.x, this.botY(T.h / 2));
-
-        this.makeSprite(nav, 'Bg', 'ui/底栏/home_tabbar_bg', T.w, T.h, 0, 0);
-
-        const icons = [
-            'ui/底栏/home_tab_home',
-            'ui/底栏/home_tab_rank',
-            'ui/底栏/home_tab_collection',
-            'ui/底栏/home_tab_settings',
-        ];
-        const hit = UI_POS.tabHit;
-        const iconPos = UI_POS.tabIcon;
-        const startX = -T.w / 2 + UI_POS.tabSliceW / 2;   // -405
-        this.tabSprites = [];
-        for (let i = 0; i < 4; i++) {
-            const ix = startX + i * iconPos.dx;
-            const icon = new Node('TabIcon_' + i);
-            icon.parent = nav;
-            icon.layer = Layers.Enum.UI_2D;
-            icon.addComponent(UITransform).setContentSize(iconPos.w, iconPos.h);
-            icon.setPosition(ix, iconPos.dy);
-            const sp = this.makeSprite(icon, 'Icon', icons[i], iconPos.w, iconPos.h, 0, 0);
-            this.tabSprites.push(sp);
-
-            const hx = startX + i * hit.dx;
-            this.makeHit(nav, 'TabHit_' + i, hit.w, hit.h, hx, hit.dy, () => this.setTab(i));
-        }
-
-        this.applyTab();
-    }
-
-    private applyTab() {
-        for (let i = 0; i < this.tabSprites.length; i++) {
-            const on = i === this.tabIndex;
-            const sp = this.tabSprites[i];
-            if (!sp) continue;
-            sp.color = on ? TINT_ON : TINT_OFF;   // 选中原色，未选中压暗
-            sp.node.setScale(on ? 1.15 : 1, on ? 1.15 : 1);
-        }
     }
 
     // ========== 地图 ==========
@@ -548,34 +392,113 @@ export class MapBootstrap extends Component {
 
         this.createMapBackground();
         this.createLevelNodes();
-        this.createWorldSwitcher();
+        this.bindMapDrag(scrollNode);
 
-        // 滚动到当前关卡（= 已解锁到的那一关）
-        this.scheduleOnce(() => this.scrollToLevel(GS.progress.unlocked), 0.1);
+        // 落在「已解锁到的那一关」所在的那一屏（Web 同口径：pageOfY(当前关)）
+        this.scheduleOnce(() => this.snapToPage(this.pageOfLevel(GS.progress.unlocked)), 0.1);
     }
 
     /** 地图坐标（从底往上量的 y）→ content 局部 y（原点在 content 中心） */
     private localY(yFromBottom: number): number {
-        return yFromBottom - CONTENT_H / 2 + PAD_BOTTOM;
+        return yFromBottom - CONTENT_H / 2;
     }
 
-    /** 把某关滚到视口正中：offset = 关卡 y − 半屏高 + 底部留白 */
-    private scrollToLevel(level: number): void {
-        if (!this.content?.isValid || this.levels.length === 0) return;
+    /* ---------------------------------------------------------------- 翻页 / 拖动
+     * 与 web/ui/map.ts 同口径：整屏拖动 → 松手甩动外推 → 吸附到最近一屏（420ms easeOutCubic）。
+     * 圆柱透视（SPHERE_ON）在 Web 是关的，所以这里也没有缩放/倾斜，只有位移。
+     */
+
+    /** 某关在第几屏（0 = 地图上屏）：按「距底边的高度」整除一屏 */
+    private pageOfLevel(level: number): number {
+        if (!this.levels.length) return 0;
         const idx = Math.min(Math.max(level - 1, 0), this.levels.length - 1);
-        const max = Math.max(0, CONTENT_H - this.viewH);
-        const offset = Math.max(0, Math.min(max, this.levels[idx].y - this.viewH / 2 + PAD_BOTTOM));
-        this.content.setPosition(0, (CONTENT_H / 2 - this.viewH / 2) - offset);
+        const yFromBottom = this.levels[idx]!.y;
+        const p = PAGES - 1 - Math.floor(yFromBottom / PAGE_H);
+        return Math.max(0, Math.min(PAGES - 1, p));
+    }
+
+    /** 把某一屏摆到屏幕正中（无动画） */
+    private snapToPage(page: number): void {
+        if (!this.content?.isValid) return;
+        this.page = Math.max(0, Math.min(PAGES - 1, page));
+        this.content.setPosition(0, -PAGE_H / 2 + this.page * PAGE_H);
+        this.hud?.setPager(this.page, PAGES);
+    }
+
+    /** 吸附动画：420ms easeOutCubic */
+    private animateToPage(page: number): void {
+        if (!this.content?.isValid) return;
+        this.page = Math.max(0, Math.min(PAGES - 1, page));
+        const y = -PAGE_H / 2 + this.page * PAGE_H;
+        tween(this.content).to(SNAP_MS / 1000, { position: new Vec3(0, y, 0) }, { easing: 'backOut' }).start();
+        this.hud?.setPager(this.page, PAGES);
+    }
+
+    /**
+     * 拖动：绑在卷轴节点上，同时也由关卡节点转发（预览 shim 的触摸只派发给最深的命中节点，
+     * 不会冒泡；真引擎会冒泡 —— 两种环境下都靠 `drag` 单一状态去重，所以行为一致）。
+     */
+    private bindMapDrag(scrollNode: Node): void {
+        scrollNode.on(Node.EventType.TOUCH_START, this.onDragStart, this);
+        scrollNode.on(Node.EventType.TOUCH_MOVE, this.onDragMove, this);
+        scrollNode.on(Node.EventType.TOUCH_END, this.onDragEnd, this);
+        scrollNode.on(Node.EventType.TOUCH_CANCEL, this.onDragEnd, this);
+    }
+
+    private onDragStart(e: EventTouch): void {
+        if (this.drag) return;
+        const y = e.getUILocation().y;
+        this.drag = {
+            active: true, startY: y, startOffset: this.currentOffset(),
+            lastY: y, vel: 0, moved: false,
+        };
+    }
+
+    private onDragMove(e: EventTouch): void {
+        const d = this.drag;
+        if (!d) return;
+        const y = e.getUILocation().y;
+        const dy = y - d.lastY;
+        d.lastY = y;
+        if (Math.abs(y - d.startY) > CLICK_SLOP) d.moved = true;
+        // 速度：新位移占 6 成、历史占 4 成（与 Web 的 vel = vel * .6 + (-dy) * .4 同形）
+        d.vel = Math.max(-MAX_FLING, Math.min(MAX_FLING, d.vel * 0.6 + dy * 0.4));
+        this.applyOffset(d.startOffset + (y - d.startY));
+    }
+
+    private onDragEnd(): void {
+        const d = this.drag;
+        this.drag = null;
+        if (!d) return;
+        if (d.moved) this.tapSuppressedUntil = Date.now() + 220;   // 拖过就别当点击
+        const projected = this.currentOffset() + d.vel * FLING_PROJECT;
+        this.animateToPage(Math.round(projected / PAGE_H));
+    }
+
+    private currentOffset(): number {
+        return (this.content?.isValid ? this.content.position.y : 0) + PAGE_H / 2;
+    }
+
+    /** 越界橡皮筋 0.32（Web RUBBER） */
+    private applyOffset(v: number): void {
+        if (!this.content?.isValid) return;
+        const max = (PAGES - 1) * PAGE_H;
+        let o = v;
+        if (o < 0) o = o * 0.32;
+        else if (o > max) o = max + (o - max) * 0.32;
+        this.content.setPosition(0, -PAGE_H / 2 + o);
+        const near = Math.round(o / PAGE_H);
+        if (near !== this.page) { this.page = Math.max(0, Math.min(PAGES - 1, near)); this.hud?.setPager(this.page, PAGES); }
     }
 
     /**
      * 把浮层提到地图之上 —— 地图是 onLoad 里最后建的节点，默认排在最上层，
      * 会把顶栏 / 底导航 / 「开始」按钮整个盖住（看得见代码、看不见画面）。
      * 真引擎里的 Mask 只负责裁剪溢出，管不了层级，所以这里显式排一次：
-     * 底图 → 地图 → HUD → 开始按钮 → 弹窗 → Toast。
+     * 底图 → 地图 → HUD → 关卡吊牌 → 弹窗 → Toast（与 Web 的 z-index 表同序）。
      */
     private raiseOverlays() {
-        const order = ['Backdrop', 'ScrollView', 'HUD', 'WorldSwitcher', 'PlayButton', 'Dialog', 'Toast'];
+        const order = ['Backdrop', 'ScrollView', 'HUD', 'Dialog', 'Toast'];
         for (const name of order) {
             const n = this.node.getChildByName(name);
             if (n?.isValid) n.setSiblingIndex(this.node.children.length - 1);
@@ -641,43 +564,10 @@ export class MapBootstrap extends Component {
     }
 
     // ========== 世界切换（15 个世界，地图上同时只驻留一张底图）==========
-    private worldTitle: Label = null!;
-
-    /** 世界切换条：‹ 世界名 关卡区间 ›（顶栏下方，不吃地图点击） */
-    private createWorldSwitcher(): void {
-        const bar = new Node('WorldSwitcher');
-        bar.parent = this.node;
-        bar.layer = Layers.Enum.UI_2D;
-        bar.addComponent(UITransform).setContentSize(620, 110);
-        bar.setPosition(0, this.screenH / 2 - 260);
-        const g = bar.addComponent(Graphics);
-        g.roundRect(-310, -55, 620, 110, 55);
-        g.fillColor = new Color(60, 44, 30, 160);
-        g.fill();
-        this.worldTitle = this.makeLabel(bar, 'wtitle', '', 0, 0, 40, new Color(255, 240, 210), 420, 60);
-        this.mkArrow(bar, '‹', -270, () => this.switchWorld(this.worldIndex - 1));
-        this.mkArrow(bar, '›', 270, () => this.switchWorld(this.worldIndex + 1));
-        this.refreshWorldTitle();
-    }
-
-    private mkArrow(parent: Node, text: string, x: number, onTap: () => void): void {
-        const n = new Node('arrow');
-        n.parent = parent;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(90, 90);
-        n.setPosition(x, 0, 0);
-        const g = n.addComponent(Graphics);
-        g.circle(0, 0, 45);
-        g.fillColor = new Color(255, 255, 255, 70);
-        g.fill();
-        this.makeLabel(n, 'a', text, 0, 0, 56, new Color(255, 255, 255), 90, 90);
-        n.on(Node.EventType.TOUCH_END, onTap, this);
-    }
-
-    private refreshWorldTitle(): void {
-        const w = WORLDS[this.worldIndex]!;
-        if (this.worldTitle?.isValid) this.worldTitle.string = `${w.name} ${w.from}-${w.to}`;
-    }
+    /**
+     * ⚠️ 原来的「‹ 世界名 关卡区间 ›」切换条已删除 —— Web 版首页没有这条：
+     * 换世界只用底栏两侧的 ‹ › 金箭头，世界信息不单独占一行文字。
+     */
 
     /**
      * 切到相邻世界：销毁当前世界的底图/浮层/节点后重建（不保留旧图，省内存）
@@ -689,17 +579,29 @@ export class MapBootstrap extends Component {
         const w = Math.max(0, Math.min(WORLDS.length - 1, next));
         if (w === this.worldIndex || !this.content?.isValid) return;
         this.worldIndex = w;
-        this.selectedLevel = 0;
-        for (const n of this.content.children.slice()) {
-            if (n.name === 'BgMain' || n.name === 'Windmill' || n.name === 'Water'
-                || n.name === 'Bear' || n.name.indexOf('Level_') === 0) n.destroy();
-        }
-        this.floatNodes = [];
-        this.buildLevelPositions();
-        this.createMapBackground();
-        this.createLevelNodes();
-        this.refreshWorldTitle();
-        this.scheduleOnce(() => this.scrollToLevel(levelsOfWorld(w)[0]!), 0.1);
+        this.rebuildWorld();
+        this.hud?.setNavEnabled(this.worldIndex > 0, this.worldIndex < WORLDS.length - 1);
+        this.snapToPage(this.pageOfLevel(levelsOfWorld(w)[0]!));
+    }
+
+    /** 换世界动画：整块翻出 → 换底图与节点 → 翻入（Web `flipTo()`：280ms 出 / 420ms 入） */
+    private rebuildWorld(): void {
+        const map = this.node.getChildByName('ScrollView');
+        if (!map) return;
+        tween(map)
+            .to(FLIP_OUT_MS / 1000, { scale: new Vec3(0.86, 0.86, 1) })
+            .call(() => {
+                for (const n of this.content.children.slice()) {
+                    if (n.name === 'BgMain' || n.name === 'Windmill' || n.name === 'Water'
+                        || n.name === 'Bear' || n.name.indexOf('Level_') === 0) n.destroy();
+                }
+                this.floatNodes = [];
+                this.buildLevelPositions();
+                this.createMapBackground();
+                this.createLevelNodes();
+            })
+            .to(FLIP_IN_MS / 1000, { scale: new Vec3(1, 1, 1) })
+            .start();
     }
 
     private floatNodes: { node: Node; kind: 'wm' | 'water' | 'bear'; baseX: number }[] = [];
@@ -765,26 +667,32 @@ export class MapBootstrap extends Component {
         this.levelNodes = [];
         const p = GS.progress;
         const cur = Math.min(p.unlocked, LEVEL_COUNT);
+        const toLevel = WORLDS[this.worldIndex]?.to ?? 0;
         for (let i = 0; i < this.levels.length; i++) {
             const lv = this.levels[i];
             const node = new Node('Level_' + lv.level);
             node.parent = this.content;
             node.layer = Layers.Enum.UI_2D;
-            node.addComponent(UITransform).setContentSize(BALLOON_W, BALLOON_H);
+            node.addComponent(UITransform).setContentSize(NODE_BOX, NODE_BOX);
             node.setPosition(lv.x - DESIGN_W / 2, this.localY(lv.y));
 
             const st = levelStatus(p, lv.level);
             const stars = recordOf(p, lv.level).stars;
             const bead = stars >= 3 ? BEADS.star3 : stars > 0 ? BEADS.star1 : BEADS.todo;
-            this.makeSprite(node, 'Bead', bead, BALLOON_W, BALLOON_H, 0, 0);
+            // Web 的 `.node-art` 比 `.node-gel`（正中在路点上）低 5 轨道 px（≈3.5 屏幕 px）——
+            // 贴图自带底部投影，刻意下移让投影压住路缘
+            this.makeSprite(node, 'Bead', bead, NODE_BOX, NODE_BOX, 0, -3.5);
 
             const ln = node.addComponent(LevelNode);
-            ln.init(lv.level, lv.level === cur, st === 'locked', stars);
+            ln.init(lv.level, lv.level === cur, st === 'locked', stars, toLevel);
             if (this.fontAsset) ln.setFont(this.fontAsset);
             this.levelNodes.push(ln);
             node.on(Node.EventType.TOUCH_END, () => this.onLevelTap(lv.level), this);
+            // 预览 shim 触摸不冒泡：把地图拖动需要的事件转发上去（真引擎会自己冒泡，两边都只有一份状态）
+            node.on(Node.EventType.TOUCH_START, this.onDragStart, this);
+            node.on(Node.EventType.TOUCH_MOVE, this.onDragMove, this);
+            node.on(Node.EventType.TOUCH_CANCEL, this.onDragEnd, this);
         }
-        this.applySelection();   // 重建后把选中态套回新节点
     }
 
     /** 切模式 / 通关回来后重建（解锁范围与星级都变了） */
@@ -796,38 +704,24 @@ export class MapBootstrap extends Component {
     }
 
     /**
-     * 关卡点击：选中并提亮，底部随即出现「开始第 N 关」按钮，点按钮进入。
-     * 再点一次同一关也直接进入（保留快捷操作）。未解锁的关卡不给选中。
+     * 点关卡珠 = 直接吊出关卡详情牌（Web：`.node` 的 click → `levelPreview.open()`，
+     * 没有「先选中再开始」这道中间态）。未解锁的只给一句提示。
+     * 拖动结束的那一下不算点击（Web 用 CLICK_SLOP 判别，这里是时间戳闸门）。
      */
     private onLevelTap(level: number) {
+        if (Date.now() < this.tapSuppressedUntil) return;
         if (levelStatus(GS.progress, level) === 'locked') {
             this.toast.show(HOME.lockedToast, 1600);
             return;
         }
-        if (this.selectedLevel === level) {
-            this.enterLevel(level);
-            return;
-        }
-        this.selectedLevel = level;
-        this.applySelection();
-    }
-
-    /** 选中态由各 LevelNode 自己绘制，节点重建后重新套用；同时刷新「开始」按钮 */
-    private applySelection() {
-        for (const ln of this.levelNodes) {
-            ln.setSelected(ln.level === this.selectedLevel);
-        }
-        const has = this.selectedLevel > 0;
-        if (this.playBtn?.isValid) {
-            this.playBtn.active = has;
-            if (has && this.playLabel) this.playLabel.string = `开始第 ${this.selectedLevel} 关`;
-        }
+        this.openPreview(level);
     }
 
     // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
+    /** 页签顺序与 Web 一致：0 首页 / 1 排行榜 / 2 图鉴 / 3 设置 */
     private setTab(i: number) {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
-        this.applyTab();
+        this.hud?.setTab(this.tabIndex);
         if (i === 1) this.showLeaderboardScreen();
         else if (i === 2) this.showCollectionScreen();
         else if (i === 3) this.showSettingsScreen();
@@ -1008,30 +902,14 @@ export class MapBootstrap extends Component {
 
     private buildUI() {
         this.mountHUD();
-        this.createPlayButton();
         this.createLevelPreview();
-        this.createTutorialButton();
         // 首启自动开教学抽屉（Web 版同口径：没进过序章就先带一遍；关掉即记 seen，不会反复弹）
         if (!GS.tutorial.seen) this.scheduleOnce(() => this.openTutorialDrawer(), 0.6);
     }
 
-    /**
-     * 首页教学入口 —— 通关数够了就隐藏（策划案 §14 决策 3）。
-     * ⚠️ 隐藏只是首页这一个入口：设置页里的回看入口**永久保留**，老玩家想再看随时能看。
-     */
-    private createTutorialButton(): void {
-        if (clearedCount(GS.progress) >= GameBootstrap.TUTORIAL_HIDE_AFTER) return;
-        const n = new Node('TutorialBtn');
-        n.parent = this.node;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(240, 100);
-        n.setPosition(370, 400, 0);   // 难度切换面板下方右侧，不压底栏
-        const g = n.addComponent(Graphics);
-        g.roundRect(-120, -50, 240, 100, 50);
-        g.fillColor = new Color(255, 196, 92, 255);
-        g.fill();
-        this.makeLabel(n, 't', TUTORIAL.drawerTitle, 0, 0, 34, new Color(90, 50, 25), 240, 100);
-        n.on(Node.EventType.TOUCH_END, () => this.openTutorialDrawer(), this);
+    /** 教学入口：按钮在 HUD 里（体力胶囊正下方，与 Web 同位置），这里只接行为 */
+    private onTutorialTap(): void {
+        this.openTutorialDrawer();
     }
 
     /**
@@ -1062,50 +940,18 @@ export class MapBootstrap extends Component {
     }
 
     /**
-     * 「开始」按钮 —— 选中关卡后出现在底栏上方，点击直接进关。
-     * 之前只有「再点一次进入」这种隐式操作，没有可见入口，用户找不到怎么开始。
+     * ⚠️ 原来的「开始游戏」按钮已删除 —— Web 版首页**没有**这个按钮：
+     * 点关卡珠 = 直接吊出关卡详情牌（吊牌里才有难度切换与 Play）。
+     * 多出来的按钮就是多出来的交互，会让人以为要先选再开始。
      */
-    private createPlayButton() {
-        const w = 380, h = 130;
-        const n = new Node('PlayButton');
-        n.parent = this.node;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(0, -this.screenH / 2 + 330);   // 底栏（高 260）上方，不重叠
-        n.active = false;
-
-        const g = n.addComponent(Graphics);
-        g.fillColor = new Color(255, 205, 70, 255);
-        g.roundRect(-w / 2, -h / 2, w, h, 65);
-        g.fill();
-        g.lineWidth = 6;
-        g.strokeColor = new Color(255, 255, 255, 240);
-        g.roundRect(-w / 2, -h / 2, w, h, 65);
-        g.stroke();
-
-        const lbNode = new Node('Label');
-        lbNode.parent = n;
-        lbNode.layer = Layers.Enum.UI_2D;
-        lbNode.addComponent(UITransform).setContentSize(w, h);
-        const lb = lbNode.addComponent(Label);
-        lb.string = '开始游戏';
-        lb.fontSize = 48;
-        lb.lineHeight = 58;
-        lb.color = new Color(90, 50, 25);
-        lb.horizontalAlign = HorizontalTextAlignment.CENTER;
-        lb.verticalAlign = VerticalTextAlignment.CENTER;
-        this.playLabel = lb;
-
-        n.on(Node.EventType.TOUCH_END, () => {
-            if (this.selectedLevel > 0) this.openPreview(this.selectedLevel);
-        }, this);
-
-        this.playBtn = n;
-    }
 
     /**
      * HUD（顶栏 / 难度切换 / 底导航）完全由 layout/home_hud.json 驱动。
      * 换场景或新增页面时直接挂载 HomeHUD 即可，不要再手写任何坐标。
+     */
+    /**
+     * HUD 层：顶栏（返回 / 木牌 / 体力 / 教学）、换世界箭头、翻页、底栏 —— 全部由
+     * `HomeHUD` 按 Web 实测几何重建，本文件只接行为。
      */
     private mountHUD() {
         const n = new Node('HUD');
@@ -1114,16 +960,20 @@ export class MapBootstrap extends Component {
         n.addComponent(UITransform).setContentSize(DESIGN_W, this.screenH);
         const hud = n.addComponent(HomeHUD);
         this.hud = hud;
-
-        hud.onDifficulty = (i) => this.setDifficulty(i);
-        hud.onTab = (i) => this.setTab(i);
-        hud.onPlus = () => this.onStaminaPlus();
-        hud.onReady = () => {
-            hud.setText('nickname', '小兔兔');
-            hud.setText('level', 'Lv.23');
-            hud.setDifficulty(this.diffIndex);
-            this.refreshTopbar();
-        };
+        hud.build();
+        hud.onReady({
+            onTutorial: () => this.onTutorialTap(),
+            onBack: () => { /* Web 的返回圆钮在首页是装饰，不做跳转 */ },
+            onTab: (i) => this.setTab(i),
+            onNav: (dir) => this.switchWorld(this.worldIndex + dir),
+            onPage: (dir) => this.animateToPage(this.page + dir),
+            onPlus: () => this.onStaminaPlus(),
+        });
+        hud.setNickname(HOME.nickname);
+        hud.setTab(this.tabIndex);
+        hud.setNavEnabled(this.worldIndex > 0, this.worldIndex < WORLDS.length - 1);
+        hud.setPager(this.page, PAGES);
+        this.refreshTopbar();
     }
 
     /**

@@ -26,9 +26,15 @@ export const MAP_W = 1080;
 export const MAP_H = 3840;
 /** 每世界关卡数 */
 export const LEVELS_PER_WORLD = 12;
-/** 底图上下留白（关卡节点不压到图边缘） */
-export const PAD_TOP = 560;
-export const PAD_BOTTOM = 340;
+/**
+ * 底图上下留白（关卡节点不压到图边缘）—— 与 Web 同口径：
+ * web/ui/map.ts 的 PAD_TOP 755 / PAD_BOTTOM 472 是**轨道坐标**（宽 1536），
+ * 乘 fitScale = 1080 / 1536 = 0.703125 落到 1080 宽的图上：
+ *   PAD_TOP    = 755 × .703125 ≈ 531
+ *   PAD_BOTTOM = 472 × .703125 ≈ 332
+ */
+export const PAD_TOP = 531;
+export const PAD_BOTTOM = 332;
 
 export interface WorldDef {
   name: string;

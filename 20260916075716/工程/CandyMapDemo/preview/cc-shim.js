@@ -142,6 +142,8 @@ export class Component {
   constructor() {
     this.node = null;
     this.enabled = true;
+    /** 真 Cocos 的组件都有 isValid（destroy 后置 false）；产品代码里有 `if (comp.isValid)` 的写法 */
+    this.isValid = true;
     this._timers = new Map();
   }
   /** 周期回调由宿主在合适时机调用（onLoad / start / update） */
@@ -288,6 +290,8 @@ export class Node {
 
   setPosition(x, y, z) { this._x = x; this._y = y; if (z !== undefined) this._z = z; }
   getPosition() { return new Vec3(this._x, this._y, this._z); }
+  /** 真 Cocos 的 `node.position`（只读用；产品代码里有 `node.position.x` 的读法） */
+  get position() { const p = this.getPosition(); Object.freeze(p); return p; }
   setScale(x, y) { this._sx = x; this._sy = y === undefined ? x : y; }
   setSiblingIndex(i) {
     if (!this._parent) return;

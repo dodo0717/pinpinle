@@ -21,6 +21,9 @@ export const HOME = {
   adNone: '今日加体力次数已用完',
   lockedToast: '先通关前面的关卡哦',
   loading: '正在加载素材…',
+  /** 2026-10-31 补（对齐 web/ui/text.ts:35）：昵称默认值与「下颗体力 mm:ss」倒计时文案 */
+  nickname: '玩家',
+  staminaCountdown: (mmss: string): string => `下颗体力 ${mmss}`,
 } as const;
 
 export const HONOR = {

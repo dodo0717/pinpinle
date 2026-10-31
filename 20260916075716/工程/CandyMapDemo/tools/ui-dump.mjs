@@ -105,6 +105,96 @@ function webProbeSource() {
 })()`;
 }
 
+/* ------------------------------------------------------------------ 探针（Web · 首页/地图屏） */
+
+/**
+ * key → CSS 选择器（首页）。重复元素（关卡节点 / 底栏 tab）用 querySelectorAll 展开。
+ * 关卡节点的「珠面层」单独导出 —— 果冻层 / 数字 / 锁的尺寸都要单独比。
+ */
+const WEB_HOME_KEYS = {
+  stage: '#stage',
+  screenHome: '#screen-home, #screen-map',
+  homeBack: '.home-back',
+  homeUser: '.home-user',
+  homeAvatar: '.home-avatar',
+  homeNick: '.home-nick',
+  homeStamina: '.home-stamina',
+  homeHeart: '.home-heart',
+  heartsText: '.hearts-text',
+  homePlus: '.home-plus',
+  homeRecover: '.home-recover',
+  homeTutorial: '.home-tutorial',
+  worldNavLeft: '.map-world-nav.nav-left',
+  worldNavRight: '.map-world-nav.nav-right',
+  pager: '.map-pager',
+  pagerUp: '.map-pager-btn.page-up, .map-pager-btn:nth-of-type(1)',
+  pagerDown: '.map-pager-btn.page-down, .map-pager-btn:nth-of-type(3)',
+  pagerDots: '.map-pager-dots',
+  mapScroll: '.map-scroll',
+  mapTrack: '.map-track',
+  mapPath: '.map-path',
+  tabbar: '.tabbar',
+};
+
+function webHomeProbeSource() {
+  return `(() => {
+  const KEYS = ${JSON.stringify(WEB_HOME_KEYS)};
+  const stage = document.getElementById('stage');
+  const base = stage.getBoundingClientRect();
+  const s = (base.width || 1080) / 1080;
+  const L = (r) => ({
+    x: +((r.left - base.left) / s).toFixed(2),
+    y: +((r.top - base.top) / s).toFixed(2),
+    w: +(r.width / s).toFixed(2),
+    h: +(r.height / s).toFixed(2),
+  });
+  const cs = (el) => {
+    const c = getComputedStyle(el);
+    return {
+      color: c.color, fontSize: c.fontSize, fontWeight: c.fontWeight,
+      bg: c.backgroundColor, bgImage: c.backgroundImage.slice(0, 160),
+      radius: c.borderTopLeftRadius, border: c.borderTopWidth + ' ' + c.borderTopColor,
+      shadow: c.boxShadow.slice(0, 160), opacity: c.opacity,
+      transform: c.transform === 'none' ? '' : c.transform.slice(0, 80),
+      display: c.display, zIndex: c.zIndex,
+    };
+  };
+  const out = [];
+  for (const [k, sel] of Object.entries(KEYS)) {
+    const el = document.querySelector(sel);
+    if (!el) { out.push({ key: k, missing: true }); continue; }
+    out.push(Object.assign({ key: k, text: (el.textContent || '').trim().slice(0, 40) }, L(el.getBoundingClientRect()), cs(el)));
+  }
+  // 关卡节点：全部导出（含状态 class），珠面层取第一个节点做样本
+  const nodes = [...document.querySelectorAll('.map .node, .node')].filter((el, i, a) => a.indexOf(el) === i);
+  nodes.slice(0, 24).forEach((el, i) => {
+    out.push(Object.assign({ key: 'node' + i, cls: el.className, text: (el.textContent || '').trim().slice(0, 16) }, L(el.getBoundingClientRect()), cs(el)));
+  });
+  const art = document.querySelector('.node-art');
+  const gel = document.querySelector('.node-gel');
+  const num = document.querySelector('.node-num');
+  const lock = document.querySelector('.node-lock');
+  for (const [k, el] of [['nodeArt', art], ['nodeGel', gel], ['nodeNum', num], ['nodeLock', lock]]) {
+    if (el) out.push(Object.assign({ key: k, text: (el.textContent || '').trim().slice(0, 10) }, L(el.getBoundingClientRect()), cs(el)));
+  }
+  document.querySelectorAll('.tabbar .tab').forEach((el, i) => {
+    out.push(Object.assign({ key: 'tab' + i, text: (el.textContent || '').trim().slice(0, 10) }, L(el.getBoundingClientRect()), cs(el)));
+    const ic = el.querySelector('.tab-icon');
+    const lb = el.querySelector('.tab-label');
+    if (ic) out.push(Object.assign({ key: 'tab' + i + 'Icon' }, L(ic.getBoundingClientRect()), { bgImage: getComputedStyle(ic).backgroundImage.slice(0, 120) }));
+    if (lb) out.push(Object.assign({ key: 'tab' + i + 'Label', text: lb.textContent || '' }, L(lb.getBoundingClientRect()), { color: getComputedStyle(lb).color, fontSize: getComputedStyle(lb).fontSize }));
+  });
+  const screen = document.querySelector('.screen.active')?.id || 'none';
+  // 滚动状态（地图是翻页容器）：track 的 translate / fitScale
+  const track = document.querySelector('.map-track');
+  return {
+    screen, stageScale: s, items: out,
+    trackTransform: track ? getComputedStyle(track).transform : null,
+    fit: track ? getComputedStyle(track).getPropertyValue('--fit') : null,
+  };
+})()`;
+}
+
 /* ------------------------------------------------------------------ 探针（Cocos / cc-shim） */
 
 function cocosProbeSource() {
@@ -155,6 +245,52 @@ function cocosProbeSource() {
   };
   walk(root, 0, 0, '');
   return { screen: 'game', stageScale: 1, items: out, cells: out.filter((i) => /Cell_\\d+_\\d+$/.test(i.key)).sort((a, b) => a.y - b.y || a.x - b.x) };
+})()`;
+}
+
+/**
+ * 首页 / 地图屏探针：root = play.html 暴露的 window.__root。
+ * 额外导出滚动状态（地图 content 节点的 y），因为地图是滚动容器，
+ * 绝对坐标必须连同滚动位置一起看才有可比性。
+ */
+function cocosHomeProbeSource() {
+  return `(() => {
+  const root = window.__root;
+  if (!root) return { error: 'window.__root 不存在（预览页没起来？）' };
+  const comp = (n, name) => (n.comps || []).find((c) => c && c.constructor && c.constructor.name === name);
+  const rgb = (c) => c ? 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (c.a / 255).toFixed(3) + ')' : null;
+  const out = [];
+  const walk = (n, px, py, path) => {
+    const p = n.getPosition ? n.getPosition() : { x: 0, y: 0 };
+    const ax = px + (p.x || 0), ay = py + (p.y || 0);
+    const t = comp(n, 'UITransform');
+    const w = t ? (t.contentSize ? t.contentSize.width : t.width) : 0;
+    const h = t ? (t.contentSize ? t.contentSize.height : t.height) : 0;
+    const x = +(ax + 540 - w / 2).toFixed(2);
+    const y = +(960 - (ay + h / 2)).toFixed(2);
+    const lb = comp(n, 'Label');
+    const sp = comp(n, 'Sprite');
+    const op = comp(n, 'UIOpacity');
+    const key = path ? path + '/' + (n.name || '(anon)') : (n.name || '(anon)');
+    const item = { key, x, y, w: +w.toFixed(2), h: +h.toFixed(2), opacity: op ? op.opacity / 255 : 1 };
+    if (lb) { item.text = lb.string; item.fontSize = lb.fontSize; item.color = rgb(lb.color); }
+    if (sp && sp.spriteFrame) item.sprite = sp.spriteFrame.name || '(sf)';
+    out.push(item);
+    for (const c of n.children || []) walk(c, ax, ay, key);
+  };
+  walk(root, 0, 0, '');
+  const nodes = out.filter((i) => /^Level_\\d+$/.test(i.key.split('/').pop() || ''));
+  // 滚动状态：地图 content 节点的 y（首页地图是滚动容器，绝对坐标要看滚动位置才有可比性）
+  const content = out.find((i) => i.key === 'Map/Scroll/Content') || out.find((i) => /Content$/.test(i.key));
+  return {
+    screen: 'home', stageScale: 1, items: out,
+    levelNodes: nodes.sort((a, b) => a.y - b.y),
+    scrollY: content ? content.y : null,
+    contentKey: content ? content.key : null,
+    saveRaw: (() => { try { return (localStorage.getItem('mengchong.save.v1') || '').slice(0, 300); } catch (e) { return 'ERR'; } })(),
+    t1: window.__t1 || null,
+    t2: window.__t2 || null,
+  };
 })()`;
 }
 
@@ -252,8 +388,9 @@ ws.addEventListener('message', (ev) => {
   if (m.method === 'Runtime.exceptionThrown') {
     errors.push((m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text || '').slice(0, 300));
   }
-  if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
-    errors.push('console.error: ' + String(m.params.args?.[0]?.value ?? '').slice(0, 200));
+  if (m.method === 'Runtime.consoleAPICalled' && (m.params.type === 'error' || m.params.type === 'warning')) {
+    const tag = m.params.type === 'error' ? 'console.error: ' : 'console.warn: ';
+    errors.push(tag + String(m.params.args?.[0]?.value ?? '').slice(0, 200));
   }
 });
 
@@ -266,6 +403,13 @@ if (argv.includes('--fresh')) {
   await sleep(WAIT);
   console.log('[fresh] 存档已清，已刷新');
 }
+const EVAL = arg('eval', '');
+if (EVAL) {
+  // 例：--eval "localStorage.setItem('mengchong.save.v1','{\"tutorial\":{\"seen\":true}}'); location.reload();"
+  await cdp.send('Runtime.evaluate', { expression: EVAL });
+  await sleep(WAIT);
+  console.log('[eval] 已执行');
+}
 
 for (const sel of CLICKS) {
   const r = await cdp.send('Runtime.evaluate', {
@@ -276,7 +420,13 @@ for (const sel of CLICKS) {
   await sleep(1500);
 }
 
-const src = PROBE.startsWith('cocos') ? cocosProbeSource() : webProbeSource();
+const src = PROBE === 'cocos-home'
+  ? cocosHomeProbeSource()
+  : PROBE.startsWith('cocos')
+    ? cocosProbeSource()
+    : PROBE === 'web-home'
+      ? webHomeProbeSource()
+      : webProbeSource();
 const res = await cdp.send('Runtime.evaluate', { expression: src, returnByValue: true, awaitPromise: true });
 let data;
 if (res.exceptionDetails) {
