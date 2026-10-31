@@ -12,6 +12,8 @@
 const CDP_PORT = 9222;
 const URL_ = 'http://127.0.0.1:5181/preview/play.html';
 
+import { readFileSync, existsSync } from 'node:fs';
+
 async function httpJson(url, init) { const r = await fetch(url, init); return r.json(); }
 const target = await httpJson(`http://127.0.0.1:${CDP_PORT}/json/new?about:blank`, { method: 'PUT' });
 const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -118,6 +120,91 @@ for (const b of beads) {
   console.log(`  ${b.lv.padEnd(9)} 珠色 ${String(b.color).padEnd(18)} 子节点 ${b.kids}` + (want ? `  期望 ${want}` : '  期望 灰(锁定)') + (ok ? ' ✅' : ' ❌'));
 }
 console.log('  → 结论：' + (colorOk ? '配色与登记口径一致（3星金+👑 / 1星紫 / 未过关粉 / 锁定灰+🔒）' : '有节点的配色不对'));
+
+/* ---------------------------------------------------------------- 3. PLAY 吊牌链路 */
+/**
+ * 点第 1 关珠 → 弹 PLAY 吊牌 → 点 Play → 进玩法。顺手把吊牌几何与 Web 实测基准比对：
+ * 基准来自 `docs/dump/web-preview.json`（`node tools/ui-dump.mjs --probe web-preview --click=".node"`），
+ * 缺这份文件时只验链路、不比几何。
+ */
+console.log('=== PLAY 吊牌：点珠 → 吊牌 → Play → 进玩法 ===');
+const tap = (x, y) => `(() => {
+  const cv = (window.__renderer && window.__renderer.canvas) || document.querySelector('canvas');
+  try {
+    HTMLCanvasElement.prototype.setPointerCapture = function () {};
+    HTMLCanvasElement.prototype.releasePointerCapture = function () {};
+  } catch (e) {}
+  const b = cv.getBoundingClientRect();
+  const cx = b.left + (${x} / 1080) * b.width, cy = b.top + (${y} / 1920) * b.height;
+  const o = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 };
+  cv.dispatchEvent(new PointerEvent('pointerdown', o));
+  cv.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, o, { buttons: 0 })));
+  return 'ok';
+})()`;
+
+// Web 基准（1080×1920、y 从顶向下）：docs/dump/web-preview.json
+const WEB_PREVIEW = existsSync('docs/dump/web-preview.json')
+  ? JSON.parse(readFileSync('docs/dump/web-preview.json', 'utf8')).data.items
+  : null;
+const webBox = (key) => {
+  if (!WEB_PREVIEW) return null;
+  const it = WEB_PREVIEW.find((i) => i.key === key && !i.missing);
+  return it ? [it.x, it.y, it.w, it.h] : null;
+};
+
+const previewState = `(() => {
+  const root = window.__root;
+  const comp = (n, name) => (n.comps || []).find((c) => c && c.constructor && c.constructor.name === name);
+  let lp = null, game = null;
+  const w = (n) => { if (n.name === 'LevelPreview') lp = n; if (n.name === 'Game') game = n; n.children.forEach(w); };
+  w(root);
+  const box = (n) => {
+    if (!n) return null;
+    const p = n.worldPos ? n.worldPos() : { x: 0, y: 0 };
+    const t = comp(n, 'UITransform');
+    const wd = t ? (t.contentSize ? t.contentSize.width : t.width) : 0;
+    const ht = t ? (t.contentSize ? t.contentSize.height : t.height) : 0;
+    return [+(p.x + 540 - wd / 2).toFixed(2), +(960 - (p.y + ht / 2)).toFixed(2), +wd.toFixed(2), +ht.toFixed(2)];
+  };
+  const find = (n, name) => { if (!n) return null; for (const c of n.children) { if (c.name === name) return c; const r = find(c, name); if (r) return r; } return null; };
+  const card = find(lp, 'card');
+  const titleLabel = (() => { let t = null; const f = (n) => { if (n.name === 't' && comp(n, 'Label') && String(comp(n, 'Label').string).startsWith('第')) t = comp(n, 'Label').string; n.children.forEach(f); }; if (card) card.children.forEach(f); return t; })();
+  return {
+    open: !!lp && lp.active,
+    title: titleLabel,
+    boxes: {
+      card: box(card),
+      close: box(find(card, 'closeBtn')),
+      modeNormal: box(find(card, 'mode-normal')),
+      modeNightmare: box(find(card, 'mode-nightmare')),
+      stars: box(find(card, 'stars')),
+      play: box(find(card, 'play')),
+    },
+    gameActive: !!(game && game.active),
+  };
+})()`;
+
+await evalv(tap(944, 1588));            // 第 1 关珠心
+await sleep(1200);
+const opened = await evalv(previewState);
+console.log(`  点珠后：吊牌 open=${opened.open} 标题=${JSON.stringify(opened.title)}` + (opened.open ? ' ✅' : ' ❌ 吊牌没弹出来'));
+if (opened.open && WEB_PREVIEW) {
+  const pairs = [['card', 'lpCard'], ['close', 'lpClose'], ['modeNormal', 'lpMode0'], ['modeNightmare', 'lpMode1'], ['stars', 'lpStars'], ['play', 'lpPlay']];
+  let geoOk = true;
+  for (const [cc, wb] of pairs) {
+    const wbv = webBox(wb), ccb = opened.boxes[cc];
+    if (!wbv || !ccb) { console.log(`  ${cc.padEnd(12)} 基准或实际缺 → 跳过`); continue; }
+    const d = wbv.map((v, i) => +(ccb[i] - v).toFixed(2));
+    const ok = d.every((v) => Math.abs(v) <= 0.5);
+    if (!ok) geoOk = false;
+    console.log(`  ${cc.padEnd(12)} web=${wbv.join(',').padEnd(28)} cocos=${ccb.join(',').padEnd(28)} Δ=${d.join(',')}` + (ok ? ' ✅' : ' ❌'));
+  }
+  console.log('  → 吊牌几何：' + (geoOk ? '与 Web 实测逐项 ≤0.5px' : '有偏差，见上'));
+}
+await evalv(tap(540, 1144));            // Play（Web 实测中心 y=1143.5）
+await sleep(2500);
+const after = await evalv(previewState);
+console.log(`  点 Play 后：Game active=${after.gameActive} 吊牌 open=${after.open}` + (after.gameActive ? ' ✅ 已进玩法' : ' ❌ 没进玩法'));
 
 console.log('=== 控制台 ===');
 console.log(logs.length ? logs.join('\n') : '(无)');

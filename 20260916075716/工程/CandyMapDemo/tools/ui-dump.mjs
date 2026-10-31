@@ -38,6 +38,11 @@ const WAIT = Number(arg('wait', 7000));
 const SHOT = arg('shot', '');
 const SCALE = Number(arg('scale', 1)); // 视口缩放：0.55 时窗口 594×1056，画面内容不变
 const CLICKS = flags('click');
+/**
+ * Cocos 预览页没有 DOM，只能用**坐标点击**（1080×1920 逻辑坐标，原点左上）。
+ * 用法：`--tap=944,1588`（多次可打开多层界面，例如先点关卡珠再点 Play）
+ */
+const TAPS = flags('tap');
 // 本机 Chrome 的 side-by-side 配置坏了（spawn UNKNOWN），Edge 同为 Chromium，CDP 完全一致
 const BROWSER = arg('browser', 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe');
 
@@ -191,6 +196,86 @@ function webHomeProbeSource() {
     screen, stageScale: s, items: out,
     trackTransform: track ? getComputedStyle(track).transform : null,
     fit: track ? getComputedStyle(track).getPropertyValue('--fit') : null,
+  };
+})()`;
+}
+
+/* ------------------------------------------------------------------ 探针（Web · 吊牌浮层：PLAY / 结算） */
+
+/**
+ * 吊牌类浮层（`.lp-*` 是关卡详情 PLAY 吊牌，`.result-*` 是结算吊牌）的实测几何。
+ * 前提是浮层已经打开 —— 用 `--click ".node"`（点关卡珠）或 `--click "#xxx"` 打开。
+ * 结算吊牌与 PLAY 吊牌共用 820 宽的骨架，所以两套 key 一起导出。
+ */
+const WEB_PREVIEW_KEYS = {
+  previewRoot: '.level-preview.on',
+  lpDrop: '.lp-drop',
+  lpRope: '.lp-rope',
+  lpSpacer: '.lp-spacer',
+  lpCard: '.lp-card',
+  lpClose: '.lp-close',
+  lpLevel: '.lp-level',
+  lpModes: '.lp-modes',
+  lpMode0: '.lp-modes .lp-mode:nth-child(1)',
+  lpMode1: '.lp-modes .lp-mode:nth-child(2)',
+  lpStars: '.lp-stars',
+  lpStar0: '.lp-stars .lp-star:nth-child(1)',
+  lpSep: '.lp-stars .lp-sep',
+  lpStar1: '.lp-stars .lp-star:nth-child(2)',
+  lpStarNum0: '.lp-stars .lp-star:nth-child(1) b',
+  lpStarNum1: '.lp-stars .lp-star:nth-child(2) b',
+  lpPlay: '.lp-play',
+  // 结算吊牌（result.ts 复用了同一套 lp-* 骨架）
+  resultRoot: '.result-preview.on',
+  resultCard: '.result-preview .lp-card',
+  resultDrop: '.result-preview .lp-drop',
+  resultExtra: '.result-extra',
+  rsTitle: '.rs-title',
+  rsScore: '.rs-score',
+  rsStarsRow: '.rs-stars',
+  rsBtns: '.rs-btns',
+  rsBtn0: '.rs-btns button:nth-child(1)',
+  rsBtn1: '.rs-btns button:nth-child(2)',
+  rsBtn2: '.rs-btns button:nth-child(3)',
+};
+
+function webPreviewProbeSource() {
+  return `(() => {
+  const KEYS = ${JSON.stringify(WEB_PREVIEW_KEYS)};
+  const stage = document.getElementById('stage');
+  const base = stage.getBoundingClientRect();
+  const s = (base.width || 1080) / 1080;
+  const L = (r) => ({
+    x: +((r.left - base.left) / s).toFixed(2),
+    y: +((r.top - base.top) / s).toFixed(2),
+    w: +(r.width / s).toFixed(2),
+    h: +(r.height / s).toFixed(2),
+  });
+  const cs = (el) => {
+    const c = getComputedStyle(el);
+    return {
+      color: c.color, fontSize: c.fontSize, fontWeight: c.fontWeight, letterSpacing: c.letterSpacing,
+      bg: c.backgroundColor, bgImage: c.backgroundImage.slice(0, 200),
+      radius: c.borderTopLeftRadius, border: c.borderTopWidth + ' ' + c.borderTopColor,
+      shadow: c.boxShadow.slice(0, 200), opacity: c.opacity, padding: c.padding,
+      margin: c.marginTop + ' ' + c.marginRight + ' ' + c.marginBottom + ' ' + c.marginLeft,
+      stroke: c.webkitTextStrokeWidth + ' ' + c.webkitTextStrokeColor,
+      textShadow: c.textShadow.slice(0, 120),
+      display: c.display, zIndex: c.zIndex, disabled: !!el.disabled,
+    };
+  };
+  const out = [];
+  for (const [k, sel] of Object.entries(KEYS)) {
+    const el = document.querySelector(sel);
+    if (!el) { out.push({ key: k, missing: true }); continue; }
+    out.push(Object.assign({ key: k, cls: el.className, text: (el.textContent || '').trim().slice(0, 40) }, L(el.getBoundingClientRect()), cs(el)));
+  }
+  // 困难模式按钮文案 / 是否挂锁（和 derivatives 一起判断口径）
+  const hard = document.querySelector('.lp-modes .lp-mode:nth-child(2)');
+  return {
+    screen: 'preview', stageScale: s, items: out,
+    hardBtn: hard ? { text: hard.textContent, disabled: !!hard.disabled, cls: hard.className } : null,
+    open: !!document.querySelector('.level-preview.on') || !!document.querySelector('.result-preview.on'),
   };
 })()`;
 }
@@ -411,6 +496,31 @@ if (EVAL) {
   console.log('[eval] 已执行');
 }
 
+for (const tapXY of TAPS) {
+  const [tx, ty] = String(tapXY).split(',').map(Number);
+  const r = await cdp.send('Runtime.evaluate', {
+    expression: `(() => {
+  const cv = (window.__renderer && window.__renderer.canvas) || document.querySelector('canvas');
+  if (!cv) return 'no canvas';
+  try {
+    // shim 会调 setPointerCapture，headless 下没这个实现 → 垫个空壳
+    HTMLCanvasElement.prototype.setPointerCapture = function () {};
+    HTMLCanvasElement.prototype.releasePointerCapture = function () {};
+  } catch (e) {}
+  const box = cv.getBoundingClientRect();
+  const cx = box.left + (${tx} / 1080) * box.width;
+  const cy = box.top + (${ty} / 1920) * box.height;
+  const o = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 };
+  cv.dispatchEvent(new PointerEvent('pointerdown', o));
+  cv.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, o, { buttons: 0 })));
+  return 'tapped ${tx},${ty}';
+})()`,
+    returnByValue: true,
+  });
+  console.log('[tap]', tapXY, '→', r.result.value);
+  await sleep(1600);
+}
+
 for (const sel of CLICKS) {
   const r = await cdp.send('Runtime.evaluate', {
     expression: `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return 'missing'; e.click(); return 'ok'; })()`,
@@ -426,7 +536,9 @@ const src = PROBE === 'cocos-home'
     ? cocosProbeSource()
     : PROBE === 'web-home'
       ? webHomeProbeSource()
-      : webProbeSource();
+      : PROBE === 'web-preview'
+        ? webPreviewProbeSource()
+        : webProbeSource();
 const res = await cdp.send('Runtime.evaluate', { expression: src, returnByValue: true, awaitPromise: true });
 let data;
 if (res.exceptionDetails) {

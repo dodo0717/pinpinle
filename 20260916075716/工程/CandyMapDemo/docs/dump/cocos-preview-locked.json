@@ -1,0 +1,1721 @@
+{
+  "url": "http://127.0.0.1:5181/preview/play.html",
+  "probe": "cocos-home",
+  "at": "2026-10-31T09:36:19.839Z",
+  "viewport": [
+    1080,
+    1886
+  ],
+  "exceptions": [],
+  "data": {
+    "screen": "home",
+    "stageScale": 1,
+    "items": [
+      {
+        "key": "Canvas",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Backdrop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content",
+        "x": 0,
+        "y": -1920,
+        "w": 1080,
+        "h": 3840,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/BgMain",
+        "x": 0,
+        "y": -1920,
+        "w": 1080,
+        "h": 3840,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Bead",
+        "x": 873,
+        "y": 1520.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Num",
+        "x": 873,
+        "y": 1557.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 53,
+        "color": "rgba(255,246,230,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Pet",
+        "x": 982.1,
+        "y": 1595.7,
+        "w": 53,
+        "h": 53,
+        "opacity": 1,
+        "text": "🐶",
+        "fontSize": 53,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1/Ring",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2",
+        "x": 702,
+        "y": 1246,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Bead",
+        "x": 702,
+        "y": 1249.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Num",
+        "x": 702,
+        "y": 1286.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "2",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2/Lock",
+        "x": 733,
+        "y": 1277,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3",
+        "x": 419,
+        "y": 976,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Bead",
+        "x": 419,
+        "y": 979.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Num",
+        "x": 419,
+        "y": 1016.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "3",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3/Lock",
+        "x": 450,
+        "y": 1007,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4",
+        "x": 598,
+        "y": 705,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Bead",
+        "x": 598,
+        "y": 708.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Num",
+        "x": 598,
+        "y": 745.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "4",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4/Lock",
+        "x": 629,
+        "y": 736,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5",
+        "x": 671,
+        "y": 434,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Bead",
+        "x": 671,
+        "y": 437.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Num",
+        "x": 671,
+        "y": 474.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5/Lock",
+        "x": 702,
+        "y": 465,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6",
+        "x": 366,
+        "y": 164,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Bead",
+        "x": 366,
+        "y": 167.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Num",
+        "x": 366,
+        "y": 204.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "6",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6/Lock",
+        "x": 397,
+        "y": 195,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7",
+        "x": 563,
+        "y": -107,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Bead",
+        "x": 563,
+        "y": -103.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Num",
+        "x": 563,
+        "y": -66.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "7",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7/Lock",
+        "x": 594,
+        "y": -76,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8",
+        "x": 565,
+        "y": -377,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Bead",
+        "x": 565,
+        "y": -373.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Num",
+        "x": 565,
+        "y": -336.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "8",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8/Lock",
+        "x": 596,
+        "y": -346,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9",
+        "x": 509,
+        "y": -648,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Bead",
+        "x": 509,
+        "y": -644.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Num",
+        "x": 509,
+        "y": -607.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "9",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9/Lock",
+        "x": 540,
+        "y": -617,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10",
+        "x": 548,
+        "y": -919,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Bead",
+        "x": 548,
+        "y": -915.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Num",
+        "x": 548,
+        "y": -878.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10/Lock",
+        "x": 579,
+        "y": -888,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11",
+        "x": 464,
+        "y": -1189,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Bead",
+        "x": 464,
+        "y": -1185.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Num",
+        "x": 464,
+        "y": -1148.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "11",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11/Lock",
+        "x": 495,
+        "y": -1158,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12",
+        "x": 455,
+        "y": -1460,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Bead",
+        "x": 455,
+        "y": -1456.5,
+        "w": 142,
+        "h": 142,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Num",
+        "x": 455,
+        "y": -1419.5,
+        "w": 142,
+        "h": 61,
+        "opacity": 1,
+        "text": "12",
+        "fontSize": 53,
+        "color": "rgba(150,150,150,1.000)"
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12/Lock",
+        "x": 486,
+        "y": -1429,
+        "w": 80,
+        "h": 80,
+        "opacity": 1,
+        "text": "🔒",
+        "fontSize": 80,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnBack",
+        "x": 36,
+        "y": 28,
+        "w": 122,
+        "h": 124,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser",
+        "x": 112,
+        "y": 31,
+        "w": 468,
+        "h": 118,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Img",
+        "x": 112,
+        "y": 31,
+        "w": 468,
+        "h": 118,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Txt",
+        "x": 204,
+        "y": 48,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "text": "🐶",
+        "fontSize": 56,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopUser/Txt",
+        "x": 306,
+        "y": 56,
+        "w": 124,
+        "h": 68,
+        "opacity": 1,
+        "text": "玩家",
+        "fontSize": 40,
+        "color": "rgba(255,233,199,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina",
+        "x": 744,
+        "y": 28,
+        "w": 300,
+        "h": 108,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Img",
+        "x": 744,
+        "y": 28,
+        "w": 300,
+        "h": 108,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Heart",
+        "x": 764,
+        "y": 47,
+        "w": 78,
+        "h": 70,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Txt",
+        "x": 856,
+        "y": 66,
+        "w": 76,
+        "h": 32,
+        "opacity": 1,
+        "text": "10",
+        "fontSize": 32,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/TopStamina/Plus",
+        "x": 946,
+        "y": 39,
+        "w": 84,
+        "h": 86,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Txt",
+        "x": 744,
+        "y": 176,
+        "w": 226,
+        "h": 26,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 22,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnTutorial",
+        "x": 818.83,
+        "y": 154,
+        "w": 225,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/BtnTutorial/Txt",
+        "x": 818.83,
+        "y": 154,
+        "w": 225,
+        "h": 84,
+        "opacity": 1,
+        "text": "❓教学",
+        "fontSize": 44,
+        "color": "rgba(107,58,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft",
+        "x": 22,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 0.30196078431372547
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft/Hit",
+        "x": 39.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavLeft/Txt",
+        "x": 22,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1,
+        "text": "‹",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight",
+        "x": 940,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight/Hit",
+        "x": 957.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight/Txt",
+        "x": 940,
+        "y": 1582,
+        "w": 118,
+        "h": 118,
+        "opacity": 1,
+        "text": "›",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp",
+        "x": 964,
+        "y": 825,
+        "w": 98,
+        "h": 98,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp/Hit",
+        "x": 978.5,
+        "y": 839.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerUp/Txt",
+        "x": 964,
+        "y": 825,
+        "w": 98,
+        "h": 98,
+        "opacity": 1,
+        "text": "▲",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown",
+        "x": 964,
+        "y": 997,
+        "w": 98,
+        "h": 98,
+        "opacity": 0.30196078431372547
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown/Hit",
+        "x": 978.5,
+        "y": 1011.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown/Txt",
+        "x": 964,
+        "y": 997,
+        "w": 98,
+        "h": 98,
+        "opacity": 1,
+        "text": "▼",
+        "fontSize": 78,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDot0",
+        "x": 1004,
+        "y": 937,
+        "w": 18,
+        "h": 18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDot1",
+        "x": 1004,
+        "y": 965,
+        "w": 18,
+        "h": 18,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar",
+        "x": 24,
+        "y": 1731,
+        "w": 1032,
+        "h": 169,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0",
+        "x": 55,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Sel",
+        "x": 55,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Icon",
+        "x": 130.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab0/Txt",
+        "x": 55,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "首页",
+        "fontSize": 26,
+        "color": "rgba(109,61,10,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1",
+        "x": 300,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Sel",
+        "x": 300,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Icon",
+        "x": 375.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab1/Txt",
+        "x": 300,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "排行榜",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2",
+        "x": 545,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Sel",
+        "x": 545,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Icon",
+        "x": 620.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab2/Txt",
+        "x": 545,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "图鉴",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3",
+        "x": 790,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Sel",
+        "x": 790,
+        "y": 1750,
+        "w": 235,
+        "h": 131,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Icon",
+        "x": 865.5,
+        "y": 1758,
+        "w": 84,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/HUD/Tabbar/Tab3/Txt",
+        "x": 790,
+        "y": 1840,
+        "w": 235,
+        "h": 36,
+        "opacity": 1,
+        "text": "设置",
+        "fontSize": 26,
+        "color": "rgba(232,217,195,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop",
+        "x": 130,
+        "y": 0,
+        "w": 820,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/rope",
+        "x": 534,
+        "y": 0,
+        "w": 12,
+        "h": 619.5,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card",
+        "x": 130,
+        "y": 611.5,
+        "w": 820,
+        "h": 689,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/closeBtn",
+        "x": 864,
+        "y": 633.5,
+        "w": 60,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/closeBtn/t",
+        "x": 864,
+        "y": 638.5,
+        "w": 60,
+        "h": 50,
+        "opacity": 1,
+        "text": "✕",
+        "fontSize": 34,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 195,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 678.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 189,
+        "y": 684.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(245,197,66,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 192,
+        "y": 681.5,
+        "w": 696,
+        "h": 112,
+        "opacity": 1,
+        "text": "第 1 关",
+        "fontSize": 96,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal",
+        "x": 288.4,
+        "y": 827.5,
+        "w": 206,
+        "h": 94,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal/t",
+        "x": 294.4,
+        "y": 827.5,
+        "w": 194,
+        "h": 94,
+        "opacity": 1,
+        "text": "简单",
+        "fontSize": 40,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare",
+        "x": 518.4,
+        "y": 827.5,
+        "w": 273.2,
+        "h": 94,
+        "opacity": 0.8509803921568627
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare/t",
+        "x": 524.4,
+        "y": 827.5,
+        "w": 261.2,
+        "h": 94,
+        "opacity": 1,
+        "text": "🔒 困难",
+        "fontSize": 40,
+        "color": "rgba(216,216,216,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars",
+        "x": 192,
+        "y": 949.5,
+        "w": 696,
+        "h": 79,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 218.8,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "1星 ",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 243.76,
+        "y": 951,
+        "w": 360,
+        "h": 76,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 60,
+        "color": "rgba(232,161,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 309.44,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": " 分",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 384,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "|",
+        "fontSize": 52,
+        "color": "rgba(201,168,106,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 465.84,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": "3星 ",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 490.8,
+        "y": 951,
+        "w": 360,
+        "h": 76,
+        "opacity": 1,
+        "text": "5",
+        "fontSize": 60,
+        "color": "rgba(232,161,0,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/stars/t",
+        "x": 556.48,
+        "y": 955,
+        "w": 312,
+        "h": 68,
+        "opacity": 1,
+        "text": " 分",
+        "fontSize": 52,
+        "color": "rgba(107,74,47,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play",
+        "x": 350.74,
+        "y": 1074.5,
+        "w": 378.52,
+        "h": 138,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play/t",
+        "x": 350.74,
+        "y": 1104.5,
+        "w": 378.52,
+        "h": 78,
+        "opacity": 1,
+        "text": "Play",
+        "fontSize": 62,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/Dialog",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Toast",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/Toast/ToastLayer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ScreenBg",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard",
+        "x": 8,
+        "y": 8,
+        "w": 1064,
+        "h": 1904,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar",
+        "x": 18,
+        "y": 18,
+        "w": 1044,
+        "h": 240,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudExit",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudExit/Txt",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "text": "←",
+        "fontSize": 44,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudGoalFlag",
+        "x": 240.4,
+        "y": 102,
+        "w": 60,
+        "h": 72,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudGoalNum",
+        "x": 294,
+        "y": 102,
+        "w": 72,
+        "h": 72,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 66,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore",
+        "x": 468,
+        "y": 57,
+        "w": 246,
+        "h": 162,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapTens",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapTens/Face",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapUnits",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudScore/FlapUnits/Face",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer",
+        "x": 816,
+        "y": 108,
+        "w": 228,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer/TimerClock",
+        "x": 816.4,
+        "y": 111,
+        "w": 74,
+        "h": 54,
+        "opacity": 1,
+        "text": "🕒",
+        "fontSize": 54,
+        "color": "rgba(255,248,231,1.000)"
+      },
+      {
+        "key": "Canvas/Game/GameCard/Topbar/HudTimer/TimerNum",
+        "x": 902,
+        "y": 108,
+        "w": 142,
+        "h": 60,
+        "opacity": 1,
+        "text": "03:00",
+        "fontSize": 60,
+        "color": "rgba(255,233,176,1.000)"
+      },
+      {
+        "key": "Canvas/Game/BoardHost",
+        "x": 18,
+        "y": 268,
+        "w": 1044,
+        "h": 1634,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint",
+        "x": 540,
+        "y": 1085,
+        "w": 0,
+        "h": 0,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint/hand",
+        "x": 492,
+        "y": 1037,
+        "w": 96,
+        "h": 96,
+        "opacity": 1,
+        "text": "👆",
+        "fontSize": 72,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Game/BoardHost/HandHint/flash",
+        "x": 470,
+        "y": 1015,
+        "w": 140,
+        "h": 140,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/Dialog",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop/rope",
+        "x": 340,
+        "y": 0,
+        "w": 400,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/ResultPopup/drop/card",
+        "x": 220,
+        "y": 530,
+        "w": 640,
+        "h": 780,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Toast",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Toast/ToastLayer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Audio",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide/GuideBar",
+        "x": 100,
+        "y": 1455,
+        "w": 880,
+        "h": 130,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Guide/GuideBar/Text",
+        "x": 130,
+        "y": 1465,
+        "w": 820,
+        "h": 110,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 30,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Game/TutorialBanner",
+        "x": 100,
+        "y": 214,
+        "w": 880,
+        "h": 92,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/TutorialBanner/text",
+        "x": 120,
+        "y": 220,
+        "w": 840,
+        "h": 80,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Game/Spotlight",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Game/Spotlight/shade",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Game/Spotlight/tip",
+        "x": 540,
+        "y": 960,
+        "w": 0,
+        "h": 0,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(70,40,20,1.000)"
+      },
+      {
+        "key": "Canvas/Game/Spotlight/next",
+        "x": 500,
+        "y": 932,
+        "w": 80,
+        "h": 56,
+        "opacity": 1,
+        "text": "▾",
+        "fontSize": 52,
+        "color": "rgba(255,255,255,1.000)"
+      }
+    ],
+    "levelNodes": [
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_12",
+        "x": 455,
+        "y": -1460,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_11",
+        "x": 464,
+        "y": -1189,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_10",
+        "x": 548,
+        "y": -919,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_9",
+        "x": 509,
+        "y": -648,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_8",
+        "x": 565,
+        "y": -377,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_7",
+        "x": 563,
+        "y": -107,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_6",
+        "x": 366,
+        "y": 164,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_5",
+        "x": 671,
+        "y": 434,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_4",
+        "x": 598,
+        "y": 705,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_3",
+        "x": 419,
+        "y": 976,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_2",
+        "x": 702,
+        "y": 1246,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/ScrollView/view/Content/Level_1",
+        "x": 873,
+        "y": 1517,
+        "w": 142,
+        "h": 142,
+        "opacity": 1
+      }
+    ],
+    "scrollY": -1920,
+    "contentKey": "Canvas/Map/ScrollView/view/Content",
+    "saveRaw": "{\"version\":1,\"savedAt\":1793439369212,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":false,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":1,\"levels\":{}},\"nightmare\":{\"mode\":\"nightmare\",\"unlocked\":1,\"levels\":{}}}}",
+    "t1": null,
+    "t2": null
+  }
+}
