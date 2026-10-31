@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 设置整屏（**2026-10-31 按 Web 实测逐元素重排**，基准 `docs/dump/web-settings.json`）
  *
  * Web 版（`web/ui/settings.ts` + `ui.css` 的 `.set-*`）：
@@ -28,7 +28,8 @@
 import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
 import { SETTINGS, TUTORIAL, VERSION } from '../玩法/text';
 import {
-  STAGE_H, STAGE_W, WHITE, fillVGrad, mkText, mkBackButton, mkTitle, paintScreenBg, paintShadow,
+  STAGE_H, STAGE_W, WHITE, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, setSprite,
+  fitContain, paintScreenBg, paintShadow,
 } from './uiPaint';
 
 /** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点屏幕中心） */
@@ -47,8 +48,6 @@ const CARD_CY = localY(222 + CARD_H / 2);
 const CARD_R = 118;
 const CARD_FRAME = 50;
 const CARD_PAD_T = 46;
-const CARD_PAD_X = 44;
-const CARD_PAD_B = 40;
 const CARD_SHADOW = new Color(20, 55, 120, Math.round(0.35 * 255));
 /** 卡内木纹渐变（Web `.set-card`） */
 const CARD_A = new Color(106, 70, 50, 255);    // #6a4632
@@ -68,6 +67,8 @@ const ROW_INSET_BOTTOM = new Color(0, 0, 0, Math.round(0.22 * 255));
 
 /** 行内：图标 96×96 → gap 28 → 标签 → gap 28 → 开关 150×78（右端距行右 40） */
 const ICON_SIZE = 96;
+/** 两张图标的**原始像素**（`web/art/settings/`：icon-music 156×174、icon-sfx 188×170） */
+const ICON_SRC: Array<[number, number]> = [[156, 174], [188, 170]];
 const ROW_GAP_X = 28;
 const ROW_PAD_X = 40;
 const TOGGLE_W = 150;
@@ -147,10 +148,11 @@ export class SettingsScreen {
     this.root = root;
 
     paintScreenBg(root);
-    mkBackButton(root, BACK_FILL, BACK_GLYPH, () => this.h.onBack());
+    mkBackButton(root, BACK_FILL, BACK_GLYPH, () => this.h.onBack(), 'settings/back');
     mkTitle(root, SETTINGS.title);
 
-    // 金框棕木卡
+    // 金框棕木卡：框是 `leaderboard/frame.png` 切图（Web `.set-card::before` 明写复用它），
+    // 内板是木纹渐变（程序绘制 —— Web 也是 CSS 渐变，没有切图）
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
@@ -158,14 +160,7 @@ export class SettingsScreen {
     card.parent = root;
     const cg = card.addComponent(Graphics);
     paintShadow(cg, CARD_W, CARD_H, CARD_R, 26, 70, CARD_SHADOW);
-    cg.fillColor = new Color(199, 150, 81, 255);   // leaderboard/frame.png 实测均色 #c79651
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_R);
-    cg.fill();
-    cg.lineWidth = 4;
-    cg.strokeColor = new Color(220, 173, 98, 255);
-    cg.roundRect(-CARD_W / 2 + 2, -CARD_H / 2 + 2, CARD_W - 4, CARD_H - 4, CARD_R - 2);
-    cg.stroke();
-    drawWood(cg, CARD_W - CARD_FRAME * 2, CARD_H - CARD_FRAME * 2, CARD_A, CARD_B, CARD_C, Math.max(0, CARD_R - CARD_FRAME));
+    drawWood(cg, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, CARD_R);
 
     // 行容器：顶部对齐卡的内容区（padding-top 46）
     const rowsY = CARD_H / 2 - CARD_PAD_T;
@@ -174,6 +169,8 @@ export class SettingsScreen {
       if (i < 3) this.rows.push(this.mkToggleRow(card, i, y));
       else this.mkTutorialRow(card, y);
     }
+    // 金框切图在**行之后**添加：Web 的 `::before` 盖在内容之上（图鉴屏同口径）
+    mkSprite(card, 'leaderboard/frame', CARD_W, CARD_H);
 
     // 版本号（卡下方；screen 内侧 y = 1592：卡底 + card 的下 margin 20）
     mkText(root, SETTINGS.version(VERSION), VERSION_FS, 0, VERSION_CY - 2, VERSION_STROKE, STAGE_W, true, 'center');
@@ -189,21 +186,22 @@ export class SettingsScreen {
     row.parent = card;
     this.paintRow(row.addComponent(Graphics));
 
-    // 图标（Web 是 icon-music / icon-sfx 两张切图 → 程序绘制，色值取采样）
+    // 图标：Web 是 `<img>` + `object-fit: contain`（`.set-icon` 96×96）→ 用 `fitContain` 算实际尺寸
     const icon = new Node('icon');
     icon.layer = Layers.Enum.UI_2D;
     icon.addComponent(UITransform).setContentSize(ICON_SIZE, ICON_SIZE);
     icon.setPosition(ICON_X, 0, 0);
     icon.parent = row;
-    if (i === 0) drawMusicIcon(icon.addComponent(Graphics), new Color(221, 160, 74, 255));
-    else drawSpeakerIcon(icon.addComponent(Graphics), new Color(194, 141, 90, 255));
+    const [iw, ih] = ICON_SRC[i === 0 ? 0 : 1]!;
+    const [cw, ch] = fitContain(iw, ih, ICON_SIZE, ICON_SIZE);
+    mkSprite(icon, `settings/${i === 0 ? 'icon-music' : 'icon-sfx'}`, cw, ch);
 
     // 标签（60px + 4px 下落阴影）
     const text = ['', SETTINGS.bgm, SETTINGS.sound, SETTINGS.voice][i + 1] ?? '';
     mkText(row, text, LABEL_FS, LABEL_X + LABEL_W / 2, -4, LABEL_STROKE, LABEL_W, true, 'left');
     mkText(row, text, LABEL_FS, LABEL_X + LABEL_W / 2, 0, LABEL_COLOR, LABEL_W, true, 'left');
 
-    // 开关
+    // 开关：切图 `toggle-on/off`（Web 直接换 background-image）；下面程序画的胶囊+旋钮是兜底
     const slot = new Node('toggle');
     slot.layer = Layers.Enum.UI_2D;
     slot.addComponent(UITransform).setContentSize(TOGGLE_W, TOGGLE_H);
@@ -213,8 +211,10 @@ export class SettingsScreen {
     knob.layer = Layers.Enum.UI_2D;
     knob.addComponent(UITransform).setContentSize(TOGGLE_H - 12, TOGGLE_H - 12);
     knob.parent = slot;
+    const art = mkSprite(slot, 'settings/toggle-off', TOGGLE_W, TOGGLE_H);
 
     const sync = (on: boolean): void => {
+      setSprite(art, `settings/toggle-${on ? 'on' : 'off'}`);
       const sg = slot.getComponent(Graphics) ?? slot.addComponent(Graphics);
       sg.clear();
       // 槽：竖向渐变（toggle-on/off 两张切图的采样）
@@ -324,39 +324,3 @@ function drawWood(
   }
 }
 
-/** 音符图标（替代 settings/icon-music.png，双音符 + 符尾） */
-function drawMusicIcon(g: Graphics, color: Color): void {
-  g.fillColor = color;
-  for (const cx of [-14, 16]) {
-    g.ellipse(cx, -30, 15, 11);
-    g.fill();
-    g.rect(cx + 12, -30, 5, 62);
-    g.fill();
-  }
-  // 符尾（连接两个符干）
-  g.lineWidth = 8;
-  g.strokeColor = color;
-  g.moveTo(-2, 32);
-  g.quadraticCurveTo(6, 44, 33, 42);
-  g.stroke();
-}
-
-/** 喇叭图标（替代 settings/icon-sfx.png） */
-function drawSpeakerIcon(g: Graphics, color: Color): void {
-  g.fillColor = color;
-  g.moveTo(-34, -12);
-  g.lineTo(-14, -12);
-  g.lineTo(4, -32);
-  g.lineTo(4, 32);
-  g.lineTo(-14, 12);
-  g.lineTo(-34, 12);
-  g.close();
-  g.fill();
-  g.lineWidth = 7;
-  g.strokeColor = color;
-  for (const [r0, r1] of [[16, 16], [30, 30]] as Array<[number, number]>) {
-    g.moveTo(r0, -r1 * 0.7);
-    g.quadraticCurveTo(r0 + 10, 0, r0, r1 * 0.7);
-    g.stroke();
-  }
-}

@@ -33,7 +33,7 @@ import { resolveAsset, type ResolvedAsset } from '../平台/assetSource';
 import { loadSpriteFrame } from '../平台/assetLoader';
 import { COLLECTION } from '../玩法/text';
 import {
-  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, paintScreenBg, paintShadow,
+  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, paintScreenBg, paintShadow,
 } from './uiPaint';
 
 /** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点卡/屏中心） */
@@ -60,8 +60,10 @@ const CARD_W = 1048;
 const CARD_H = 1328;
 const CARD_CX = localY(302 + CARD_H / 2);
 const CARD_R = 118;
-/** Web 注释里写明：金框切图边框约 45~55px，卡的 padding 58/40/88 必须让开它 */
-const CARD_FRAME = 50;
+/**
+ * ⚠️ Web 注释里写明：金框切图（frame.png，100% 拉伸）的边框约占卡宽高 45~55px，
+ * 所以卡的 padding 58/40/88 必须让开它 —— 网格的位置常量就是照这条定的。
+ */
 const CARD_SHADOW = new Color(20, 55, 120, Math.round(0.35 * 255));
 /** 卡内渐变（Web `.col-card`）：#5ea0e9 → #8dbcf0(55%) → #c3e2fb */
 const CARD_A = new Color(94, 160, 233, 255);
@@ -88,22 +90,21 @@ const IMG_H = 0.89;
 /** 卡底圆角（切图四角透明，按 298×389 的比例估 ~8%） */
 const CELL_R = 24;
 
-/** 已解锁卡底的三色轮换 —— 颜色是 `card-{blue,pink,orange}.png` 的像素采样 */
-const CARD_SKINS: Array<[Color, Color, Color]> = [
+/** 已解锁卡底的三色轮换（与 `web/ui/collection.ts` 的 CARD_SKINS 逐字同序） */
+const CARD_SKINS = ['card-blue', 'card-pink', 'card-orange'] as const;
+/** 未解锁卡底（切图里已经画好金锁，不用程序画） */
+const CARD_LOCKED = 'card-locked';
+
+/**
+ * 卡底的**兜底渐变**（切图没加载出来时用）：颜色是 `card-*.png` 的像素采样，
+ * 锁定卡的分区采样（整体均色会被金锁拉偏）：底色 #1e2031、金锁 #d2b174、底条 #5a4839。
+ */
+const SKIN_FALLBACK: Array<[Color, Color, Color]> = [
   [new Color(146, 190, 226, 255), new Color(175, 231, 243, 255), new Color(146, 182, 201, 255)],
   [new Color(231, 195, 177, 255), new Color(244, 225, 184, 255), new Color(208, 186, 169, 255)],
   [new Color(227, 180, 208, 255), new Color(244, 222, 209, 255), new Color(204, 183, 177, 255)],
+  [new Color(35, 38, 58, 255), new Color(30, 32, 49, 255), new Color(23, 25, 39, 255)],
 ];
-/**
- * 未解锁：card-locked.png 的**分区采样**（整体均色会被金锁拉偏）：
- *   底色（角落区）#1e2031 深蓝灰；金锁 #d2b174；底部横条 #5a4839。
- * 视觉 = 深蓝灰圆角卡 + 细金边 + 中央金色挂锁 + 底部一条浅棕横条。
- */
-const LOCK_SKIN: [Color, Color, Color] = [
-  new Color(35, 38, 58, 255), new Color(30, 32, 49, 255), new Color(23, 25, 39, 255),
-];
-const LOCK_GLYPH = new Color(210, 177, 116, 255);
-const LOCK_BAR = new Color(90, 72, 57, 255);
 
 /** 视口上下各多加载几行：滚动时不出现「刚滚到还是空的」 */
 const PRELOAD_ROWS = 2;
@@ -158,7 +159,7 @@ export class CollectionScreen {
     this.root = root;
 
     paintScreenBg(root);
-    mkBackButton(root, BACK_FILL, BACK_GLYPH, () => this.h.onBack());
+    mkBackButton(root, BACK_FILL, BACK_GLYPH, () => this.h.onBack(), 'collection/back');
     mkTitle(root, COLLECTION.title);
 
     // 「已收集 x/y」：整宽居中 + 4px 下落阴影（用一位错位的深色副本近似）
@@ -203,23 +204,17 @@ export class CollectionScreen {
     if (et && et.SCROLLING && typeof svNode.on === 'function') {
       svNode.on(et.SCROLLING, () => this.pumpVisible(), this);
     }
+
+    // 金框切图 **在网格之后**添加：Web 的 `.col-card::before` 是 `z-index: 9`，框盖在内容之上
+    // （框是中空的，只会压住贴着边框的那几 px，与 Web 逐像素同效果）
+    mkSprite(card, 'leaderboard/frame', CARD_W, CARD_H);
   }
 
-  /** 卡片：整卡铺金（= 金框），内部再铺卡内渐变；外投影用同心圆角矩形近似 */
+  /** 卡片本体：外投影 + 卡内蓝天渐变（Web `.col-card` 的 background；金框是上面的切图） */
   private paintCard(g: Graphics): void {
     g.clear();
     paintShadow(g, CARD_W, CARD_H, CARD_R, 26, 70, CARD_SHADOW);
-    g.fillColor = new Color(199, 150, 81, 255);   // leaderboard/frame.png 实测均色 #c79651
-    g.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_R);
-    g.fill();
-    g.lineWidth = 4;
-    g.strokeColor = new Color(220, 173, 98, 255);
-    g.roundRect(-CARD_W / 2 + 2, -CARD_H / 2 + 2, CARD_W - 4, CARD_H - 4, CARD_R - 2);
-    g.stroke();
-    fillVGrad(
-      g, CARD_W - CARD_FRAME * 2, CARD_H - CARD_FRAME * 2,
-      CARD_A, CARD_B, CARD_C, 0.55, Math.max(0, CARD_R - CARD_FRAME), 40,
-    );
+    fillVGrad(g, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, 0.55, CARD_R, 40);
   }
 
   /** 重绘：`unlocked` 是已解锁的图 ID 集合 */
@@ -245,22 +240,21 @@ export class CollectionScreen {
       cell.layer = Layers.Enum.UI_2D;
       cell.addComponent(UITransform).setContentSize(CELL_W, CELL_H);
       cell.setPosition((c - 1) * COL_STRIDE, top - r * ROW_STRIDE, 0);
-      const [a, b, d] = owned ? CARD_SKINS[imageId % CARD_SKINS.length]! : LOCK_SKIN;
+      // 兜底渐变（切图没加载出来时的底）；切图本身 `100% 100%` 铺满（与 Web 同口径）
+      const [a, b, d] = owned
+        ? SKIN_FALLBACK[imageId % SKIN_FALLBACK.length]!
+        : SKIN_FALLBACK[SKIN_FALLBACK.length - 1]!;
       const g = cell.addComponent(Graphics);
       // ⚠️ 条带要够细：圆角只有 24px，条带 40px 高时圆角处会出现方形台阶（露出底下的卡内渐变）
       fillVGrad(g, CELL_W, CELL_H, a, b, d, 0.5, CELL_R, 32);
-      // 卡底切图自带细金边（对照 Web 截图：锁定卡与照片卡都有一圈）
-      g.lineWidth = 4;
-      g.strokeColor = new Color(199, 150, 81, 255);
-      g.roundRect(-CELL_W / 2 + 2, -CELL_H / 2 + 2, CELL_W - 4, CELL_H - 4, CELL_R - 2);
-      g.stroke();
       cell.parent = this.content;
+      // 卡底切图（已解锁三色轮换 / 未解锁的锁卡——锁画在图里，不用程序画）
+      mkSprite(cell, `collection/${owned ? CARD_SKINS[imageId % CARD_SKINS.length]! : CARD_LOCKED}`, CELL_W, CELL_H);
 
       if (owned) {
         this.mkSticker(cell, imageId);
         cell.on(Node.EventType.TOUCH_END, () => this.h.onOpen(imageId));
       } else {
-        drawLock(cell.addComponent(Graphics));
         cell.on(Node.EventType.TOUCH_END, () => this.h.onLockedTip?.());
       }
     }
@@ -348,21 +342,3 @@ export class CollectionScreen {
   destroy(): void { if (this.root?.isValid) this.root.destroy(); }
 }
 
-/** 挂锁（替代 card-locked.png 里画好的金锁）+ 底部那条浅棕横条 */
-function drawLock(g: Graphics): void {
-  // 底部横条（切图 H 的 88%~97% 处有一条 #5a4839）
-  g.fillColor = LOCK_BAR;
-  g.roundRect(-CELL_W * 0.4, -CELL_H * 0.44, CELL_W * 0.8, CELL_H * 0.085, 10);
-  g.fill();
-  // 金锁：锁体 + 锁梁 + 锁孔（居中略偏上，对照 Web 切图里锁的位置）
-  g.fillColor = LOCK_GLYPH;
-  g.roundRect(-46, -58, 92, 104, 14);
-  g.fill();
-  g.lineWidth = 14;
-  g.strokeColor = LOCK_GLYPH;
-  g.arc(0, 46, 34, 0, Math.PI, false);
-  g.stroke();
-  g.fillColor = new Color(46, 42, 49, 255);
-  g.roundRect(-10, -20, 20, 38, 10);
-  g.fill();
-}

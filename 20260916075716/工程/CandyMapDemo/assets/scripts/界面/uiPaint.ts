@@ -5,15 +5,26 @@
  * 也是同一份 CSS 思路）：整屏蓝天渐变 + 150×150 棕色返回圆钮 + 96px 白字描边标题 +
  * `border-radius:118px` 的金框大卡。抽出来后三屏只有一个实现，改一处三处跟着变。
  *
- * ⚠️ 全部是**程序绘制**（预览 shim 与真引擎都能跑），替换关系是：
+ * ⚠️ 【切图优先，程序绘制是兜底】（2026-10-31 修正）
+ * 三屏的框 / 返回钮 / 卡底 / 图标 / 开关**一律用 `web/art/**` 的现成切图**（已拷进
+ * `assets/resources/ui/{collection,settings,leaderboard}/`），用 `mkSprite` 铺满节点 ——
+ * Web 端对这些图全是 `background-size: 100% 100%`（整张拉伸，形变与 Web 自身同口径），
+ * 所以直接铺满就是最忠实的实现，不需要九宫格。
+ * 程序绘制只保留两件事：① CSS 渐变 / 阴影的等价物（`fillVGrad` / `paintShadow`）；
+ * ② 贴图没加载出来时的**兜底底图**（缺图时界面仍是完整的，不会开天窗）。
+ *
+ * 替换关系：
  *   - CSS 的三段 `linear-gradient` → `fillVGrad`（按条带近似）
  *   - `box-shadow` → `paintShadow`（低透明同心圆角矩形近似高斯模糊）
  *   - `text-shadow` / `-webkit-text-stroke` → 八向错位文本（shim 没有 `LabelOutline`）
+ *   - `background-image: url(...)` → `mkSprite`（`100% 100%` 铺满；`object-fit:contain` 见 `fitContain`）
  *
  * 颜色一律来自 `web/art/**` 切图的**真实像素采样**（`node tools/art-samples.mjs`），不靠肉眼估。
  */
 
-import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
+import { Node, UITransform, Graphics, Label, Sprite, Color, Layers } from 'cc';
+import { resolveAsset } from '../平台/assetSource';
+import { loadSpriteFrame } from '../平台/assetLoader';
 
 /** 屏幕本性：1080×1920 逻辑分辨率（Web 端 `#stage` 也是这个尺寸） */
 export const STAGE_W = 1080;
@@ -51,10 +62,11 @@ export const BACK_Y = 38;
 
 /**
  * 顶栏：返回钮 + 居中大标题。
- * @param fill   圆钮底色（各屏 `back.png` 的采样均色：排行榜 #83482f / 图鉴 #c78b59 / 设置 #7e4933）
- * @param glyph  箭头颜色（back.png 的中心色）
+ * @param fill   圆钮底色（各屏 `back.png` 的采样均色：排行榜 #83482f / 图鉴 #c78b59 / 设置 #7e4933）—— 兜底用
+ * @param glyph  箭头颜色（back.png 的中心色）—— 兜底用
+ * @param art    `back.png` 切图路径（`ui/collection/back`）；给了就铺切图，箭头不再程序画
  */
-export function mkBackButton(parent: Node, fill: Color, glyph: Color, onTap: () => void): Node {
+export function mkBackButton(parent: Node, fill: Color, glyph: Color, onTap: () => void, art?: string): Node {
   const back = new Node('back');
   back.layer = Layers.Enum.UI_2D;
   back.addComponent(UITransform).setContentSize(BACK_SIZE, BACK_SIZE);
@@ -68,9 +80,50 @@ export function mkBackButton(parent: Node, fill: Color, glyph: Color, onTap: () 
   g.circle(0, 0, BACK_SIZE / 2 - 3);
   g.stroke();
   back.parent = parent;
-  mkText(back, '‹', 84, 0, 4, glyph, BACK_SIZE, true, 'center');
+  if (art) mkSprite(back, art, BACK_SIZE, BACK_SIZE);
+  else mkText(back, '‹', 84, 0, 4, glyph, BACK_SIZE, true, 'center');
   back.on(Node.EventType.TOUCH_END, onTap);
   return back;
+}
+
+/* ------------------------------------------------------------------ 切图（Web `background-image` 的等价物） */
+
+/**
+ * `object-fit: contain` 的等价：把 `iw×ih` 的图等比塞进 `w×h` 的框里（不裁、不变形），
+ * 返回贴图的**实际尺寸**（Cocos 没有 contain，只能把节点设成这个尺寸）。
+ */
+export function fitContain(iw: number, ih: number, w: number, h: number): [number, number] {
+  const s = Math.min(w / iw, h / ih);
+  return [iw * s, ih * s];
+}
+
+/**
+ * 铺一张 `web/art` 切图（Web 端一律 `background-size: 100% 100%` → 这里就是铺满节点）。
+ *
+ * ⚠️ 贴图作为**子节点**存在：shim 的 `Mask` 分支只画子树，同节点的 Sprite 会被跳过；
+ *    而且子节点在父节点的 Graphics 之后绘制，天然就是「内容画在底图之上」。
+ * ⚠️ 加载失败就什么都不显示 —— 调用方要保留程序绘制的底（见文件头「兜底」）。
+ *
+ * @param res `assets/resources` 下的路径（不含扩展名），如 `ui/collection/card-blue`
+ */
+export function mkSprite(parent: Node, res: string, w: number, h: number, x = 0, y = 0): Sprite {
+  const n = new Node('art');
+  n.layer = Layers.Enum.UI_2D;
+  n.addComponent(UITransform).setContentSize(w, h);
+  n.setPosition(x, y, 0);
+  n.parent = parent;
+  const sp = n.addComponent(Sprite);
+  sp.sizeMode = Sprite.SizeMode.CUSTOM;
+  setSprite(sp, res);
+  return sp;
+}
+
+/** 换贴图（开关的 on / off 就靠它）；节点已销毁时静默 */
+export function setSprite(sp: Sprite, res: string): void {
+  loadSpriteFrame(resolveAsset('ui', res, 'png'), (sf) => {
+    if (!sf || !sp.node || !sp.node.isValid) return;
+    sp.spriteFrame = sf;
+  });
 }
 
 /**

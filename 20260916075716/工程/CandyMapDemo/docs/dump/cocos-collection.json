@@ -1,7 +1,7 @@
 {
   "url": "http://127.0.0.1:5181/preview/play.html",
   "probe": "cocos-home",
-  "at": "2026-10-31T12:40:17.166Z",
+  "at": "2026-10-31T13:05:50.705Z",
   "viewport": [
     1080,
     1886
@@ -1301,15 +1301,13 @@
         "opacity": 1
       },
       {
-        "key": "Canvas/Map/CollectionScreen/back/t",
+        "key": "Canvas/Map/CollectionScreen/back/art",
         "x": 44,
-        "y": 60,
+        "y": 38,
         "w": 150,
-        "h": 98,
+        "h": 150,
         "opacity": 1,
-        "text": "‹",
-        "fontSize": 84,
-        "color": "rgba(216,165,112,1.000)"
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/t",
@@ -1465,6 +1463,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell0/art",
+        "x": 59.99,
+        "y": 362,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell0/imgFrame",
         "x": 78.79,
         "y": 382.52,
@@ -1488,6 +1495,15 @@
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell1/art",
+        "x": 383.33,
+        "y": 362,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell1/imgFrame",
@@ -1515,6 +1531,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell2/art",
+        "x": 706.67,
+        "y": 362,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell2/imgFrame",
         "x": 725.47,
         "y": 382.52,
@@ -1540,12 +1565,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell3/art",
+        "x": 59.99,
+        "y": 782.47,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell4",
         "x": 383.33,
         "y": 782.47,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell4/art",
+        "x": 383.33,
+        "y": 782.47,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell5",
@@ -1556,12 +1599,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell5/art",
+        "x": 706.67,
+        "y": 782.47,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell6",
         "x": 59.99,
         "y": 1202.94,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell6/art",
+        "x": 59.99,
+        "y": 1202.94,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell7",
@@ -1572,12 +1633,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell7/art",
+        "x": 383.33,
+        "y": 1202.94,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell8",
         "x": 706.67,
         "y": 1202.94,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell8/art",
+        "x": 706.67,
+        "y": 1202.94,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell9",
@@ -1588,12 +1667,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell9/art",
+        "x": 59.99,
+        "y": 1623.41,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell10",
         "x": 383.33,
         "y": 1623.41,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell10/art",
+        "x": 383.33,
+        "y": 1623.41,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell11",
@@ -1604,12 +1701,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell11/art",
+        "x": 706.67,
+        "y": 1623.41,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell12",
         "x": 59.99,
         "y": 2043.88,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell12/art",
+        "x": 59.99,
+        "y": 2043.88,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell13",
@@ -1620,12 +1735,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell13/art",
+        "x": 383.33,
+        "y": 2043.88,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell14",
         "x": 706.67,
         "y": 2043.88,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell14/art",
+        "x": 706.67,
+        "y": 2043.88,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell15",
@@ -1636,12 +1769,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell15/art",
+        "x": 59.99,
+        "y": 2464.35,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell16",
         "x": 383.33,
         "y": 2464.35,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell16/art",
+        "x": 383.33,
+        "y": 2464.35,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell17",
@@ -1652,12 +1803,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell17/art",
+        "x": 706.67,
+        "y": 2464.35,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell18",
         "x": 59.99,
         "y": 2884.82,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell18/art",
+        "x": 59.99,
+        "y": 2884.82,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell19",
@@ -1668,12 +1837,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell19/art",
+        "x": 383.33,
+        "y": 2884.82,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell20",
         "x": 706.67,
         "y": 2884.82,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell20/art",
+        "x": 706.67,
+        "y": 2884.82,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell21",
@@ -1684,12 +1871,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell21/art",
+        "x": 59.99,
+        "y": 3305.29,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell22",
         "x": 383.33,
         "y": 3305.29,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell22/art",
+        "x": 383.33,
+        "y": 3305.29,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell23",
@@ -1700,12 +1905,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell23/art",
+        "x": 706.67,
+        "y": 3305.29,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell24",
         "x": 59.99,
         "y": 3725.76,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell24/art",
+        "x": 59.99,
+        "y": 3725.76,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell25",
@@ -1716,12 +1939,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell25/art",
+        "x": 383.33,
+        "y": 3725.76,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell26",
         "x": 706.67,
         "y": 3725.76,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell26/art",
+        "x": 706.67,
+        "y": 3725.76,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell27",
@@ -1732,12 +1973,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell27/art",
+        "x": 59.99,
+        "y": 4146.23,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell28",
         "x": 383.33,
         "y": 4146.23,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell28/art",
+        "x": 383.33,
+        "y": 4146.23,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell29",
@@ -1748,12 +2007,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell29/art",
+        "x": 706.67,
+        "y": 4146.23,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell30",
         "x": 59.99,
         "y": 4566.7,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell30/art",
+        "x": 59.99,
+        "y": 4566.7,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell31",
@@ -1764,12 +2041,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell31/art",
+        "x": 383.33,
+        "y": 4566.7,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell32",
         "x": 706.67,
         "y": 4566.7,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell32/art",
+        "x": 706.67,
+        "y": 4566.7,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell33",
@@ -1780,12 +2075,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell33/art",
+        "x": 59.99,
+        "y": 4987.17,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell34",
         "x": 383.33,
         "y": 4987.17,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell34/art",
+        "x": 383.33,
+        "y": 4987.17,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell35",
@@ -1796,12 +2109,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell35/art",
+        "x": 706.67,
+        "y": 4987.17,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell36",
         "x": 59.99,
         "y": 5407.64,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell36/art",
+        "x": 59.99,
+        "y": 5407.64,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell37",
@@ -1812,12 +2143,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell37/art",
+        "x": 383.33,
+        "y": 5407.64,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell38",
         "x": 706.67,
         "y": 5407.64,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell38/art",
+        "x": 706.67,
+        "y": 5407.64,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell39",
@@ -1828,12 +2177,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell39/art",
+        "x": 59.99,
+        "y": 5828.11,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell40",
         "x": 383.33,
         "y": 5828.11,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell40/art",
+        "x": 383.33,
+        "y": 5828.11,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell41",
@@ -1844,12 +2211,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell41/art",
+        "x": 706.67,
+        "y": 5828.11,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell42",
         "x": 59.99,
         "y": 6248.58,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell42/art",
+        "x": 59.99,
+        "y": 6248.58,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell43",
@@ -1860,12 +2245,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell43/art",
+        "x": 383.33,
+        "y": 6248.58,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell44",
         "x": 706.67,
         "y": 6248.58,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell44/art",
+        "x": 706.67,
+        "y": 6248.58,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell45",
@@ -1876,12 +2279,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell45/art",
+        "x": 59.99,
+        "y": 6669.05,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell46",
         "x": 383.33,
         "y": 6669.05,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell46/art",
+        "x": 383.33,
+        "y": 6669.05,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell47",
@@ -1892,12 +2313,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell47/art",
+        "x": 706.67,
+        "y": 6669.05,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell48",
         "x": 59.99,
         "y": 7089.52,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell48/art",
+        "x": 59.99,
+        "y": 7089.52,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell49",
@@ -1908,12 +2347,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell49/art",
+        "x": 383.33,
+        "y": 7089.52,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell50",
         "x": 706.67,
         "y": 7089.52,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell50/art",
+        "x": 706.67,
+        "y": 7089.52,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell51",
@@ -1924,12 +2381,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell51/art",
+        "x": 59.99,
+        "y": 7509.99,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell52",
         "x": 383.33,
         "y": 7509.99,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell52/art",
+        "x": 383.33,
+        "y": 7509.99,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell53",
@@ -1940,12 +2415,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell53/art",
+        "x": 706.67,
+        "y": 7509.99,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell54",
         "x": 59.99,
         "y": 7930.46,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell54/art",
+        "x": 59.99,
+        "y": 7930.46,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell55",
@@ -1956,12 +2449,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell55/art",
+        "x": 383.33,
+        "y": 7930.46,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell56",
         "x": 706.67,
         "y": 7930.46,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell56/art",
+        "x": 706.67,
+        "y": 7930.46,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell57",
@@ -1972,12 +2483,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell57/art",
+        "x": 59.99,
+        "y": 8350.93,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell58",
         "x": 383.33,
         "y": 8350.93,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell58/art",
+        "x": 383.33,
+        "y": 8350.93,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell59",
@@ -1988,12 +2517,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell59/art",
+        "x": 706.67,
+        "y": 8350.93,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell60",
         "x": 59.99,
         "y": 8771.4,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell60/art",
+        "x": 59.99,
+        "y": 8771.4,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell61",
@@ -2004,12 +2551,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell61/art",
+        "x": 383.33,
+        "y": 8771.4,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell62",
         "x": 706.67,
         "y": 8771.4,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell62/art",
+        "x": 706.67,
+        "y": 8771.4,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell63",
@@ -2020,12 +2585,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell63/art",
+        "x": 59.99,
+        "y": 9191.87,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell64",
         "x": 383.33,
         "y": 9191.87,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell64/art",
+        "x": 383.33,
+        "y": 9191.87,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell65",
@@ -2036,12 +2619,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell65/art",
+        "x": 706.67,
+        "y": 9191.87,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell66",
         "x": 59.99,
         "y": 9612.34,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell66/art",
+        "x": 59.99,
+        "y": 9612.34,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell67",
@@ -2052,12 +2653,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell67/art",
+        "x": 383.33,
+        "y": 9612.34,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell68",
         "x": 706.67,
         "y": 9612.34,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell68/art",
+        "x": 706.67,
+        "y": 9612.34,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell69",
@@ -2068,12 +2687,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell69/art",
+        "x": 59.99,
+        "y": 10032.81,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell70",
         "x": 383.33,
         "y": 10032.81,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell70/art",
+        "x": 383.33,
+        "y": 10032.81,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell71",
@@ -2084,12 +2721,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell71/art",
+        "x": 706.67,
+        "y": 10032.81,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell72",
         "x": 59.99,
         "y": 10453.28,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell72/art",
+        "x": 59.99,
+        "y": 10453.28,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell73",
@@ -2100,12 +2755,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell73/art",
+        "x": 383.33,
+        "y": 10453.28,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell74",
         "x": 706.67,
         "y": 10453.28,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell74/art",
+        "x": 706.67,
+        "y": 10453.28,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell75",
@@ -2116,12 +2789,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell75/art",
+        "x": 59.99,
+        "y": 10873.75,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell76",
         "x": 383.33,
         "y": 10873.75,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell76/art",
+        "x": 383.33,
+        "y": 10873.75,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell77",
@@ -2132,12 +2823,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell77/art",
+        "x": 706.67,
+        "y": 10873.75,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell78",
         "x": 59.99,
         "y": 11294.22,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell78/art",
+        "x": 59.99,
+        "y": 11294.22,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell79",
@@ -2148,12 +2857,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell79/art",
+        "x": 383.33,
+        "y": 11294.22,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell80",
         "x": 706.67,
         "y": 11294.22,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell80/art",
+        "x": 706.67,
+        "y": 11294.22,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell81",
@@ -2164,12 +2891,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell81/art",
+        "x": 59.99,
+        "y": 11714.69,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell82",
         "x": 383.33,
         "y": 11714.69,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell82/art",
+        "x": 383.33,
+        "y": 11714.69,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell83",
@@ -2180,12 +2925,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell83/art",
+        "x": 706.67,
+        "y": 11714.69,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell84",
         "x": 59.99,
         "y": 12135.16,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell84/art",
+        "x": 59.99,
+        "y": 12135.16,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell85",
@@ -2196,12 +2959,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell85/art",
+        "x": 383.33,
+        "y": 12135.16,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell86",
         "x": 706.67,
         "y": 12135.16,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell86/art",
+        "x": 706.67,
+        "y": 12135.16,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell87",
@@ -2212,12 +2993,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell87/art",
+        "x": 59.99,
+        "y": 12555.63,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell88",
         "x": 383.33,
         "y": 12555.63,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell88/art",
+        "x": 383.33,
+        "y": 12555.63,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell89",
@@ -2228,12 +3027,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell89/art",
+        "x": 706.67,
+        "y": 12555.63,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell90",
         "x": 59.99,
         "y": 12976.1,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell90/art",
+        "x": 59.99,
+        "y": 12976.1,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell91",
@@ -2244,12 +3061,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell91/art",
+        "x": 383.33,
+        "y": 12976.1,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell92",
         "x": 706.67,
         "y": 12976.1,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell92/art",
+        "x": 706.67,
+        "y": 12976.1,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell93",
@@ -2260,12 +3095,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell93/art",
+        "x": 59.99,
+        "y": 13396.57,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell94",
         "x": 383.33,
         "y": 13396.57,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell94/art",
+        "x": 383.33,
+        "y": 13396.57,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell95",
@@ -2276,12 +3129,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell95/art",
+        "x": 706.67,
+        "y": 13396.57,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell96",
         "x": 59.99,
         "y": 13817.04,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell96/art",
+        "x": 59.99,
+        "y": 13817.04,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell97",
@@ -2292,12 +3163,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell97/art",
+        "x": 383.33,
+        "y": 13817.04,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell98",
         "x": 706.67,
         "y": 13817.04,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell98/art",
+        "x": 706.67,
+        "y": 13817.04,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell99",
@@ -2308,12 +3197,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell99/art",
+        "x": 59.99,
+        "y": 14237.51,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell100",
         "x": 383.33,
         "y": 14237.51,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell100/art",
+        "x": 383.33,
+        "y": 14237.51,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell101",
@@ -2324,12 +3231,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell101/art",
+        "x": 706.67,
+        "y": 14237.51,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell102",
         "x": 59.99,
         "y": 14657.98,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell102/art",
+        "x": 59.99,
+        "y": 14657.98,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell103",
@@ -2340,12 +3265,30 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell103/art",
+        "x": 383.33,
+        "y": 14657.98,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell104",
         "x": 706.67,
         "y": 14657.98,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell104/art",
+        "x": 706.67,
+        "y": 14657.98,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell105",
@@ -2356,6 +3299,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell105/art",
+        "x": 59.99,
+        "y": 15078.45,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell106",
         "x": 383.33,
         "y": 15078.45,
@@ -2364,12 +3316,39 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell106/art",
+        "x": 383.33,
+        "y": 15078.45,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/CollectionScreen/card/grid/content/cell107",
         "x": 706.67,
         "y": 15078.45,
         "w": 313.34,
         "h": 410.47,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/grid/content/cell107/art",
+        "x": 706.67,
+        "y": 15078.45,
+        "w": 313.34,
+        "h": 410.47,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/CollectionScreen/card/art",
+        "x": 16,
+        "y": 302,
+        "w": 1048,
+        "h": 1328,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/PreviewScreen",
@@ -2923,7 +3902,7 @@
     ],
     "scrollY": 0,
     "contentKey": "Canvas/Map/ScrollView/view/Content",
-    "saveRaw": "{\"version\":1,\"savedAt\":1793449388993,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":true,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":13,\"levels\":{\"1\":{\"stars\":3,\"best\":100,\"attempts\":1,\"unlocked\":true},\"2\":{\"stars\":3,\"",
+    "saveRaw": "{\"version\":1,\"savedAt\":1793451939090,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":true,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":13,\"levels\":{\"1\":{\"stars\":3,\"best\":100,\"attempts\":1,\"unlocked\":true},\"2\":{\"stars\":3,\"",
     "t1": null,
     "t2": null
   }

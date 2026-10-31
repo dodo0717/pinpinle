@@ -1,7 +1,7 @@
 {
   "url": "http://127.0.0.1:5181/preview/play.html",
   "probe": "cocos-home",
-  "at": "2026-10-31T12:40:35.384Z",
+  "at": "2026-10-31T13:06:02.235Z",
   "viewport": [
     1080,
     1886
@@ -1301,15 +1301,13 @@
         "opacity": 1
       },
       {
-        "key": "Canvas/Map/SettingsScreen/back/t",
+        "key": "Canvas/Map/SettingsScreen/back/art",
         "x": 44,
-        "y": 60,
+        "y": 38,
         "w": 150,
-        "h": 98,
+        "h": 150,
         "opacity": 1,
-        "text": "‹",
-        "fontSize": 84,
-        "color": "rgba(155,101,63,1.000)"
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/SettingsScreen/t",
@@ -1435,6 +1433,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/SettingsScreen/card/row0/icon/art",
+        "x": 148.97,
+        "y": 296,
+        "w": 86.07,
+        "h": 96,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/SettingsScreen/card/row0/t",
         "x": 268,
         "y": 311,
@@ -1473,6 +1480,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/SettingsScreen/card/row0/toggle/art",
+        "x": 786,
+        "y": 305,
+        "w": 150,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/SettingsScreen/card/row1",
         "x": 104,
         "y": 454,
@@ -1487,6 +1503,15 @@
         "w": 96,
         "h": 96,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/SettingsScreen/card/row1/icon/art",
+        "x": 144,
+        "y": 486.6,
+        "w": 96,
+        "h": 86.81,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/SettingsScreen/card/row1/t",
@@ -1527,6 +1552,15 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/SettingsScreen/card/row1/toggle/art",
+        "x": 786,
+        "y": 491,
+        "w": 150,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
         "key": "Canvas/Map/SettingsScreen/card/row2",
         "x": 104,
         "y": 640,
@@ -1541,6 +1575,15 @@
         "w": 96,
         "h": 96,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/SettingsScreen/card/row2/icon/art",
+        "x": 144,
+        "y": 672.6,
+        "w": 96,
+        "h": 86.81,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/SettingsScreen/card/row2/t",
@@ -1579,6 +1622,15 @@
         "w": 66,
         "h": 66,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/SettingsScreen/card/row2/toggle/art",
+        "x": 786,
+        "y": 677,
+        "w": 150,
+        "h": 78,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/SettingsScreen/card/row-tutorial",
@@ -1628,6 +1680,15 @@
         "text": "查看",
         "fontSize": 38,
         "color": "rgba(255,255,255,1.000)"
+      },
+      {
+        "key": "Canvas/Map/SettingsScreen/card/art",
+        "x": 60,
+        "y": 222,
+        "w": 960,
+        "h": 1350,
+        "opacity": 1,
+        "sprite": "(sf)"
       },
       {
         "key": "Canvas/Map/SettingsScreen/t",
@@ -2089,7 +2150,7 @@
     ],
     "scrollY": 0,
     "contentKey": "Canvas/Map/ScrollView/view/Content",
-    "saveRaw": "{\"version\":1,\"savedAt\":1793449388993,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":true,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":13,\"levels\":{\"1\":{\"stars\":3,\"best\":100,\"attempts\":1,\"unlocked\":true},\"2\":{\"stars\":3,\"",
+    "saveRaw": "{\"version\":1,\"savedAt\":1793451939090,\"mode\":\"normal\",\"session\":null,\"meta\":{\"tutorial\":{\"seen\":true,\"normalCleared\":true,\"nightmareCleared\":false,\"freeLevel\":false}},\"progress\":{\"normal\":{\"mode\":\"normal\",\"unlocked\":13,\"levels\":{\"1\":{\"stars\":3,\"best\":100,\"attempts\":1,\"unlocked\":true},\"2\":{\"stars\":3,\"",
     "t1": null,
     "t2": null
   }
