@@ -1,0 +1,1396 @@
+{
+  "url": "http://127.0.0.1:5181/preview/game.html",
+  "probe": "cocos-game",
+  "at": "2026-10-31T03:29:39.115Z",
+  "viewport": [
+    1300,
+    1886
+  ],
+  "exceptions": [],
+  "data": {
+    "screen": "game",
+    "stageScale": 1,
+    "items": [
+      {
+        "key": "Canvas",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/ScreenBg",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1,
+        "fills": [
+          "rgba(255,253,246,1.000)",
+          "rgba(255,252,245,1.000)",
+          "rgba(255,252,245,1.000)",
+          "rgba(255,252,244,1.000)",
+          "rgba(255,251,243,1.000)",
+          "rgba(255,251,243,1.000)",
+          "rgba(255,251,242,1.000)",
+          "rgba(255,250,242,1.000)",
+          "rgba(255,250,241,1.000)",
+          "rgba(255,250,241,1.000)",
+          "rgba(255,249,240,1.000)",
+          "rgba(255,249,239,1.000)",
+          "rgba(255,249,239,1.000)",
+          "rgba(255,248,238,1.000)",
+          "rgba(255,248,238,1.000)",
+          "rgba(255,248,237,1.000)",
+          "rgba(255,247,236,1.000)",
+          "rgba(255,247,236,1.000)",
+          "rgba(255,246,235,1.000)",
+          "rgba(255,246,234,1.000)",
+          "rgba(255,246,233,1.000)",
+          "rgba(255,245,232,1.000)",
+          "rgba(255,245,231,1.000)",
+          "rgba(254,244,230,1.000)",
+          "rgba(254,244,229,1.000)",
+          "rgba(254,243,228,1.000)",
+          "rgba(254,243,227,1.000)",
+          "rgba(254,243,226,1.000)",
+          "rgba(254,242,225,1.000)",
+          "rgba(254,242,224,1.000)",
+          "rgba(254,241,223,1.000)",
+          "rgba(254,241,223,1.000)",
+          "rgba(254,241,222,1.000)",
+          "rgba(253,240,221,1.000)",
+          "rgba(253,240,220,1.000)",
+          "rgba(253,239,219,1.000)",
+          "rgba(253,239,218,1.000)",
+          "rgba(253,238,217,1.000)",
+          "rgba(253,238,216,1.000)",
+          "rgba(253,238,216,1.000)"
+        ],
+        "strokes": [],
+        "cmdCount": 96
+      },
+      {
+        "key": "Canvas/GameCard",
+        "x": 8,
+        "y": 8,
+        "w": 1064,
+        "h": 1904,
+        "opacity": 1,
+        "fills": [
+          "rgba(0,88,176,1.000)"
+        ],
+        "strokes": [
+          "rgba(255,255,255,0.078) w2",
+          "rgba(217,162,39,1.000) w10"
+        ],
+        "cmdCount": 30
+      },
+      {
+        "key": "Canvas/GameCard/Topbar",
+        "x": 18,
+        "y": 18,
+        "w": 1044,
+        "h": 240,
+        "opacity": 1,
+        "fills": [
+          "rgba(92,176,239,1.000)",
+          "rgba(91,175,239,1.000)",
+          "rgba(90,174,238,1.000)",
+          "rgba(89,173,237,1.000)",
+          "rgba(87,171,236,1.000)",
+          "rgba(86,170,235,1.000)",
+          "rgba(85,168,234,1.000)",
+          "rgba(84,167,233,1.000)",
+          "rgba(82,166,232,1.000)",
+          "rgba(81,164,231,1.000)",
+          "rgba(80,163,230,1.000)",
+          "rgba(78,162,229,1.000)",
+          "rgba(77,160,228,1.000)",
+          "rgba(76,159,227,1.000)",
+          "rgba(75,157,226,1.000)",
+          "rgba(73,156,225,1.000)",
+          "rgba(72,155,224,1.000)",
+          "rgba(71,153,223,1.000)",
+          "rgba(69,152,222,1.000)",
+          "rgba(68,151,221,1.000)",
+          "rgba(67,149,220,1.000)",
+          "rgba(66,148,219,1.000)",
+          "rgba(64,146,218,1.000)",
+          "rgba(63,145,217,1.000)",
+          "rgba(62,144,216,1.000)",
+          "rgba(255,255,255,0.376)",
+          "rgba(255,255,255,0.325)",
+          "rgba(255,255,255,0.275)",
+          "rgba(255,255,255,0.224)",
+          "rgba(255,255,255,0.176)",
+          "rgba(255,255,255,0.125)",
+          "rgba(255,255,255,0.075)",
+          "rgba(255,255,255,0.024)"
+        ],
+        "strokes": [
+          "rgba(255,210,74,0.702) w2"
+        ],
+        "cmdCount": 84
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudExit",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,51,33,1.000)",
+          "rgba(107,74,47,1.000)"
+        ],
+        "strokes": [
+          "rgba(255,255,255,0.078) w2"
+        ],
+        "cmdCount": 30
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudExit/Txt",
+        "x": 36,
+        "y": 96,
+        "w": 84,
+        "h": 84,
+        "opacity": 1,
+        "text": "←",
+        "fontSize": 44,
+        "color": "rgba(255,233,176,1.000)",
+        "lineHeight": 44,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudGoalFlag",
+        "x": 240.4,
+        "y": 102,
+        "w": 60,
+        "h": 72,
+        "opacity": 1,
+        "fills": [
+          "rgba(241,244,249,1.000)",
+          "rgba(255,210,74,1.000)",
+          "rgba(255,91,74,1.000)",
+          "rgba(255,255,255,0.278)"
+        ],
+        "strokes": [
+          "rgba(202,161,47,1.000) w1.5",
+          "rgba(216,59,44,1.000) w2"
+        ],
+        "cmdCount": 24
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudGoalNum",
+        "x": 294,
+        "y": 102,
+        "w": 72,
+        "h": 72,
+        "opacity": 1,
+        "text": "1",
+        "fontSize": 66,
+        "color": "rgba(255,210,74,1.000)",
+        "lineHeight": 66,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudScore",
+        "x": 468,
+        "y": 57,
+        "w": 246,
+        "h": 162,
+        "opacity": 1,
+        "fills": [
+          "rgba(12,46,87,1.000)",
+          "rgba(12,46,86,1.000)",
+          "rgba(12,45,85,1.000)",
+          "rgba(11,44,83,1.000)",
+          "rgba(11,43,82,1.000)",
+          "rgba(11,42,80,1.000)",
+          "rgba(10,41,79,1.000)",
+          "rgba(10,40,77,1.000)",
+          "rgba(10,39,76,1.000)",
+          "rgba(9,39,74,1.000)",
+          "rgba(9,38,73,1.000)",
+          "rgba(9,37,71,1.000)",
+          "rgba(8,36,70,1.000)",
+          "rgba(8,35,68,1.000)",
+          "rgba(8,34,67,1.000)",
+          "rgba(7,33,65,1.000)",
+          "rgba(7,32,64,1.000)",
+          "rgba(0,0,0,0.424)",
+          "rgba(0,0,0,0.365)",
+          "rgba(0,0,0,0.310)",
+          "rgba(0,0,0,0.255)",
+          "rgba(0,0,0,0.196)",
+          "rgba(0,0,0,0.141)",
+          "rgba(0,0,0,0.086)",
+          "rgba(0,0,0,0.027)"
+        ],
+        "strokes": [
+          "rgba(255,210,74,0.180) w2",
+          "rgba(255,255,255,0.251) w3"
+        ],
+        "cmdCount": 78
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudScore/FlapTens",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "fills": [
+          "rgba(0,0,0,0.400)",
+          "rgba(10,36,68,1.000)",
+          "rgba(22,58,100,1.000)",
+          "rgba(0,0,0,0.549)"
+        ],
+        "strokes": [
+          "rgba(0,0,0,0.400) w2"
+        ],
+        "cmdCount": 40
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudScore/FlapTens/Face",
+        "x": 493,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)",
+        "lineHeight": 90,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudScore/FlapUnits",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "fills": [
+          "rgba(0,0,0,0.400)",
+          "rgba(10,36,68,1.000)",
+          "rgba(22,58,100,1.000)",
+          "rgba(0,0,0,0.549)"
+        ],
+        "strokes": [
+          "rgba(0,0,0,0.400) w2"
+        ],
+        "cmdCount": 40
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudScore/FlapUnits/Face",
+        "x": 597,
+        "y": 74,
+        "w": 92,
+        "h": 128,
+        "opacity": 1,
+        "text": "0",
+        "fontSize": 90,
+        "color": "rgba(255,210,74,1.000)",
+        "lineHeight": 90,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudTimer",
+        "x": 816,
+        "y": 108,
+        "w": 228,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudTimer/TimerClock",
+        "x": 816.4,
+        "y": 111,
+        "w": 74,
+        "h": 54,
+        "opacity": 1,
+        "text": "🕒",
+        "fontSize": 54,
+        "color": "rgba(255,248,231,1.000)",
+        "lineHeight": 54,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/GameCard/Topbar/HudTimer/TimerNum",
+        "x": 902,
+        "y": 108,
+        "w": 142,
+        "h": 60,
+        "opacity": 1,
+        "text": "03:00",
+        "fontSize": 60,
+        "color": "rgba(255,233,176,1.000)",
+        "lineHeight": 60,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/BoardHost",
+        "x": 18,
+        "y": 268,
+        "w": 1044,
+        "h": 1634,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/BoardFrame",
+        "x": 18.5,
+        "y": 388,
+        "w": 1043,
+        "h": 1394,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,0.122) w1"
+        ],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0/Shadow",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0/Clip",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0/Clip/Face",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0/Clip/Edge",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_0/Ring",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1/Shadow",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1/Clip",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1/Clip/Face",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1/Clip/Edge",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1/Ring",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2/Shadow",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2/Clip",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2/Clip/Face",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2/Clip/Edge",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2/Ring",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0/Shadow",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0/Clip",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0/Clip/Face",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0/Clip/Edge",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0/Ring",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1/Shadow",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1/Clip",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1/Clip/Face",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1/Clip/Edge",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1/Ring",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2/Shadow",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2/Clip",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2/Clip/Face",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2/Clip/Edge",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2/Ring",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0/Shadow",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0/Clip",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0/Clip/Face",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0/Clip/Edge",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0/Ring",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1/Shadow",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1/Clip",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1/Clip/Face",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1/Clip/Edge",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1/Ring",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2",
+        "x": 721.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2/Shadow",
+        "x": 721.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2/Clip",
+        "x": 721.5,
+        "y": 1091,
+        "w": 339,
+        "h": 345,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2/Clip/Face",
+        "x": 721.5,
+        "y": 1094,
+        "w": 339,
+        "h": 345,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2/Clip/Edge",
+        "x": 721.5,
+        "y": 1094,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(224,169,74,1.000) w2"
+        ],
+        "cmdCount": 11
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2/Ring",
+        "x": 721.5,
+        "y": 1094,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0/Shadow",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0/Clip",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0/Clip/Face",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0/Clip/Edge",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0/Ring",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1/Shadow",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1/Clip",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1/Clip/Face",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1/Clip/Edge",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(255,255,255,1.000) w2"
+        ],
+        "cmdCount": 17
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1/Ring",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2",
+        "x": 721.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2/Shadow",
+        "x": 721.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [
+          "rgba(74,59,42,0.141)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2/Clip",
+        "x": 721.5,
+        "y": 1436,
+        "w": 339,
+        "h": 345,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2/Clip/Face",
+        "x": 721.5,
+        "y": 1433,
+        "w": 339,
+        "h": 345,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2/Clip/Edge",
+        "x": 721.5,
+        "y": 1439,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(224,169,74,1.000) w2"
+        ],
+        "cmdCount": 11
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2/Ring",
+        "x": 721.5,
+        "y": 1439,
+        "w": 339,
+        "h": 339,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/Dialog",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/ResultPopup",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/ResultPopup/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1,
+        "fills": [
+          "rgba(20,16,12,0.471)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/ResultPopup/drop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/ResultPopup/drop/rope",
+        "x": 340,
+        "y": 0,
+        "w": 400,
+        "h": 1920,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [
+          "rgba(196,158,104,1.000) w10",
+          "rgba(196,158,104,1.000) w10"
+        ],
+        "cmdCount": 6
+      },
+      {
+        "key": "Canvas/ResultPopup/drop/card",
+        "x": 220,
+        "y": 530,
+        "w": 640,
+        "h": 780,
+        "opacity": 1,
+        "fills": [
+          "rgba(243,217,164,1.000)"
+        ],
+        "strokes": [
+          "rgba(185,138,75,1.000) w10"
+        ],
+        "cmdCount": 4
+      },
+      {
+        "key": "Canvas/Toast",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Toast/ToastLayer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Audio",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Guide",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Guide/GuideBar",
+        "x": 100,
+        "y": 1455,
+        "w": 880,
+        "h": 130,
+        "opacity": 0,
+        "fills": [
+          "rgba(255,176,62,0.961)"
+        ],
+        "strokes": [],
+        "cmdCount": 2
+      },
+      {
+        "key": "Canvas/Guide/GuideBar/Text",
+        "x": 130,
+        "y": 1465,
+        "w": 820,
+        "h": 110,
+        "opacity": 1,
+        "text": "同一张图被切成 4 块，把它们拼回一整张就能消掉",
+        "fontSize": 30,
+        "color": "rgba(255,255,255,1.000)",
+        "lineHeight": 40,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/TutorialBanner",
+        "x": 100,
+        "y": 214,
+        "w": 880,
+        "h": 92,
+        "opacity": 0,
+        "fills": [
+          "rgba(255,246,230,0.922)"
+        ],
+        "strokes": [
+          "rgba(214,158,92,1.000) w4"
+        ],
+        "cmdCount": 3
+      },
+      {
+        "key": "Canvas/TutorialBanner/text",
+        "x": 120,
+        "y": 220,
+        "w": 840,
+        "h": 80,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(90,50,25,1.000)",
+        "lineHeight": 44,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/Spotlight",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 0
+      },
+      {
+        "key": "Canvas/Spotlight/shade",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1,
+        "fills": [],
+        "strokes": [],
+        "cmdCount": 0
+      },
+      {
+        "key": "Canvas/Spotlight/tip",
+        "x": 540,
+        "y": 960,
+        "w": 0,
+        "h": 0,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 34,
+        "color": "rgba(70,40,20,1.000)",
+        "lineHeight": 46,
+        "hAlign": 1
+      },
+      {
+        "key": "Canvas/Spotlight/next",
+        "x": 500,
+        "y": 932,
+        "w": 80,
+        "h": 56,
+        "opacity": 1,
+        "text": "▾",
+        "fontSize": 52,
+        "color": "rgba(255,255,255,1.000)",
+        "lineHeight": 60,
+        "hAlign": 1
+      }
+    ],
+    "cells": [
+      {
+        "key": "Canvas/BoardHost/Cell_0_0",
+        "x": 19.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_1",
+        "x": 370.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_0_2",
+        "x": 721.5,
+        "y": 389,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_0",
+        "x": 19.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_1",
+        "x": 370.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_1_2",
+        "x": 721.5,
+        "y": 740,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_0",
+        "x": 19.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_1",
+        "x": 370.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_2_2",
+        "x": 721.5,
+        "y": 1091,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_0",
+        "x": 19.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_1",
+        "x": 370.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/BoardHost/Cell_3_2",
+        "x": 721.5,
+        "y": 1442,
+        "w": 339,
+        "h": 339,
+        "opacity": 1
+      }
+    ]
+  }
+}

@@ -186,6 +186,13 @@ export class UIOpacity extends Component {
   constructor() { super(); this.opacity = 255; }
 }
 
+/**
+ * 遮罩：本项目用 GRAPHICS_STENCIL（把碎片贴图裁成圆角矩形）。
+ * 真引擎里 stencil 图形本身不可见、只裁子树；shim 用 `ctx.clip()` 等价实现
+ * （drawNode 里处理；类声明在文件尾与地图占位区共用一个）。
+ */
+
+
 export class Sprite extends Component {
   constructor() {
     super();
@@ -209,6 +216,15 @@ export class Label extends Component {
     this.fontFamily = '"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
     this.enableBold = false;
     this.enableWrapText = true;
+  }
+}
+
+/** 文字阴影（web text-shadow 的等效物）。真引擎按 shadowOffset 渲染；shim 暂不画（记录在案）。 */
+export class LabelShadow extends Component {
+  constructor() {
+    super();
+    this.shadowColor = new Color(0, 0, 0, 255);
+    this.shadowOffset = new Vec2(2, -2);
   }
 }
 
@@ -441,11 +457,10 @@ function drawSprite(ctx, node, sp) {
   ctx.restore();
 }
 
-function drawGraphics(ctx, g) {
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+/** 只描路径不上色（fill/stroke 指令跳过）—— 供 Mask 裁剪复用 */
+function tracePath(ctx, cmds) {
   ctx.beginPath();
-  for (const c of g.cmds) {
+  for (const c of cmds) {
     switch (c.t) {
       case 'moveTo': ctx.moveTo(c.x, c.y); break;
       case 'lineTo': ctx.lineTo(c.x, c.y); break;
@@ -457,9 +472,26 @@ function drawGraphics(ctx, g) {
       case 'circle': ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); break;
       case 'ellipse': ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI * 2); break;
       case 'arc': ctx.arc(c.x, c.y, c.r, c.a1, c.a2, !!c.ccw); break;
-      case 'fill': ctx.fillStyle = c.c.toString(); ctx.fill(); break;
-      case 'stroke': ctx.lineWidth = c.w; ctx.strokeStyle = c.c.toString(); ctx.stroke(); break;
     }
+  }
+}
+
+function drawGraphics(ctx, g) {
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // 逐段 flush：fill/stroke 只作用于「自上一次 fill/stroke 以来」的路径 ——
+  // 一个 Graphics 节点上画多个不同颜色的形状（旗帜 / 卡片描边）时才能各画各的。
+  let path = [];
+  const flush = (c) => {
+    if (!path.length) return;
+    tracePath(ctx, path);
+    if (c.t === 'fill') { ctx.fillStyle = c.c.toString(); ctx.fill(); }
+    else { ctx.lineWidth = c.w; ctx.strokeStyle = c.c.toString(); ctx.stroke(); }
+    path = [];
+  };
+  for (const c of g.cmds) {
+    if (c.t === 'fill' || c.t === 'stroke') flush(c);
+    else path.push(c);
   }
 }
 
@@ -495,6 +527,15 @@ function drawNode(ctx, node) {
   if (node._sx !== 1 || node._sy !== 1) ctx.scale(node._sx, node._sy);
   const op = node.getComponent(UIOpacity);
   if (op) ctx.globalAlpha *= op.opacity / 255;
+  // Mask（GRAPHICS_STENCIL）：stencil 路径变裁剪区，只画子树（与真引擎等价）
+  const mask = node.getComponent(Mask);
+  if (mask && mask._g && mask._g.cmds.length) {
+    tracePath(ctx, mask._g.cmds);
+    ctx.clip();
+    for (const ch of node.children) drawNode(ctx, ch);
+    ctx.restore();
+    return;
+  }
   for (const c of node.comps) {
     if (c instanceof Sprite) drawSprite(ctx, node, c);
     else if (c instanceof Graphics) drawGraphics(ctx, c);
@@ -712,7 +753,12 @@ export class Font extends Component {
   constructor() { super(); this.family = 'HarmonyOS Sans SC'; }
 }
 export class Mask extends Component {
-  constructor() { super(); this.type = 0; this.inverted = false; }
+  constructor() { super(); this.type = 0; this.inverted = false; this._g = null; }
+  /** GRAPHICS_STENCIL 用：真引擎 mask.graphics 是内置 Graphics；shim 同样暴露一份 cmds */
+  get graphics() {
+    if (!this._g) { this._g = new Graphics(); this._g.node = this.node; }
+    return this._g;
+  }
 }
 /** MapBootstrap 会写 `mask.type = Mask.Type.RECT` —— 缺了就是运行时 TypeError */
 Mask.Type = { RECT: 0, ELLIPSE: 1, GRAPHICS_STENCIL: 2, GRAPHICS_RECT: 3, IMAGE_STENCIL: 4 };

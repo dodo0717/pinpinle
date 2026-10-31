@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, Rect, Texture2D, resources, Vec3, tween, Color, UIOpacity, Graphics, Label, HorizontalTextAlignment } from 'cc';
+import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, Rect, Texture2D, resources, Vec3, tween, Color, UIOpacity, Graphics, Label, HorizontalTextAlignment, Mask } from 'cc';
 const { ccclass } = _decorator;
 import type { MergeDisplay } from '../核心/merge';
 import { pieceGeometry, QUADRANT_PX, type PieceGeometryInput } from './geometry';
@@ -8,6 +8,15 @@ const FLOAT_SEC = 0.5;
 
 /** 格子之间的缝隙（画布 px） */
 export const GAP = 12;
+/**
+ * 碎片白描边（画布 px）—— 与 web 的 `--edge: 2px` 同值，「边界感」本身。
+ * 已融合组对外那条边改描金色（web `.cell.merged .piece { --edge-color: var(--honey) }` = #e0a94a）。
+ */
+export const EDGE = 2;
+const EDGE_COLOR = new Color(255, 255, 255, 255);
+const EDGE_COLOR_MERGED = new Color(224, 169, 74, 255);
+/** 碎片圆角 = round(cell * 0.1)，与 web/main.ts 写进 `--r-*` 的值同口径 */
+function pieceRadius(cell: number): number { return Math.round(cell * 0.1); }
 /** 贴图源尺寸（sticker_*.png 为 512×512，四象限各 256） */
 const TEX_SIZE = 512;
 const QUAD = TEX_SIZE / 2;
@@ -48,9 +57,19 @@ interface CellRef {
    * 动画目标永远有效，applyMerge 什么时候调用都不会打架。
    */
   root: Node;
+  /**
+   * 裁剪层 —— Mask(GRAPHICS_STENCIL) 按「外扩后的圆角矩形」裁出碎片形状。
+   * Web 版碎片是 `border-radius` 圆角 + `border` 白边 + `background` 贴图；
+   * Cocos 里贴图本身不带圆角，所以用 Mask 复刻同一个形状。
+   */
+  clip: Node;
   /** 块体层 —— 贴图 + 外扩后的尺寸与偏移，是融合视觉的全部载体 */
   face: Node;
   sp: Sprite;
+  /** 碎片描边（白 / 融合组金）—— 对应 Web `.piece` 的 border */
+  edge: Graphics;
+  /** 碎片投影 —— 对应 Web `.piece` 的 box-shadow（无模糊，低透明圆角矩形近似） */
+  shadow: Graphics;
   /** 融合金环（①②③ 阶段点亮） */
   ring: Graphics;
   /** 补位淡入用的透明度；Cocos 的 opacity 要额外挂组件 */
@@ -93,6 +112,7 @@ export class BoardView extends Component {
     this.cells = [];
     this.faces = new Array(rows * cols).fill(null);
     this.node.removeAllChildren();
+    this.buildFrame(rows, cols, cellSize);
 
     const step = cellSize + GAP;
     const totalW = cols * step - GAP;
@@ -107,18 +127,74 @@ export class BoardView extends Component {
         root.layer = Layers.Enum.UI_2D;
         root.addComponent(UITransform).setContentSize(cellSize, cellSize);
         root.setPosition(originX + c * step, originY - r * step);
+
+        // 投影在裁剪层之下（box-shadow 画在元素外，不能被圆角裁掉）
+        const shadow = this.buildShadow(root, cellSize);
+
+        // 圆角裁剪层：形状 = 外扩后的圆角矩形（expand/resetGeom 时同步改）
+        const clip = new Node('Clip');
+        clip.parent = root;
+        clip.layer = Layers.Enum.UI_2D;
+        clip.addComponent(UITransform).setContentSize(cellSize, cellSize);
+        const mask = clip.addComponent(Mask);
+        mask.type = Mask.Type.GRAPHICS_STENCIL;
+        const mg = (mask as unknown as { graphics?: Graphics }).graphics ?? clip.addComponent(Graphics);
+        mg.roundRect(-cellSize / 2, -cellSize / 2, cellSize, cellSize, pieceRadius(cellSize));
+        mg.fill();
+
         const face = new Node('Face');
-        face.parent = root;
+        face.parent = clip;
         face.layer = Layers.Enum.UI_2D;
         face.addComponent(UITransform).setContentSize(cellSize, cellSize);
         const sp = face.addComponent(Sprite);
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
         const op = face.addComponent(UIOpacity);
-        const ring = this.buildRing(face, cellSize);
+
+        // 白描边挂在裁剪层里（border 画在 border-box 内，不会被圆角裁掉）
+        const edge = this.buildEdge(clip, cellSize);
+        // 金环挂 root（描边有 5px 在形状外，裁剪会吃掉一半）
+        const ring = this.buildRing(root, cellSize);
         const p = new Vec3(originX + c * step, originY - r * step, 0);
-        this.cells.push({ root, face, sp, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
+        this.cells.push({ root, clip, face, sp, edge, shadow, ring, op, row: r, col: c, geom: null, baseX: p.x, baseY: p.y });
+        this.drawEdge(this.cells[this.cells.length - 1]!);
+        this.drawShadow(this.cells[this.cells.length - 1]!, 'normal');
       }
     }
+  }
+
+  /**
+   * 棋盘边框：`#board { border: 1px solid rgba(255,255,255,.12); border-radius: 44px }`，
+   * 背景透明 —— 透出卡片蓝底，边界只是一道极低对比的浅蓝白线。
+   */
+  private buildFrame(rows: number, cols: number, cellSize: number): void {
+    const step = cellSize + GAP;
+    const fw = cols * step - GAP + 2;   // border 包在网格外一圈
+    const fh = rows * step - GAP + 2;
+    const n = new Node('BoardFrame');
+    n.parent = this.node;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(fw, fh);
+    const g = n.addComponent(Graphics);
+    g.lineWidth = 1;
+    g.strokeColor = new Color(255, 255, 255, 31); // .12 × 255 ≈ 31
+    g.roundRect(-fw / 2, -fh / 2, fw, fh, 44);
+    g.stroke();
+  }
+
+  private buildShadow(parent: Node, size: number): Graphics {
+    const n = new Node('Shadow');
+    n.parent = parent;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(size, size);
+    return n.addComponent(Graphics);
+  }
+
+  private buildEdge(parent: Node, size: number): Graphics {
+    const n = new Node('Edge');
+    n.parent = parent;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(size, size);
+    return n.addComponent(Graphics);
   }
 
   /**
@@ -179,6 +255,88 @@ export class BoardView extends Component {
   private corner(g: Graphics, x1: number, y1: number, cx: number, cy: number, x2: number, y2: number): void {
     g.moveTo(x1, y1);
     g.quadraticCurveTo(cx, cy, x2, y2);
+  }
+
+  /**
+   * 碎片描边：未融合侧白边、融合组金色（web `.cell.merged .piece` 的 `--edge-color`），
+   * 融合侧归零（web 注释原话：border-width 归零，「那条白边连同裂缝一起没了」）。
+   * 与 `drawRing` 同一套「只画没融合的那几条边」的几何，差别只是颜色/线宽/内缩。
+   */
+  private drawEdge(ref: CellRef): void {
+    const g = ref.edge;
+    if (!g) return;
+    g.clear();
+    const m = ref.geom;
+    const cell = this.cellSize;
+    const ext = GAP / 2;
+    const w = cell + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0);
+    const h = cell + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0);
+    // border 画在 border-box 之内：路径整体内缩半条边，圆角也随之收 2px
+    const hw = w / 2 - EDGE / 2;
+    const hh = h / 2 - EDGE / 2;
+    const r = Math.max(0, pieceRadius(cell) - EDGE);
+    const merged = !!(m && (m.mergeLeft || m.mergeRight || m.mergeUp || m.mergeDown));
+    g.lineWidth = EDGE;
+    g.strokeColor = merged ? EDGE_COLOR_MERGED : EDGE_COLOR;
+    const up = !m?.mergeUp;
+    const down = !m?.mergeDown;
+    const left = !m?.mergeLeft;
+    const right = !m?.mergeRight;
+    if (up) this.line(g, -hw + (left ? r : 0), hh, hw - (right ? r : 0), hh);
+    if (down) this.line(g, -hw + (left ? r : 0), -hh, hw - (right ? r : 0), -hh);
+    if (left) this.line(g, -hw, hh - (up ? r : 0), -hw, -hh + (down ? r : 0));
+    if (right) this.line(g, hw, hh - (up ? r : 0), hw, -hh + (down ? r : 0));
+    if (up && left) this.corner(g, -hw + r, hh, -hw, hh, -hw, hh - r);
+    if (up && right) this.corner(g, hw - r, hh, hw, hh, hw, hh - r);
+    if (down && left) this.corner(g, -hw + r, -hh, -hw, -hh, -hw, -hh + r);
+    if (down && right) this.corner(g, hw - r, -hh, hw, -hh, hw, -hh + r);
+    g.stroke();
+  }
+
+  /** 碎片投影（web `.piece` box-shadow）。真引擎无模糊，用「扩散 + 低透明」近似。 */
+  private drawShadow(ref: CellRef, style: 'normal' | 'merged' | 'drag'): void {
+    const g = ref.shadow;
+    if (!g) return;
+    g.clear();
+    const m = ref.geom;
+    const cell = this.cellSize;
+    const ext = GAP / 2;
+    const w = cell + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0);
+    const h = cell + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0);
+    const r = pieceRadius(cell);
+    const cfg = style === 'drag'
+      ? { dy: 10, blur: 20, a: 71 }   // 0 10px 20px rgba(74,59,42,.28)
+      : style === 'merged'
+        ? { dy: 1, blur: 4, a: 36 }   // 0 1px 4px rgba(74,59,42,.14)
+        : { dy: 3, blur: 8, a: 56 };  // 0 3px 8px rgba(74,59,42,.22)
+    const sp = Math.round(cfg.blur / 2);
+    g.fillColor = new Color(74, 59, 42, cfg.a);
+    g.roundRect(-w / 2 - sp, -h / 2 - cfg.dy - sp, w + sp * 2, h + sp * 2, r + sp);
+    g.fill();
+  }
+
+  /** 裁剪层 / 描边 / 投影 / 金环随融合状态同步（外扩改了形状，这些全得跟） */
+  private refreshVisual(ref: CellRef): void {
+    const m = ref.geom;
+    const cell = this.cellSize;
+    const ext = GAP / 2;
+    const w = cell + (m?.mergeLeft ? ext : 0) + (m?.mergeRight ? ext : 0);
+    const h = cell + (m?.mergeUp ? ext : 0) + (m?.mergeDown ? ext : 0);
+    ref.clip.getComponent(UITransform)!.setContentSize(w, h);
+    const fp = ref.face.getPosition();
+    ref.clip.setPosition(fp.x, fp.y, 0);
+    const mask = ref.clip.getComponent(Mask);
+    if (mask) {
+      const mg = (mask as unknown as { graphics?: Graphics }).graphics;
+      if (mg) {
+        mg.clear();
+        mg.roundRect(-w / 2, -h / 2, w, h, pieceRadius(cell));
+        mg.fill();
+      }
+    }
+    ref.ring.node.setPosition(fp.x, fp.y, 0);
+    this.drawEdge(ref);
+    this.drawShadow(ref, m ? 'merged' : 'normal');
   }
 
   get step(): number { return this.cellSize + GAP; }
@@ -313,7 +471,7 @@ export class BoardView extends Component {
       ref.geom = {
         cellSize: this.cellSize,
         gap: GAP,
-        edge: 0,   // Cocos 版没有白描边，块本身就是贴图
+        edge: EDGE,   // 白描边与 Web 同宽：取样几何必须按「贴图区在 border 内」算
         groupCols: d.groupCols,
         groupRows: d.groupRows,
         colInGroup: d.colInGroup,
@@ -328,6 +486,7 @@ export class BoardView extends Component {
       this.expand(ref, d.mergeUp, d.mergeDown, d.mergeLeft, d.mergeRight);
       // 几何变了，纹理子矩形必须跟着重算：贴图多半已就绪，不会走异步加载回调
       this.paintFace(d.cellIndex, this.faces[d.cellIndex] ?? null);
+      this.refreshVisual(ref);
     }
   }
 
@@ -337,6 +496,7 @@ export class BoardView extends Component {
     t.setContentSize(this.cellSize, this.cellSize);
     ref.face.setPosition(0, 0, 0);
     ref.geom = null;
+    this.refreshVisual(ref);
   }
 
   /**
@@ -379,7 +539,11 @@ export class BoardView extends Component {
     }
   }
 
-  /** 得分飘字：从格子位置向上飘并淡出（原版 §6.3 第五步，与消除并行 500ms） */
+  /**
+   * 得分飘字：从消除处**飞向 HUD 分数**（web `.score-float`：落点由 JS 写进 --fx/--fy，
+   * 「必须真的落在分数上 —— 『这 1 分加到哪儿了』就是这条动画的全部意义」）。
+   * 与消除并行 500ms。
+   */
   floatScore(index: number, text: string): void {
     const ref = this.cells[index];
     if (!ref) return;
@@ -396,7 +560,8 @@ export class BoardView extends Component {
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     const op = n.addComponent(UIOpacity);
 
-    tween(n).to(FLOAT_SEC, { position: new Vec3(ref.baseX, ref.baseY + 140, 0) }).start();
+    // HUD 分数面板中心（cocos 坐标）换算到棋盘本地：面板 (51, 822) − 棋盘容器 (0, -125)
+    tween(n).to(FLOAT_SEC, { position: new Vec3(51, 947, 0) }).start();
     tween(op).to(FLOAT_SEC, { opacity: 0 }).call(() => n.destroy()).start();
   }
 
@@ -496,6 +661,7 @@ export class BoardView extends Component {
       if (!ref) continue;
       ref.root.setPosition(ref.baseX + dx, ref.baseY + dy, 0);
       ref.root.setSiblingIndex(this.cells.length - 1);
+      this.drawShadow(ref, 'drag');   // web `.cell.dragging .piece`：阴影加深升高
     }
   }
 
@@ -503,6 +669,7 @@ export class BoardView extends Component {
   clearDrag(): void {
     for (const ref of this.cells) {
       tween(ref.root).to(ANIM.swap, { position: new Vec3(ref.baseX, ref.baseY, 0) }).start();
+      this.drawShadow(ref, ref.geom ? 'merged' : 'normal');
     }
   }
 

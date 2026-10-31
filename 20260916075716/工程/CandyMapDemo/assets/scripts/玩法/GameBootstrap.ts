@@ -13,7 +13,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
-  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween,
+  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween, LabelShadow,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -47,8 +47,29 @@ const { ccclass, property } = _decorator;
 
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
-const BOARD_TOP = 780;
-const BOARD_BOTTOM = -640;
+/* ── 对局屏布局 —— 与 web/index.html 的 .game-card / .game-topbar / #board-wrap 逐项对齐 ──
+   数值全部是 1080×1920 逻辑坐标里的 CSS 盒（y 向下），用到 Cocos 里再换算成 y 向上。 */
+/** .game-card：margin 8、金边 border 10（#D9A227）、圆角 52、蓝底 #0058B0 */
+const CARD_MARGIN = 8;
+const CARD_BORDER = 10;
+const CARD_RADIUS = 52;
+const CARD_INNER_X = CARD_MARGIN + CARD_BORDER;                  // 18：内容盒左沿
+const CARD_INNER_W = DESIGN_W - CARD_INNER_X * 2;                // 1044
+const CARD_INNER_TOP = CARD_MARGIN + CARD_BORDER;                // 18
+const CARD_INNER_BOTTOM = DESIGN_H - CARD_MARGIN - CARD_BORDER;  // 1902
+/** .game-topbar：高 240（≈12.5% 屏高），下 margin 10（天空蓝赛场计分条） */
+const TOPBAR_H = 240;
+const TOPBAR_MARGIN_BOTTOM = 10;
+/** #board-wrap：顶栏之下到卡片内沿的整块区域（web flex:1） */
+const WRAP_TOP = CARD_INNER_TOP + TOPBAR_H + TOPBAR_MARGIN_BOTTOM; // 268
+const WRAP_H = CARD_INNER_BOTTOM - WRAP_TOP;                     // 1634
+/** 棋盘容器（沿用旧名）：CSS 盒 y ∈ [268, 1902] → Cocos 中心原点 y ∈ [-942, 692] */
+const BOARD_TOP = DESIGN_H / 2 - WRAP_TOP;                       // 692
+const BOARD_BOTTOM = DESIGN_H / 2 - CARD_INNER_BOTTOM;           // -942
+/** #board 的边框（web：border: 1px solid rgba(255,255,255,.12)，圆角 44） */
+const BOARD_BORDER = 1;
+/** 棋盘目标占屏比（web main.ts `BOARD_FILL = 0.98`） */
+const BOARD_FILL = 0.98;
 /** 小于这个位移视为点击（画布 px） */
 const TAP_SLOP = 14;
 /** 续命加时（秒）—— **按关段取值**，见 `reviveSecondsFor()`（2026-10-29 起分段） */
@@ -101,10 +122,23 @@ export class GameBootstrap extends Component {
   private dragStart = new Vec2();
   private dragging = false;
 
-  /* ---------------------------------------------------------------- HUD */
-  private hudLevel: Label = null!;
+  /* ---------------------------------------------------------------- HUD
+   * 结构照 web/index.html：.game-card（金边卡片）> .game-topbar（四栏）+
+   * #board-wrap。四栏 = 返回 ← / 目标旗 + 星线数 / 深蓝翻牌计分 ×2 / 🕒 倒计时。 */
+  private hudGoalNum: Label = null!;
   private hudTime: Label = null!;
-  private hudScore: Label = null!;
+  /** 翻牌两位计分（web #score-tens / #score-units，显示 score % 100） */
+  private flapTens: Label = null!;
+  private flapUnits: Label = null!;
+  private flapTensVal = '';
+  private flapUnitsVal = '';
+  private flapTensBusy = false;
+  private flapUnitsBusy = false;
+  /** 计分面板（bump 动画的载体）与计时器（danger 脉冲的载体） */
+  private scorePanel: Node = null!;
+  private timerNode: Node = null!;
+  private timerPulsing = false;
+  private timerPulseTween: ReturnType<typeof tween> | null = null;
   private hintTimer: ReturnType<typeof setTimeout> | null = null;
   private guideStep = 0;
   /** 进关时的图鉴已解锁数，用来只播报「本关新解锁的」 */
@@ -137,7 +171,7 @@ export class GameBootstrap extends Component {
     const host = new Node('BoardHost');
     host.parent = this.node;
     host.layer = Layers.Enum.UI_2D;
-    host.addComponent(UITransform).setContentSize(DESIGN_W, BOARD_TOP - BOARD_BOTTOM);
+    host.addComponent(UITransform).setContentSize(CARD_INNER_W, BOARD_TOP - BOARD_BOTTOM);
     host.setPosition(0, (BOARD_TOP + BOARD_BOTTOM) / 2);
     this.view = host.addComponent(BoardView);
 
@@ -367,12 +401,20 @@ export class GameBootstrap extends Component {
     }
   }
 
+  /**
+   * 排盘 —— 逐行照抄 web/main.ts `layoutBoard()` 的口径：
+   * 先按「棋盘占屏 98%」算目标格宽（`BOARD_FILL × 整屏`，不是包裹层），
+   * 再夹包裹层可用空间（内容盒 − 棋盘自身边框），最后 `max(36, floor(min))`。
+   * 第 1 关（4×3）解出 cell = 339、棋盘宽 1041 —— 与 Web 实测一致。
+   */
   private layout(): void {
     const rows = this.cfg.rows;
     const cols = this.cfg.cols;
-    const availW = DESIGN_W - 64;
-    const availH = BOARD_TOP - BOARD_BOTTOM - 24;
-    const cell = Math.floor(Math.min((availW - GAP * (cols - 1)) / cols, (availH - GAP * (rows - 1)) / rows));
+    const byW = (BOARD_FILL * DESIGN_W - GAP * (cols - 1)) / cols;
+    const byH = (BOARD_FILL * DESIGN_H - GAP * (rows - 1)) / rows;
+    const maxW = (CARD_INNER_W - BOARD_BORDER * 2 - GAP * (cols - 1)) / cols;
+    const maxH = (WRAP_H - BOARD_BORDER * 2 - GAP * (rows - 1)) / rows;
+    const cell = Math.max(36, Math.floor(Math.min(byW, byH, maxW, maxH)));
     this.view.build(rows, cols, cell);
   }
 
@@ -495,6 +537,9 @@ export class GameBootstrap extends Component {
       this.view.playReject(this.dragCells, intent.dc * 12, -intent.dr * 12);
       this.view.playBoardReject();
       this.scheduleOnce(() => { this.busy = false; }, ANIM.reject);
+      // web doMove 的 hint4 分支：挪了 2 次还没消除 → 自动把最优可拼组圈出来（2.6s 后自撤）。
+      // （引导文案的接线归教学屏批次，这里只补「提示」这条行为。）
+      if (this.swapMisses >= 2) this.showHint();
       return;
     }
 
@@ -541,7 +586,10 @@ export class GameBootstrap extends Component {
             this.view.setMergePhase(st.eliminatedCells, 'off');
             this.audio.play('eliminate');
             this.view.playVanish(st.eliminatedCells);
-            if (gained > 0) this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`);
+            if (gained > 0) {
+              this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`);
+              this.bumpScore();   // web showScoreFloat：飘字的同时 #hud-score.bump（0.26s）
+            }
             this.eliminatedOnce = true;
             this.runGuide(4);
             this.scheduleOnce(() => this.playCollapse(st), ANIM.vanish);
@@ -933,21 +981,79 @@ export class GameBootstrap extends Component {
 
   /* ================================================================ HUD */
 
+  /**
+   * HUD 数值 —— 与 web/main.ts `updateHud()` 同口径：
+   * - 倒计时 mm:ss；≤60s 转 #ffcc66（warn）、≤10s 转 #ff8080 且整块 0.8s 脉冲（danger）。
+   * - 计分翻牌显示 `score % 100`（机械计数器式回滚，永远两位）。
+   * - 目标旗数字 = 本关 1 星线（`star1`，固定目标值，不是剩余量）。
+   */
   private updateHud(): void {
     if (!this.hudTime) return;
-    this.hudLevel.string = this.tut
-      ? TUTORIAL.drawerTitle
-      : `${MODE_LABEL[GS.mode]} · 第 ${this.levelIndex} 关`;
-    this.hudTime.string = this.tut ? TUTORIAL.timeFrozen : fmtMMSS(this.timeLeft);
-    this.hudScore.string = this.tut
-      ? `${this.engine ? this.engine.score : 0} / ${this.engine?.config.star3 ?? 3} 组`
-      : `${this.engine ? this.engine.score : 0} 分`;
-    // 颜色即信息：剩 1 分钟转橙、剩 10 秒转红（原版 #hud-timer.warn / .danger）
-    this.hudTime.color = this.timeLeft <= 10
-      ? new Color(226, 68, 68, 255)
-      : this.timeLeft <= 60
-        ? new Color(240, 150, 40, 255)
-        : new Color(255, 255, 255, 255);
+    const mm = String(Math.floor(this.timeLeft / 60)).padStart(2, '0');
+    const ss = String(this.timeLeft % 60).padStart(2, '0');
+    this.hudTime.string = `${mm}:${ss}`;
+    const warn = this.timeLeft <= 60 && this.timeLeft > 10;
+    const danger = this.timeLeft <= 10;
+    this.hudTime.color = danger
+      ? new Color(255, 128, 128, 255)   // #ff8080
+      : warn
+        ? new Color(255, 204, 102, 255) // #ffcc66
+        : new Color(255, 233, 176, 255); // #FFE9B0
+    this.setTimerDanger(danger);
+    const score = this.engine ? this.engine.score : 0;
+    const disp = ((score % 100) + 100) % 100;
+    this.setDigit(this.flapTens, Math.floor(disp / 10) % 10, 'tens');
+    this.setDigit(this.flapUnits, disp % 10, 'units');
+    this.hudGoalNum.string = String(this.cfg ? this.cfg.star1 : 0);
+  }
+
+  /** #hud-timer.danger：整个计时块 0.8s 无限脉冲（50% 时透明度 .45） */
+  private setTimerDanger(danger: boolean): void {
+    if (danger === this.timerPulsing) return;
+    this.timerPulsing = danger;
+    const op = this.timerNode?.getComponent(UIOpacity);
+    if (!op) return;
+    if (this.timerPulseTween) { this.timerPulseTween.stop(); this.timerPulseTween = null; }
+    op.opacity = 255;
+    if (danger) {
+      this.timerPulseTween = tween(op).repeatForever(
+        tween<UIOpacity>().to(0.4, { opacity: 115 }).to(0.4, { opacity: 255 }),
+      ).start();
+    }
+  }
+
+  /**
+   * 翻牌式两位数计分（web `setDigit()`）：每位独立判断是否变化；
+   * 只给真正变化的位翻（个位每次加分都翻、十位只在进位时翻）。
+   * 动画中不重入 —— 翻完的回调直接套用最新值（与 Web 的 timeout 收尾一致）。
+   * Web 用 rotateX 翻牌；Cocos 2D 用 scaleY 1→0→1 复刻同一节奏（0.26s × 2）。
+   */
+  private setDigit(label: Label, val: number, which: 'tens' | 'units'): void {
+    const v = String(val);
+    const cur = which === 'tens' ? this.flapTensVal : this.flapUnitsVal;
+    if (which === 'tens') { if (this.flapTensVal === v) return; this.flapTensVal = v; }
+    else { if (this.flapUnitsVal === v) return; this.flapUnitsVal = v; }
+    label.string = v;
+    if (cur === '') return;   // 首帧直接落数，不翻（web setDigit 的 dataset 初始化分支）
+    const busyKey = which === 'tens' ? 'flapTensBusy' : 'flapUnitsBusy';
+    if (this[busyKey]) return;
+    this[busyKey] = true;
+    const node = label.node;
+    tween(node)
+      .to(0.26, { scale: new Vec3(1, 0, 1) })
+      .call(() => { label.string = which === 'tens' ? this.flapTensVal : this.flapUnitsVal; })
+      .to(0.26, { scale: new Vec3(1, 1, 1) })
+      .call(() => { this[busyKey] = false; })
+      .start();
+  }
+
+  /** #hud-score.bump：加分时面板 1 → 1.14 → 1（0.26s，与得分飘字并行） */
+  private bumpScore(): void {
+    if (!this.scorePanel) return;
+    tween(this.scorePanel)
+      .to(0.13, { scale: new Vec3(1.14, 1.14, 1) })
+      .to(0.13, { scale: new Vec3(1, 1, 1) })
+      .start();
   }
 
   /** 提示：高亮当前最优可拼组（原版 2.6s 后自动撤销） */
@@ -965,58 +1071,322 @@ export class GameBootstrap extends Component {
     this.view?.setHint([]);
   }
 
+  /* ---------------------------------------------------------------- HUD 构建
+   * 逐元素对照 web/index.html:451-472 的 DOM 结构与 :68-177 的样式重建。
+   * 坐标是 1080×1920 逻辑值（已按 Web 实测几何校准，见 docs/dump/web-game.json），
+   * CSS y 向下 → 这里统一换算成 Cocos y 向上（相对画面中心）。
+   *
+   * 与 Web 的已知实现手段差异（视觉尽量对齐，手段不同，均记录在 docs/核对-界面.md）：
+   * - 渐变用「逐条带填色」近似（真引擎 Graphics 无渐变/无模糊）；
+   * - box-shadow 用「扩散 + 低透明圆角矩形」近似；
+   * - 文字 text-shadow 用 LabelShadow 组件复刻；
+   * - 翻牌 rotateX 用 scaleY 1→0→1 复刻同一节奏。
+   */
   private buildHud(): void {
-    const bar = new Node('Hud');
-    bar.parent = this.node;
-    bar.layer = Layers.Enum.UI_2D;
-    bar.addComponent(UITransform).setContentSize(DESIGN_W, 150);
-    bar.setPosition(0, 885);
-    const bg = bar.addComponent(Graphics);
-    bg.fillColor = new Color(255, 176, 62, 255);
-    bg.roundRect(-DESIGN_W / 2, -75, DESIGN_W, 150, 0);
-    bg.fill();
-
-    this.hudLevel = this.hudText(bar, 30, -330, 0, 300, new Color(255, 255, 255));
-    this.hudTime = this.hudText(bar, 46, 0, 0, 260, new Color(255, 255, 255));
-    this.hudScore = this.hudText(bar, 34, 300, 0, 240, new Color(255, 255, 255));
-
-    // 返回主页 —— 必须挂在 bar 上（bar 在棋盘上方的安全区）。
-    // 挂 this.node 的话坐标原点是画面中心，(-460, 0) 会直接压在棋盘左中部，
-    // 既挡视线又吞掉那一带的拖动。
-    const back = this.hudButton(bar, 'BtnBack', -460, 0, 120, 88, new Color(255, 255, 255, 90), '返回', 28);
-    back.on(Node.EventType.TOUCH_END, () => this.exitToHome(), this);
-
-    // 提示 —— 棋盘下沿是 BOARD_BOTTOM(-640)，-740 在其下方，属于安全区
-    const hint = this.hudButton(this.node, 'BtnHint', 0, -740, 240, 96, new Color(126, 200, 120, 255), '提示', 32);
-    hint.on(Node.EventType.TOUCH_END, () => this.showHint(), this);
+    this.buildScreenBg();
+    this.buildCard();
+    // 层级（web z-index 表）：页面底色 < 顶栏卡片 < 棋盘 < 弹窗/吊牌/Toast
+    this.view.node.setSiblingIndex(2);
   }
 
-  private hudText(parent: Node, size: number, x: number, y: number, w: number, color: Color): Label {
-    const n = new Node('Txt');
-    n.parent = parent;
+  /** 页面底色：`#stage` 的 radial-gradient(120% 80% at 50% 0%, #fffdf6 → #fff7ec 45% → #fdeed8) */
+  private buildScreenBg(): void {
+    const n = new Node('ScreenBg');
+    n.parent = this.node;
     n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(w, size + 10);
-    n.setPosition(x, y);
-    const l = n.addComponent(Label);
-    l.fontSize = size;
-    l.lineHeight = size + 8;
-    l.color = color;
-    return l;
+    n.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
+    const g = n.addComponent(Graphics);
+    const c0 = new Color(255, 253, 246, 255);
+    const c1 = new Color(255, 247, 236, 255);
+    const c2 = new Color(253, 238, 216, 255);
+    const ry = DESIGN_H * 0.8;
+    const steps = 48;
+    const sh = DESIGN_H / steps;
+    for (let i = 0; i < steps; i++) {
+      const cssY = (i + 0.5) * sh;   // 条带中心的 CSS y（向下），径向渐变取中心列颜色
+      const t = cssY / ry;
+      g.fillColor = t <= 0.45
+        ? this.lerpColor(c0, c1, t / 0.45)
+        : this.lerpColor(c1, c2, Math.min(1, (t - 0.45) / 0.55));
+      g.rect(-DESIGN_W / 2, DESIGN_H / 2 - (i + 1) * sh, DESIGN_W, sh + 0.5);
+      g.fill();
+    }
+    n.setSiblingIndex(0);
   }
 
-  private hudButton(parent: Node, name: string, x: number, y: number, w: number, h: number, color: Color, text: string, size: number): Node {
+  /** `.game-card`：金边 10px #D9A227 + 蓝底 #0058B0 + 圆角 52（margin 8 / border 10） */
+  private buildCard(): void {
+    const card = new Node('GameCard');
+    card.parent = this.node;
+    card.layer = Layers.Enum.UI_2D;
+    const w = DESIGN_W - CARD_MARGIN * 2;    // 1064
+    const h = DESIGN_H - CARD_MARGIN * 2;    // 1904
+    card.addComponent(UITransform).setContentSize(w, h);
+    const g = card.addComponent(Graphics);
+    const iw = w - CARD_BORDER * 2;
+    const ih = h - CARD_BORDER * 2;
+    // 蓝底：铺满 border 以内的内容盒
+    g.fillColor = new Color(0, 88, 176, 255);            // #0058B0
+    this.roundRectPath(g, -iw / 2, -ih / 2, iw, ih, CARD_RADIUS - CARD_BORDER);
+    g.fill();
+    // 内侧 2px 高光：inset 0 0 0 2px rgba(255,255,255,.08)
+    g.lineWidth = 2;
+    g.strokeColor = new Color(255, 255, 255, 20);
+    this.roundRectPath(g, -iw / 2 + 1, -ih / 2 + 1, iw - 2, ih - 2, CARD_RADIUS - CARD_BORDER - 1);
+    g.stroke();
+    // 金边：CSS border 画在盒内 → 描边路径整体内缩半条边
+    g.lineWidth = CARD_BORDER;
+    g.strokeColor = new Color(217, 162, 39, 255);        // #D9A227
+    this.roundRectPath(g, -w / 2 + CARD_BORDER / 2, -h / 2 + CARD_BORDER / 2, w - CARD_BORDER, h - CARD_BORDER, CARD_RADIUS - CARD_BORDER / 2);
+    g.stroke();
+    // 外投影 0 18px 50px rgba(0,0,0,.35)：真引擎无模糊，省略（已记录）
+    this.buildTopbar(card);
+    card.setSiblingIndex(1);
+  }
+
+  /** `.game-topbar`：1044×240 天空蓝渐变 + 金边 + 圆角 26，四栏内容 */
+  private buildTopbar(card: Node): void {
+    const bar = new Node('Topbar');
+    bar.parent = card;
+    bar.layer = Layers.Enum.UI_2D;
+    bar.addComponent(UITransform).setContentSize(CARD_INNER_W, TOPBAR_H);
+    bar.setPosition(0, DESIGN_H / 2 - CARD_INNER_TOP - TOPBAR_H / 2);   // y=822（CSS 盒 18..258）
+    const g = bar.addComponent(Graphics);
+    const r = 26;
+    // 天空蓝：linear-gradient(180deg, #5cb0ef, #3d8fd8)
+    this.fillVGradientRounded(g, -CARD_INNER_W / 2, -TOPBAR_H / 2, CARD_INNER_W, TOPBAR_H, r,
+      new Color(92, 176, 239, 255), new Color(61, 143, 216, 255), 24);
+    // 金边 2px rgba(255,210,74,.7)
+    g.lineWidth = 2;
+    g.strokeColor = new Color(255, 210, 74, 179);
+    this.roundRectPath(g, -CARD_INNER_W / 2 + 1, -TOPBAR_H / 2 + 1, CARD_INNER_W - 2, TOPBAR_H - 2, r - 1);
+    g.stroke();
+    // 顶部内高光 inset 0 2px 10px rgba(255,255,255,.4)：顶端 10px 白光渐隐
+    for (let i = 0; i < 8; i++) {
+      const dTop = 1 + (i + 0.5) * (10 / 8);
+      const inset = dTop < r ? r - Math.sqrt(r * r - (r - dTop) ** 2) : 0;
+      g.fillColor = new Color(255, 255, 255, Math.round(102 * (1 - (i + 0.5) / 8)));
+      g.rect(-CARD_INNER_W / 2 + 1 + inset, TOPBAR_H / 2 - 1 - (i + 1) * (10 / 8), CARD_INNER_W - 2 - inset * 2, 10 / 8 + 0.5);
+      g.fill();
+    }
+    this.buildExit(bar);
+    this.buildGoal(bar);
+    this.buildScore(bar);
+    this.buildTimer(bar);
+  }
+
+  /** `#hud-exit`：84×84 棕底 #6B4A2F + 奶黄 ←（44px/800 #FFE9B0），底影 0 4px 0 #4A3321 */
+  private buildExit(bar: Node): void {
+    const n = new Node('HudExit');
+    n.parent = bar;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(84, 84);
+    n.setPosition(-462, 0);
+    const g = n.addComponent(Graphics);
+    g.fillColor = new Color(74, 51, 33, 255);            // #4A3321 底影
+    this.roundRectPath(g, -42, -46, 84, 84, 18);
+    g.fill();
+    g.fillColor = new Color(107, 74, 47, 255);           // #6B4A2F
+    this.roundRectPath(g, -42, -42, 84, 84, 18);
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeColor = new Color(255, 255, 255, 20);
+    this.roundRectPath(g, -40, -40, 80, 80, 16);
+    g.stroke();
+    this.hudLabel(n, '←', 44, new Color(255, 233, 176, 255), 84, 84, true);
+    // :active translateY(2px)
+    n.on(Node.EventType.TOUCH_START, () => n.setPosition(-462, -2), this);
+    n.on(Node.EventType.TOUCH_END, () => { n.setPosition(-462, 0); this.exitToHome(); }, this);
+    n.on(Node.EventType.TOUCH_CANCEL, () => n.setPosition(-462, 0), this);
+  }
+
+  /** `#hud-goal`：旗帜 SVG（60×72）+ 1 星线数字（66px/800 #FFD24A） */
+  private buildGoal(bar: Node): void {
+    const flag = new Node('HudGoalFlag');
+    flag.parent = bar;
+    flag.layer = Layers.Enum.UI_2D;
+    flag.addComponent(UITransform).setContentSize(60, 72);
+    flag.setPosition(-269.6, 0);
+    const g = flag.addComponent(Graphics);
+    // SVG viewBox 0 0 60 72（y 向下）→ 本地中心原点（y 向上）：x-30, 36-y
+    g.fillColor = new Color(241, 244, 249, 255);         // 旗杆 rect(10,8,6,58,r3) #f1f4f9
+    this.roundRectPath(g, -20, -30, 6, 58, 3);
+    g.fill();
+    g.fillColor = new Color(255, 210, 74, 255);          // 顶球 circle(13,8,r7) #FFD24A
+    g.strokeColor = new Color(202, 161, 47, 255);        // stroke #caa12f
+    g.lineWidth = 1.5;
+    g.circle(-17, 28, 7);
+    g.fill();
+    g.stroke();
+    g.fillColor = new Color(255, 91, 74, 255);           // 三角旗 #ff5b4a
+    g.strokeColor = new Color(216, 59, 44, 255);         // stroke #d83b2c
+    g.lineWidth = 2;
+    g.moveTo(-14, 22); g.lineTo(20, 6); g.lineTo(-14, -10); g.close();
+    g.fill();
+    g.stroke();
+    g.fillColor = new Color(255, 255, 255, 71);          // 高光 rgba(255,255,255,.28)
+    g.moveTo(-14, 22); g.lineTo(4, 13); g.lineTo(-14, 4); g.close();
+    g.fill();
+    // text-shadow 0 2px 0 #000
+    this.hudGoalNum = this.hudLabel(bar, '0', 66, new Color(255, 210, 74, 255), 72, 72, true,
+      { color: new Color(0, 0, 0, 255), dx: 0, dy: -2 }, 'HudGoalNum');
+    this.hudGoalNum.node.setPosition(-210, 0);
+  }
+
+  /** `#hud-score`：深蓝凹陷面板（246×162）+ 两枚 92×128 翻牌（数字 90px/800 #FFD24A） */
+  private buildScore(bar: Node): void {
+    const panel = new Node('HudScore');
+    panel.parent = bar;
+    panel.layer = Layers.Enum.UI_2D;
+    panel.addComponent(UITransform).setContentSize(246, 162);
+    panel.setPosition(51, 0);
+    this.scorePanel = panel;
+    const g = panel.addComponent(Graphics);
+    // 外圈金晕 0 0 0 2px rgba(255,210,74,.18)
+    g.lineWidth = 2;
+    g.strokeColor = new Color(255, 210, 74, 46);
+    this.roundRectPath(g, -123, -81, 246, 162, 17);
+    g.stroke();
+    // 面板渐变 linear-gradient(180deg, #0c2e57, #07203f)
+    this.fillVGradientRounded(g, -123, -81, 246, 162, 16,
+      new Color(12, 46, 87, 255), new Color(7, 32, 63, 255), 16);
+    // 内阴影 inset 0 4px 14px rgba(0,0,0,.45)：顶端 14px 暗带渐隐
+    for (let i = 0; i < 8; i++) {
+      g.fillColor = new Color(0, 0, 0, Math.round(115 * (1 - (i + 0.5) / 8)));
+      g.rect(-120, 81 - 3 - (i + 1) * (14 / 8), 240, 14 / 8 + 0.5);
+      g.fill();
+    }
+    // 边框 3px rgba(255,255,255,.25)
+    g.lineWidth = 3;
+    g.strokeColor = new Color(255, 255, 255, 64);
+    this.roundRectPath(g, -121.5, -79.5, 243, 159, 14.5);
+    g.stroke();
+    this.flapTens = this.buildFlap(panel, -52, 'FlapTens');
+    this.flapUnits = this.buildFlap(panel, 52, 'FlapUnits');
+  }
+
+  /** `.flap`：92×128 翻牌（上 49% #163a64 / 下 51% #0a2444 + 中缝 + 内描边 + 底影） */
+  private buildFlap(panel: Node, x: number, name: string): Label {
+    const n = new Node(name);
+    n.parent = panel;
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(92, 128);
+    n.setPosition(x, 0);
+    const g = n.addComponent(Graphics);
+    const r = 12;
+    g.fillColor = new Color(0, 0, 0, 102);               // 底影 0 3px 0 rgba(0,0,0,.4)
+    this.roundRectPath(g, -46, -67, 92, 128, r);
+    g.fill();
+    g.fillColor = new Color(10, 36, 68, 255);            // 下段 #0a2444
+    this.roundRectPath(g, -46, -64, 92, 128, r);
+    g.fill();
+    g.fillColor = new Color(22, 58, 100, 255);           // 上段 49% #163a64
+    this.roundRectPath(g, -46, 64 - 128 * 0.49, 92, 128 * 0.49, r, r, 0, 0);
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeColor = new Color(0, 0, 0, 102);             // inset 0 0 0 2px rgba(0,0,0,.4)
+    this.roundRectPath(g, -45, -63, 90, 126, r - 1);
+    g.stroke();
+    g.fillColor = new Color(0, 0, 0, 140);               // 中缝 ::after 3px rgba(0,0,0,.55)
+    g.rect(-46, -1.5, 92, 3);
+    g.fill();
+    // text-shadow 0 0 12px rgba(255,210,74,.45) → 零偏移金色影近似辉光
+    return this.hudLabel(n, '0', 90, new Color(255, 210, 74, 255), 92, 128, true,
+      { color: new Color(255, 210, 74, 115), dx: 0, dy: 0 }, 'Face');
+  }
+
+  /** `#hud-timer`：🕒（54px #FFF8E7）+ mm:ss（60px/800 #FFE9B0），右对齐 */
+  private buildTimer(bar: Node): void {
+    const t = new Node('HudTimer');
+    t.parent = bar;
+    t.layer = Layers.Enum.UI_2D;
+    t.addComponent(UITransform).setContentSize(228, 60);
+    t.setPosition(390, 0);
+    this.timerNode = t;
+    const clock = this.hudLabel(t, '🕒', 54, new Color(255, 248, 231, 255), 74, 54, false, undefined, 'TimerClock');
+    clock.node.setPosition(-76.6, 0);
+    this.hudTime = this.hudLabel(t, '03:00', 60, new Color(255, 233, 176, 255), 142, 60, true,
+      { color: new Color(0, 0, 0, 255), dx: 0, dy: -2 }, 'TimerNum');
+    this.hudTime.node.setPosition(43, 0);
+    t.addComponent(UIOpacity);
+  }
+
+  /* ---------------------------------------------------------------- HUD 绘制辅助 */
+
+  /** 文本（居中、行高=字号、可加粗、可带 text-shadow 等效物 LabelShadow）。
+   *  name 会进入节点名 —— ui-dump 的几何比对按「节点名路径」与 Web 的选择器对齐。 */
+  private hudLabel(
+    parent: Node, text: string, size: number, color: Color, w: number, h: number,
+    bold = false, shadow?: { color: Color; dx: number; dy: number }, name = 'Txt',
+  ): Label {
     const n = new Node(name);
     n.parent = parent;
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(w, h);
-    n.setPosition(x, y);
-    const g = n.addComponent(Graphics);
-    g.fillColor = color;
-    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
-    g.fill();
-    const l = this.hudText(n, size, 0, 0, w, new Color(255, 255, 255));
+    const l = n.addComponent(Label);
     l.string = text;
-    return n;
+    l.fontSize = size;
+    l.lineHeight = size;   // web 数字全部 line-height:1
+    l.color = color;
+    if (bold) {
+      const b = l as unknown as { isBold?: boolean; enableBold?: boolean };
+      if (b.isBold === false || b.isBold === undefined) b.isBold = true;
+      if (b.enableBold === false) b.enableBold = true;
+    }
+    if (shadow) {
+      const s = n.addComponent(LabelShadow);
+      s.shadowColor = shadow.color;
+      s.shadowOffset = new Vec2(shadow.dx, shadow.dy);
+    }
+    return l;
+  }
+
+  /** 圆角矩形路径（四角半径可不同）—— CSS `border-radius: tl tr br bl` 的等效物 */
+  private roundRectPath(g: Graphics, x: number, y: number, w: number, h: number, rtl: number, rtr = rtl, rbr = rtl, rbl = rtl): void {
+    const cap = (v: number) => Math.max(0, Math.min(v, Math.min(w, h) / 2));
+    const a = cap(rtl);
+    const b = cap(rtr);
+    const c = cap(rbr);
+    const d = cap(rbl);
+    g.moveTo(x + a, y);
+    g.lineTo(x + w - b, y);
+    if (b) g.quadraticCurveTo(x + w, y, x + w, y + b);
+    g.lineTo(x + w, y + h - c);
+    if (c) g.quadraticCurveTo(x + w, y + h, x + w - c, y + h);
+    g.lineTo(x + d, y + h);
+    if (d) g.quadraticCurveTo(x, y + h, x, y + h - d);
+    g.lineTo(x, y + a);
+    if (a) g.quadraticCurveTo(x, y, x + a, y);
+  }
+
+  /** 圆角矩形内的竖向渐变：先铺顶色盖住四角，再逐条带填色（条带按圆角轮廓内缩） */
+  private fillVGradientRounded(g: Graphics, x: number, y: number, w: number, h: number, r: number, top: Color, bottom: Color, steps = 24): void {
+    g.fillColor = top;
+    this.roundRectPath(g, x, y, w, h, r);
+    g.fill();
+    const sh = h / steps;
+    for (let i = 0; i < steps; i++) {
+      const t = (i + 0.5) / steps;                 // 0 = 顶
+      const cy = y + h - (i + 0.5) * sh;           // 条带中心（y 向上）
+      const dTop = y + h - cy;
+      const dBottom = cy - y;
+      const inset = Math.max(
+        dTop < r ? r - Math.sqrt(r * r - (r - dTop) ** 2) : 0,
+        dBottom < r ? r - Math.sqrt(r * r - (r - dBottom) ** 2) : 0,
+      );
+      g.fillColor = this.lerpColor(top, bottom, t);
+      g.rect(x + inset, cy - sh / 2, w - inset * 2, sh + 0.5);
+      g.fill();
+    }
+  }
+
+  private lerpColor(a: Color, b: Color, t: number): Color {
+    return new Color(
+      Math.round(a.r + (b.r - a.r) * t),
+      Math.round(a.g + (b.g - a.g) * t),
+      Math.round(a.b + (b.b - a.b) * t),
+      255,
+    );
   }
 
   /* ================================================================ 引导（§14 五步） */
@@ -1469,13 +1839,12 @@ export class GameBootstrap extends Component {
     ]);
   }
 
-  /** 教学期间 HUD：分数位显示「N / 3 组」进度（Web 版进度点 + 目标旗的等效物） */
-  /** 聚光灯目标矩形（顶栏固定坐标：bar y=885 / 高 150，hudText x=-330/0/300）。
+  /** 聚光灯目标矩形（顶栏固定坐标：计分面板 (51,822) 246×162 / 计时块 (390,822) 228×160）。
    *  用常量而非 getBoundingBoxToWorld / node.position —— 预览 shim 未实现这两个 API。 */
   private hudRectOf(kind: 'score' | 'time'): SpotlightRect {
     return kind === 'score'
-      ? { cx: 300, cy: 885, w: 360, h: 160 }
-      : { cx: 0, cy: 885, w: 320, h: 160 };
+      ? { cx: 51, cy: 822, w: 246, h: 162 }
+      : { cx: 390, cy: 822, w: 228, h: 160 };
   }
 
   private runGuide(step: number): void {
