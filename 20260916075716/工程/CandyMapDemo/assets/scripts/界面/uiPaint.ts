@@ -1,0 +1,222 @@
+/**
+ * 整屏界面的**绘制原语**（2026-10-31 从排行榜/图鉴/设置三屏里抽出来共用）。
+ *
+ * 排行榜、图鉴、设置三屏是同一套骨架（Web 端的 `.screen.leaderboard / .collection / .settings`
+ * 也是同一份 CSS 思路）：整屏蓝天渐变 + 150×150 棕色返回圆钮 + 96px 白字描边标题 +
+ * `border-radius:118px` 的金框大卡。抽出来后三屏只有一个实现，改一处三处跟着变。
+ *
+ * ⚠️ 全部是**程序绘制**（预览 shim 与真引擎都能跑），替换关系是：
+ *   - CSS 的三段 `linear-gradient` → `fillVGrad`（按条带近似）
+ *   - `box-shadow` → `paintShadow`（低透明同心圆角矩形近似高斯模糊）
+ *   - `text-shadow` / `-webkit-text-stroke` → 八向错位文本（shim 没有 `LabelOutline`）
+ *
+ * 颜色一律来自 `web/art/**` 切图的**真实像素采样**（`node tools/art-samples.mjs`），不靠肉眼估。
+ */
+
+import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
+
+/** 屏幕本性：1080×1920 逻辑分辨率（Web 端 `#stage` 也是这个尺寸） */
+export const STAGE_W = 1080;
+export const STAGE_H = 1920;
+
+/**
+ * 纯白 —— ⚠️ 不能写 `Color.WHITE`：那是真 Cocos 的静态常量，预览 shim 的 `Color` 没有它，
+ * 用了会得到 `undefined` 并在 `drawLabel` 里炸（2026-10-31 实测踩到）。
+ */
+export const WHITE = new Color(255, 255, 255, 255);
+
+/* ------------------------------------------------------------------ 整屏蓝天（三屏共用） */
+
+export const SKY_A = new Color(63, 131, 216, 255);   // #3f83d8
+export const SKY_B = new Color(111, 169, 234, 255);  // #6fa9ea（42% 处）
+export const SKY_C = new Color(169, 208, 245, 255);  // #a9d0f5
+
+/** 整屏渐变底：`linear-gradient(180deg,#3f83d8 0%,#6fa9ea 42%,#a9d0f5 100%)` */
+export function paintScreenBg(parent: Node, name = 'bg'): Node {
+  const n = new Node(name);
+  n.layer = Layers.Enum.UI_2D;
+  n.addComponent(UITransform).setContentSize(STAGE_W, STAGE_H);
+  const g = n.addComponent(Graphics);
+  fillVGrad(g, STAGE_W, STAGE_H, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
+  n.parent = parent;
+  return n;
+}
+
+/* ------------------------------------------------------------------ 顶栏（返回钮 + 标题） */
+
+/** 返回钮：150×150 圆底 @屏幕左上 (44,38)，中间一个 ‹ 箭头 */
+export const BACK_SIZE = 150;
+export const BACK_X = 44;
+export const BACK_Y = 38;
+
+/**
+ * 顶栏：返回钮 + 居中大标题。
+ * @param fill   圆钮底色（各屏 `back.png` 的采样均色：排行榜 #83482f / 图鉴 #c78b59 / 设置 #7e4933）
+ * @param glyph  箭头颜色（back.png 的中心色）
+ */
+export function mkBackButton(parent: Node, fill: Color, glyph: Color, onTap: () => void): Node {
+  const back = new Node('back');
+  back.layer = Layers.Enum.UI_2D;
+  back.addComponent(UITransform).setContentSize(BACK_SIZE, BACK_SIZE);
+  back.setPosition(BACK_X + BACK_SIZE / 2 - STAGE_W / 2, STAGE_H / 2 - (BACK_Y + BACK_SIZE / 2), 0);
+  const g = back.addComponent(Graphics);
+  g.circle(0, 0, BACK_SIZE / 2);
+  g.fillColor = fill;
+  g.fill();
+  g.lineWidth = 6;
+  g.strokeColor = glyph;
+  g.circle(0, 0, BACK_SIZE / 2 - 3);
+  g.stroke();
+  back.parent = parent;
+  mkText(back, '‹', 84, 0, 4, glyph, BACK_SIZE, true, 'center');
+  back.on(Node.EventType.TOUCH_END, onTap);
+  return back;
+}
+
+/**
+ * 96px 白字大标题（Web 的 `.lb-title / .col-title / .set-title`）：
+ * `text-shadow: 0 8px 0 rgba(90,45,10,.55), ±6px 0 0 rgba(90,45,10,.35)` —— 用**八向错位文本**近似描边。
+ * 实测三屏标题的字中心都在 **(540, 113)**。
+ */
+export const TITLE_FS = 96;
+/** 描边错位（模拟 CSS 的多重 text-shadow：下 8px 最深、左右 6px 稍浅） */
+const TITLE_STROKE_MAIN = new Color(90, 45, 10, Math.round(0.55 * 255));
+const TITLE_STROKE_SIDE = new Color(90, 45, 10, Math.round(0.35 * 255));
+const OUTLINE_8: Array<[number, number, Color]> = [
+  [0, -8, TITLE_STROKE_MAIN],   // Web 的主投影：0 8px 0（Cocos y 向上 → -8）
+  [0, 8, TITLE_STROKE_SIDE],    // 上侧补一道（Web 没有，但八向才描得均匀）
+  [6, 0, TITLE_STROKE_SIDE],
+  [-6, 0, TITLE_STROKE_SIDE],
+  [5, -5, TITLE_STROKE_SIDE],
+  [5, 5, TITLE_STROKE_SIDE],
+  [-5, -5, TITLE_STROKE_SIDE],
+  [-5, 5, TITLE_STROKE_SIDE],
+];
+
+export function mkTitle(parent: Node, title: string): void {
+  const y = STAGE_H / 2 - 113;
+  for (const [dx, dy, c] of OUTLINE_8) {
+    mkText(parent, title, TITLE_FS, dx, y - dy, c, 900, true, 'center');
+  }
+  mkText(parent, title, TITLE_FS, 0, y, WHITE, 900, true, 'center');
+}
+
+/* ------------------------------------------------------------------ 文字 */
+
+/**
+ * 建 Label。Cocos 的 Label 用 middle baseline 画在节点中心 → **节点中心 = 字的中心**，
+ * 这也是 UI 对齐全用「节点中心」对齐 Web「字的包围盒中心」的依据。
+ */
+export function mkText(
+  parent: Node, text: string, size: number, x: number, y: number, color: Color, w: number,
+  bold = false, align: 'center' | 'left' | 'right' = 'center',
+): Label {
+  const n = new Node('t');
+  n.layer = Layers.Enum.UI_2D;
+  n.addComponent(UITransform).setContentSize(w, size + 14);
+  const l = n.addComponent(Label);
+  l.string = text;
+  l.fontSize = size;
+  l.lineHeight = size + 10;
+  l.color = color;
+  if (bold) {
+    const b = l as unknown as { isBold?: boolean; enableBold?: boolean };
+    b.isBold = true;
+    b.enableBold = true;
+  }
+  if (align === 'left') l.horizontalAlign = 0;          // HorizontalTextAlignment.LEFT
+  else if (align === 'right') l.horizontalAlign = 1;    // RIGHT
+  n.parent = parent;
+  n.setPosition(x, y, 0);
+  return l;
+}
+
+/* ------------------------------------------------------------------ 渐变 / 阴影 */
+
+/** 颜色插值 */
+export function lerpColor(a: Color, b: Color, t: number): Color {
+  return new Color(
+    Math.round(a.r + (b.r - a.r) * t),
+    Math.round(a.g + (b.g - a.g) * t),
+    Math.round(a.b + (b.b - a.b) * t),
+    Math.round(a.a + (b.a - a.a) * t),
+  );
+}
+
+/** 三段渐变取色（t=0 顶 → t=1 底，midAt 处取中段色） */
+export function gradColor(top: Color, mid: Color, bot: Color, t: number, midAt: number): Color {
+  if (t <= midAt) return lerpColor(top, mid, midAt === 0 ? 0 : t / midAt);
+  return lerpColor(mid, bot, (t - midAt) / (1 - midAt));
+}
+
+/**
+ * 圆角矩形内的竖向渐变。
+ *
+ * ⚠️ 每一条带都按「该行在圆角内的实际半宽」收窄 —— 否则矩形条带会溢出圆角，
+ *    圆角 118 的大卡看着就是方角的（这个坑踩过）。
+ */
+export function fillVGrad(
+  g: Graphics, w: number, h: number, top: Color, mid: Color, bot: Color,
+  midAt: number, r: number, bands = 24,
+): void {
+  const lim = h / 2 - r;
+  const halfAt = (y: number): number => {
+    const ay = Math.abs(y);
+    if (r <= 0 || ay <= lim) return w / 2;
+    const dy = ay - lim;
+    return w / 2 - r + Math.sqrt(Math.max(0, r * r - dy * dy));
+  };
+  const bh = h / bands;
+  for (let i = 0; i < bands; i++) {
+    const yTop = h / 2 - i * bh;
+    const t = bands === 1 ? 0 : (bands - 1 - i) / (bands - 1);
+    g.fillColor = gradColor(top, mid, bot, t, midAt);
+    const hw = Math.min(halfAt(yTop), halfAt(yTop - bh));
+    g.rect(-hw, yTop - bh, hw * 2, bh + 0.6);
+    g.fill();
+  }
+}
+
+/**
+ * `box-shadow` 的近似：多层低透明同心圆角矩形（越往外越淡）。
+ * 以 `0 26px 70px rgba(20,55,120,.35)` 为模板 —— 三屏的金框卡都是这一条。
+ */
+export function paintShadow(g: Graphics, w: number, h: number, r: number, dy: number, blur: number, color: Color, layers = 5): void {
+  const a = color.a / 255;
+  for (let i = layers - 1; i >= 0; i--) {
+    const spread = (i / (layers - 1)) * blur;
+    const alpha = a * (0.1 + 0.06 * (layers - 1 - i));
+    g.fillColor = new Color(color.r, color.g, color.b, Math.round(alpha * 255));
+    g.roundRect(-w / 2 - spread, -h / 2 - spread - dy, w + spread * 2, h + spread * 2, r + spread);
+    g.fill();
+  }
+}
+
+/** 圆角矩形填充（加一圈描边时用） */
+export function fillRound(g: Graphics, w: number, h: number, r: number, fill: Color): void {
+  g.fillColor = fill;
+  g.roundRect(-w / 2, -h / 2, w, h, r);
+  g.fill();
+}
+
+/**
+ * 金框大卡的框：`leaderboard/frame.png`（674×989，镂空、只画边框，均色 #bd8e56）
+ * 是整体拉伸的，没法平移管子 —— 这里用「铺满金色 + 内部再画内容 + 内描一圈亮边」等价替代：
+ * 内容是**画在金底之上并内缩**，视觉结果 = 一圈金色边框 + 亮边。
+ */
+export const FRAME_GOLD = new Color(199, 150, 81, 255);   // leaderboard/frame.png 实测均色 #c79651
+export const FRAME_EDGE = new Color(220, 173, 98, 255);   // 亮边 #dcad62
+
+/** 五角星（Web 的 star.png 是程序替代） */
+export function drawStar(g: Graphics, cx: number, cy: number, r: number, color: Color): void {
+  g.fillColor = color;
+  for (let i = 0; i < 10; i++) {
+    const rad = (Math.PI / 5) * i - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.42;
+    const x = cx + Math.cos(rad) * rr;
+    const y = cy + Math.sin(rad) * rr;
+    if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+  }
+  g.close();
+  g.fill();
+}

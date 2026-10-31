@@ -132,9 +132,9 @@ export const GUIDE = {
 
 export const COLLECTION = {
   title: '图鉴',
-  progress: (n: number, total: number) => `已收集 ${n} / ${total}`,
+  progress: (n: number, total: number) => `已收集：${n} / ${total}`,
   /** 2026-10-30 补：与 web/ui/text.ts 的字段名对齐（整屏图鉴用） */
-  collected: (n: number, total: number) => `已收集 ${n} / ${total}`,
+  collected: (n: number, total: number) => `已收集：${n} / ${total}`,
   locked: '通关对应关卡即可解锁',
   lockedHint: '？？？',
   /** 点未解锁格子时的轻提示（Web 版 lockedToast） */
@@ -162,6 +162,8 @@ export const SETTINGS = {
   off: '关',
   about: '关于游戏',
   version: (v: string): string => `版本 ${v}`,
+  /** 设置页「新手教学」行右侧的回看按钮（Web 的 `web/ui/settings.ts` 是硬编码 '查看'，同文案） */
+  tutorialView: '查看',
   reset: '重置存档',
   resetConfirmTitle: '确定重置存档？',
   resetConfirmLine: '所有进度、图鉴、体力都会清空，且无法恢复',

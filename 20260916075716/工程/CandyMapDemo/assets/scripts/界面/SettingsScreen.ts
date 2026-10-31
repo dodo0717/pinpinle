@@ -1,19 +1,113 @@
 /**
- * 设置整屏（从 web/ui/settings.ts 移植，2026-10-30）
+ * 设置整屏（**2026-10-31 按 Web 实测逐元素重排**，基准 `docs/dump/web-settings.json`）
  *
- * 音乐 / 音效 / 教学语音三个开关 + 新手教学回看入口 + 版本号。
- * 结构同图鉴整屏：蓝天 + 棕返回钮 + 标题 + 金框棕木卡。
+ * Web 版（`web/ui/settings.ts` + `ui.css` 的 `.set-*`）：
+ *   整屏蓝天渐变 → 150×150 棕返回钮 @(44,38) → 96px 白字描边标题（字中心 (540,113)）
+ *   → **960×1350 的金框棕木卡**（圆角 118；卡内是木纹渐变 `#6a4632→#5c3a27(55%)→#4f3122`
+ *     + 93deg 的 9px 周期细木纹）→ 卡内 4 条 152 高的木纹行条（gap 34）：
+ *     音乐 / 音效 / 教学语音（各行一个 150×78 的开关切图）+ 新手教学「查看」
+ *   → 卡下方版本号（40px `#44507a`，`text-shadow 0 2px 0 rgba(255,255,255,.35)`）。
+ *
+ * 素材全部**程序绘制**，颜色取 `node tools/art-samples.mjs` 的像素采样：
+ *   settings/back.png #7e4933（中心 #9b653f）  icon-music #dda04a   icon-sfx #c28d5a
+ *   toggle-on #93cb7d（上→下 #77b565 → #ade097 → #5a9a40，旋钮在第 5 段 = 右侧，米白 #d1d9c2）
+ *   toggle-off #8c898f（上→下 #716d75 → #9e9ca1 → #6a666c，旋钮在第 2 段 = 左侧）
  *
  * ⚠️ 开关即时生效：onChange 交给调用方（MapBootstrap 直接改 GS.setSound/setBgm/setVoice，
  * 与 web/main.ts 的 onChange → audio.setSound 同口径），界面自己不碰存档。
  * ⚠️ 新手教学入口永久保留：首页按钮会在「困难模式累计通关 ≥10 关」后隐藏，
  * 但玩家可能还想回看（策划案 §14 决策 3）。
- * 素材：开关是程序绘制的滑动钮（Web 版是 toggle-on/off 两张切图），不引入新素材。
+ *
+ * 【手段差异（视觉对齐、手段不同）】
+ *   - 切图（back / icon / toggle）→ 程序绘制，色值取切图采样；
+ *   - CSS `repeating-linear-gradient(93deg…)` 的木纹 → 等宽的半透明竖条纹（条纹几乎垂直，
+ *     那 3° 的倾斜这里不做，登记为差异）；
+ *   - `text-shadow` → 错位深色文本副本（shim 没有描边组件）。
  */
 
 import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
 import { SETTINGS, TUTORIAL, VERSION } from '../玩法/text';
-import { mkLabel } from './CollectionScreen';
+import {
+  STAGE_H, STAGE_W, WHITE, fillVGrad, mkText, mkBackButton, mkTitle, paintScreenBg, paintShadow,
+} from './uiPaint';
+
+/** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点屏幕中心） */
+const localY = (cy: number): number => STAGE_H / 2 - cy;
+
+/* ------------------------------------------------------------------ 布局常量（Web 实测） */
+
+/** 返回钮：settings/back.png 采样 #7e4933（中心 #9b653f） */
+const BACK_FILL = new Color(126, 73, 51, 255);
+const BACK_GLYPH = new Color(155, 101, 63, 255);
+
+/** 金框棕木卡：960×1350 @(60,222)，圆角 118；Web 的 `padding: 46px 44px 40px` */
+const CARD_W = 960;
+const CARD_H = 1350;
+const CARD_CY = localY(222 + CARD_H / 2);
+const CARD_R = 118;
+const CARD_FRAME = 50;
+const CARD_PAD_T = 46;
+const CARD_PAD_X = 44;
+const CARD_PAD_B = 40;
+const CARD_SHADOW = new Color(20, 55, 120, Math.round(0.35 * 255));
+/** 卡内木纹渐变（Web `.set-card`） */
+const CARD_A = new Color(106, 70, 50, 255);    // #6a4632
+const CARD_B = new Color(92, 58, 39, 255);     // #5c3a27（55%）
+const CARD_C = new Color(79, 49, 34, 255);     // #4f3122
+
+/** 行：872×152，gap 34（pitch 186），圆角 34 */
+const ROW_W = 872;
+const ROW_H = 152;
+const ROW_GAP = 34;
+const ROW_R = 34;
+const ROW_A = new Color(122, 81, 56, 255);     // #7a5138
+const ROW_B = new Color(102, 66, 44, 255);     // #66422c
+const ROW_SHADOW = new Color(30, 15, 5, Math.round(0.25 * 255));
+const ROW_INSET_TOP = new Color(255, 255, 255, Math.round(0.14 * 255));
+const ROW_INSET_BOTTOM = new Color(0, 0, 0, Math.round(0.22 * 255));
+
+/** 行内：图标 96×96 → gap 28 → 标签 → gap 28 → 开关 150×78（右端距行右 40） */
+const ICON_SIZE = 96;
+const ROW_GAP_X = 28;
+const ROW_PAD_X = 40;
+const TOGGLE_W = 150;
+const TOGGLE_H = 78;
+const LABEL_FS = 60;
+const LABEL_COLOR = new Color(255, 233, 196, 255);   // #ffe9c4
+const LABEL_STROKE = new Color(40, 20, 5, Math.round(0.45 * 255));
+/** 图标 / 开关相对行中心的偏移（行宽 872、行右 padding 40） */
+const ICON_X = -ROW_W / 2 + ROW_PAD_X + ICON_SIZE / 2;
+const TOGGLE_X = ROW_W / 2 - ROW_PAD_X - TOGGLE_W / 2;
+/** 标签盒：图标右边 + gap → 开关左边 − gap */
+const LABEL_X = ICON_X + ICON_SIZE / 2 + ROW_GAP_X;
+const LABEL_W = TOGGLE_X - TOGGLE_W / 2 - ROW_GAP_X - LABEL_X;
+
+/** 「查看」钮：140×76，38px 白字，橙渐变 + 0 5px 0 投影 */
+const TUT_BTN_W = 140;
+const TUT_BTN_H = 76;
+const TUT_BTN_FS = 38;
+const TUT_BTN_A = new Color(255, 212, 121, 255);   // #ffd479
+const TUT_BTN_B = new Color(239, 155, 40, 255);    // #ef9b28
+const TUT_BTN_SHADOW = new Color(150, 80, 10, Math.round(0.6 * 255));
+
+/**
+ * 版本号：整宽居中，40px `#44507a` + `text-shadow 0 2px 0 rgba(255,255,255,.35)`。
+ * ⚠️ 取的是**字的中心** y=1632（Web 实测）：`.set-version` 的盒是 1592..1788（含
+ *    `padding:14px 0 130px`，中心 1690），字在顶部实体区 —— 对齐对齐字。
+ */
+const VERSION_FS = 40;
+const VERSION_CY = localY(1632);
+const VERSION_COLOR = new Color(68, 80, 122, 255);   // #44507a
+const VERSION_STROKE = new Color(255, 255, 255, Math.round(0.35 * 255));
+
+/** 木纹周期（Web 的 repeating-linear-gradient 是 9px 一个循环），几乎垂直的细条纹 —— Web 里很淡 */
+const WOOD_PERIOD = 9;
+const WOOD_DARK = new Color(0, 0, 0, Math.round(0.03 * 255));
+const WOOD_LIGHT = new Color(255, 255, 255, Math.round(0.015 * 255));
+
+interface ToggleRow {
+  sync: (on: boolean) => void;
+}
 
 export interface SettingsPatch {
   sound?: boolean;
@@ -25,17 +119,6 @@ export interface SettingsHandlers {
   onBack: () => void;
   onChange: (patch: SettingsPatch) => void;
   onTutorial: () => void;
-}
-
-const CARD_W = 880;
-const CARD_H = 720;
-const CARD_Y = 60;
-const ROW_H = 130;
-const SW_W = 150;
-const SW_H = 78;
-
-interface ToggleRow {
-  sync: (on: boolean) => void;
 }
 
 export class SettingsScreen {
@@ -57,117 +140,146 @@ export class SettingsScreen {
   private build(parent: Node): void {
     const root = new Node('SettingsScreen');
     root.layer = Layers.Enum.UI_2D;
-    root.addComponent(UITransform).setContentSize(1080, 1920);
+    root.addComponent(UITransform).setContentSize(STAGE_W, STAGE_H);
     root.parent = parent;
     root.setPosition(0, 0, 0);
     root.active = false;
     this.root = root;
 
-    const bg = new Node('bg');
-    bg.layer = Layers.Enum.UI_2D;
-    bg.addComponent(UITransform).setContentSize(1080, 1920);
-    const g = bg.addComponent(Graphics);
-    g.rect(-540, -960, 1080, 1920);
-    g.fillColor = new Color(155, 215, 242, 255);
-    g.fill();
-    bg.parent = root;
+    paintScreenBg(root);
+    mkBackButton(root, BACK_FILL, BACK_GLYPH, () => this.h.onBack());
+    mkTitle(root, SETTINGS.title);
 
-    const back = new Node('back');
-    back.layer = Layers.Enum.UI_2D;
-    back.addComponent(UITransform).setContentSize(96, 96);
-    back.setPosition(-450, 850, 0);
-    const bgc = back.addComponent(Graphics);
-    bgc.circle(0, 0, 48);
-    bgc.fillColor = new Color(150, 106, 62, 255);
-    bgc.fill();
-    back.parent = root;
-    mkLabel(back, '‹', 64, 0, 4, new Color(255, 255, 255), 96);
-    back.on(Node.EventType.TOUCH_END, () => this.h.onBack());
-    mkLabel(root, SETTINGS.title, 56, 0, 850, new Color(90, 50, 25), 400);
-
+    // 金框棕木卡
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
-    card.setPosition(0, CARD_Y, 0);
-    const cg = card.addComponent(Graphics);
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 30);
-    cg.fillColor = new Color(158, 112, 66, 255);
-    cg.fill();
-    cg.lineWidth = 10;
-    cg.strokeColor = new Color(240, 196, 110, 255);
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 30);
-    cg.stroke();
+    card.setPosition(0, CARD_CY, 0);
     card.parent = root;
+    const cg = card.addComponent(Graphics);
+    paintShadow(cg, CARD_W, CARD_H, CARD_R, 26, 70, CARD_SHADOW);
+    cg.fillColor = new Color(199, 150, 81, 255);   // leaderboard/frame.png 实测均色 #c79651
+    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_R);
+    cg.fill();
+    cg.lineWidth = 4;
+    cg.strokeColor = new Color(220, 173, 98, 255);
+    cg.roundRect(-CARD_W / 2 + 2, -CARD_H / 2 + 2, CARD_W - 4, CARD_H - 4, CARD_R - 2);
+    cg.stroke();
+    drawWood(cg, CARD_W - CARD_FRAME * 2, CARD_H - CARD_FRAME * 2, CARD_A, CARD_B, CARD_C, Math.max(0, CARD_R - CARD_FRAME));
 
-    let y = CARD_H / 2 - ROW_H / 2 - 40;
-    this.rows.push(this.mkToggle(card, SETTINGS.bgm, y, () => this.h.onChange({ bgm: !this.cur.bgm })));
-    y -= ROW_H;
-    this.rows.push(this.mkToggle(card, SETTINGS.sound, y, () => this.h.onChange({ sound: !this.cur.sound })));
-    y -= ROW_H;
-    this.rows.push(this.mkToggle(card, SETTINGS.voice, y, () => this.h.onChange({ voice: !this.cur.voice })));
-    y -= ROW_H;
+    // 行容器：顶部对齐卡的内容区（padding-top 46）
+    const rowsY = CARD_H / 2 - CARD_PAD_T;
+    for (let i = 0; i < 4; i++) {
+      const y = rowsY - ROW_H / 2 - i * (ROW_H + ROW_GAP);
+      if (i < 3) this.rows.push(this.mkToggleRow(card, i, y));
+      else this.mkTutorialRow(card, y);
+    }
 
-    // 新手教学「查看」—— 永久保留的回看入口
-    const tutRow = new Node('row-tutorial');
-    tutRow.layer = Layers.Enum.UI_2D;
-    tutRow.addComponent(UITransform).setContentSize(CARD_W - 80, ROW_H - 20);
-    tutRow.setPosition(0, y, 0);
-    tutRow.parent = card;
-    mkLabel(tutRow, TUTORIAL.drawerTitle, 38, -CARD_W / 2 + 220, 0, new Color(255, 245, 225), 560);
-    this.mkSmallBtn(tutRow, '查看', CARD_W / 2 - 190, () => this.h.onTutorial());
-
-    mkLabel(root, SETTINGS.version(VERSION), 30, 0, CARD_Y - CARD_H / 2 - 60, new Color(80, 60, 40), 600);
+    // 版本号（卡下方；screen 内侧 y = 1592：卡底 + card 的下 margin 20）
+    mkText(root, SETTINGS.version(VERSION), VERSION_FS, 0, VERSION_CY - 2, VERSION_STROKE, STAGE_W, true, 'center');
+    mkText(root, SETTINGS.version(VERSION), VERSION_FS, 0, VERSION_CY, VERSION_COLOR, STAGE_W, true, 'center');
   }
 
-  /** 开关行：标签 + 滑动钮（on=绿 / off=灰，圆钮左右滑） */
-  private mkToggle(parent: Node, label: string, y: number, onFlip: () => void): ToggleRow {
-    const row = new Node('row');
+  /** 前三行：图标 + 60px 标签 + 150×78 开关 */
+  private mkToggleRow(card: Node, i: number, y: number): ToggleRow {
+    const row = new Node('row' + i);
     row.layer = Layers.Enum.UI_2D;
-    row.addComponent(UITransform).setContentSize(CARD_W - 80, ROW_H - 20);
+    row.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
     row.setPosition(0, y, 0);
-    row.parent = parent;
-    mkLabel(row, label, 40, -CARD_W / 2 + 200, 0, new Color(255, 245, 225), 520);
+    row.parent = card;
+    this.paintRow(row.addComponent(Graphics));
 
+    // 图标（Web 是 icon-music / icon-sfx 两张切图 → 程序绘制，色值取采样）
+    const icon = new Node('icon');
+    icon.layer = Layers.Enum.UI_2D;
+    icon.addComponent(UITransform).setContentSize(ICON_SIZE, ICON_SIZE);
+    icon.setPosition(ICON_X, 0, 0);
+    icon.parent = row;
+    if (i === 0) drawMusicIcon(icon.addComponent(Graphics), new Color(221, 160, 74, 255));
+    else drawSpeakerIcon(icon.addComponent(Graphics), new Color(194, 141, 90, 255));
+
+    // 标签（60px + 4px 下落阴影）
+    const text = ['', SETTINGS.bgm, SETTINGS.sound, SETTINGS.voice][i + 1] ?? '';
+    mkText(row, text, LABEL_FS, LABEL_X + LABEL_W / 2, -4, LABEL_STROKE, LABEL_W, true, 'left');
+    mkText(row, text, LABEL_FS, LABEL_X + LABEL_W / 2, 0, LABEL_COLOR, LABEL_W, true, 'left');
+
+    // 开关
     const slot = new Node('toggle');
     slot.layer = Layers.Enum.UI_2D;
-    slot.addComponent(UITransform).setContentSize(SW_W, SW_H);
-    slot.setPosition(CARD_W / 2 - 190, 0, 0);
-    slot.addComponent(Graphics);
+    slot.addComponent(UITransform).setContentSize(TOGGLE_W, TOGGLE_H);
+    slot.setPosition(TOGGLE_X, 0, 0);
     slot.parent = row;
-
     const knob = new Node('knob');
     knob.layer = Layers.Enum.UI_2D;
-    knob.addComponent(UITransform).setContentSize(SW_H - 12, SW_H - 12);
-    const kg = knob.addComponent(Graphics);
-    kg.circle(0, 0, (SW_H - 12) / 2);
-    kg.fillColor = new Color(255, 255, 255, 255);
-    kg.fill();
+    knob.addComponent(UITransform).setContentSize(TOGGLE_H - 12, TOGGLE_H - 12);
     knob.parent = slot;
-    slot.on(Node.EventType.TOUCH_END, () => onFlip());
 
     const sync = (on: boolean): void => {
-      const sg = slot.getComponent(Graphics)!;
+      const sg = slot.getComponent(Graphics) ?? slot.addComponent(Graphics);
       sg.clear();
-      sg.roundRect(-SW_W / 2, -SW_H / 2, SW_W, SW_H, SW_H / 2);
-      sg.fillColor = on ? new Color(126, 200, 120, 255) : new Color(120, 120, 128, 255);
-      sg.fill();
-      knob.setPosition(on ? SW_W / 2 - SW_H / 2 : -(SW_W / 2 - SW_H / 2), 0, 0);
+      // 槽：竖向渐变（toggle-on/off 两张切图的采样）
+      fillVGrad(
+        sg, TOGGLE_W, TOGGLE_H,
+        on ? new Color(119, 181, 101, 255) : new Color(113, 109, 117, 255),
+        on ? new Color(173, 224, 151, 255) : new Color(158, 156, 161, 255),
+        on ? new Color(90, 154, 64, 255) : new Color(106, 102, 108, 255),
+        0.5, TOGGLE_H / 2, 8,
+      );
+      const kg = knob.getComponent(Graphics) ?? knob.addComponent(Graphics);
+      kg.clear();
+      kg.circle(0, 0, (TOGGLE_H - 12) / 2);
+      kg.fillColor = new Color(230, 232, 214, 255);   // 旋钮采样 #d1d9c2 提亮一点
+      kg.fill();
+      knob.setPosition(on ? TOGGLE_W / 2 - TOGGLE_H / 2 : -(TOGGLE_W / 2 - TOGGLE_H / 2), 0, 0);
     };
+    const keys: Array<keyof SettingsPatch> = ['bgm', 'sound', 'voice'];
+    slot.on(Node.EventType.TOUCH_END, () => {
+      const k = keys[i]!;
+      this.h.onChange({ [k]: !this.cur[k] } as SettingsPatch);
+    });
     return { sync };
   }
 
-  private mkSmallBtn(parent: Node, text: string, x: number, onTap: () => void): void {
+  /** 第 4 行：新手教学（永久保留的回看入口）+ 「查看」钮 */
+  private mkTutorialRow(card: Node, y: number): void {
+    const row = new Node('row-tutorial');
+    row.layer = Layers.Enum.UI_2D;
+    row.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
+    row.setPosition(0, y, 0);
+    row.parent = card;
+    this.paintRow(row.addComponent(Graphics));
+    // 这行没有图标：标签从图标的位置开始
+    const x = ICON_X - ICON_SIZE / 2;
+    const w = TOGGLE_X + TOGGLE_W / 2 - x;
+    mkText(row, TUTORIAL.drawerTitle, LABEL_FS, x + w / 2, -4, LABEL_STROKE, w, true, 'left');
+    mkText(row, TUTORIAL.drawerTitle, LABEL_FS, x + w / 2, 0, LABEL_COLOR, w, true, 'left');
+
     const btn = new Node('btn');
     btn.layer = Layers.Enum.UI_2D;
-    btn.addComponent(UITransform).setContentSize(220, 92);
-    btn.setPosition(x, 0, 0);
-    const g = btn.addComponent(Graphics);
-    g.roundRect(-110, -46, 220, 92, 46);
-    g.fillColor = new Color(255, 196, 92, 255);
+    btn.addComponent(UITransform).setContentSize(TUT_BTN_W, TUT_BTN_H);
+    btn.setPosition(TOGGLE_X + TOGGLE_W / 2 - TUT_BTN_W / 2, 0, 0);
+    const bg = btn.addComponent(Graphics);
+    bg.fillColor = TUT_BTN_SHADOW;
+    bg.roundRect(-TUT_BTN_W / 2, -TUT_BTN_H / 2 - 5, TUT_BTN_W, TUT_BTN_H, TUT_BTN_H / 2);
+    bg.fill();
+    fillVGrad(bg, TUT_BTN_W, TUT_BTN_H, TUT_BTN_A, TUT_BTN_A, TUT_BTN_B, 0.5, TUT_BTN_H / 2, 8);
+    btn.parent = row;
+    mkText(btn, SETTINGS.tutorialView, TUT_BTN_FS, 0, 0, WHITE, TUT_BTN_W, true, 'center');
+    btn.on(Node.EventType.TOUCH_END, () => this.h.onTutorial());
+  }
+
+  /** 行条：木纹渐变 + 上下 inset 高光 / 暗边 + 外投影 */
+  private paintRow(g: Graphics): void {
+    paintShadow(g, ROW_W, ROW_H, ROW_R, 6, 14, ROW_SHADOW, 3);
+    drawWood(g, ROW_W, ROW_H, ROW_A, ROW_A, ROW_B, ROW_R);
+    g.lineWidth = 3;
+    g.strokeColor = ROW_INSET_TOP;
+    g.roundRect(-ROW_W / 2 + 1.5, ROW_H / 2 - 1.5 - ROW_R, ROW_W - 3, ROW_H - 3, ROW_R);
+    g.stroke();
+    // inset 0 -4px 0：底部一条深色（用低透明矩形近似）
+    g.fillColor = ROW_INSET_BOTTOM;
+    g.rect(-ROW_W / 2 + ROW_R, -ROW_H / 2, ROW_W - ROW_R * 2, 4);
     g.fill();
-    btn.parent = parent;
-    mkLabel(btn, text, 38, 0, 0, new Color(90, 50, 25), 220);
-    btn.on(Node.EventType.TOUCH_END, () => onTap());
   }
 
   /** 同步三个开关（每次打开设置页时调一次） */
@@ -182,4 +294,69 @@ export class SettingsScreen {
   hide(): void { this.root.active = false; }
   rootNode(): Node { return this.root; }
   destroy(): void { if (this.root?.isValid) this.root.destroy(); }
+}
+
+/* ------------------------------------------------------------------ 绘制小工具 */
+
+/** 木纹底：竖向渐变 + 等宽的低透明竖条纹（Web 的 repeating-linear-gradient 是 9px 一个循环） */
+function drawWood(
+  g: Graphics, w: number, h: number, a: Color, b: Color, c: Color, r: number,
+): void {
+  fillVGrad(g, w, h, a, b, c, 0.55, r, 24);
+  // ⚠️ 条纹也得跟着圆角走，否则两侧会把直角条纹戳出圆角外。
+  //    这里按**列**算允许的高度（与 fillVGrad 的按行收窄是同一个圆的另一半几何）
+  const lim = w / 2 - r;
+  const halfTopAt = (x: number): number => {
+    const ax = Math.abs(x);
+    if (r <= 0 || ax <= lim) return h / 2;
+    const dx = ax - lim;
+    return h / 2 - r + Math.sqrt(Math.max(0, r * r - dx * dx));
+  };
+  for (let x = -w / 2; x < w / 2; x += WOOD_PERIOD) {
+    const top = Math.min(halfTopAt(x), halfTopAt(x + WOOD_PERIOD));
+    const hh = top * 2;
+    g.fillColor = WOOD_DARK;
+    g.rect(x, -top, 3, hh);
+    g.fill();
+    g.fillColor = WOOD_LIGHT;
+    g.rect(x + 3, -top, 6, hh);
+    g.fill();
+  }
+}
+
+/** 音符图标（替代 settings/icon-music.png，双音符 + 符尾） */
+function drawMusicIcon(g: Graphics, color: Color): void {
+  g.fillColor = color;
+  for (const cx of [-14, 16]) {
+    g.ellipse(cx, -30, 15, 11);
+    g.fill();
+    g.rect(cx + 12, -30, 5, 62);
+    g.fill();
+  }
+  // 符尾（连接两个符干）
+  g.lineWidth = 8;
+  g.strokeColor = color;
+  g.moveTo(-2, 32);
+  g.quadraticCurveTo(6, 44, 33, 42);
+  g.stroke();
+}
+
+/** 喇叭图标（替代 settings/icon-sfx.png） */
+function drawSpeakerIcon(g: Graphics, color: Color): void {
+  g.fillColor = color;
+  g.moveTo(-34, -12);
+  g.lineTo(-14, -12);
+  g.lineTo(4, -32);
+  g.lineTo(4, 32);
+  g.lineTo(-14, 12);
+  g.lineTo(-34, 12);
+  g.close();
+  g.fill();
+  g.lineWidth = 7;
+  g.strokeColor = color;
+  for (const [r0, r1] of [[16, 16], [30, 30]] as Array<[number, number]>) {
+    g.moveTo(r0, -r1 * 0.7);
+    g.quadraticCurveTo(r0 + 10, 0, r0, r1 * 0.7);
+    g.stroke();
+  }
 }

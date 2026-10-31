@@ -347,12 +347,19 @@ const WEB_LB_KEYS = {
   tabbar: '#tabbar',
 };
 
-function webLeaderboardProbeSource() {
+/**
+ * 通用 Web 探针模板（排行榜 / 图鉴 / 设置三屏共用）：
+ * 给一批选择器 → 逐个量几何 + computed style + **文字真实包围盒**（见 `tr`）。
+ * `extra` 是拼进返回对象里的附加字段表达式串（例如 `rowCount: rows.length,`），
+ * 可以直接用模板里的 `s`（stage 缩放）与 `box()`。
+ */
+function webKeysProbeSource(KEYS, screenName, extra = '') {
   return `(() => {
-  const KEYS = ${JSON.stringify(WEB_LB_KEYS)};
+  const KEYS = ${JSON.stringify(KEYS)};
   const stage = document.getElementById('stage');
   const base = stage.getBoundingClientRect();
   const s = (base.width || 1080) / 1080;
+  const box = (e) => e.getBoundingClientRect();
   const L = (r) => ({
     x: +((r.left - base.left) / s).toFixed(2),
     y: +((r.top - base.top) / s).toFixed(2),
@@ -365,10 +372,11 @@ function webLeaderboardProbeSource() {
       color: c.color, fontSize: c.fontSize, fontWeight: c.fontWeight, lineHeight: c.lineHeight,
       bg: c.backgroundColor, bgImage: c.backgroundImage.slice(0, 160),
       radius: c.borderTopLeftRadius, shadow: c.boxShadow.slice(0, 160),
+      stroke: c.webkitTextStrokeWidth + ' ' + c.webkitTextStrokeColor,
       textShadow: c.textShadow.slice(0, 140), opacity: c.opacity,
       margin: c.marginTop + ' ' + c.marginRight + ' ' + c.marginBottom + ' ' + c.marginLeft,
       padding: c.paddingTop + ' ' + c.paddingRight + ' ' + c.paddingBottom + ' ' + c.paddingLeft,
-      gap: c.gap, cols: c.gridTemplateColumns, hidden: el.hidden === true,
+      gap: c.gap, cols: c.gridTemplateColumns, aspect: c.aspectRatio, hidden: el.hidden === true,
     };
   };
   /**
@@ -393,25 +401,107 @@ function webLeaderboardProbeSource() {
   for (const [k, sel] of Object.entries(KEYS)) {
     const el = document.querySelector(sel);
     if (!el) { out.push({ key: k, missing: true }); continue; }
-    out.push(Object.assign({ key: k, cls: el.className, text: (el.textContent || '').trim().slice(0, 30) }, L(el.getBoundingClientRect()), cs(el), { textRect: tr(el) }));
+    out.push(Object.assign({ key: k, cls: el.className, text: (el.textContent || '').trim().slice(0, 30) }, L(box(el)), cs(el), { textRect: tr(el) }));
   }
-  const rows = Array.from(document.querySelectorAll('.lb-list .lb-row'));
-  const podium = Array.from(document.querySelectorAll('.lb-podium-item'));
   return {
-    screen: 'leaderboard', stageScale: s, items: out,
-    rowCount: rows.length,
-    // 行间距：CSS gap 14px，这里用实测的相邻行顶边之差（行高 + 间距）
-    rowPitch: rows.length > 1
-      ? +((rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) / s).toFixed(2)
-      : null,
-    podiumCount: podium.length,
-    activeTab: (() => {
-      const t = document.querySelector('.lb-tab.on');
-      return t ? t.textContent : null;
-    })(),
-    scrollTop: (() => { const sc = document.querySelector('.lb-scroll'); return sc ? sc.scrollTop : null; })(),
+    screen: '${screenName}', stageScale: s, items: out,
+${extra}
   };
 })()`;
+}
+
+function webLeaderboardProbeSource() {
+  const extra = `
+    rowCount: Array.from(document.querySelectorAll('.lb-list .lb-row')).length,
+    // 行间距：CSS gap 14px，这里用实测的相邻行顶边之差（行高 + 间距）
+    rowPitch: (() => {
+      const r = Array.from(document.querySelectorAll('.lb-list .lb-row'));
+      return r.length > 1 ? +((box(r[1]).top - box(r[0]).top) / s).toFixed(2) : null;
+    })(),
+    podiumCount: Array.from(document.querySelectorAll('.lb-podium-item')).length,
+    activeTab: (() => { const t = document.querySelector('.lb-tab.on'); return t ? t.textContent : null; })(),
+    scrollTop: (() => { const sc = document.querySelector('.lb-scroll'); return sc ? sc.scrollTop : null; })(),`;
+  return webKeysProbeSource(WEB_LB_KEYS, 'leaderboard', extra);
+}
+
+/* ------------------------------------------------------------------ 探针（Web · 图鉴整屏） */
+
+/**
+ * 图鉴 `#screen-collection`：整屏蓝天 + 棕返回钮 + 96px 标题 + 「已收集 x/y」+
+ * 金框大卡内的 3 列贴纸卡网格（可滚）。
+ * 进入方式：`--click=".tabbar .tab:nth-child(3)"`。
+ */
+const WEB_COL_KEYS = {
+  screen: '#screen-collection',
+  top: '.col-top',
+  back: '.col-back',
+  title: '.col-title',
+  count: '.col-count',
+  card: '.col-card',
+  grid: '.col-grid',
+  cell0: '.col-grid .col-cell:nth-child(1)',
+  cell1: '.col-grid .col-cell:nth-child(2)',
+  cell2: '.col-grid .col-cell:nth-child(3)',
+  /** 第 2 行第 1 个（3 列网格 → nth-child(4)），用来量行距 */
+  cellRow1: '.col-grid .col-cell:nth-child(4)',
+  /** 贴纸图的位置 = 卡底切图的内框（CSS: left 6% / top 5% / 86%×89%） */
+  img0: '.col-grid .col-cell:nth-child(1) .col-img',
+  cellLocked: '.col-grid .col-cell.locked',
+  tabbar: '#tabbar',
+};
+
+function webCollectionProbeSource() {
+  const extra = `
+    cellCount: Array.from(document.querySelectorAll('.col-grid .col-cell')).length,
+    lockedCount: Array.from(document.querySelectorAll('.col-grid .col-cell.locked')).length,
+    // 列/行的实测步距（grid 是 3 列 + gap 10px）
+    colPitch: (() => {
+      const c = Array.from(document.querySelectorAll('.col-grid .col-cell'));
+      return c.length > 1 ? +((box(c[1]).left - box(c[0]).left) / s).toFixed(2) : null;
+    })(),
+    rowPitch: (() => {
+      const c = Array.from(document.querySelectorAll('.col-grid .col-cell'));
+      return c.length > 3 ? +((box(c[3]).top - box(c[0]).top) / s).toFixed(2) : null;
+    })(),
+    countText: (() => { const e = document.querySelector('.col-count'); return e ? e.textContent : null; })(),`;
+  return webKeysProbeSource(WEB_COL_KEYS, 'collection', extra);
+}
+
+/* ------------------------------------------------------------------ 探针（Web · 设置整屏） */
+
+/**
+ * 设置 `#screen-settings`：整屏蓝天 + 棕返回钮 + 96px 标题 + 金框棕木卡
+ * （卡内 4 行：音乐 / 音效 / 教学语音 / 新手教学「查看」）+ 卡下版本号。
+ * 进入方式：`--click=".tabbar .tab:nth-child(4)"`。
+ */
+const WEB_SET_KEYS = {
+  screen: '#screen-settings',
+  top: '.set-top',
+  back: '.set-back',
+  title: '.set-title',
+  card: '.set-card',
+  rows: '.set-rows',
+  row0: '.set-rows .set-row:nth-child(1)',
+  row1: '.set-rows .set-row:nth-child(2)',
+  row2: '.set-rows .set-row:nth-child(3)',
+  row3: '.set-rows .set-row:nth-child(4)',
+  icon0: '.set-rows .set-row:nth-child(1) .set-icon',
+  label0: '.set-rows .set-row:nth-child(1) .set-label',
+  toggle0: '.set-rows .set-row:nth-child(1) .set-toggle',
+  toggle1: '.set-rows .set-row:nth-child(2) .set-toggle',
+  toggle2: '.set-rows .set-row:nth-child(3) .set-toggle',
+  tutLabel: '.set-rows .set-row:nth-child(4) .set-label',
+  tutBtn: '.set-tutorial-btn',
+  version: '.set-version',
+  tabbar: '#tabbar',
+};
+
+function webSettingsProbeSource() {
+  const extra = `
+    rowCount: Array.from(document.querySelectorAll('.set-rows .set-row')).length,
+    toggleImgs: Array.from(document.querySelectorAll('.set-toggle')).map((b) => b.style.backgroundImage.slice(0, 90)),
+    versionText: (() => { const e = document.querySelector('.set-version'); return e ? e.textContent : null; })(),`;
+  return webKeysProbeSource(WEB_SET_KEYS, 'settings', extra);
 }
 
 /* ------------------------------------------------------------------ 探针（Cocos / cc-shim） */
@@ -674,7 +764,11 @@ const src = PROBE === 'cocos-home'
         ? webPreviewProbeSource()
         : PROBE === 'web-leaderboard'
           ? webLeaderboardProbeSource()
-          : webProbeSource();
+          : PROBE === 'web-collection'
+            ? webCollectionProbeSource()
+            : PROBE === 'web-settings'
+              ? webSettingsProbeSource()
+              : webProbeSource();
 const res = await cdp.send('Runtime.evaluate', { expression: src, returnByValue: true, awaitPromise: true });
 let data;
 if (res.exceptionDetails) {
