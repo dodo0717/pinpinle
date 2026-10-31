@@ -25,7 +25,7 @@
  *   - CSS keyframes 三段用两段 tween 近似（0.33s quadOut 到 +6%，再 0.22s backOut 回 0）。
  */
 
-import { Node, UITransform, Graphics, Label, LabelShadow, Color, Layers, UIOpacity, tween, Vec2, Vec3 } from 'cc';
+import { Node, UITransform, Graphics, Label, Color, Layers, UIOpacity, tween, Vec2, Vec3 } from 'cc';
 
 export type LevelMode = 'normal' | 'nightmare';
 
@@ -270,9 +270,10 @@ export class LevelPreview {
     }
     this.levelLabels.push(mkLabel(card, '', LEVEL_FS, 0, y, C_LEVEL, CONTENT_W, true));
     const main = this.levelLabels[this.levelLabels.length - 1];
-    const sh = main.node.addComponent(LabelShadow);
-    sh.shadowColor = new Color(0, 0, 0, Math.round(0.12 * 255));   // 0 4px 0 rgba(0,0,0,.12)
-    sh.shadowOffset = new Vec2(0, -4);
+    // ⚠️ 3.8.2 起走 Label 自带的阴影属性（`LabelShadow` 的 color/offset 已废弃）
+    main.enableShadow = true;
+    main.shadowColor = new Color(0, 0, 0, Math.round(0.12 * 255));   // 0 4px 0 rgba(0,0,0,.12)
+    main.shadowOffset = new Vec2(0, -4);
   }
 
   /**

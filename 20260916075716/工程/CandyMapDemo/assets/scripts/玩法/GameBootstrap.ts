@@ -13,7 +13,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
-  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween, LabelShadow,
+  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -334,7 +334,8 @@ export class GameBootstrap extends Component {
       const pre = GS.preDeduct();
       if (!pre.ok) {
         // 已经预扣过说明上一局没走完退出流程，这里把那颗退回去再重扣，不让玩家白花
-        if (pre.reason === 'already-pending') {
+        // ⚠️ 同上：`strict:false` 下联合类型不做判别式收窄，显式取一次（运行期不变）
+        if ((pre as { reason?: 'exhausted' | 'already-pending' }).reason === 'already-pending') {
           GS.refundStamina();
           const again = GS.preDeduct();
           if (!again.ok) { this.toast.show(HOME.staminaShort, 2600); return; }
@@ -1334,9 +1335,11 @@ export class GameBootstrap extends Component {
       if (b.enableBold === false) b.enableBold = true;
     }
     if (shadow) {
-      const s = n.addComponent(LabelShadow);
-      s.shadowColor = shadow.color;
-      s.shadowOffset = new Vec2(shadow.dx, shadow.dy);
+      // ⚠️ 3.8.2 起阴影属性搬到了 Label 上（`LabelShadow.color/offset` 已废弃，且 3.8 的
+      //    LabelShadow 上写这两个属性在 TS 里直接报错、运行时也不生效）
+      l.enableShadow = true;
+      l.shadowColor = shadow.color;
+      l.shadowOffset = new Vec2(shadow.dx, shadow.dy);
     }
     return l;
   }
@@ -1795,7 +1798,8 @@ export class GameBootstrap extends Component {
 
   /** 教学奖励：第 1 关免 1 颗体力 + 体力 +5（不送星、不送图鉴 —— 免得污染两套系统） */
   private grantTutorialReward(): void {
-    GS.addStamina(Date.now(), 5);
+    // ⚠️ GameState 上叫 `gainStamina(count)`（`addStamina` 是 meta 层的纯函数，签名是 (state, now, count)）
+    GS.gainStamina(5);
     GS.updateTutorial({ freeLevel: true });
   }
 

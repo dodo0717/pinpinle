@@ -1,4 +1,4 @@
-import { _decorator, Component, Graphics, UITransform, Color, tween, Vec3, UIOpacity, Label, Node, Layers, Sprite, Vec2, LabelShadow } from 'cc';
+import { _decorator, Component, Graphics, UITransform, Color, tween, Vec3, UIOpacity, Label, Node, Layers, Sprite, Vec2, Font } from 'cc';
 const { ccclass } = _decorator;
 
 /**
@@ -44,8 +44,19 @@ const GEL_LOCKED: [Color, Color, Color] = [
 export class LevelNode extends Component {
     private levelNum = 0;
     private isCurrent = false;
+    /** 关卡珠上所有 Label 共用的字体（MapBootstrap 加载完 `font/HarmonyOS_Sans_SC_Medium` 后下发） */
+    private fontAsset: Font | null = null;
 
     get level() { return this.levelNum; }
+
+    /**
+     * 换字体：本节点与子节点的所有 Label 一起换（数字 / 🔒 / 🐶 / 👑）。
+     * 之后新建的 Label 在 `init()` 末尾会补上，保证「先建节点、后加载完字体」也生效。
+     */
+    setFont(f: Font): void {
+        this.fontAsset = f;
+        for (const l of this.node.getComponentsInChildren(Label)) l.font = f;
+    }
 
     /**
      * @param level 关卡号
@@ -67,6 +78,8 @@ export class LevelNode extends Component {
             if (state === 3) this.drawCrown();
             this.drawRing();
         }
+        // 字体是异步加载的：本节点建好时如果字体已经到了，这里补一次
+        if (this.fontAsset) this.setFont(this.fontAsset);
     }
 
     /* ---------------------------------------------------------------- 珠面 */
@@ -122,9 +135,10 @@ export class LevelNode extends Component {
         const b = l as unknown as { isBold?: boolean; enableBold?: boolean };
         if (b.isBold === false || b.isBold === undefined) b.isBold = true;
         if (b.enableBold === false) b.enableBold = true;
-        const s = n.addComponent(LabelShadow);
-        s.shadowColor = state === 3 && !locked ? new Color(255, 240, 200, 180) : new Color(90, 45, 5, 200);
-        s.shadowOffset = new Vec2(0, -3);
+        // ⚠️ 3.8.2 起走 Label 自带的阴影属性（`LabelShadow` 的 color/offset 已废弃）
+        l.enableShadow = true;
+        l.shadowColor = state === 3 && !locked ? new Color(255, 240, 200, 180) : new Color(90, 45, 5, 200);
+        l.shadowOffset = new Vec2(0, -3);
     }
 
     /** 未解锁：🔒（Web 就是 emoji，不是程序画的锁） */

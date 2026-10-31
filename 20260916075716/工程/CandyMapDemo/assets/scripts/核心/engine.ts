@@ -211,7 +211,9 @@ export class PuzzleEngine {
    */
   move(anchor: number, target: number): MoveOutcome {
     const check = planGroupMove(this.grid, anchor, target, this.config.swapRule);
-    if (!check.ok) return this.rejected(check.reason);
+    // ⚠️ 显式取 `reason`：本工程 `strict:false`（`strictNullChecks` 关），TS 对这个
+    //    联合类型不做判别式收窄，直接写 `check.reason` 会报错；运行期行为完全不变。
+    if (!check.ok) return this.rejected((check as { reason: MoveReject }).reason);
     applyGroupMove(this.grid, check.plan);
     return this.resolveBoard();
   }

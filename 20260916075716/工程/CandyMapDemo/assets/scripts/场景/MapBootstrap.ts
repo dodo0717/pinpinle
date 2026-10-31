@@ -363,8 +363,9 @@ export class MapBootstrap extends Component {
         maskNode.addComponent(UITransform).setContentSize(DESIGN_W, this.viewH);
         // Mask 默认是 GRAPHICS_STENCIL，靠节点上的 Graphics 取模板形状；
         // 本节点没有 Graphics，模板为空会把整张地图裁掉 —— 必须显式改成矩形裁剪
+        // ⚠️ 3.8 的枚举是 `MaskType.GRAPHICS_RECT`（没有 `RECT`，写 `RECT` 是 2.x 口径，TS 会报错）
         const mask = maskNode.addComponent(Mask);
-        mask.type = Mask.Type.RECT;
+        mask.type = Mask.Type.GRAPHICS_RECT;
 
         const scroll = scrollNode.addComponent(ScrollView);
         scroll.horizontal = false;

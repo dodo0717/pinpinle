@@ -119,12 +119,14 @@ export function buildTotalBoard(my: { simple: number; hard: number }): Leaderboa
     const total = 380 + rng.int(600); // 380 ~ 979
     const simple = Math.round(total * 0.6);
     const hard = total - simple;
-    return { rank: 0, name, simple, hard, total, mine: false };
+    // 总分榜里 `score` 就是累计总分（与 Web `.lb-row` 的总分列同源）
+    return { rank: 0, name, score: total, simple, hard, total, mine: false };
   });
   // 把本机玩家「我」塞进榜单，方便看高亮效果（真实值，不做任何比例拆分）
   rows.push({
     rank: 0,
     name: LEADERBOARD.mineName,
+    score: my.simple + my.hard,
     simple: my.simple,
     hard: my.hard,
     total: my.simple + my.hard,

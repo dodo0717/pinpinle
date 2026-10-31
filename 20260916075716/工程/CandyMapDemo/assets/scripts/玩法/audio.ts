@@ -111,7 +111,8 @@ export class GameAudio extends Component {
   private onHide(): void { if (this.bgmSrc?.playing) this.bgmSrc.pause(); }
   private onShow(): void {
     if (!this.bgmSrc) return;
-    if (this.bgmOn && this.running) this.bgmSrc.resume();
+    // ⚠️ 3.8 的 `AudioSource` 没有 `resume()`（那是 Web Audio 的口径）；暂停后继续 = 再 `play()`
+    if (this.bgmOn && this.running && this.bgmSrc.clip && !this.bgmSrc.playing) this.bgmSrc.play();
   }
 
   /* ------------------------------------------------------------ 播放 */

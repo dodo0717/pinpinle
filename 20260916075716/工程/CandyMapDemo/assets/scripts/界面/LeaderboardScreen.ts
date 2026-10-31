@@ -33,9 +33,9 @@
  * 数据口径在 `leaderboardModel.ts`（可单测）。
  */
 
-import { Node, UITransform, Graphics, Label, LabelShadow, Color, Layers, ScrollView, Mask, UIOpacity, Vec2, Sprite } from 'cc';
+import { Node, UITransform, Graphics, Label, Color, Layers, ScrollView, Mask, UIOpacity, Vec2, Sprite } from 'cc';
 import { LEADERBOARD } from '../玩法/text';
-import { mkSprite, setSprite, fitContain } from './uiPaint';
+import { mkSprite, setSprite, fitContain, maskStencil } from './uiPaint';
 import {
   LEADERBOARD_PAGE_SIZE,
   LEADERBOARD_MAX_LEVEL,
@@ -434,7 +434,7 @@ export class LeaderboardScreen {
     sv.horizontal = false;
     const mask = this.scroll.addComponent(Mask);
     mask.type = Mask.Type.GRAPHICS_STENCIL;
-    this.maskG = mask.graphics;
+    this.maskG = maskStencil(mask, this.scroll);
     this.paintMask(LIST_H_TOTAL);
     const content = new Node('content');
     content.layer = Layers.Enum.UI_2D;
@@ -586,7 +586,8 @@ export class LeaderboardScreen {
     const op = node.addComponent(UIOpacity);
     node.on(Node.EventType.TOUCH_END, onTap);
     return {
-      node, label,
+      // 圆钮没有切图（Web 也是纯 CSS 画的）→ sprite 恒为 null
+      node, label, sprite: null,
       setDim: (dim: boolean) => { op.opacity = dim ? OP_DIM : 255; },
       setText: (s: string) => { label.string = s; },
     };
@@ -886,9 +887,10 @@ export class LeaderboardScreen {
       const cTotal = mkText(item, String(row.total ?? row.score), 54, COL.total, 0, C_TOTAL, COL_W.total, true, 'center');
       // 行内数字的白描边 / 投影（shim 不画，真引擎会画）
       for (const [lb, dy] of [[cSimple, -3], [cHard, -3], [cTotal, -5]] as Array<[Label, number]>) {
-        const sh = lb.node.addComponent(LabelShadow);
-        sh.shadowColor = new Color(255, 255, 255, Math.round(0.6 * 255));
-        sh.shadowOffset = new Vec2(0, dy);
+        // ⚠️ 3.8.2 起走 Label 自带的阴影属性（`LabelShadow` 的 color/offset 已废弃）
+        lb.enableShadow = true;
+        lb.shadowColor = new Color(255, 255, 255, Math.round(0.6 * 255));
+        lb.shadowOffset = new Vec2(0, dy);
       }
     });
   }

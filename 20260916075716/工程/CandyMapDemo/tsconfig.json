@@ -5,6 +5,7 @@
     "module": "ESNext",
     "strict": false,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "lib": ["ES2019", "DOM"]
   }
 }

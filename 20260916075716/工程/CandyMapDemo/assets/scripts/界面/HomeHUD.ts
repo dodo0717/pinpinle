@@ -26,7 +26,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Layers, Graphics, Label, Sprite, Color,
-  tween, Vec3, Vec2, UIOpacity, resources, SpriteFrame, LabelShadow,
+  tween, Vec3, Vec2, UIOpacity, resources, SpriteFrame,
 } from 'cc';
 const { ccclass } = _decorator;
 
@@ -348,9 +348,10 @@ export class HomeHUD extends Component {
       if (b.enableBold === false) b.enableBold = true;
     }
     if (shadow) {
-      const s = n.addComponent(LabelShadow);
-      s.shadowColor = shadow.color;
-      s.shadowOffset = new Vec2(shadow.dx, shadow.dy);
+      // ⚠️ 3.8.2 起走 Label 自带的阴影属性（`LabelShadow` 的 color/offset 已废弃）
+      l.enableShadow = true;
+      l.shadowColor = shadow.color;
+      l.shadowOffset = new Vec2(shadow.dx, shadow.dy);
     }
     return l;
   }

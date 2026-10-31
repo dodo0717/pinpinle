@@ -33,7 +33,7 @@ import { resolveAsset, type ResolvedAsset } from '../平台/assetSource';
 import { loadSpriteFrame } from '../平台/assetLoader';
 import { COLLECTION } from '../玩法/text';
 import {
-  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, paintScreenBg, paintShadow,
+  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, maskStencil, paintScreenBg, paintShadow,
 } from './uiPaint';
 
 /** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点卡/屏中心） */
@@ -186,7 +186,7 @@ export class CollectionScreen {
     sv.horizontal = false;
     const mask = svNode.addComponent(Mask);
     mask.type = Mask.Type.GRAPHICS_STENCIL;
-    const mg = mask.graphics;
+    const mg = maskStencil(mask, svNode);
     mg.roundRect(-GRID_W / 2, -GRID_H / 2, GRID_W, GRID_H, 40);
     mg.fill();
 
@@ -280,7 +280,7 @@ export class CollectionScreen {
     frame.parent = cell;
     const mk = frame.addComponent(Mask);
     mk.type = Mask.Type.GRAPHICS_STENCIL;
-    const mg = mk.graphics;
+    const mg = maskStencil(mk, frame);
     mg.roundRect(-iw / 2, -ih / 2, iw, ih, iw * 0.06);
     mg.fill();
 

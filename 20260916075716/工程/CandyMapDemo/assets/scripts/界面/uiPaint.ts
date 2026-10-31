@@ -118,6 +118,20 @@ export function mkSprite(parent: Node, res: string, w: number, h: number, x = 0,
   return sp;
 }
 
+/**
+ * 取 `GRAPHICS_STENCIL` 遮罩的模板 `Graphics`。
+ *
+ * ⚠️ `mask.graphics` 是 **2.x 口径**，Creator 3.8 的 `MaskComponent` 没有这个属性（TS 直接报错）。
+ * 3.8 的实现是「模板 Graphics 挂在 Mask 的同一节点上」——引擎 `_createGraphics()` 就是
+ * `node.getComponent(Graphics) ?? node.addComponent(Graphics)`，这里照同一口径拿。
+ * 预览 shim 只认 `mask.graphics`，所以两条路都兜住。
+ */
+export function maskStencil(mask: unknown, node: Node): Graphics {
+  const g = (mask as { graphics?: Graphics }).graphics;
+  if (g) return g;
+  return node.getComponent(Graphics) ?? node.addComponent(Graphics);
+}
+
 /** 换贴图（开关的 on / off 就靠它）；节点已销毁时静默 */
 export function setSprite(sp: Sprite, res: string): void {
   loadSpriteFrame(resolveAsset('ui', res, 'png'), (sf) => {
