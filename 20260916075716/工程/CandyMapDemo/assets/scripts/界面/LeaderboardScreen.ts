@@ -19,8 +19,11 @@
  * ⚠️ 本机玩家那一行黄色高亮（`ROW_MINE`）。
  *
  * 【手段差异（视觉对齐、手段不同）】
- *   - 全部切图（杯 / 奖牌 / 头像 / 领奖台 / 丝带 / 星星）一律**程序绘制**，不引入切图；
- *     颜色取切图实测均色，色值 ≈ 但形状是简化（丝带=旋转圆角条，星=五角星）
+ *   - **切图优先、程序绘制兜底**（与图鉴 / 设置两屏同口径）：`mkSprite` 把 `web/art/leaderboard/*.png`
+ *     铺在程序绘制的底之上；加载失败时就只剩程序绘制的底，不会开天窗。
+ *     已接切图：back / header / frame / tab-on / tab-off / row / row-mine / medal-1~4 /
+ *     avatar-1~3 / cup-gold,silver,bronze / podium-red,orange / ribbon×3 / star。
+ *     程序绘制只用于**切图里没有的东西**（分页翻页钮、挑战本关、名次数字圆牌、表头三道竖分隔线）
  *   - 标题的 96px 描边用**八向错位文本**（shim 没有 `LabelOutline`）；行内数字的细节描边用
  *     `LabelShadow`（shim 不画，真引擎会画）
  *   - 关卡下拉 `<select>` → 同尺寸胶囊 + 文本（shim 没有下拉控件），◀▶ 步进保留
@@ -30,8 +33,9 @@
  * 数据口径在 `leaderboardModel.ts`（可单测）。
  */
 
-import { Node, UITransform, Graphics, Label, LabelShadow, Color, Layers, ScrollView, Mask, UIOpacity, Vec2 } from 'cc';
+import { Node, UITransform, Graphics, Label, LabelShadow, Color, Layers, ScrollView, Mask, UIOpacity, Vec2, Sprite } from 'cc';
 import { LEADERBOARD } from '../玩法/text';
+import { mkSprite, setSprite, fitContain } from './uiPaint';
 import {
   LEADERBOARD_PAGE_SIZE,
   LEADERBOARD_MAX_LEVEL,
@@ -242,6 +246,9 @@ const MEDAL = [
   new Color(118, 168, 202, 255),
 ];
 const MEDAL_NUM = new Color(255, 207, 67, 255); // #ffcf43
+/** medal-1~4 的原图尺寸（4 张都在 131~132 × 154~156 之间，取代表值算 contain 比例） */
+const MEDAL_IW = 131;
+const MEDAL_IH = 154;
 /** avatar-1~3 的均色 */
 const AVATAR = [
   new Color(115, 87, 81, 255),
@@ -258,6 +265,8 @@ const OP_DIM_BIG = Math.round(0.62 * 255);
 interface Btn {
   node: Node;
   label: Label;
+  /** 底图（Tab 的 on/off 靠换 SpriteFrame；没有切图时为 null） */
+  sprite: Sprite | null;
   /** 置灰（Web 的 .dim：整体半透明，仍可点 → 点了走提示） */
   setDim: (dim: boolean) => void;
   setText: (s: string) => void;
@@ -319,7 +328,7 @@ export class LeaderboardScreen {
     fillVGrad(bg.addComponent(Graphics), 1080, 1920, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
     bg.parent = root;
 
-    // 顶栏：150×150 棕圆返回钮 + 96px 白字描边标题
+    // 顶栏：150×150 返回钮（`leaderboard/back.png` 切图，兜底是棕圆 + ‹）+ 96px 白字描边标题
     const back = new Node('back');
     back.layer = Layers.Enum.UI_2D;
     back.addComponent(UITransform).setContentSize(BACK_SIZE, BACK_SIZE);
@@ -333,7 +342,7 @@ export class LeaderboardScreen {
     bgc.circle(0, 0, BACK_SIZE / 2 - 3);
     bgc.stroke();
     back.parent = root;
-    mkText(back, '‹', 84, 0, 4, BACK_GLYPH, BACK_SIZE, true, 'center');
+    mkSprite(back, 'leaderboard/back', BACK_SIZE, BACK_SIZE);
     back.on(Node.EventType.TOUCH_END, () => this.h.onBack());
 
     // 标题：白色 96px + 深棕描边（八向错位文本近似，shim 没有 LabelOutline）
@@ -351,9 +360,10 @@ export class LeaderboardScreen {
     card.parent = root;
 
     // 双 Tab：总分榜（左）/ 关卡榜（右）
+    // 初始态 = 总分榜选中 → 左 on / 右 off；切页签时由 `setTabArt` 换 SpriteFrame
     this.tabBtns = {
-      total: this.mkCapsule(card, LEADERBOARD.tabTotal, -TAB_X, Y.tab, () => this.setTab('total'), TAB_W, TAB_H, TAB_FS),
-      level: this.mkCapsule(card, LEADERBOARD.tabLevel, TAB_X, Y.tab, () => this.setTab('level'), TAB_W, TAB_H, TAB_FS),
+      total: this.mkCapsule(card, LEADERBOARD.tabTotal, -TAB_X, Y.tab, () => this.setTab('total'), TAB_W, TAB_H, TAB_FS, 'leaderboard/tab-on'),
+      level: this.mkCapsule(card, LEADERBOARD.tabLevel, TAB_X, Y.tab, () => this.setTab('level'), TAB_W, TAB_H, TAB_FS, 'leaderboard/tab-off'),
     };
 
     // 关卡步进器（仅关卡榜）
@@ -394,7 +404,7 @@ export class LeaderboardScreen {
     this.podium.addComponent(UITransform).setContentSize(PODIUM_W, PODIUM_H);
     this.podium.setPosition(0, Y.podium, 0);
     this.podium.parent = card;
-    this.paintDecor(this.podium.addComponent(Graphics));
+    this.paintDecor(this.podium);
 
     // 表头条（卡片局部坐标，放在 body 之外单独跟随）
     const head = new Node('thead');
@@ -403,6 +413,8 @@ export class LeaderboardScreen {
     head.setPosition(0, Y.head, 0);
     head.parent = card;
     this.paintHead(head.addComponent(Graphics));
+    // `header.png` 在文字之前加（文字要压在切图上）
+    mkSprite(head, 'leaderboard/header', HEAD_W, HEAD_H);
     mkText(head, LEADERBOARD.colRank, HEAD_FS, COL.rank, 0, HEAD_TEXT, COL_W.rank, true, 'center');
     // 昵称列：盒宽 274 与 Web 一致，文字左对齐（Web `.lb-c-name` 的 padding-left 16）
     mkText(head, LEADERBOARD.colName, HEAD_FS, COL.nameBox, 0, HEAD_TEXT, COL_W.nameBox, true, 'left');
@@ -445,11 +457,17 @@ export class LeaderboardScreen {
 
     // 「挑战本关」通栏按钮（仅关卡榜）
     this.challengeBtn = this.mkCapsule(card, LEADERBOARD.challenge, 0, Y.challenge, () => this.onChallengeTap(), CHALLENGE_W, CHALLENGE_H, CHALLENGE_FS);
+
+    // 金框切图**最后**加：Web 的 `.lb-card::before` 是 `z-index: 9`，框盖在所有内容之上
+    mkSprite(card, 'leaderboard/frame', CARD_W, CARD_H);
   }
 
   /* ------------------------------------------------------------ 绘制（卡片 / 表头 / 装饰） */
 
-  /** 卡片：金框（外）+ 卡内蓝渐变（内缩 50），竖向渐变按圆角逐行收窄 */
+  /**
+   * 卡片：**卡内蓝渐变铺满整卡** —— 金框是 `leaderboard/frame.png` 切图，
+   * 在 `build()` 最后以子节点形式加进来（Web 的 `.lb-card::before` 是 `z-index:9`，盖在内容之上）。
+   */
   private paintCard(g: Graphics): void {
     g.clear();
     // box-shadow 0 26px 70px rgba(20,55,120,.35)：5 层低透明同心圆角矩形
@@ -462,27 +480,16 @@ export class LeaderboardScreen {
       );
       g.fill();
     }
-    // 金框：整卡铺金，再把内部换成蓝渐变
-    g.fillColor = FRAME_GOLD;
-    g.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_R);
-    g.fill();
-    g.lineWidth = 4;
-    g.strokeColor = FRAME_EDGE;
-    g.roundRect(-CARD_W / 2 + 2, -CARD_H / 2 + 2, CARD_W - 4, CARD_H - 4, CARD_R - 2);
-    g.stroke();
-    // 内部蓝渐变（内缩 CARD_FRAME）
-    fillVGrad(
-      g, CARD_W - CARD_FRAME * 2, CARD_H - CARD_FRAME * 2,
-      CARD_A, CARD_B, CARD_C, 0.55, Math.max(0, CARD_R - CARD_FRAME), 40,
-    );
+    fillVGrad(g, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, 0.55, CARD_R, 40);
   }
 
-  /** 表头条：米色胶囊条 + 三道竖分隔线 */
+  /** 表头条：米色胶囊条（兜底，`header.png` 由 `build()` 铺在上面）+ 三道竖分隔线 */
   private paintHead(g: Graphics): void {
     g.clear();
     g.fillColor = HEAD_BG;
     g.roundRect(-HEAD_W / 2, -HEAD_H / 2, HEAD_W, HEAD_H, HEAD_H / 2);
     g.fill();
+    // 三道竖线是 Web 的 CSS `border-left`，切图里没有 → 仍要程序画
     const lineH = HEAD_H * 0.76;
     for (const x of COL_HEAD_LINE) {
       g.fillColor = HEAD_LINE;
@@ -491,49 +498,29 @@ export class LeaderboardScreen {
     }
   }
 
-  /** 领奖台的常驻装饰：3 条丝带（旋转圆角条）+ 3 颗五角星（Web `.lb-deco` 的实测位置） */
-  private paintDecor(g: Graphics): void {
-    g.clear();
-    // 绿 107×195.7 @left21,top48 / 蓝 80×116.5 @right37,top80,r18 / 金 91×71.3 @right155,top6,r-14
-    const ribbons: Array<[number, number, number, number, number, number]> = [
-      [161.5, 48 + 195.7 / 2, 107, 195.7, 0, 0],
-      [993 - 37 - 40, 80 + 116.5 / 2, 80, 116.5, 18, 1],
-      [993 - 155 - 45.5, 6 + 71.3 / 2, 91, 71.3, -14, 2],
+  /**
+   * 领奖台的常驻装饰：3 条丝带 + 3 颗星，全用 `web/art/leaderboard` 切图。
+   * Web 的 `.lb-deco` **只给 width**，高度按原图比例；旋转用节点 `angle`（CSS `rotate()` 同向）。
+   */
+  private paintDecor(box: Node): void {
+    // 绿 ribbon-green 146×267 → 107 宽 / 蓝 ribbon-blue 147×214 → 80 宽 / 金 ribbon-gold 208×163 → 91 宽
+    const ribbons: Array<[number, number, number, number, number, string]> = [
+      [21 + 107 / 2, 48 + (107 * 267 / 146) / 2, 107, 107 * 267 / 146, 0, 'ribbon-green'],
+      [PODIUM_W - (37 + 80 / 2), 80 + (80 * 214 / 147) / 2, 80, 80 * 214 / 147, 18, 'ribbon-blue'],
+      [PODIUM_W - (155 + 91 / 2), 6 + (91 * 163 / 208) / 2, 91, 91 * 163 / 208, -14, 'ribbon-gold'],
     ];
-    for (const [cx, cyTop, w, h, deg, ci] of ribbons) {
-      const x = cx - 540;
-      const y = PODIUM_H / 2 - cyTop;
-      const rad = (deg * Math.PI) / 180;
-      const cos = Math.cos(rad), sin = Math.sin(rad);
-      // 旋转后的飘带（矩形 + 底部 V 形剪口，像奖旗的旗尾；节点不转，直接算顶点）
-      const hw = w / 2, hh = h / 2, cut = h * 0.16;
-      const pts: Array<[number, number]> = [
-        [-hw, hh], [hw, hh], [hw, -hh], [0, -hh + cut], [-hw, -hh],
-      ].map(([px, py]) => [x + px * cos - py * sin, y + px * sin + py * cos] as [number, number]);
-      g.fillColor = RIBBON[ci]!;
-      g.moveTo(pts[0]![0], pts[0]![1]);
-      for (let i = 1; i < 5; i++) g.lineTo(pts[i]![0], pts[i]![1]);
-      g.close();
-      g.fill();
-      // 中间一道浅色高光，避免一块死色
-      g.fillColor = lerpColor(RIBBON[ci]!, WHITE, 0.28);
-      const innerW = w * 0.42;
-      const ipts: Array<[number, number]> = [
-        [-innerW / 2, hh * 0.86], [innerW / 2, hh * 0.86], [innerW / 2, -hh * 0.5], [-innerW / 2, -hh * 0.5],
-      ].map(([px, py]) => [x + px * cos - py * sin, y + px * sin + py * cos] as [number, number]);
-      g.moveTo(ipts[0]![0], ipts[0]![1]);
-      for (let i = 1; i < 4; i++) g.lineTo(ipts[i]![0], ipts[i]![1]);
-      g.close();
-      g.fill();
+    for (const [cx, cyTop, w, h, deg, art] of ribbons) {
+      const sp = mkSprite(box, `leaderboard/${art}`, w, h, cx - PODIUM_W / 2, PODIUM_H / 2 - cyTop);
+      sp.node.angle = deg;
     }
-    // 星：59 @left139,top171 / 43 @left256,top21 / 48 @right256,top176
+    // 星 star 139×134：59 @left139,top171 / 43 @left256,top21 / 48 @right256,top176
     const stars: Array<[number, number, number]> = [
-      [87 + 139 + 29.5, 171 + 56.9 / 2, 59],
-      [87 + 256 + 21.5, 21 + 41.5 / 2, 43],
-      [993 - 256 - 24, 176 + 46.3 / 2, 48],
+      [139 + 59 / 2, 171 + (59 * 134 / 139) / 2, 59],
+      [256 + 43 / 2, 21 + (43 * 134 / 139) / 2, 43],
+      [PODIUM_W - (256 + 48 / 2), 176 + (48 * 134 / 139) / 2, 48],
     ];
     for (const [cx, cyTop, w] of stars) {
-      drawStar(g, cx - 540, PODIUM_H / 2 - cyTop, w / 2, STAR_C);
+      mkSprite(box, 'leaderboard/star', w, w * 134 / 139, cx - PODIUM_W / 2, PODIUM_H / 2 - cyTop);
     }
   }
 
@@ -547,10 +534,13 @@ export class LeaderboardScreen {
 
   /* ------------------------------------------------------------ 小控件 */
 
-  /** 胶囊按钮（Tab / 翻页 / 挑战本关） */
+  /**
+   * 胶囊按钮（Tab / 翻页 / 挑战本关）。
+   * @param art 切图（如 `leaderboard/tab-on`）；给了就铺在兜底之上、文字之下（Web 同层次）
+   */
   private mkCapsule(
     parent: Node, text: string, x: number, y: number, onTap: () => void,
-    w: number, h: number, fontSize: number,
+    w: number, h: number, fontSize: number, art?: string,
   ): Btn {
     const node = new Node('btn');
     node.layer = Layers.Enum.UI_2D;
@@ -558,8 +548,6 @@ export class LeaderboardScreen {
     node.setPosition(x, y, 0);
     node.parent = parent;
     const g = node.addComponent(Graphics);
-    const label = mkText(node, text, fontSize, 0, 0, WHITE, Math.max(80, w - 40), true, 'center');
-    const op = node.addComponent(UIOpacity);
     const paint = (fill: Color): void => {
       g.clear();
       g.roundRect(-w / 2, -h / 2, w, h, h / 2);
@@ -572,9 +560,12 @@ export class LeaderboardScreen {
       g.stroke();
     };
     paint(TAB_ON);
+    const sprite = art ? mkSprite(node, art, w, h) : null;
+    const label = mkText(node, text, fontSize, 0, 0, WHITE, Math.max(80, w - 40), true, 'center');
+    const op = node.addComponent(UIOpacity);
     node.on(Node.EventType.TOUCH_END, onTap);
     return {
-      node, label,
+      node, label, sprite,
       setDim: (dim: boolean) => { op.opacity = dim ? OP_DIM_BIG : 255; },
       setText: (s: string) => { label.string = s; },
     };
@@ -692,9 +683,13 @@ export class LeaderboardScreen {
     const isLevel = this.tab === 'level';
 
     this.applyTabLayout();
-    // Tab：选中橙底、未选深灰底（Web `tab-on` / `tab-off`）
-    this.repaintCapsule(this.tabBtns.total.node, isLevel ? TAB_OFF : TAB_ON);
-    this.repaintCapsule(this.tabBtns.level.node, isLevel ? TAB_ON : TAB_OFF);
+    // Tab：选中/未选换成 `tab-on` / `tab-off` 两张切图（Web 直接换 background-image）
+    const setTabArt = (b: Btn, on: boolean): void => {
+      if (b.sprite) setSprite(b.sprite, `leaderboard/tab-${on ? 'on' : 'off'}`);
+      else this.repaintCapsule(b.node, on ? TAB_ON : TAB_OFF);
+    };
+    setTabArt(this.tabBtns.total, !isLevel);
+    setTabArt(this.tabBtns.level, isLevel);
 
     this.renderMine(rows);
     this.renderPodium(rows);
@@ -794,7 +789,9 @@ export class LeaderboardScreen {
       bg.fillColor = i === 1 ? PODIUM_RED : PODIUM_ORANGE;
       bg.fill();
       base.parent = item;
-      // 只有冠军底座写「1」52px 金色（Web `.lb-base-num`）
+      // 底座切图：Web `.lb-base` 的 `background: center / 100% 100%`（冠军红 / 亚季军橙）
+      mkSprite(base, `leaderboard/${i === 1 ? 'podium-red' : 'podium-orange'}`, spec.w, spec.baseH);
+      // 只有冠军底座写「1」52px 金色（Web `.lb-base-num`，压在切图之上）
       if (i === 1) mkText(base, '1', 52, 0, -spec.baseH / 2 + 40, BASE_NUM, 120, true, 'center');
 
       // 奖杯：杯底压进底座 cupGap（= Web 的 `margin-bottom: -5 / -13`），向上坐标要 +cupGap
@@ -803,11 +800,13 @@ export class LeaderboardScreen {
       cup.addComponent(UITransform).setContentSize(spec.cupW, spec.cupH);
       cup.setPosition(0, baseTop + spec.cupGap + spec.cupH / 2, 0);
       cup.parent = item;
+      // 先程序画一个简杯兜底，再压 `cup-*.png` 切图（Web `.lb-cup` 只给 width，高按原图比例）
       drawCup(
         cup.addComponent(Graphics),
         i === 1 ? CUP_GOLD : i === 0 ? CUP_SILVER : CUP_BRONZE,
         spec.cupH, spec.cupW,
       );
+      mkSprite(cup, `leaderboard/cup-${spec.pos}`, spec.cupW, spec.cupH);
     }
   }
 
@@ -841,6 +840,8 @@ export class LeaderboardScreen {
       g.fillColor = row.mine ? ROW_MINE_BG : ROW_BG;
       g.fill();
       item.parent = this.content;
+      // 行底切图：Web `.lb-row` 的 `background: center / 100% 100%`（我 → `row-mine.png`）
+      mkSprite(item, `leaderboard/row${row.mine ? '-mine' : ''}`, LIST_W, ROW_H);
 
       // 名次：1-4 名盾牌徽章，其后数字圆牌
       if (row.rank >= 1 && row.rank <= 4) {
@@ -850,6 +851,9 @@ export class LeaderboardScreen {
         badge.setPosition(ROW_X.badge, 0, 0);
         badge.parent = item;
         drawShield(badge.addComponent(Graphics), MEDAL[row.rank - 1]!, 84, 94);
+        // 盾牌切图：Web `.lb-medal` 是 `object-fit: contain`（131×154 进 84×94 → 实际 80×94）
+        const [mw, mh] = fitContain(MEDAL_IW, MEDAL_IH, 84, 94);
+        mkSprite(badge, `leaderboard/medal-${row.rank}`, mw, mh);
         mkText(badge, String(row.rank), 46, 0, -6, MEDAL_NUM, 84, true, 'center');
       } else {
         const rk = new Node('rank');
@@ -873,6 +877,8 @@ export class LeaderboardScreen {
       ag.fill();
       av.parent = item;
       mkText(av, row.name.slice(0, 1), 40, 0, 2, WHITE, 84, true, 'center');
+      // 头像切图最后加：Web `.lb-name .av` 是 `background: cover` 的 84×84 圆，切图盖住兜底的圆与首字
+      mkSprite(av, `leaderboard/avatar-${avatarIndexOf(row.name) + 1}`, 84, 84);
 
       mkText(item, row.name, 48, ROW_X.nameLeft + COL_W.name / 2, 0, NAME_TEXT, COL_W.name, true, 'center');
       const cSimple = mkText(item, String(row.simple ?? 0), 48, COL.simple, 0, C_SIMPLE, COL_W.simple, true, 'center');
