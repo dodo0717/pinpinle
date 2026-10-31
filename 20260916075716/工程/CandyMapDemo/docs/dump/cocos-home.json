@@ -1,7 +1,7 @@
 {
   "url": "http://127.0.0.1:5181/preview/play.html",
   "probe": "cocos-home",
-  "at": "2026-10-31T07:07:13.588Z",
+  "at": "2026-10-31T08:40:58.636Z",
   "viewport": [
     1300,
     1886
@@ -26,144 +26,6 @@
         "w": 1080,
         "h": 1920,
         "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview",
-        "x": 0,
-        "y": 0,
-        "w": 1080,
-        "h": 1920,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/mask",
-        "x": 0,
-        "y": 0,
-        "w": 1080,
-        "h": 1920,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop",
-        "x": 0,
-        "y": 0,
-        "w": 1080,
-        "h": 1920,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/rope",
-        "x": 340,
-        "y": 0,
-        "w": 400,
-        "h": 1920,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card",
-        "x": 230,
-        "y": 590,
-        "w": 620,
-        "h": 620,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/btn",
-        "x": 754,
-        "y": 650,
-        "w": 76,
-        "h": 76,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/btn/t",
-        "x": 754,
-        "y": 660,
-        "w": 76,
-        "h": 56,
-        "opacity": 1,
-        "text": "✕",
-        "fontSize": 40,
-        "color": "rgba(96,58,26,1.000)"
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/t",
-        "x": 300,
-        "y": 646,
-        "w": 480,
-        "h": 68,
-        "opacity": 1,
-        "text": "",
-        "fontSize": 52,
-        "color": "rgba(96,58,26,1.000)"
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal",
-        "x": 328,
-        "y": 742,
-        "w": 200,
-        "h": 96,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal/t",
-        "x": 328,
-        "y": 762,
-        "w": 200,
-        "h": 56,
-        "opacity": 1,
-        "text": "简单",
-        "fontSize": 40,
-        "color": "rgba(90,50,25,1.000)"
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare",
-        "x": 552,
-        "y": 742,
-        "w": 200,
-        "h": 96,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare/t",
-        "x": 552,
-        "y": 762,
-        "w": 200,
-        "h": 56,
-        "opacity": 1,
-        "text": "困难",
-        "fontSize": 40,
-        "color": "rgba(90,50,25,1.000)"
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/t",
-        "x": 270,
-        "y": 883,
-        "w": 540,
-        "h": 54,
-        "opacity": 1,
-        "text": "",
-        "fontSize": 38,
-        "color": "rgba(120,80,40,1.000)"
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/play",
-        "x": 360,
-        "y": 1000,
-        "w": 360,
-        "h": 120,
-        "opacity": 1
-      },
-      {
-        "key": "Canvas/Map/LevelPreview/drop/card/play/t",
-        "x": 360,
-        "y": 1026,
-        "w": 360,
-        "h": 68,
-        "opacity": 1,
-        "text": "Play",
-        "fontSize": 52,
-        "color": "rgba(255,255,255,1.000)"
       },
       {
         "key": "Canvas/Map/Backdrop",
@@ -207,33 +69,6 @@
         "sprite": "(sf)"
       },
       {
-        "key": "Canvas/Map/ScrollView/view/Content/Windmill",
-        "x": 670,
-        "y": -1500,
-        "w": 260,
-        "h": 260,
-        "opacity": 1,
-        "sprite": "(sf)"
-      },
-      {
-        "key": "Canvas/Map/ScrollView/view/Content/Water",
-        "x": 291.19,
-        "y": 1220,
-        "w": 520,
-        "h": 320,
-        "opacity": 1,
-        "sprite": "(sf)"
-      },
-      {
-        "key": "Canvas/Map/ScrollView/view/Content/Bear",
-        "x": 200,
-        "y": -170,
-        "w": 200,
-        "h": 200,
-        "opacity": 1,
-        "sprite": "(sf)"
-      },
-      {
         "key": "Canvas/Map/ScrollView/view/Content/Level_1",
         "x": 873,
         "y": 1517,
@@ -259,7 +94,7 @@
         "opacity": 1,
         "text": "1",
         "fontSize": 53,
-        "color": "rgba(255,210,100,1.000)"
+        "color": "rgba(255,246,230,1.000)"
       },
       {
         "key": "Canvas/Map/ScrollView/view/Content/Level_1/Pet",
@@ -850,6 +685,14 @@
         "opacity": 0.30196078431372547
       },
       {
+        "key": "Canvas/Map/HUD/NavLeft/Hit",
+        "x": 39.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
+        "opacity": 1
+      },
+      {
         "key": "Canvas/Map/HUD/NavLeft/Txt",
         "x": 22,
         "y": 1582,
@@ -866,6 +709,14 @@
         "y": 1582,
         "w": 118,
         "h": 118,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/HUD/NavRight/Hit",
+        "x": 957.5,
+        "y": 1599.5,
+        "w": 83,
+        "h": 83,
         "opacity": 1
       },
       {
@@ -888,6 +739,14 @@
         "opacity": 1
       },
       {
+        "key": "Canvas/Map/HUD/PagerUp/Hit",
+        "x": 978.5,
+        "y": 839.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
+      },
+      {
         "key": "Canvas/Map/HUD/PagerUp/Txt",
         "x": 964,
         "y": 825,
@@ -905,6 +764,14 @@
         "w": 98,
         "h": 98,
         "opacity": 0.30196078431372547
+      },
+      {
+        "key": "Canvas/Map/HUD/PagerDown/Hit",
+        "x": 978.5,
+        "y": 1011.5,
+        "w": 69,
+        "h": 69,
+        "opacity": 1
       },
       {
         "key": "Canvas/Map/HUD/PagerDown/Txt",
@@ -1086,6 +953,144 @@
         "color": "rgba(232,217,195,1.000)"
       },
       {
+        "key": "Canvas/Map/LevelPreview",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/rope",
+        "x": 340,
+        "y": 0,
+        "w": 400,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card",
+        "x": 230,
+        "y": 590,
+        "w": 620,
+        "h": 620,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/btn",
+        "x": 754,
+        "y": 650,
+        "w": 76,
+        "h": 76,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/btn/t",
+        "x": 754,
+        "y": 660,
+        "w": 76,
+        "h": 56,
+        "opacity": 1,
+        "text": "✕",
+        "fontSize": 40,
+        "color": "rgba(96,58,26,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 300,
+        "y": 646,
+        "w": 480,
+        "h": 68,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 52,
+        "color": "rgba(96,58,26,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal",
+        "x": 328,
+        "y": 742,
+        "w": 200,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-normal/t",
+        "x": 328,
+        "y": 762,
+        "w": 200,
+        "h": 56,
+        "opacity": 1,
+        "text": "简单",
+        "fontSize": 40,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare",
+        "x": 552,
+        "y": 742,
+        "w": 200,
+        "h": 96,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/mode-nightmare/t",
+        "x": 552,
+        "y": 762,
+        "w": 200,
+        "h": 56,
+        "opacity": 1,
+        "text": "困难",
+        "fontSize": 40,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/t",
+        "x": 270,
+        "y": 883,
+        "w": 540,
+        "h": 54,
+        "opacity": 1,
+        "text": "",
+        "fontSize": 38,
+        "color": "rgba(120,80,40,1.000)"
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play",
+        "x": 360,
+        "y": 1000,
+        "w": 360,
+        "h": 120,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/LevelPreview/drop/card/play/t",
+        "x": 360,
+        "y": 1026,
+        "w": 360,
+        "h": 68,
+        "opacity": 1,
+        "text": "Play",
+        "fontSize": 52,
+        "color": "rgba(255,255,255,1.000)"
+      },
+      {
         "key": "Canvas/Map/Dialog",
         "x": 0,
         "y": 0,
@@ -1108,6 +1113,373 @@
         "w": 1080,
         "h": 1920,
         "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/mask",
+        "x": 0,
+        "y": 0,
+        "w": 1080,
+        "h": 1920,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel",
+        "x": 70,
+        "y": 180,
+        "w": 940,
+        "h": 1560,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 110,
+        "y": 190,
+        "w": 860,
+        "h": 60,
+        "opacity": 1,
+        "text": "新手教学 · 序章",
+        "fontSize": 44,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn",
+        "x": 920,
+        "y": 190,
+        "w": 60,
+        "h": 60,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn/t",
+        "x": 932,
+        "y": 190,
+        "w": 36,
+        "h": 60,
+        "opacity": 1,
+        "text": "✕",
+        "fontSize": 32,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": -220,
+        "y": 296,
+        "w": 860,
+        "h": 48,
+        "opacity": 1,
+        "text": "简单序章：未开始",
+        "fontSize": 32,
+        "color": "rgba(120,80,40,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": -220,
+        "y": 352,
+        "w": 860,
+        "h": 48,
+        "opacity": 1,
+        "text": "困难序章：未开始",
+        "fontSize": 32,
+        "color": "rgba(120,80,40,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn",
+        "x": 260,
+        "y": 428,
+        "w": 560,
+        "h": 104,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn/t",
+        "x": 272,
+        "y": 428,
+        "w": 536,
+        "h": 104,
+        "opacity": 1,
+        "text": "开始教学",
+        "fontSize": 36,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn",
+        "x": 260,
+        "y": 558,
+        "w": 560,
+        "h": 104,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/btn/t",
+        "x": 272,
+        "y": 558,
+        "w": 536,
+        "h": 104,
+        "opacity": 1,
+        "text": "先完成简单序章，才能玩困难序章",
+        "fontSize": 36,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": -250,
+        "y": 754,
+        "w": 860,
+        "h": 52,
+        "opacity": 1,
+        "text": "怎么玩",
+        "fontSize": 36,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig",
+        "x": 240,
+        "y": 860,
+        "w": 0,
+        "h": 0,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p0",
+        "x": 147,
+        "y": 767,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p1",
+        "x": 209,
+        "y": 767,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p2",
+        "x": 147,
+        "y": 829,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/gap",
+        "x": 209,
+        "y": 829,
+        "w": 62,
+        "h": 62,
+        "opacity": 1
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p3",
+        "x": 209,
+        "y": 917,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/t",
+        "x": -296,
+        "y": 894,
+        "w": 860,
+        "h": 46,
+        "opacity": 1,
+        "text": "↑",
+        "fontSize": 30,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/t",
+        "x": -102,
+        "y": 835,
+        "w": 860,
+        "h": 50,
+        "opacity": 1,
+        "text": "➜",
+        "fontSize": 34,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p0",
+        "x": 429,
+        "y": 767,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p1",
+        "x": 491,
+        "y": 767,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p2",
+        "x": 429,
+        "y": 829,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/p3",
+        "x": 491,
+        "y": 829,
+        "w": 62,
+        "h": 62,
+        "opacity": 1,
+        "sprite": "(sf)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/fig/t",
+        "x": 402,
+        "y": 915,
+        "w": 240,
+        "h": 42,
+        "opacity": 1,
+        "text": "✨ +1 组",
+        "fontSize": 26,
+        "color": "rgba(150,120,90,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 0,
+        "y": 777,
+        "w": 860,
+        "h": 46,
+        "opacity": 1,
+        "text": "①",
+        "fontSize": 30,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 400,
+        "y": 777,
+        "w": 560,
+        "h": 46,
+        "opacity": 1,
+        "text": "拖动：按住碎片移动，拼好的整片会一起走",
+        "fontSize": 30,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 0,
+        "y": 835,
+        "w": 860,
+        "h": 46,
+        "opacity": 1,
+        "text": "②",
+        "fontSize": 30,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 400,
+        "y": 835,
+        "w": 560,
+        "h": 46,
+        "opacity": 1,
+        "text": "拼合：同一只萌宠的 4 块贴到一起，自动拼成一张整图",
+        "fontSize": 30,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 0,
+        "y": 893,
+        "w": 860,
+        "h": 46,
+        "opacity": 1,
+        "text": "③",
+        "fontSize": 30,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 400,
+        "y": 893,
+        "w": 560,
+        "h": 46,
+        "opacity": 1,
+        "text": "消除：拼成 2×2 就消除 +1 组，上面的碎片落下来补位",
+        "fontSize": 30,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 0,
+        "y": 951,
+        "w": 860,
+        "h": 46,
+        "opacity": 1,
+        "text": "④",
+        "fontSize": 30,
+        "color": "rgba(214,158,92,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 400,
+        "y": 951,
+        "w": 560,
+        "h": 46,
+        "opacity": 1,
+        "text": "目标：拼够旗子上的分数就过关，多拼多得星",
+        "fontSize": 30,
+        "color": "rgba(90,50,25,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 110,
+        "y": 1051,
+        "w": 860,
+        "h": 42,
+        "opacity": 1,
+        "text": "🕒 倒计时走完，按最终所得分数结算",
+        "fontSize": 26,
+        "color": "rgba(150,120,90,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 110,
+        "y": 1103,
+        "w": 860,
+        "h": 42,
+        "opacity": 1,
+        "text": "⭐ 多拼多得星，成绩进排行榜",
+        "fontSize": 26,
+        "color": "rgba(150,120,90,1.000)"
+      },
+      {
+        "key": "Canvas/Map/TutorialDrawer/panel/t",
+        "x": 110,
+        "y": 1155,
+        "w": 860,
+        "h": 42,
+        "opacity": 1,
+        "text": "🔒 困难关：只能拖动交换相邻的碎片（教学会单独讲这一条）",
+        "fontSize": 26,
+        "color": "rgba(150,120,90,1.000)"
       },
       {
         "key": "Canvas/Game",
@@ -1547,7 +1919,7 @@
     ],
     "scrollY": -1920,
     "contentKey": "Canvas/Map/ScrollView/view/Content",
-    "saveRaw": "{\"version\":1,\"mode\":\"normal\",\"meta\":{\"tutorial\":{\"seen\":true}}}",
+    "saveRaw": "",
     "t1": null,
     "t2": null
   }

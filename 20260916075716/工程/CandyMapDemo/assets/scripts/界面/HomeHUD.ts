@@ -85,6 +85,11 @@ export class HomeHUD extends Component {
   private navRight: Node = null!;
   private pagerUp: Node = null!;
   private pagerDown: Node = null!;
+  /** 可见的圆形本体（调透明度用；点击不挂在它身上，见 `goldCircle`） */
+  private navLeftV: { visual: Node; hit: Node } = null!;
+  private navRightV: { visual: Node; hit: Node } = null!;
+  private pagerUpV: { visual: Node; hit: Node } = null!;
+  private pagerDownV: { visual: Node; hit: Node } = null!;
   private dots: Node[] = [];
 
   build(): void {
@@ -131,10 +136,15 @@ export class HomeHUD extends Component {
   /* ---------------------------------------------------------------- 换世界箭头 / 翻页 */
 
   private buildNav(root: Node): void {
-    this.navLeft = this.goldCircle(root, 'NavLeft', '‹', NAV_L.x, NAV_L.y, NAV_SIZE);
-    this.navRight = this.goldCircle(root, 'NavRight', '›', NAV_R.x, NAV_R.y, NAV_SIZE);
-    this.pagerUp = this.goldCircle(root, 'PagerUp', '▲', PAGER_X, PAGER_UP_Y, PAGER_SIZE);
-    this.pagerDown = this.goldCircle(root, 'PagerDown', '▼', PAGER_X, PAGER_DOWN_Y, PAGER_SIZE);
+    // navLeft/navRight/pagerUp/pagerDown = **点击盒**；navLeftV 等 = 可见的圆（用于调透明度）
+    this.navLeftV = this.goldCircle(root, 'NavLeft', '‹', NAV_L.x, NAV_L.y, NAV_SIZE);
+    this.navRightV = this.goldCircle(root, 'NavRight', '›', NAV_R.x, NAV_R.y, NAV_SIZE);
+    this.pagerUpV = this.goldCircle(root, 'PagerUp', '▲', PAGER_X, PAGER_UP_Y, PAGER_SIZE);
+    this.pagerDownV = this.goldCircle(root, 'PagerDown', '▼', PAGER_X, PAGER_DOWN_Y, PAGER_SIZE);
+    this.navLeft = this.navLeftV.hit;
+    this.navRight = this.navRightV.hit;
+    this.pagerUp = this.pagerUpV.hit;
+    this.pagerDown = this.pagerDownV.hit;
     // 页点：两页（每个世界固定 2 屏，与 Web 的 PAGE 数一致）
     for (let i = 0; i < 2; i++) {
       const d = this.mkNode(root, `PagerDot${i}`, 18, 18, PAGER_X, (i === 0 ? DOT_GAP / 2 : -DOT_GAP / 2));
@@ -146,8 +156,18 @@ export class HomeHUD extends Component {
     }
   }
 
-  private goldCircle(root: Node, name: string, glyph: string, x: number, y: number, size: number): Node {
+  /**
+   * 圆形按钮：视觉圆 + **圆形点击**。
+   *
+   * ⚠️ 为什么点击盒要单独做成一个内接正方形：Cocos 的命中区域是**矩形**，而 Web 的圆钮有
+   * `border-radius: 50%`，浏览器按**圆形**命中 —— 圆外的四个角根本不接事件。
+   * 少了这一层，换世界箭头的方框会把它旁边的关卡珠按纽所在的尖角一并吃掉：
+   * 第 1 世界的第 1 关珠心正好落在右边箭头的方框角上，导致「点关卡珠没反应」。
+   * 内接正方形边长 = size / √2，整个都落在可见圆内 —— 视觉不变，命中范围与 Web 的圆形相当。
+   */
+  private goldCircle(root: Node, name: string, glyph: string, x: number, y: number, size: number): { visual: Node; hit: Node } {
     const n = this.mkNode(root, name, size, size, x, y);
+    const hit = this.mkNode(n, 'Hit', Math.round(size / Math.SQRT2), Math.round(size / Math.SQRT2), 0, 0);
     const g = n.addComponent(Graphics);
     // 底影 0 8px 0 rgba(140,70,10,.5)
     g.fillColor = new Color(140, 70, 10, 128);
@@ -168,11 +188,10 @@ export class HomeHUD extends Component {
     g.strokeColor = new Color(255, 243, 214, 255);
     g.circle(0, 0, size / 2 - 2.5);
     g.stroke();
-    const l = this.label(n, glyph, 78, new Color(255, 255, 255, 255), size, size, 0, 0, true);
-    void l;
+    this.label(n, glyph, 78, new Color(255, 255, 255, 255), size, size, 0, 0, true);
     // 呼吸：1 → 1.06 → 1
     tween(n).repeatForever(tween<Node>().to(0.8, { scale: new Vec3(1.06, 1.06, 1) }).to(0.8, { scale: new Vec3(1, 1, 1) })).start();
-    return n;
+    return { visual: n, hit };
   }
 
   /* ---------------------------------------------------------------- 底栏 */
@@ -265,8 +284,11 @@ export class HomeHUD extends Component {
   }
 
   setNavEnabled(left: boolean, right: boolean): void {
-    this.setOpacity(this.navLeft, left ? 255 : 77);
-    this.setOpacity(this.navRight, right ? 255 : 77);
+    this.setOpacity(this.navLeftV.visual, left ? 255 : 77);
+    this.setOpacity(this.navRightV.visual, right ? 255 : 77);
+    // 到边界就别再接点击：Web 的 disabled 按钮不响应短按
+    this.navLeftV.hit.active = left;
+    this.navRightV.hit.active = right;
   }
 
   /** 翻页：当前页高亮、到边界时按钮变淡 */
@@ -275,8 +297,10 @@ export class HomeHUD extends Component {
       const g = d.getComponent(Graphics);
       if (g) { g.clear(); g.fillColor = i === page ? new Color(255, 217, 119, 255) : new Color(255, 246, 218, 255); g.circle(0, 0, i === page ? 10 : 9); g.fill(); }
     });
-    this.setOpacity(this.pagerUp, page > 0 ? 255 : 77);
-    this.setOpacity(this.pagerDown, page < pages - 1 ? 255 : 77);
+    this.setOpacity(this.pagerUpV.visual, page > 0 ? 255 : 77);
+    this.setOpacity(this.pagerDownV.visual, page < pages - 1 ? 255 : 77);
+    this.pagerUpV.hit.active = page > 0;
+    this.pagerDownV.hit.active = page < pages - 1;
   }
 
   /* ---------------------------------------------------------------- 绘制小工具 */

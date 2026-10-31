@@ -59,16 +59,10 @@ const FLIP_OUT_MS = 280;   // 换世界：翻出
 const FLIP_IN_MS = 420;    // 换世界：翻入
 
 /**
- * 分层浮层资源 —— 全部 ≤1M：
- * 静态背景层(整张1080×3840) + 风车/水面/角色 3 个透明浮层，动画由 updateFloats 驱动。
- * 坐标 yFromTop 为底图图片坐标（从顶部往下），程序转成 yFromBottom。
+ * ⚠️ 风车 / 湖面 / 角色这 3 个浮层（w1_windmill / w1_water / w1_bear）已按 2026-10-31 的要求删除：
+ * 它们是 Cocos 端自己加的动效层，Web 版首页没有，且会一直挂在 tick 上做动画。
+ * 地图现在只有「静态底图 + 关卡珠」两层。
  */
-const FLOAT = {
-    bg: 'map/w1_bg',                                              // 静态背景层整张
-    windmill: { path: 'map/w1_windmill', w: 260, h: 260, x: 800, yFromTop: 550 },  // 上段右侧风车
-    water:    { path: 'map/w1_water',    w: 520, h: 320, x: 540, yFromTop: 3300 }, // 下段湖面
-    bear:     { path: 'map/w1_bear',     w: 200, h: 200, x: 300, yFromTop: 1850 }, // 中段左侧角色(可调)
-};
 
 /**
  * ⚠️ 关卡坐标**不再写在这里** —— 15 个世界的路中线搬到了 `worlds.ts`（`ROAD_X` 归一化表）。
@@ -77,14 +71,13 @@ const FLOAT = {
  */
 
 /**
- * 节点珠三态（从 web/art/map/node/ 拷来）：未通关 / 1~2 星 / 3 星。
- * ⚠️ 取代旧的 `level_balloon_1~10` —— 那 10 个贴图**从来就不存在**（运行时一直走「贴图缺失」
- * 分支，靠底图自带的数字顶着）；而且每世界 12 关，10 个切片本来也会越界。
+ * 水晶果冻球的**素球**贴图（2026-10-31 起三态只用这一张，颜色由 `LevelNode` 按星级着色）。
+ * ⚠️ 不再用 star1 / star3 两张成品色贴图：用户口径改成「粉 / 紫 / 金」三色分别代表
+ * 未过关 / 1~2 星 / 3 星，用统一素球着色才能保证三态只差颜色这一件事。
+ * （更早的 `level_balloon_1~10` 那 10 个贴图**从来就不存在**，早已废弃。）
  */
 const BEADS = {
-    todo: 'map/node/node-todo',
-    star1: 'map/node/node-star1',
-    star3: 'map/node/node-star3',
+    plain: 'map/node/node-todo',
 } as const;
 /** 节点盒：Web 实测 `.node` = 142.08 屏幕 px（= 轨道 202 px × fitScale），取 142 */
 const NODE_BOX = 142;
@@ -492,13 +485,15 @@ export class MapBootstrap extends Component {
     }
 
     /**
-     * 把浮层提到地图之上 —— 地图是 onLoad 里最后建的节点，默认排在最上层，
-     * 会把顶栏 / 底导航 / 「开始」按钮整个盖住（看得见代码、看不见画面）。
-     * 真引擎里的 Mask 只负责裁剪溢出，管不了层级，所以这里显式排一次：
-     * 底图 → 地图 → HUD → 关卡吊牌 → 弹窗 → Toast（与 Web 的 z-index 表同序）。
+     * 把浮层按 Web 的 z-index 表排一次（看不见 ack）：
+     * 底图(1) → 地图(auto) → HUD(顶栏/底栏 70) → **关卡吊牌(90)** → 弹窗 → Toast。
+     *
+     * ⚠️ 关卡吊牌必须在这一步里：它是 `buildUI()` 里最早建出来的，排在兄弟序列最前，
+     * 不显式提上来就会被后来的地图 / HUD 整块盖住 —— 表现是「点关卡珠没反应」
+     * （吊牌其实开了，只是藏在地图底下，看不见也点不到）。
      */
     private raiseOverlays() {
-        const order = ['Backdrop', 'ScrollView', 'HUD', 'Dialog', 'Toast'];
+        const order = ['Backdrop', 'ScrollView', 'HUD', 'LevelPreview', 'Dialog', 'Toast'];
         for (const name of order) {
             const n = this.node.getChildByName(name);
             if (n?.isValid) n.setSiblingIndex(this.node.children.length - 1);
@@ -511,7 +506,6 @@ export class MapBootstrap extends Component {
      */
     private createMapBackground() {
         this.makeResolvedSprite(this.content, 'BgMain', worldArtAsset(this.worldIndex), DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
-        if (this.worldIndex === 0) this.createFloatLayers();
     }
 
     /**
@@ -592,70 +586,14 @@ export class MapBootstrap extends Component {
             .to(FLIP_OUT_MS / 1000, { scale: new Vec3(0.86, 0.86, 1) })
             .call(() => {
                 for (const n of this.content.children.slice()) {
-                    if (n.name === 'BgMain' || n.name === 'Windmill' || n.name === 'Water'
-                        || n.name === 'Bear' || n.name.indexOf('Level_') === 0) n.destroy();
+                    if (n.name === 'BgMain' || n.name.indexOf('Level_') === 0) n.destroy();
                 }
-                this.floatNodes = [];
                 this.buildLevelPositions();
                 this.createMapBackground();
                 this.createLevelNodes();
             })
             .to(FLIP_IN_MS / 1000, { scale: new Vec3(1, 1, 1) })
             .start();
-    }
-
-    private floatNodes: { node: Node; kind: 'wm' | 'water' | 'bear'; baseX: number }[] = [];
-    private floatTime = 0;
-
-    /** 挂一个透明浮层 Sprite（资源异步加载），返回节点 */
-    private addFloat(name: string, path: string, w: number, h: number, x: number, yFromBottom: number): Node {
-        const n = new Node(name);
-        n.parent = this.content;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(x - DESIGN_W / 2, this.localY(yFromBottom));
-        resources.load(path + '/spriteFrame', SpriteFrame, (err, sf) => {
-            if (err || !sf) { console.warn('[map] 浮层缺失: ' + path); return; }
-            if (!n.isValid) return;
-            const sp = n.addComponent(Sprite);
-            sp.sizeMode = Sprite.SizeMode.CUSTOM;
-            sp.spriteFrame = sf;
-        });
-        return n;
-    }
-
-    /** 创建 3 个浮层并注册动画驱动 */
-    private createFloatLayers() {
-        const wm = FLOAT.windmill;
-        const wmNode = this.addFloat('Windmill', wm.path, wm.w, wm.h, wm.x, MAP_H - wm.yFromTop);
-        this.floatNodes.push({ node: wmNode, kind: 'wm', baseX: wmNode.position.x });
-
-        const wa = FLOAT.water;
-        const waNode = this.addFloat('Water', wa.path, wa.w, wa.h, wa.x, MAP_H - wa.yFromTop);
-        this.floatNodes.push({ node: waNode, kind: 'water', baseX: waNode.position.x });
-
-        const be = FLOAT.bear;
-        const beNode = this.addFloat('Bear', be.path, be.w, be.h, be.x, MAP_H - be.yFromTop);
-        this.floatNodes.push({ node: beNode, kind: 'bear', baseX: beNode.position.x });
-
-        this.schedule(this.updateFloats, 0);
-    }
-
-    /** 每帧驱动浮层动画：风车旋转 / 水面流动 / 角色眨眼 */
-    private updateFloats() {
-        this.floatTime += 0.016;
-        for (const f of this.floatNodes) {
-            if (!f.node?.isValid) continue;
-            const t = this.floatTime;
-            if (f.kind === 'wm') {
-                f.node.angle = Math.sin(t * 2.2) * 10;                       // 风车往复旋转（叶片转动感）
-            } else if (f.kind === 'water') {
-                f.node.setPosition(f.baseX + Math.sin(t * 1.6) * 55, f.node.position.y);  // 水面横向流动
-            } else if (f.kind === 'bear') {
-                const sc = Math.max(0.25, Math.abs(Math.sin(t * 3.2)));      // 眨眼（纵向缩放）
-                f.node.setScale(1, sc, 1);
-            }
-        }
     }
 
     /**
@@ -667,7 +605,6 @@ export class MapBootstrap extends Component {
         this.levelNodes = [];
         const p = GS.progress;
         const cur = Math.min(p.unlocked, LEVEL_COUNT);
-        const toLevel = WORLDS[this.worldIndex]?.to ?? 0;
         for (let i = 0; i < this.levels.length; i++) {
             const lv = this.levels[i];
             const node = new Node('Level_' + lv.level);
@@ -678,19 +615,20 @@ export class MapBootstrap extends Component {
 
             const st = levelStatus(p, lv.level);
             const stars = recordOf(p, lv.level).stars;
-            const bead = stars >= 3 ? BEADS.star3 : stars > 0 ? BEADS.star1 : BEADS.todo;
+            // 三色水晶球统一用「素球」贴图，颜色由 LevelNode 按星级着色（见 LevelNode 文件头）
             // Web 的 `.node-art` 比 `.node-gel`（正中在路点上）低 5 轨道 px（≈3.5 屏幕 px）——
             // 贴图自带底部投影，刻意下移让投影压住路缘
-            this.makeSprite(node, 'Bead', bead, NODE_BOX, NODE_BOX, 0, -3.5);
+            this.makeSprite(node, 'Bead', BEADS.plain, NODE_BOX, NODE_BOX, 0, -3.5);
 
             const ln = node.addComponent(LevelNode);
-            ln.init(lv.level, lv.level === cur, st === 'locked', stars, toLevel);
+            ln.init(lv.level, lv.level === cur, st === 'locked', stars);
             if (this.fontAsset) ln.setFont(this.fontAsset);
             this.levelNodes.push(ln);
             node.on(Node.EventType.TOUCH_END, () => this.onLevelTap(lv.level), this);
             // 预览 shim 触摸不冒泡：把地图拖动需要的事件转发上去（真引擎会自己冒泡，两边都只有一份状态）
             node.on(Node.EventType.TOUCH_START, this.onDragStart, this);
             node.on(Node.EventType.TOUCH_MOVE, this.onDragMove, this);
+            node.on(Node.EventType.TOUCH_END, this.onDragEnd, this);
             node.on(Node.EventType.TOUCH_CANCEL, this.onDragEnd, this);
         }
     }
@@ -1012,6 +950,8 @@ export class MapBootstrap extends Component {
             this.toast.show('进入关卡失败：缺少 Game 节点', 2000);
             return;
         }
+        // 进关前先把吊牌收掉：整张地图虽然隐藏了，但返回地图时它会留在原地再弹一次
+        this.preview.close();
         this.node.active = false;
         game.active = true;
         // 延迟一帧开局：等 GameBootstrap 的 onLoad / start 跑完再 startLevel
