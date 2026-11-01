@@ -4,8 +4,10 @@ import {
 } from 'cc';
 const { ccclass } = _decorator;
 
-/** 珠体外发光 / 接地影统一走这套「多层递减」近似（Cocos 无高斯模糊） */
-import { paintGlow } from '../界面/uiPaint';
+// ⚠️ 这里原本引 `paintGlow`（多层同心圆叠出的模糊近似），已移除：
+//    每层都是硬边，叠加后是一圈圈同心台阶（毛边）。
+//    珠体外发光改用 `assets/resources/ui/fx/` 下预烘好的模糊贴图（canvas `shadowBlur`，
+//    与 CSS `box-shadow` 的 blur 同定义 = 2σ），见 `mkGlow()`。
 
 /**
  * 关卡珠 —— **逐值照抄 Web**（`web/ui.css:737-875` + `web/ui/map.ts:857-868`）
@@ -238,26 +240,21 @@ export class LevelNode extends Component {
         n.parent = this.node;
         n.layer = Layers.Enum.UI_2D;
         n.setSiblingIndex(0);
-        const g = n.addComponent(Graphics);
         // Web 是从盒顶往下量 `top: calc(var(--ncy) + var(--nd) * 0.56)`；
         // 换算到以盒中心为原点就是「珠心再往下 nd*0.56」（`gelY` 已经是珠心）。
         const aoY = this.gelY - this.gelD * 0.56;
-        const w = this.gelD * 0.95;
-        const h = this.gelD * 0.24;
-        const layers: Array<[number, number, number]> = [
-            [0.42, 0.46, 61],    // 内层小而深 rgba(18,8,34,.24)
-            [0.66, 0.60, 26],    // 外层大而淡 rgba(18,8,34,.10)
-        ];
-        for (const [rxK, ryK, alpha] of layers) {
-            const rx = (w / 2) * rxK;
-            const ry = (h / 2) * ryK;
-            for (let i = 8; i >= 1; i--) {
-                const t = i / 8;
-                g.fillColor = new Color(18, 8, 34, Math.max(0, Math.round(alpha * (1 - t) ** 1.4)));
-                g.ellipse(0, aoY, rx * t, ry * t);
-                g.fill();
-            }
-        }
+        // Web 的 AO 是两层 `radial-gradient`（**纯 CSS 平滑渐变**）：
+        //   radial(42% 46% at 50% 48%, rgba(18,8,34,.24), 72%) + radial(66% 60% at 50% 46%, ...10%, 74%)
+        // ⚠️ 用预烘贴图（canvas `createRadialGradient`，与 CSS 同口径），
+        //    不要用「8 层同心椭圆叠加」——那是一圈圈同心台阶（毛边）。
+        n.addComponent(UITransform).setContentSize(this.gelD * 0.95, this.gelD * 0.24);
+        n.setPosition(0, aoY);
+        const sp = n.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        resources.load('ui/fx/ao-bead/spriteFrame', SpriteFrame, (err, sf) => {
+            if (err || !sf || !n.isValid) return;
+            sp.spriteFrame = sf;
+        });
     }
 
     /* ---------------------------------------------------------------- 珠面 */
@@ -276,18 +273,24 @@ export class LevelNode extends Component {
         // ⚠️ gel 必须是**子节点**：Cocos 里子节点永远渲染在父节点之上，
         //    直接把 Graphics 加到 this.node 的话，它会被 Bead 子节点盖住；
         //    而 Web 的顺序是 art 在下、gel 在上（`map.ts:860-861`，后来者居上）。
+        const r = this.gelD / 2;
+        const d = this.gelD;
+        const cy = this.gelY;
+
+        // ① 外发光（Web 的两层 `box-shadow`：`0 0 d*.16 d*.045 glow` + `0 0 d*.36 d*.11 glow2`）
+        // ⚠️ 用**预烘焙的模糊贴图**（canvas `shadowBlur`，与 CSS box-shadow 的 blur 同定义=2σ），
+        //    不要用「多层同心圆叠加」—— 每层都是硬边，叠出来就是一圈圈同心台阶（毛边）。
+        //    贴图是白色，颜色/强度由 `sprite.color` 调制；形状只跟 `r0:blur` 比例有关，
+        //    所以 d 变化时整张等比缩放即可复用（`GEL_D` 基准）。
+        // ⚠️ 发光要在 gel **之前**插为兄弟节点，否则子节点会盖住珠体。
+        this.mkGlow('Glow2', 'ui/fx/glow-bead-2', (r + d * 0.11 + d * 0.36) * 2, cy, dim(raw.glow2));
+        this.mkGlow('Glow1', 'ui/fx/glow-bead-1', (r + d * 0.045 + d * 0.16) * 2, cy, dim(raw.glow));
+
         const gel = new Node('Gel');
         gel.parent = this.node;
         gel.layer = Layers.Enum.UI_2D;
         gel.addComponent(UITransform).setContentSize(this.gelD, this.gelD);
         const g = gel.addComponent(Graphics);
-        const r = this.gelD / 2;
-        const d = this.gelD;
-        const cy = this.gelY;
-
-        // ① 外发光（先画大的、淡的，后画小的、浓的）
-        this.glowRing(g, cy, r + d * 0.045, d * 0.16, dim(raw.glow));
-        this.glowRing(g, cy, r + d * 0.11, d * 0.36, dim(raw.glow2));
 
         // ② 珠体主渐变：站点 5% / 46% / 94%
         const stops = [dim(raw.top), dim(raw.mid), dim(raw.bot)];
@@ -308,9 +311,21 @@ export class LevelNode extends Component {
         this.radial(g, cy, 0, -0.46 * d, 0.64 * d, 0.52 * d, dim(raw.lower), 0.72);
     }
 
-    /** `box-shadow: 0 0 blur spread color` 的外发光：统一走 `paintGlow` 的多层递减 */
-    private glowRing(g: Graphics, cy: number, r0: number, blur: number, c: Color): void {
-        paintGlow(g, cy, r0, blur, c, 10);
+    /** 铺一张预烘焙的辉光贴图（白色贴图 + `color` 调制），插在 gel 之前当底层 */
+    private mkGlow(name: string, res: string, size: number, cy: number, c: Color): Node {
+        const n = new Node(name);
+        n.parent = this.node;
+        n.layer = Layers.Enum.UI_2D;
+        n.addComponent(UITransform).setContentSize(size, size);
+        n.setPosition(0, cy);          // 跟着珠心（`--ncy`）走
+        const sp = n.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        sp.color = c;
+        resources.load(`${res}/spriteFrame`, SpriteFrame, (err, sf) => {
+            if (err || !sf || !n.isValid) return;
+            sp.spriteFrame = sf;
+        });
+        return n;
     }
 
     /** `radial-gradient(rx ry at cx cy, color, transparent stop)`：多层椭圆近似（Graphics 无渐变） */
@@ -396,6 +411,10 @@ export class LevelNode extends Component {
      *   （transform 要留给地图滚动的翻滚角）。
      */
     private drawRing(): void {
+        // 金环的辉光 `0 0 30px 12px rgba(255,215,0,.85)` → 预烘焙贴图（和珠子外发光同口径），
+        //    不用「多层同心圆叠加」（那是一圈圈硬边台阶 = 毛边）。
+        //    白色贴图 + `color` 调制；必须排在 Ring **之前**（兄弟），否则会盖住环。
+        const glow = this.mkGlow('RingGlow', 'ui/fx/glow-ring', (this.gelD / 2 - 4 + 12 + 30) * 2, this.gelY, new Color(255, 215, 0, 217));
         const n = new Node('Ring');
         n.parent = this.node;
         n.layer = Layers.Enum.UI_2D;
@@ -405,7 +424,6 @@ export class LevelNode extends Component {
         const r = this.gelD / 2 - 4;
         if (this.isCurrent) {
             // 静态：0 0 0 8px rgba(255,215,0,.45) + 0 0 30px 12px rgba(255,215,0,.85)
-            this.glowRing(g, 0, r + 12, 30, new Color(255, 215, 0, 217));
             g.lineWidth = 8;
             g.strokeColor = new Color(255, 215, 0, 115);
             g.circle(0, 0, r);
@@ -413,16 +431,22 @@ export class LevelNode extends Component {
             return;
         }
         const op = n.addComponent(UIOpacity);
+        // Web 呼吸的是 `box-shadow` 的 spread，所以**辉光要跟着环一起呼吸**，不能环在动辉光不动
+        const gop = glow.addComponent(UIOpacity);
         // spread 0→24px 用「描边环 + 淡出」近似：透明度呼吸，节点尺寸保持不动
         g.lineWidth = 8;
         g.strokeColor = new Color(255, 215, 0, 170);
         g.circle(0, 0, r);
         g.stroke();
-        tween(op)
-            .to(0.55, { opacity: 100 })
-            .to(0.55, { opacity: 255 })
-            .union()
-            .repeatForever()
-            .start();
+        const pulse = (o: UIOpacity): void => {
+            tween(o)
+                .to(0.55, { opacity: 100 })
+                .to(0.55, { opacity: 255 })
+                .union()
+                .repeatForever()
+                .start();
+        };
+        pulse(op);
+        pulse(gop);
     }
 }

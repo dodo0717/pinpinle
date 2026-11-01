@@ -33,7 +33,7 @@ import { resolveAsset, type ResolvedAsset } from '../平台/assetSource';
 import { loadSpriteFrame } from '../平台/assetLoader';
 import { COLLECTION } from '../玩法/text';
 import {
-  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, maskStencil, paintScreenBg, paintShadow,
+  STAGE_H, STAGE_W, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, maskStencil, paintScreenBg, mkFx,
 } from './uiPaint';
 
 /** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点卡/屏中心） */
@@ -167,6 +167,10 @@ export class CollectionScreen {
     this.countLabel = mkText(root, '', COUNT_FS, 0, COUNT_CY, COUNT_COLOR, STAGE_W, true, 'center');
 
     // 金框大卡
+    // 外投影 `0 26px 70px rgba(20,55,120,.35)`：用**预烘焙的模糊贴图**。
+    // ⚠️ blur 70 是全场最大，用「多层同心矩形叠加」时台阶最明显（毛边最多），必须换掉。
+    //    贴图 1188x1494（= 卡 1048x1328 + 四周 70 + 下方留出 26 的位移），中心比卡中心低 13。
+    mkFx(root, 'CardShadow', 'ui/fx/shadow-card-col', 1188, 1494, 0, CARD_CX - 13);
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
@@ -210,10 +214,10 @@ export class CollectionScreen {
     mkSprite(card, 'leaderboard/frame', CARD_W, CARD_H);
   }
 
-  /** 卡片本体：外投影 + 卡内蓝天渐变（Web `.col-card` 的 background；金框是上面的切图） */
+  /** 卡片本体：卡内蓝天渐变（Web `.col-card` 的 background；金框是上面的切图） */
   private paintCard(g: Graphics): void {
     g.clear();
-    paintShadow(g, CARD_W, CARD_H, CARD_R, 26, 70, CARD_SHADOW);
+    // ⚠️ 外投影已改为贴图（`CardShadow` 兄弟节点），这里只画卡内渐变 —— 见 `build()`
     fillVGrad(g, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, 0.55, CARD_R, 40);
   }
 

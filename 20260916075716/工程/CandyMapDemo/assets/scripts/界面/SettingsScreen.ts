@@ -29,7 +29,7 @@ import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
 import { SETTINGS, TUTORIAL, VERSION } from '../玩法/text';
 import {
   STAGE_H, STAGE_W, WHITE, fillVGrad, mkText, mkBackButton, mkTitle, mkSprite, setSprite,
-  fitContain, paintScreenBg, paintShadow,
+  fitContain, paintScreenBg, mkFx,
 } from './uiPaint';
 
 /** 屏幕坐标（y 从顶向下）→ Cocos 局部（y 向上，原点屏幕中心） */
@@ -153,13 +153,14 @@ export class SettingsScreen {
 
     // 金框棕木卡：框是 `leaderboard/frame.png` 切图（Web `.set-card::before` 明写复用它），
     // 内板是木纹渐变（程序绘制 —— Web 也是 CSS 渐变，没有切图）
+    // 外投影 `0 26px 70px rgba(20,55,120,.35)` → 预烘焙贴图 1100x1516（图鉴屏同口径）
+    mkFx(root, 'CardShadow', 'ui/fx/shadow-card-set', 1100, 1516, 0, CARD_CY - 13);
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
     card.setPosition(0, CARD_CY, 0);
     card.parent = root;
     const cg = card.addComponent(Graphics);
-    paintShadow(cg, CARD_W, CARD_H, CARD_R, 26, 70, CARD_SHADOW);
     drawWood(cg, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, CARD_R);
 
     // 行容器：顶部对齐卡的内容区（padding-top 46）
@@ -183,6 +184,8 @@ export class SettingsScreen {
     row.layer = Layers.Enum.UI_2D;
     row.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
     row.setPosition(0, y, 0);
+    // 行外投影 `0 6px 14px rgba(30,15,5,.25)` → 预烘焙贴图 900x186，中心比行中心低 3
+    mkFx(card, 'RowShadow' + i, 'ui/fx/shadow-row', 900, 186, 0, y - 3);
     row.parent = card;
     this.paintRow(row.addComponent(Graphics));
 
@@ -246,6 +249,7 @@ export class SettingsScreen {
     row.layer = Layers.Enum.UI_2D;
     row.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
     row.setPosition(0, y, 0);
+    mkFx(card, 'RowShadowTut', 'ui/fx/shadow-row', 900, 186, 0, y - 3);
     row.parent = card;
     this.paintRow(row.addComponent(Graphics));
     // 这行没有图标：标签从图标的位置开始
@@ -268,9 +272,8 @@ export class SettingsScreen {
     btn.on(Node.EventType.TOUCH_END, () => this.h.onTutorial());
   }
 
-  /** 行条：木纹渐变 + 上下 inset 高光 / 暗边 + 外投影 */
+  /** 行条：木纹渐变 + 上下 inset 高光 / 暗边（外投影已改为 `RowShadow` 兄弟贴图） */
   private paintRow(g: Graphics): void {
-    paintShadow(g, ROW_W, ROW_H, ROW_R, 6, 14, ROW_SHADOW, 3);
     drawWood(g, ROW_W, ROW_H, ROW_A, ROW_A, ROW_B, ROW_R);
     g.lineWidth = 3;
     g.strokeColor = ROW_INSET_TOP;

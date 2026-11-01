@@ -119,6 +119,27 @@ export function mkSprite(parent: Node, res: string, w: number, h: number, x = 0,
 }
 
 /**
+ * 铺一张**效果贴图**（外投影 / 辉光）。
+ *
+ * ⚠️ 必须是**兄弟节点、且排在被装饰元素之前**加入父节点：Cocos 里子节点永远渲染在父节点之上，
+ *    把阴影做成元素的子节点，它反而会盖住元素自己（阴影比元素大一圈，等于糊在脸上）。
+ *
+ * 贴图是 canvas `shadowBlur` 预烘的（`tools` 侧脚本产出，见 `assets/resources/ui/fx/`），
+ * 与 Web 的 `box-shadow` 同口径（blur 定义都是 2σ）。
+ */
+export function mkFx(parent: Node, name: string, res: string, w: number, h: number, x = 0, y = 0): Sprite {
+  const n = new Node(name);
+  n.layer = Layers.Enum.UI_2D;
+  n.addComponent(UITransform).setContentSize(w, h);
+  n.setPosition(x, y, 0);
+  n.parent = parent;
+  const sp = n.addComponent(Sprite);
+  sp.sizeMode = Sprite.SizeMode.CUSTOM;
+  setSprite(sp, res);
+  return sp;
+}
+
+/**
  * 取 `GRAPHICS_STENCIL` 遮罩的模板 `Graphics`。
  *
  * ⚠️ `mask.graphics` 是 **2.x 口径**，Creator 3.8 的 `MaskComponent` 没有这个属性（TS 直接报错）。

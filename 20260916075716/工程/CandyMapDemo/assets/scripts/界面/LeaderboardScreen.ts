@@ -35,7 +35,7 @@
 
 import { Node, UITransform, Graphics, Label, Color, Layers, ScrollView, Mask, UIOpacity, Vec2, Sprite } from 'cc';
 import { LEADERBOARD } from '../玩法/text';
-import { mkSprite, setSprite, fitContain, maskStencil } from './uiPaint';
+import { mkSprite, setSprite, fitContain, maskStencil, mkFx } from './uiPaint';
 import {
   LEADERBOARD_PAGE_SIZE,
   LEADERBOARD_MAX_LEVEL,
@@ -352,6 +352,8 @@ export class LeaderboardScreen {
     }
     mkText(root, LEADERBOARD.title, TITLE_FS, 0, ty, WHITE, 900, true, 'center');
 
+    // 外投影 `0 26px 70px rgba(20,55,120,.35)` → 预烘焙贴图 1166x1570（图鉴/设置屏同口径）
+    mkFx(root, 'CardShadow', 'ui/fx/shadow-card-lb', 1166, 1570, 0, 960 - (CARD_TOP + CARD_H / 2) - 13);
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
@@ -470,16 +472,8 @@ export class LeaderboardScreen {
    */
   private paintCard(g: Graphics): void {
     g.clear();
-    // box-shadow 0 26px 70px rgba(20,55,120,.35)：5 层低透明同心圆角矩形
-    for (let i = 4; i >= 0; i--) {
-      const spread = (i / 4) * 70;
-      g.fillColor = new Color(CARD_SHADOW_C.r, CARD_SHADOW_C.g, CARD_SHADOW_C.b, Math.round(CARD_SHADOW_C.a * (0.15 + 0.055 * (4 - i))));
-      g.roundRect(
-        -CARD_W / 2 - spread, -CARD_H / 2 - spread - 26,
-        CARD_W + spread * 2, CARD_H + spread * 2, CARD_R + spread,
-      );
-      g.fill();
-    }
+    // ⚠️ 外投影已改为预烘焙贴图（`CardShadow` 兄弟节点）：原来那 5 层同心圆角矩形
+    //    每层都是硬边，在 blur 70 这么大的扩散下会叠出明显的同心台阶（毛边）。
     fillVGrad(g, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, 0.55, CARD_R, 40);
   }
 

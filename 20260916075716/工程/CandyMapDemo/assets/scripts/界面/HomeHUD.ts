@@ -31,8 +31,10 @@ import {
 const { ccclass } = _decorator;
 
 import { HOME, TABBAR, TUTORIAL } from '../玩法/text';
-/** 底栏外投影 / 圆钮辉光：`box-shadow` 的模糊必须靠**多层递减**叠出来，单层实心是硬边色块 */
-import { paintShadow, paintGlow } from './uiPaint';
+// ⚠️ 这里原本从 uiPaint 引 `paintShadow / paintGlow`，已移除：
+//    那两个是「多层同心形状叠加」的模糊近似，每层都是硬边 → 叠出一圈圈同心台阶（毛边）。
+//    阴影/辉光现在一律用 `assets/resources/ui/fx/` 下预烘好的模糊贴图（canvas `shadowBlur`），
+//    与 Web 的 `box-shadow` 同口径（blur 定义都是 2σ），边缘天然平滑。
 
 /* ------------------------------------------------------------------ 常量（Web 实测几何） */
 
@@ -232,13 +234,15 @@ export class HomeHUD extends Component {
    */
   private goldCircle(root: Node, name: string, glyph: string, x: number, y: number, size: number,
       glyphSize = 78, glowBlur = 26): { visual: Node; hit: Node } {
+    // 外发光 halo（ui.css:1262 的 `0 0 26px rgba(255,206,110,.8)`）—— 垫在最底
+    // ⚠️ 同底栏：辉光用预烘焙贴图（`shadowBlur` 原生高斯），不做多层同心圆叠加（会出台阶/毛边）。
+    //    贴图是白色的，颜色与强度由 `sprite.color` 调制。
+    const glowRes = glowBlur === 22 ? 'ui/fx/glow-pager' : 'ui/fx/glow-nav';
+    const glowSize = (size / 2 + glowBlur) * 2;
+    this.mkFx(root, `${name}Glow`, glowRes, glowSize, glowSize, x, y).color = new Color(255, 206, 110, 204);
     const n = this.mkNode(root, name, size, size, x, y);
     const hit = this.mkNode(n, 'Hit', Math.round(size / Math.SQRT2), Math.round(size / Math.SQRT2), 0, 0);
     const g = n.addComponent(Graphics);
-    // 外发光 halo（ui.css:1262 的 `0 0 26px rgba(255,206,110,.8)`）—— 垫在最底
-    // ⚠️ 原来只有 3 层且每层 alpha 极低（22/37/51），等于几乎看不见；
-    //    这里改用统一的 `paintGlow`（10 层递减），辉光才真的"发光"。
-    paintGlow(g, 0, size / 2, glowBlur, new Color(255, 206, 110, 204), 10);
     // 底影 0 8px 0 rgba(140,70,10,.5)
     g.fillColor = new Color(140, 70, 10, 128);
     g.circle(0, -8, size / 2);
@@ -270,13 +274,16 @@ export class HomeHUD extends Component {
   /* ---------------------------------------------------------------- 底栏 */
 
   private buildTabbar(root: Node): void {
+    // 外投影 `box-shadow: 0 18px 40px rgba(20,10,0,.5)`（ui.css:1284）
+    // ⚠️ 用**预烘焙的模糊贴图**（canvas `shadowBlur`），不要再用程序画：
+    //    ① 单层实心矩形 → 在棕底板四周糊出一圈硬边深色块（"材质质感不对"）；
+    //    ② 多层同心矩形叠加 → 每一层都是硬边，叠出一圈圈同心台阶（"毛边很多"）。
+    //    canvas 的 `shadowBlur` 与 CSS `box-shadow` 的 blur **定义相同**（都等于 2σ），
+    //    所以这张贴图就是浏览器原生的高斯模糊，边缘天然平滑。
+    // 贴图 1112x267（= 栏 1032x169 + 四周 40 + 下方留出 18 的位移），中心比栏中心低 9（= dy/2）
+    this.mkFx(root, 'TabbarShadow', 'ui/fx/tabbar-shadow', 1112, 267, TABBAR_POS.x, TABBAR_POS.y - 9);
     const bar = this.mkNode(root, 'Tabbar', TABBAR_POS.w, TABBAR_POS.h, TABBAR_POS.x, TABBAR_POS.y);
     const g = bar.addComponent(Graphics);
-    // 外投影 `box-shadow: 0 18px 40px rgba(20,10,0,.5)`（ui.css:1284）
-    // ⚠️ 原来这里是**单层实心圆角矩形**（alpha 128、向外 10px）——那会在棕底板四周糊出一圈
-    //    硬边深色块，跟 Web 那种 40px 模糊的柔和扩散完全两回事，看上去就是"材质质感不对"。
-    //    改用 `paintShadow`：多层同心圆角矩形由外向内递减叠加，逐层模拟高斯模糊。
-    paintShadow(g, TABBAR_POS.w, TABBAR_POS.h, 44, 18, 40, new Color(20, 10, 0, 128), 8);
     // 木纹渐变 #6b4426 → #4a2d18
     this.fillVGradient(g, -TABBAR_POS.w / 2, -TABBAR_POS.h / 2, TABBAR_POS.w, TABBAR_POS.h, 44, new Color(107, 68, 38, 255), new Color(74, 45, 24, 255), 16);
     // 描边 5px #3a2312
@@ -427,6 +434,27 @@ export class HomeHUD extends Component {
   }
 
   /** 贴图节点：资源从 assets/resources 异步加载（与 MapBootstrap.makeSprite 同口径） */
+  /**
+   * 铺一张**效果贴图**（外投影 / 辉光）。
+   *
+   * ⚠️ 必须是**兄弟节点、且排在被装饰元素之前**：Cocos 里子节点永远渲染在父节点之上，
+   *    把阴影做成元素的子节点，它反而会盖住元素自己（阴影比元素大一圈，等于糊在脸上）。
+   */
+  private mkFx(parent: Node, name: string, res: string, w: number, h: number, x: number, y: number): Sprite {
+    const n = new Node(name);
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w, h);
+    n.setPosition(x, y, 0);
+    n.parent = parent;
+    const sp = n.addComponent(Sprite);
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    resources.load(`${res}/spriteFrame`, SpriteFrame, (err, sf) => {
+      if (err || !sf || !n.isValid) return;
+      sp.spriteFrame = sf;
+    });
+    return sp;
+  }
+
   private makeSprite(parent: Node, name: string, path: string, w: number, h: number, x: number, y: number): Sprite {
     const n = this.mkNode(parent, name, w, h, x, y);
     const sp = n.addComponent(Sprite);
