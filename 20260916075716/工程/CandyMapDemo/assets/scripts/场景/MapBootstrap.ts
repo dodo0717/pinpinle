@@ -26,9 +26,7 @@ import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '..
 import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
 import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtAsset } from './worlds';
-// 底图走资源来源分派：默认全本地（path 与改造前逐字一致），将来填 cdnBase 才走远程
-import { loadSpriteFrame } from '../平台/assetLoader';
-import type { ResolvedAsset } from '../平台/assetSource';
+// 底图固定走本地 resources（Web 口径：`/web/art/map-v2/*.jpg` 是静态本地图）
 const { ccclass } = _decorator;
 
 const DESIGN_W = 1080;
@@ -612,60 +610,21 @@ export class MapBootstrap extends Component {
 
     /**
      * 底图：整张静态背景层 1080×3840（每世界一张，`worlds.ts` 的 WORLDS 决定哪张）。
-     * ⚠️ 风车 / 水面 / 角色是**小镇底图专属**浮层，其他世界没有这些切片，只在第 1 世界挂。
+     *
+     * ⚠️ `resources/map/*.jpg` 就是 Web 端 `web/art/map-v2/*.jpg` **那一批原图** —— 15 张已逐一比对
+     *    MD5 完全相同（这边只是多加了个 `wN_` 前缀），图本身没做错，**不要重画也不要再替换**。
+     *    Web 的加载口径就是本地一张静态图：`backgroundImage: url('/web/art/map-v2/{art}.jpg')`
+     *    （web/ui/map.ts:755 + :298 的 `MAP_ART_DIR`），没有 CDN、没有占位层、没有加载文案。
      */
     private createMapBackground() {
-        this.makeResolvedSprite(this.content, 'BgMain', worldArtAsset(this.worldIndex), DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
+        this.makeSprite(this.content, 'BgMain', worldArtAsset(this.worldIndex).path, DESIGN_W, MAP_H, 0, this.localY(MAP_H / 2));
     }
 
-    /**
-     * 底图代次：`switchWorld` 换世界时，上一张底图的远程回调可能还没回来，
-     * 靠这个 token 把迟到的结果丢掉（否则会看到上一世界的图盖在新世界上）。
-     */
-    private bgToken = 0;
-
-    /**
-     * 按 `resolveAsset` 的结果挂贴图：
-     *   - local：走 `makeSprite()`，**与改造前同一条** `resources.load('map/w1_town/spriteFrame')`；
-     *   - cdn  ：先挂占位（纯色底 + 「加载中」），远程到了再换上；失败按 `canFallbackToLocal()`
-     *            退回本地，再失败就留着占位 —— 切世界时不会白屏。
-     */
-    private makeResolvedSprite(parent: Node, name: string, res: ResolvedAsset, w: number, h: number, x: number, y: number): void {
-        if (res.mode === 'local') {
-            this.makeSprite(parent, name, res.path, w, h, x, y);
-            return;
-        }
-        this.makeRemoteSprite(parent, name, res, w, h, x, y);
-    }
-
-    /** 远程底图：占位 → 加载 → 换图 / 回退 / 提示失败 */
-    private makeRemoteSprite(parent: Node, name: string, res: ResolvedAsset, w: number, h: number, x: number, y: number): void {
-        const token = ++this.bgToken;
-        const n = new Node(name);
-        n.parent = parent;
-        n.layer = Layers.Enum.UI_2D;
-        n.addComponent(UITransform).setContentSize(w, h);
-        n.setPosition(x, y);
-
-        // 占位：CDN 未到之前先铺一块底色，避免整屏白
-        const g = n.addComponent(Graphics);
-        g.rect(-w / 2, -h / 2, w, h);
-        g.fillColor = new Color(176, 214, 238, 255);
-        g.fill();
-        const tip = this.makeLabel(n, 'LoadingTip', '底图加载中…', 0, 0, 36, new Color(90, 60, 40), 620, 80);
-
-        const sp = n.addComponent(Sprite);
-        sp.sizeMode = Sprite.SizeMode.CUSTOM;
-        loadSpriteFrame(res, (sf) => {
-            if (token !== this.bgToken || !n.isValid) return;   // 已经切到别的世界，丢弃这次结果
-            if (sf) {
-                sp.spriteFrame = sf;
-                if (tip.node?.isValid) tip.node.destroy();
-                return;
-            }
-            if (tip.node?.isValid) tip.string = '底图加载失败';
-        });
-    }
+    // ⚠️ 这里原本有一整套「远程底图」逻辑（`bgToken` + `makeResolvedSprite` + `makeRemoteSprite`：
+    //    纯色占位底 →「底图加载中…」→ 远程图到了替换 / 失败改「底图加载失败」），已删除。
+    //    Web 端底图就是本地一张静态图（web/ui/map.ts:755），没有 CDN、没有占位、没有加载文案；
+    //    本地模式下那条分支**永远走不到**，只是让「图片来源」多了一条没人验证的路径。
+    //    底图现在只走本地 resources，与 `worldArtAsset().path` 一致。
 
     // ========== 世界切换（15 个世界，地图上同时只驻留一张底图）==========
     /**
