@@ -103,7 +103,7 @@ export class MapBootstrap extends Component {
     /** 当前显示的世界下标（0 = 小镇）；地图上同时只挂这一个世界的底图与节点 */
     private worldIndex = 0;
     private visibleSize = new Size(0, 0);
-    private screenH = DESIGN_H;   // 实际可视高度（FIXED_WIDTH 下可能 > 1920）
+    private screenH = DESIGN_H;   // SHOW_ALL 下恒等于 1920（Web #stage 是死尺寸）
     private viewH = 0;
 
     private levelNodes: LevelNode[] = [];
@@ -136,7 +136,12 @@ export class MapBootstrap extends Component {
     private leaderboard: LeaderboardScreen = null!;
 
     onLoad() {
-        view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
+        // ⚠️ 适配策略必须吃 Web 口径：**SHOW_ALL**（等比缩放 + 完整显示 + 两侧/上下留边）。
+        //    Web 的 `#stage` 是写死的 1080×1920，再由 JS `fitStage()` 等比缩放摆正
+        //    （web/index.html:58-65），任何窗口下画面都是完整的 9:16 手机比例。
+        //    之前用 FIXED_WIDTH 是错的：它锁宽度、**高度随窗口变**，宽屏时可视高度只剩 ±304，
+        //    表现为「画面只有中间一条」、教学 UI（气泡 y=549）整个落到屏幕外。
+        view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.SHOW_ALL);
         this.visibleSize = view.getVisibleSize();
         this.screenH = this.visibleSize.height || DESIGN_H;
         this.ensureCamera();   // 打包后场景里的相机绑定会丢，运行时兜底补一台正交 UI 相机
@@ -222,7 +227,9 @@ export class MapBootstrap extends Component {
         cam.priority = 1073741824;          // 压在其它相机之上
         cam.visibility = Layers.Enum.UI_2D;  // 只渲染 2D UI 层
         cam.clearFlags = 7;
-        cam.clearColor = new Color(28, 18, 58, 255);
+        // 舞台**之外**的留边色 = Web 版 html/body 的 `background: #2b2419`（web/index.html:26）。
+        // 舞台之内由 Backdrop 自己铺（对应 #stage 的 radial-gradient 米白渐变），别在这儿替它决定。
+        cam.clearColor = new Color(43, 36, 25, 255);
 
         // 关键：把打包时丢掉的绑定补回去，Canvas 之后会自己维护它
         canvas.cameraComponent = cam;
