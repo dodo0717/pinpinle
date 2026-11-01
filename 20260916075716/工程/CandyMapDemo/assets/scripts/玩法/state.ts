@@ -142,6 +142,14 @@ class GameState {
   /** 当前模式的进度（两套进度分别存，切模式不丢） */
   get progress(): ProgressData { return this.data.progress[this.mode]; }
 
+  /**
+   * 按模式取进度 —— 对应 Web 的 `progressByMode[mode]`。
+   *
+   * ⚠️ 跨模式查询必须走这里（例如困难模式要查**简单档**同一关的星级，
+   *    见 Web `nightmareUnlocked()`）。用 `GS.progress` 只会拿到当前模式那份。
+   */
+  progressOf(mode: GameMode): ProgressData { return this.data.progress[mode]; }
+
   setProgress(next: ProgressData): void {
     this.data.progress[this.mode] = next;
     this.markDirty();

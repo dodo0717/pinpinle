@@ -17,7 +17,7 @@ import { GameBootstrap } from '../玩法/GameBootstrap';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { HOME, ADS, SHARE, COLLECTION, SETTINGS, TUTORIAL } from '../玩法/text';
+import { HOME, ADS, SHARE, COLLECTION, SETTINGS, TUTORIAL, MAP } from '../玩法/text';
 import { STAMINA_PER_AD } from '../平台/ads';
 import {
   adDenyText, playAd, setMenuShare, setPlatformToast, shareCard, startTracking,
@@ -118,8 +118,9 @@ export class MapBootstrap extends Component {
         active: boolean; startY: number; startOffset: number;
         lastY: number; vel: number; moved: boolean;
     } | null = null;
-    /** 拖动位移超过 CLICK_SLOP 后，本次手势末尾的点击不当成点关卡 */
-    private tapSuppressedUntil = 0;
+    // ⚠️ 这里原本有个 `tapSuppressedUntil` 时间戳闸门，已删除：
+    //    Web 用状态位 `dragMoved`（本次手势内的持久标志），不是「接下来 220ms 内的点击都屏蔽」，
+    //    时间戳口径会误伤刚拖完紧接着点下一颗的正常操作。现在统一看 `this.drag.moved`。
 
     private dialog: GameDialog = null!;
     private toast: ToastLayer = null!;
@@ -292,8 +293,10 @@ export class MapBootstrap extends Component {
         this.hud.setStamina(String(GS.stamina.available));
         const cd = GS.countdownText();
         this.hud.setCountdown(cd ? HOME.staminaCountdown(cd) : '');
-        // 教学按钮：困难模式累计通关 ≥10 → 长期隐藏（Web 同条件）
-        this.hud.setTutorialVisible(clearedCount(GS.progress) < GameBootstrap.TUTORIAL_HIDE_AFTER);
+        // 教学按钮隐藏条件：**恒看困难模式**的累计通关数（Web web/main.ts:688-692 写死 nightmare）。
+        // ⚠️ 不能拿 GS.progress（那是当前模式这份）——否则简单模式通关 10 关入口就提前消失，
+        //    而困难模式通关 10 关了却还在。
+        this.hud.setTutorialVisible(clearedCount(GS.progressOf('nightmare')) < GameBootstrap.TUTORIAL_HIDE_AFTER);
     }
 
     /**
@@ -529,7 +532,6 @@ export class MapBootstrap extends Component {
         const d = this.drag;
         this.drag = null;
         if (!d) return;
-        if (d.moved) this.tapSuppressedUntil = Date.now() + 220;   // 拖过就别当点击
         const projected = this.currentOffset() + d.vel * FLING_PROJECT;
         this.animateToPage(Math.round(projected / PAGE_H));
     }
@@ -679,7 +681,8 @@ export class MapBootstrap extends Component {
             node.addComponent(UITransform).setContentSize(NODE_BOX, NODE_BOX);
             node.setPosition(lv.x - DESIGN_W / 2, this.localY(lv.y));
 
-            const st = levelStatus(p, lv.level);
+            // 困难档被 3 星门槛挡住的关，外观必须是**锁定态**（Web: status = 'locked'）
+            const st = this.isNightmareBlocked(lv.level) ? 'locked' : levelStatus(p, lv.level);
             const stars = recordOf(p, lv.level).stars;
             // 三色水晶球统一用「素球」贴图，颜色由 LevelNode 按星级着色（见 LevelNode 文件头）
             // Web 的 `.node-art` 比 `.node-gel`（正中在路点上）低 5 轨道 px（≈3.5 屏幕 px）——
@@ -713,12 +716,28 @@ export class MapBootstrap extends Component {
      * 拖动结束的那一下不算点击（Web 用 CLICK_SLOP 判别，这里是时间戳闸门）。
      */
     private onLevelTap(level: number) {
-        if (Date.now() < this.tapSuppressedUntil) return;
-        if (levelStatus(GS.progress, level) === 'locked') {
-            this.toast.show(HOME.lockedToast, 1600);
+        // 拖过就一律不算点击 —— 与 Web 的 `dragMoved` 同口径：**状态位**，不是时间戳闸门。
+        // 时间戳闸门（`Date.now() < x`）会误伤「刚拖完紧接着点下一颗」的正常操作，
+        // 而且 Web 根本没这回事（web/ui/map.ts:876 `if (dragMoved || flipping) return`）。
+        if (this.drag?.moved) return;
+        // 困难档门槛要先判：被门槛挡住时用的是另一句提示，不是「先通关第 N 关」
+        const blocked = this.isNightmareBlocked(level);
+        if (blocked || levelStatus(GS.progress, level) === 'locked') {
+            this.toast.show(
+                blocked ? MAP.nightmareLocked : MAP.locked(Math.max(1, level - 1)),
+                1800,   // Web 用的是 1800（web/ui/map.ts:721）
+            );
             return;
         }
         this.openPreview(level);
+    }
+
+    /**
+     * 困难档门槛：同一关必须先在**简单模式**拿到 3 星（Web `nightmareUnlocked()`，
+     * `NIGHTMARE_MIN_NORMAL_STARS = 3`）。两套进度各自独立，必须跨模式去查简单档。
+     */
+    private isNightmareBlocked(level: number): boolean {
+        return GS.mode === 'nightmare' && recordOf(GS.progressOf('normal'), level).stars < 3;
     }
 
     // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
