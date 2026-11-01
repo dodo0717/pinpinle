@@ -1721,8 +1721,10 @@ export class GameBootstrap extends Component {
       this.tutClearMarks();
       this.scheduleOnce(() => {
         if (!this.tut || this.tut.step !== 2) return;
+        // ⚠️ 与 Web 端同口径：聚光灯步骤**只用气泡 + 语音**，
+        //    不许再弹横幅 —— 否则同一句话横幅和气泡各显示一遍，屏幕上全是字
         const tip = this.tutScript().flag;
-        this.tutorialSay(tip);
+        this.speech.speak(tip);
         this.tutSpot.show(this.hudRectOf('score'), {
           tip,
           onNext: () => this.tutorialStepTime(),
@@ -1744,7 +1746,7 @@ export class GameBootstrap extends Component {
     this.tut.step = 3;
     this.tut.demoing = true;
     const tip = this.tutScript().time ?? '';
-    this.tutorialSay(tip);
+    this.speech.speak(tip);
     this.tutSpot.show(this.hudRectOf('time'), { tip, onNext: () => this.runTimeDemo() });
   }
 
@@ -1762,7 +1764,7 @@ export class GameBootstrap extends Component {
       this.tut.demoing = false;
       // 演示完了 → 再等玩家点一次「继续」，不自动跳
       const tip = this.tutScript().timeDone ?? '';
-      this.tutorialSay(tip);
+      this.speech.speak(tip);
       this.tutSpot.show(this.hudRectOf('time'), { tip, onNext: () => this.tutorialStepGroup() });
     }, 3);
   }

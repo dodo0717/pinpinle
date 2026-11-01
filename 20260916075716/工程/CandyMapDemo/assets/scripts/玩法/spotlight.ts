@@ -12,7 +12,7 @@
  * 坐标：挂在 Canvas 根下，用 1080×1920 设计坐标（调用方把目标元素的包围盒换算好传入）。
  */
 
-import { Node, Graphics, Color, UITransform, Label, Layers, UIOpacity, tween } from 'cc';
+import { Node, Graphics, Color, UITransform, Label, Layers, UIOpacity, tween, director, Director } from 'cc';
 
 export interface SpotlightRect {
   /** 洞的中心（设计坐标，屏幕中心为原点） */
@@ -37,9 +37,37 @@ const DARK = new Color(0, 0, 0, 170);
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
 
+/* ↓↓↓ 以下常量逐条对齐 web/ui.css 的 .spot-tip / .spot-next（不要凭感觉改） ↓↓↓ */
+/** 气泡宽度：Web 是 `Math.min(360, innerWidth - 32)`，设计坐标下取 360 */
+const TIP_W = 360;
+/** 内边距：Web `padding: 22px 26px`（上下的和左右的不是同一个数） */
+const TIP_PAD_V = 22;
+const TIP_PAD_H = 26;
+/** 圆角：Web `border-radius: 22px` */
+const TIP_R = 22;
+/** 字号 / 行高：Web `font-size: 40px; line-height: 1.35` */
+const TIP_FONT = 40;
+const TIP_LINE = 54;
+/** 文字色 #6d3f00 */
+const TIP_TEXT = new Color(109, 63, 0, 255);
+/** 渐变底两色：#fff8e6（上）→ #ffe6b8（下） */
+const TIP_TOP = new Color(255, 248, 230, 255);
+const TIP_BOTTOM = new Color(255, 230, 184, 255);
+/** 描边：Web `border: 5px solid rgba(190,130,50,.8)` */
+const TIP_BORDER = new Color(190, 130, 50, 204);
+const TIP_BORDER_W = 5;
+/** 「▾ 继续」圆钮：Web `76×76 / background rgba(255,200,90,.95) / color #7a4100 / 44px` */
+const NEXT_D = 76;
+const NEXT_BG = new Color(255, 200, 90, 242);
+const NEXT_TEXT = new Color(122, 65, 0, 255);
+const NEXT_FONT = 44;
+/* ↑↑↑ 常量区结束 ↑↑↑ */
+
 export class SpotlightLayer {
   private root: Node = null!;
   private shade: Node = null!;
+  /** 气泡底板（`.spot-tip` 的渐变底 + 描边，随文字行数变形） */
+  private tipBg: Node = null!;
   private tipNode: Node = null!;
   private nextNode: Node = null!;
   private onNextCb: (() => void) | null = null;
@@ -71,27 +99,49 @@ export class SpotlightLayer {
     shade.parent = root;
     this.shade = shade;
 
-    // 短句气泡（贴在洞旁，show() 时定位）
+    // 气泡底板（先于文字加，渲染在文字下层）
+    const tipBg = new Node('tipBg');
+    tipBg.layer = Layers.Enum.UI_2D;
+    tipBg.addComponent(UITransform).setContentSize(TIP_W, TIP_LINE + TIP_PAD_V * 2);
+    tipBg.addComponent(Graphics);
+    tipBg.parent = root;
+    this.tipBg = tipBg;
+
+    // 短句气泡（贴在洞旁，show() 时按文字行数重画底板）
     const tip = new Node('tip');
     tip.layer = Layers.Enum.UI_2D;
-    tip.addComponent(UITransform);
+    tip.addComponent(UITransform).setContentSize(TIP_W - TIP_PAD_H * 2, TIP_LINE);
     const tl = tip.addComponent(Label);
-    tl.fontSize = 34;
-    tl.lineHeight = 46;
-    tl.color = new Color(70, 40, 20, 255);
+    tl.fontSize = TIP_FONT;
+    tl.lineHeight = TIP_LINE;
+    tl.color = TIP_TEXT;
     tl.string = '';
+    // ⚠️ 打包后 cc 命名空间里的枚举可能被摇掉（CameraProjection 就是这么没的），
+    //    这里直接用数值：HorizontalAlign/VerticalAlign.CENTER = 1、Overflow.RESIZE_HEIGHT = 3
+    (tl as unknown as { horizontalAlign: number }).horizontalAlign = 1;
+    (tl as unknown as { verticalAlign: number }).verticalAlign = 1;
+    (tl as unknown as { overflow: number }).overflow = 3;
     tip.parent = root;
     this.tipNode = tip;
 
-    // 「▾ 继续」箭头
+    // 「▾ 继续」圆钮（Web: 76×76 圆形 + rgba(255,200,90,.95) 底 + #7a4100 44px）
     const next = new Node('next');
     next.layer = Layers.Enum.UI_2D;
-    next.addComponent(UITransform).setContentSize(80, 56);
+    next.addComponent(UITransform).setContentSize(NEXT_D, NEXT_D);
+    const ng = next.addComponent(Graphics);
+    ng.circle(0, 0, NEXT_D / 2);
+    ng.fillColor = NEXT_BG;
+    ng.fill();
     const nl = next.addComponent(Label);
-    nl.fontSize = 52;
-    nl.lineHeight = 60;
-    nl.color = new Color(255, 255, 255, 255);
+    nl.fontSize = NEXT_FONT;
+    nl.lineHeight = NEXT_D;
+    nl.color = NEXT_TEXT;
     nl.string = '▾';
+    (nl as unknown as { horizontalAlign: number }).horizontalAlign = 1;
+    (nl as unknown as { verticalAlign: number }).verticalAlign = 1;
+    // ⚠️ Label 默认 overflow=NONE 会把节点尺寸改成文字大小，76×76 的圆钮会被挤成 37×96。
+    //    这里改成 CLAMP(1)：保持圆钮尺寸，文字在圆里居中。
+    (nl as unknown as { overflow: number }).overflow = 1;
     next.parent = root;
     this.nextNode = next;
   }
@@ -118,6 +168,89 @@ export class SpotlightLayer {
   /** 测试钩子：直接触发"继续" */
   tapNext(): void {
     this.proceed();
+  }
+
+  /**
+   * 按字符宽度估算要排几行（全角算一个字宽、半角算半个）。
+   *
+   * ⚠️ 遍历字符串必须用 `Array.from`：构建器会把 `[...text]` 降级成 `[].concat(text)`，
+   *    对迭代器语义是错的（库里 poolGen.ts 踩过同一个坑）。
+   */
+  private estimateLines(text: string): number {
+    const maxW = TIP_W - TIP_PAD_H * 2;
+    let lineW = 0;
+    let lines = 1;
+    for (const ch of Array.from(text)) {
+      const cw = (ch.codePointAt(0) ?? 0) > 255 ? TIP_FONT : TIP_FONT * 0.5;
+      if (lineW + cw > maxW) {
+        lines++;
+        lineW = cw;
+      } else {
+        lineW += cw;
+      }
+    }
+    return Math.max(1, lines);
+  }
+
+  /**
+   * 气泡水平夹取：Web `Math.min(Math.max(16, center - w/2), innerWidth - w - 16)`
+   * —— 气泡靠边时不再往外顶。
+   */
+  private clampTipX(centerX: number): number {
+    const min = -DESIGN_W / 2 + 16 + TIP_W / 2;
+    const max = DESIGN_W / 2 - 16 - TIP_W / 2;
+    return Math.min(Math.max(centerX, min), max);
+  }
+
+  /**
+   * 画气泡底板并按文字行数摆好位置。
+   *
+   * Label 要换行到第几行，**渲染之后**才写回 contentSize —— 过早读到的是上一状态
+   * （实测：即使挂在 Director.EVENT_AFTER_DRAW 上，拿到的还是旧值）。
+   * 所以高度取「实测值与估算值的较大者」，宁可底板略高，也不能包不住文字漏出来。
+   */
+  private layoutTip(cssTopPos: number, cx: number): void {
+    const tl = this.tipNode.getComponent(Label)!;
+    const force = tl as unknown as { updateRenderData?: (f: boolean) => void };
+    if (typeof force.updateRenderData === 'function') force.updateRenderData(true);
+    const ut = this.tipNode.getComponent(UITransform)!;
+    const estimated = this.estimateLines(tl.string) * TIP_LINE;
+    const textH = Math.max(ut.contentSize.height || 0, estimated);
+    const h = textH + TIP_PAD_V * 2;
+    const w = TIP_W;
+    const r = TIP_R;
+    const hx = w / 2;
+    const hy = h / 2;
+
+    const g = this.tipBg.getComponent(Graphics)!;
+    g.clear();
+    // 阴影（Web: 0 10px 24px rgba(0,0,0,.35)）
+    g.fillColor = new Color(0, 0, 0, 90);
+    g.roundRect(-hx, -hy - 10, w, h, r);
+    g.fill();
+    // 渐变底：Graphics 没有渐变，用「下半色铺底 + 上半色盖上半段」逼近
+    g.fillColor = TIP_BOTTOM;
+    g.roundRect(-hx, -hy, w, h, r);
+    g.fill();
+    g.fillColor = TIP_TOP;
+    g.moveTo(-hx, 0);
+    g.lineTo(-hx, hy - r);
+    g.quadraticCurveTo(-hx, hy, -hx + r, hy);
+    g.lineTo(hx - r, hy);
+    g.quadraticCurveTo(hx, hy, hx, hy - r);
+    g.lineTo(hx, 0);
+    g.close();
+    g.fill();
+    // 描边
+    g.strokeColor = TIP_BORDER;
+    g.lineWidth = TIP_BORDER_W;
+    g.roundRect(-hx, -hy, w, h, r);
+    g.stroke();
+
+    const y = DESIGN_H / 2 - (cssTopPos + h / 2);
+    this.tipBg.getComponent(UITransform)!.setContentSize(w, h);
+    this.tipBg.setPosition(cx, y, 0);
+    this.tipNode.setPosition(cx, y, 0);
   }
 
   show(rect: SpotlightRect, opts: SpotlightOptions = {}): void {
@@ -148,20 +281,37 @@ export class SpotlightLayer {
     if (right < R) g.rect(right, bottom, R - right, hy);
     g.fill();
 
-    // 气泡默认洞下方；太靠下就翻到洞上方
-    const flip = bottom - 220 < B + 150;
-    const tl = this.tipNode.getComponent(Label)!;
+    // ⚠️ 下面这一段是 Web `spotlight.ts:96-113` 的逐行搬运：CSS 用「左上原点、y 向下」，
+    //    这里先换算成 CSS 的 top/left 算完，再翻回 Cocos 的中心坐标，避免自己另起一套。
+    const cssTop = T - top;      // 洞顶到屏幕上边缘
+    const cssBottom = T - bottom;
+    const below = cssBottom + 24;
+    const flip = below > DESIGN_H - 150;   // 太靠下就翻到洞上方
+
     if (opts.tip) {
-      tl.string = opts.tip;
-      this.tipNode.setPosition(0, flip ? top + 110 : bottom - 90, 0);
+      this.tipNode.getComponent(Label)!.string = opts.tip;
       this.tipNode.active = true;
+      this.tipBg.active = true;
+      const tipCssTop = flip ? Math.max(70, cssTop - 104) : cssBottom + 96;
+      const tipCx = this.clampTipX(rect.cx);
+      this.layoutTip(tipCssTop, tipCx);
+      // Label 的真实行数只有**渲染之后**才写回 contentSize（实测：下一帧读到的还是上一状态），
+      // 所以这里挂在 Director.EVENT_AFTER_DRAW 上重画一次底板。
+      // ⚠️ 枚举常量同样可能被摇掉，取不到就用字面量 'after-draw'。
+      const afterDraw = (Director as unknown as { EVENT_AFTER_DRAW?: string }).EVENT_AFTER_DRAW ?? 'after-draw';
+      director.once(afterDraw, () => this.layoutTip(tipCssTop, tipCx));
     } else {
       this.tipNode.active = false;
+      this.tipBg.active = false;
     }
-    this.nextNode.setPosition(0, flip ? top + 60 : bottom - 50, 0);
+    const nextCssTop = flip ? Math.max(12, cssTop - 96) : below;
+    this.nextNode.setPosition(rect.cx, T - (nextCssTop + NEXT_D / 2), 0);
 
     this.onNextCb = opts.onNext ?? null;
     this.open = true;
+    // ⚠️ 必须在这里把整层点亮：`hide()` 会把它置为 false，而 tween 只改透明度。
+    //    少了这一行，聚光灯**永远不显示**（只听得到横幅的文字独白）。
+    this.root.active = true;
     const op = this.root.getComponent(UIOpacity)!;
     op.opacity = 0;
     tween(op).to(0.2, { opacity: 255 }).start();

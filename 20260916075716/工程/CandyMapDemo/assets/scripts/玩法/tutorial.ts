@@ -13,7 +13,7 @@
 
 import {
   Node, Label, UITransform, Graphics, Color, Layers, UIOpacity, tween,
-  Sprite, SpriteFrame, Texture2D, resources, Rect,
+  Sprite, SpriteFrame, Texture2D, resources, Rect, Vec2, Vec3,
 } from 'cc';
 import {
   TIME_LIMIT,
@@ -124,13 +124,37 @@ function hslColor(h: number, s: number, l: number): Color {
 
 /* ------------------------------------------------------------------ 横幅（棋盘上方轻提示） */
 
+/* ↓↓↓ 横幅参数逐条对齐 web/ui.css 的 `.tut-banner`（just 照抄，别凭感觉） ↓↓↓ */
+/** `font-size: 42px; line-height: 1.35` */
+const BANNER_FONT = 42;
+const BANNER_LINE = 57;
+/** `color: #ffe9b8` */
+const BANNER_TEXT = new Color(255, 233, 184, 255);
+/** `background: rgba(40,22,0,.82)` */
+const BANNER_BG = new Color(40, 22, 0, 209);
+/** `padding: 22px 44px` */
+const BANNER_PAD_V = 22;
+const BANNER_PAD_H = 44;
+/** `max-width: 88%` —— 设计宽 1080 的 88% */
+const BANNER_MAX_W = 950;
+/** 入场位移：Web `transform: translate(-50%, -12px)` → `translate(-50%, 0)` */
+const BANNER_RISE = 12;
+/* ↑↑↑ 常量区结束 ↑↑↑ */
+
 /**
  * 棋盘上方的轻横幅。不用 toast：toast 是全局的、会被其它提示顶掉；
  * 教学提示要钉在棋盘上方，玩家视线不用离开盘面。
+ *
+ * ⚠️ 一眼看上去像"反过来"了：Web 版的横幅是**深棕底 + 浅黄字**（压在意面/u盘上一眼可辨），
+ *    不是米白底 —— 早期移植版画反了，这里按 CSS 还原。
  */
 export class TutorialBanner {
   private root: Node = null!;
+  private bg: Node = null!;
+  private textNode: Node = null!;
   private label: Label = null!;
+  private baseX = 0;
+  private baseY = 0;
   private timer = 0;
 
   static create(parent: Node): TutorialBanner {
@@ -142,29 +166,41 @@ export class TutorialBanner {
   private build(parent: Node): void {
     const root = new Node('TutorialBanner');
     root.layer = Layers.Enum.UI_2D;
-    root.addComponent(UITransform).setContentSize(880, 92);
+    root.addComponent(UITransform).setContentSize(600, BANNER_LINE + BANNER_PAD_V * 2);
     const op = root.addComponent(UIOpacity);
     op.opacity = 0;
     root.parent = parent;
     this.root = root;
 
-    const bg = root.addComponent(Graphics);
-    bg.roundRect(-440, -46, 880, 92, 46);
-    bg.fillColor = new Color(255, 246, 230, 235);
-    bg.fill();
-    bg.strokeColor = new Color(214, 158, 92, 255);
-    bg.lineWidth = 4;
-    bg.stroke();
+    // 胶囊底板：圆角 = 高度一半（`border-radius: 999px`）
+    const bg = new Node('bg');
+    bg.layer = Layers.Enum.UI_2D;
+    bg.addComponent(UITransform);
+    bg.addComponent(Graphics);
+    bg.parent = root;
+    this.bg = bg;
 
     const ln = new Node('text');
     ln.layer = Layers.Enum.UI_2D;
-    ln.addComponent(UITransform).setContentSize(840, 80);
+    ln.addComponent(UITransform);
     const l = ln.addComponent(Label);
-    l.fontSize = 34;
-    l.lineHeight = 44;
-    l.color = new Color(90, 50, 25, 255);
+    l.fontSize = BANNER_FONT;
+    l.lineHeight = BANNER_LINE;
+    l.color = BANNER_TEXT;
     l.string = '';
+    // ⚠️ 打包后 cc 命名空间里的枚举可能被摇掉，直接用数值：
+    //    ⚠️ overflow 保持默认的 NONE(0)：Label 会把节点尺寸改成文字自身大小，
+    //       横幅宽度才能跟着文案长短走（Web 的 width 就是 padding + 文字撑出来的）
+    const anyLabel = l as unknown as { horizontalAlign: number; verticalAlign: number; overflow: number; enableShadow: boolean; shadowColor: Color; shadowOffset: unknown };
+    anyLabel.horizontalAlign = 1;
+    anyLabel.verticalAlign = 1;
+    anyLabel.overflow = 0;
+    // `text-shadow: 0 2px 0 rgba(0,0,0,.35)`
+    anyLabel.enableShadow = true;
+    anyLabel.shadowColor = new Color(0, 0, 0, 89);
+    anyLabel.shadowOffset = new Vec2(0, -2);
     ln.parent = root;
+    this.textNode = ln;
     this.label = l;
 
     root.active = false;
@@ -172,17 +208,45 @@ export class TutorialBanner {
 
   /** 定位（创建方把横幅钉到棋盘上方） */
   setPosition(x: number, y: number): void {
+    this.baseX = x;
+    this.baseY = y;
     this.root.setPosition(x, y, 0);
+  }
+
+  /** 按文字实际尺寸重画胶囊底板（宽度自适应、夹在 `max-width: 88%` 内） */
+  private paint(): void {
+    const force = this.label as unknown as { updateRenderData?: (f: boolean) => void };
+    if (typeof force.updateRenderData === 'function') force.updateRenderData(true);
+    const ut = this.textNode.getComponent(UITransform)!;
+    const tw = ut.contentSize.width || 0;
+    // Web 的高度由 `padding + 单行 line-height` 撑出来（101），**不跟行数走**
+    const w = Math.min(tw + BANNER_PAD_H * 2, BANNER_MAX_W);
+    const h = BANNER_LINE + BANNER_PAD_V * 2;
+
+    const g = this.bg.getComponent(Graphics)!;
+    g.clear();
+    g.fillColor = BANNER_BG;
+    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
+    g.fill();
+    this.bg.getComponent(UITransform)!.setContentSize(w, h);
+    this.root.getComponent(UITransform)!.setContentSize(w, h);
   }
 
   /** 显示一句话，`ms` 后淡出（不打断操作、不吃点击） */
   show(text: string, ms = 2000): void {
     if (this.timer) clearTimeout(this.timer);
     this.label.string = text;
+    this.paint();
     this.root.active = true;
     const op = this.root.getComponent(UIOpacity)!;
     op.opacity = 255;
+    // 入场：从下方 12px 升到位（与 opacity 同为 .2s）
+    tween(this.root).stop();
+    this.root.setPosition(this.baseX, this.baseY - BANNER_RISE, 0);
+    tween(this.root).to(0.2, { position: new Vec3(this.baseX, this.baseY, 0) }).start();
     this.timer = setTimeout(() => this.hide(), ms) as unknown as number;
+    // Label 的真实宽度要等排版完才知道，稍后按实际宽度再画一次胶囊
+    tween(this.textNode).delay(0.05).call(() => this.paint()).start();
   }
 
   hide(): void {
