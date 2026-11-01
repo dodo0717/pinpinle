@@ -187,7 +187,10 @@ export class SettingsScreen {
     // 行外投影 `0 6px 14px rgba(30,15,5,.25)` → 预烘焙贴图 900x186，中心比行中心低 3
     mkFx(card, 'RowShadow' + i, 'ui/fx/shadow-row', 900, 186, 0, y - 3);
     row.parent = card;
-    this.paintRow(row.addComponent(Graphics));
+    // 行条本体（木纹底 + 88° 木纹细纹 + inset 上下边）→ 预烘焙切图。
+    //    ⚠️ 原来 Graphics 硬画有三处不对：木纹被拆成 8 条色带；`inset 0 3px 0` 的高光被画成
+    //    **整圈描边**（底部也白了，Web 只在上边）；圆角是三角化硬边。canvas 渲染与 Web 同口径。
+    mkFx(row, 'Body', 'ui/fx/row-set', ROW_W, ROW_H, 0, 0);
 
     // 图标：Web 是 `<img>` + `object-fit: contain`（`.set-icon` 96×96）→ 用 `fitContain` 算实际尺寸
     const icon = new Node('icon');
@@ -251,7 +254,7 @@ export class SettingsScreen {
     row.setPosition(0, y, 0);
     mkFx(card, 'RowShadowTut', 'ui/fx/shadow-row', 900, 186, 0, y - 3);
     row.parent = card;
-    this.paintRow(row.addComponent(Graphics));
+    mkFx(row, 'Body', 'ui/fx/row-set', ROW_W, ROW_H, 0, 0);
     // 这行没有图标：标签从图标的位置开始
     const x = ICON_X - ICON_SIZE / 2;
     const w = TOGGLE_X + TOGGLE_W / 2 - x;
@@ -272,18 +275,8 @@ export class SettingsScreen {
     btn.on(Node.EventType.TOUCH_END, () => this.h.onTutorial());
   }
 
-  /** 行条：木纹渐变 + 上下 inset 高光 / 暗边（外投影已改为 `RowShadow` 兄弟贴图） */
-  private paintRow(g: Graphics): void {
-    drawWood(g, ROW_W, ROW_H, ROW_A, ROW_A, ROW_B, ROW_R);
-    g.lineWidth = 3;
-    g.strokeColor = ROW_INSET_TOP;
-    g.roundRect(-ROW_W / 2 + 1.5, ROW_H / 2 - 1.5 - ROW_R, ROW_W - 3, ROW_H - 3, ROW_R);
-    g.stroke();
-    // inset 0 -4px 0：底部一条深色（用低透明矩形近似）
-    g.fillColor = ROW_INSET_BOTTOM;
-    g.rect(-ROW_W / 2 + ROW_R, -ROW_H / 2, ROW_W - ROW_R * 2, 4);
-    g.fill();
-  }
+  // ⚠️ 原 `paintRow()` 已删除：行条本体改用预烘焙切图 `ui/fx/row-set`，
+  //    外投影改用 `ui/fx/shadow-row`，两者都由 `mkFx()` 铺成兄弟/子节点，见 `mkToggleRow()`。
 
   /** 同步三个开关（每次打开设置页时调一次） */
   render(settings: { sound: boolean; bgm: boolean; voice: boolean }): void {

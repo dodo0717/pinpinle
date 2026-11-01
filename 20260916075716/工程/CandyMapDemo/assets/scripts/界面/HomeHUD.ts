@@ -282,15 +282,12 @@ export class HomeHUD extends Component {
     //    所以这张贴图就是浏览器原生的高斯模糊，边缘天然平滑。
     // 贴图 1112x267（= 栏 1032x169 + 四周 40 + 下方留出 18 的位移），中心比栏中心低 9（= dy/2）
     this.mkFx(root, 'TabbarShadow', 'ui/fx/tabbar-shadow', 1112, 267, TABBAR_POS.x, TABBAR_POS.y - 9);
+    // 底板本体（木纹渐变 #6b4426→#4a2d18 + 圆角 44 + 5px 描边 #3a2312）→ 预烘焙切图。
+    // ⚠️ 原来用 Graphics 硬画：圆角被**三角化成多边形**（硬边，Web 的 border-radius 是浏览器
+    //    渲染、带 AA），渐变被拆成 16 条纯色条带（阶梯）—— 这就是「底板材质不一样 + 毛边」的根源。
+    //    canvas 与 CSS 走同一套渲染管线，烘出来的像素与 Web 同口径，圆角自带抗锯齿。
+    this.mkFx(root, 'TabbarBody', 'ui/home/tabbar-body', TABBAR_POS.w, TABBAR_POS.h, TABBAR_POS.x, TABBAR_POS.y);
     const bar = this.mkNode(root, 'Tabbar', TABBAR_POS.w, TABBAR_POS.h, TABBAR_POS.x, TABBAR_POS.y);
-    const g = bar.addComponent(Graphics);
-    // 木纹渐变 #6b4426 → #4a2d18
-    this.fillVGradient(g, -TABBAR_POS.w / 2, -TABBAR_POS.h / 2, TABBAR_POS.w, TABBAR_POS.h, 44, new Color(107, 68, 38, 255), new Color(74, 45, 24, 255), 16);
-    // 描边 5px #3a2312
-    g.lineWidth = 5;
-    g.strokeColor = new Color(58, 35, 18, 255);
-    this.roundRect(g, -TABBAR_POS.w / 2 + 2.5, -TABBAR_POS.h / 2 + 2.5, TABBAR_POS.w - 5, TABBAR_POS.h - 5, 41.5);
-    g.stroke();
 
     // 页签顺序与 Web 一致：首页 / 排行榜 / 图鉴 / 设置
     // `icon` = 原色切图（选中态），`dim` = 同一张图按 Web 的滤镜预算好的灰度版（未选中态）
@@ -309,12 +306,10 @@ export class HomeHUD extends Component {
     order.forEach((t, i) => {
       const tab = this.mkNode(bar, `Tab${i}`, TAB.w, TAB.h, -TAB.dx * 1.5 + i * TAB.dx, TAB.y);
       // 选中态金胶囊（默认隐藏）
-      const pill = this.mkNode(tab, 'Sel', TAB.w, TAB.h, 0, 0);
-      const pg = pill.addComponent(Graphics);
-      pg.fillColor = new Color(160, 90, 10, 140);   // 底影 0 6px 0 rgba(160,90,10,.55)
-      this.roundRect(pg, -TAB.w / 2, -TAB.h / 2 - 6, TAB.w, TAB.h, 26);
-      pg.fill();
-      this.fillVGradient(pg, -TAB.w / 2, -TAB.h / 2, TAB.w, TAB.h, 26, new Color(255, 217, 119, 255), new Color(245, 183, 61, 255), 12);
+      // 选中态金胶囊 → 预烘焙切图（与底板同一口径）。
+      //    贴图 235x137：多出的 6px 高是 Web `box-shadow: 0 6px 0 rgba(160,90,10,.55)` 的硬边下影，
+      //    所以胶囊本体仍在原位 → 贴图中心要下移 3（`offY = dy/2`，同外投影那套换算）。
+      const pill = this.mkFx(tab, 'Sel', 'ui/home/tab-pill', 235, 137, 0, -3).node;
       pill.active = false;
       // ⚠️ 图标 Sprite **自己建、不预铺贴图**：贴图一律由 `setTabArt()` 异步换。
       //    若这里让 `makeSprite()` 顺手 load 一张，它和 `setTabArt()` 就是两条独立的异步回调，

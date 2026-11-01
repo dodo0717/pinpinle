@@ -104,7 +104,8 @@ export function fitContain(iw: number, ih: number, w: number, h: number): [numbe
  *    而且子节点在父节点的 Graphics 之后绘制，天然就是「内容画在底图之上」。
  * ⚠️ 加载失败就什么都不显示 —— 调用方要保留程序绘制的底（见文件头「兜底」）。
  *
- * @param res `assets/resources` 下的路径（不含扩展名），如 `ui/collection/card-blue`
+ * @param res 资源名（**不含** `ui/` 前缀，也不含扩展名），如 `collection/card-blue`
+ *            （`ui/` 由 `setSprite` 内部统一补；写了也没关系，会自动剥掉）
  */
 export function mkSprite(parent: Node, res: string, w: number, h: number, x = 0, y = 0): Sprite {
   const n = new Node('art');
@@ -153,9 +154,18 @@ export function maskStencil(mask: unknown, node: Node): Graphics {
   return node.getComponent(Graphics) ?? node.addComponent(Graphics);
 }
 
-/** 换贴图（开关的 on / off 就靠它）；节点已销毁时静默 */
+/**
+ * 换贴图（开关的 on / off 就靠它）；节点已销毁时静默。
+ *
+ * ⚠️ 路径归一化：`resolveAsset('ui', r)` 会**再拼一次** `ui/`（拼成 `ui/<r>` 才是完整 resources 路径）。
+ *    所以本函数的 `res` 参数约定是**不含** `ui/` 的（如 `fx/row-set`、`leaderboard/frame`）。
+ *    但实测很容易顺手写成 `ui/fx/row-set` → 变成 `ui/ui/fx/row-set` → **加载出来永远为空**
+ *    （`resources.load` 对不存在的资源是静默失败，画面上就是「贴图没生效」，极难发现）。
+ *    这里统一先剥掉可能的前缀，两种写法都不会错。
+ */
 export function setSprite(sp: Sprite, res: string): void {
-  loadSpriteFrame(resolveAsset('ui', res, 'png'), (sf) => {
+  const name = res.startsWith('ui/') ? res.slice(3) : res;
+  loadSpriteFrame(resolveAsset('ui', name, 'png'), (sf) => {
     if (!sf || !sp.node || !sp.node.isValid) return;
     sp.spriteFrame = sf;
   });

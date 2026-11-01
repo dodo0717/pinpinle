@@ -386,19 +386,11 @@ export class LeaderboardScreen {
     this.mineCells.addComponent(UITransform).setContentSize(MINE_W, MINE_H);
     this.mineCells.setPosition(0, Y.mine, 0);
     this.mineCells.parent = card;
-    this.mineShell = new Node('shell');
-    this.mineShell.layer = Layers.Enum.UI_2D;
-    this.mineShell.addComponent(UITransform).setContentSize(MINE_W, MINE_H);
-    this.mineShell.parent = this.mineCells;
-    const msg = this.mineShell.addComponent(Graphics);
-    msg.fillColor = new Color(10, 22, 42, Math.round(0.35 * 255));
-    msg.roundRect(-MINE_W / 2, -MINE_H / 2 - 6, MINE_W, MINE_H, 44);
-    msg.fill();
-    fillVGrad(msg, MINE_W, MINE_H, MINE_A, MINE_A, MINE_B, 0.5, 44, 12);
-    msg.lineWidth = 4;
-    msg.strokeColor = MINE_LINE;
-    msg.roundRect(-MINE_W / 2 + 2, -MINE_H / 2 + 2, MINE_W - 4, MINE_H - 4, 42);
-    msg.stroke();
+    // 「我的」条外壳 → 预烘焙切图（canvas 渲染 = Web CSS 渲染：圆角 44 带 AA、深蓝渐变平滑）
+    //    贴图 886x158：多出的 6px 高是 Web `box-shadow: 0 6px 0 rgba(10,22,42,.35)` 的硬边下影，
+    //    条本体仍在原位 → 贴图中心下移 3（offY = dy/2，同外投影那套换算）。
+    //    ⚠️ 原来 Graphics 硬画：渐变被拆成 12 条色带、圆角是三角化硬边。
+    this.mineShell = mkFx(this.mineCells, 'shell', 'ui/fx/mine-card', 886, 158, 0, -3).node;
 
     // 领奖台（含常驻的丝带 / 星星装饰）
     this.podium = new Node('podium');
