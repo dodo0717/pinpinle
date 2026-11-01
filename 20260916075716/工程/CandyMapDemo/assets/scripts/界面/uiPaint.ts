@@ -259,6 +259,33 @@ export function paintShadow(g: Graphics, w: number, h: number, r: number, dy: nu
   }
 }
 
+/**
+ * `box-shadow: 0 0 {blur} {spread} {color}` 的外发光（**圆**版）：由外向内多层递减叠加。
+ *
+ * ⚠️ 千万别拿**一层实心圆**糊上去 —— 那样只会在圆的四周留下一圈**硬边色块**，
+ *    和 Web 那种按 `blur` 半径由内向外柔和衰减的辉光完全是两种材质感（"质感不对"的常见根因）。
+ *    多层等间距同心圆叠加：第 r 处的累积不透明度 ≈ 线性衰减，视觉上足够接近高斯模糊。
+ *
+ * 每层 alpha 取 `1-(1-A)^(1/N)`：N 层叠加后**正好**回到目标不透明度 A（不是简单 A/N，
+ * 因为半透明叠加是非线性的）。
+ *
+ * @param cy    圆心纵向偏移（相对 Graphics 所在节点中心，y 轴向上为正）
+ * @param r0    发光起始半径（= 圆半径 + spread）
+ */
+export function paintGlow(
+  g: Graphics, cy: number, r0: number, blur: number, color: Color, layers = 8,
+): void {
+  const A = Math.min(1, Math.max(0, color.a / 255));
+  if (A <= 0 || blur <= 0) return;
+  const a = 1 - Math.pow(1 - A, 1 / layers);
+  const alpha = Math.round(a * 255);
+  for (let j = layers; j >= 1; j--) {          // 先大后小：外层垫底，内层叠在上面
+    g.fillColor = new Color(color.r, color.g, color.b, alpha);
+    g.circle(0, cy, r0 + (blur * j) / layers);
+    g.fill();
+  }
+}
+
 /** 圆角矩形填充（加一圈描边时用） */
 export function fillRound(g: Graphics, w: number, h: number, r: number, fill: Color): void {
   g.fillColor = fill;

@@ -31,6 +31,8 @@ import {
 const { ccclass } = _decorator;
 
 import { HOME, TABBAR, TUTORIAL } from '../玩法/text';
+/** 底栏外投影 / 圆钮辉光：`box-shadow` 的模糊必须靠**多层递减**叠出来，单层实心是硬边色块 */
+import { paintShadow, paintGlow } from './uiPaint';
 
 /* ------------------------------------------------------------------ 常量（Web 实测几何） */
 
@@ -83,6 +85,11 @@ export class HomeHUD extends Component {
   private tabIcons: Sprite[] = [];
   private tabLabels: Label[] = [];
   private tabPills: Node[] = [];
+  /** 页签图标：选中（原色）/ 未选中（灰度）两套切图路径 */
+  private tabArtOn: string[] = [];
+  private tabArtOff: string[] = [];
+  /** 每个页签换图的代次（防异步回调乱序覆盖） */
+  private tabArtToken: number[] = [];
   private navLeft: Node = null!;
   private navRight: Node = null!;
   private pagerUp: Node = null!;
@@ -229,11 +236,9 @@ export class HomeHUD extends Component {
     const hit = this.mkNode(n, 'Hit', Math.round(size / Math.SQRT2), Math.round(size / Math.SQRT2), 0, 0);
     const g = n.addComponent(Graphics);
     // 外发光 halo（ui.css:1262 的 `0 0 26px rgba(255,206,110,.8)`）—— 垫在最底
-    for (let i = 3; i >= 1; i--) {
-      g.fillColor = new Color(255, 206, 110, Math.round(204 * (0.32 - i * 0.07)));
-      g.circle(0, 0, size / 2 + (glowBlur / 26) * i * 9);
-      g.fill();
-    }
+    // ⚠️ 原来只有 3 层且每层 alpha 极低（22/37/51），等于几乎看不见；
+    //    这里改用统一的 `paintGlow`（10 层递减），辉光才真的"发光"。
+    paintGlow(g, 0, size / 2, glowBlur, new Color(255, 206, 110, 204), 10);
     // 底影 0 8px 0 rgba(140,70,10,.5)
     g.fillColor = new Color(140, 70, 10, 128);
     g.circle(0, -8, size / 2);
@@ -267,10 +272,11 @@ export class HomeHUD extends Component {
   private buildTabbar(root: Node): void {
     const bar = this.mkNode(root, 'Tabbar', TABBAR_POS.w, TABBAR_POS.h, TABBAR_POS.x, TABBAR_POS.y);
     const g = bar.addComponent(Graphics);
-    // 外投影 0 18px 40px rgba(20,10,0,.5)：扩散近似（ui.css:1284）
-    g.fillColor = new Color(20, 10, 0, 128);
-    this.roundRect(g, -TABBAR_POS.w / 2 - 10, -TABBAR_POS.h / 2 - 18 + 10, TABBAR_POS.w + 20, TABBAR_POS.h + 20, 44);
-    g.fill();
+    // 外投影 `box-shadow: 0 18px 40px rgba(20,10,0,.5)`（ui.css:1284）
+    // ⚠️ 原来这里是**单层实心圆角矩形**（alpha 128、向外 10px）——那会在棕底板四周糊出一圈
+    //    硬边深色块，跟 Web 那种 40px 模糊的柔和扩散完全两回事，看上去就是"材质质感不对"。
+    //    改用 `paintShadow`：多层同心圆角矩形由外向内递减叠加，逐层模拟高斯模糊。
+    paintShadow(g, TABBAR_POS.w, TABBAR_POS.h, 44, 18, 40, new Color(20, 10, 0, 128), 8);
     // 木纹渐变 #6b4426 → #4a2d18
     this.fillVGradient(g, -TABBAR_POS.w / 2, -TABBAR_POS.h / 2, TABBAR_POS.w, TABBAR_POS.h, 44, new Color(107, 68, 38, 255), new Color(74, 45, 24, 255), 16);
     // 描边 5px #3a2312
@@ -280,16 +286,19 @@ export class HomeHUD extends Component {
     g.stroke();
 
     // 页签顺序与 Web 一致：首页 / 排行榜 / 图鉴 / 设置
+    // `icon` = 原色切图（选中态），`dim` = 同一张图按 Web 的滤镜预算好的灰度版（未选中态）
     const order = [
-      { label: TABBAR.home, icon: 'ui/home/tab-home' },
-      { label: TABBAR.leaderboard, icon: 'ui/home/tab-rank' },
-      { label: TABBAR.collection, icon: 'ui/home/tab-book' },
-      { label: TABBAR.settings, icon: 'ui/home/tab-gear' },
+      { label: TABBAR.home, icon: 'ui/home/tab-home', dim: 'ui/home/tab-home-gray' },
+      { label: TABBAR.leaderboard, icon: 'ui/home/tab-rank', dim: 'ui/home/tab-rank-gray' },
+      { label: TABBAR.collection, icon: 'ui/home/tab-book', dim: 'ui/home/tab-book-gray' },
+      { label: TABBAR.settings, icon: 'ui/home/tab-gear', dim: 'ui/home/tab-gear-gray' },
     ];
     this.tabs = [];
     this.tabIcons = [];
     this.tabLabels = [];
     this.tabPills = [];
+    this.tabArtOn = [];
+    this.tabArtOff = [];
     order.forEach((t, i) => {
       const tab = this.mkNode(bar, `Tab${i}`, TAB.w, TAB.h, -TAB.dx * 1.5 + i * TAB.dx, TAB.y);
       // 选中态金胶囊（默认隐藏）
@@ -300,13 +309,24 @@ export class HomeHUD extends Component {
       pg.fill();
       this.fillVGradient(pg, -TAB.w / 2, -TAB.h / 2, TAB.w, TAB.h, 26, new Color(255, 217, 119, 255), new Color(245, 183, 61, 255), 12);
       pill.active = false;
-      const sp = this.makeSprite(tab, 'Icon', t.icon, TAB_ICON.w, TAB_ICON.h, 0, TAB_ICON.dy);
-      sp.color = new Color(160, 160, 160, 255);   // 未选中：grayscale(.55) brightness(.82) 的近似
+      // ⚠️ 图标 Sprite **自己建、不预铺贴图**：贴图一律由 `setTabArt()` 异步换。
+      //    若这里让 `makeSprite()` 顺手 load 一张，它和 `setTabArt()` 就是两条独立的异步回调，
+      //    谁后到谁生效 —— 实测会出现「选中的页签图标却是灰的」（灰度图把原色图顶掉了）。
+      const iconNode = new Node('Icon');
+      iconNode.parent = tab;
+      iconNode.layer = Layers.Enum.UI_2D;
+      iconNode.addComponent(UITransform).setContentSize(TAB_ICON.w, TAB_ICON.h);
+      iconNode.setPosition(0, TAB_ICON.dy, 0);
+      const sp = iconNode.addComponent(Sprite);
+      sp.sizeMode = Sprite.SizeMode.CUSTOM;
+      sp.color = new Color(255, 255, 255, 255);
       const lb = this.label(tab, t.label, 26, new Color(232, 217, 195, 255), TAB.w, 36, 0, TAB_LABEL.dy, true);
       this.tabs.push(tab);
       this.tabIcons.push(sp);
       this.tabLabels.push(lb);
       this.tabPills.push(pill);
+      this.tabArtOn.push(t.icon);
+      this.tabArtOff.push(t.dim);
     });
   }
 
@@ -343,11 +363,35 @@ export class HomeHUD extends Component {
   setCountdown(text: string): void { this.recoverLabel.string = text; }
   setTutorialVisible(v: boolean): void { this.btnTutorial.active = v; }
 
+  /**
+   * 切换页签图标：选中用原色切图，未选中用灰度切图。
+   *
+   * ⚠️ Web 的未选中态是 CSS `filter: grayscale(.55) brightness(.82)` 实时滤镜作用在**彩色切图**上；
+   *    Cocos 的 `Sprite` 只有**乘算调制**（`color` 是逐通道相乘），做不到「去饱和 + 压暗」的
+   *    分离运算——乘一个灰色只会整体变暗，饱和度几乎不掉。所以这里改为**预先按同一公式把
+   *    切图算成灰度版**（`tools/` 下脚本产出 `*-gray.png`），未选中时直接换图，
+   *    视觉结果 = Web 的 filter 结果。
+   */
+  private setTabArt(i: number, on: boolean): void {
+    const sp = this.tabIcons[i]!;
+    sp.color = new Color(255, 255, 255, 255);   // 不再靠乘算假装灰度
+    const path = on ? this.tabArtOn[i]! : this.tabArtOff[i]!;
+    // 代次标记：只认**最后一次**发起的换图请求。
+    // 连续切页签时，先发起的旧请求可能后到，没有这层判断就会把新图标覆盖回旧图标。
+    const token = (this.tabArtToken[i] ?? 0) + 1;
+    this.tabArtToken[i] = token;
+    resources.load(`${path}/spriteFrame`, SpriteFrame, (err, sf) => {
+      if (err || !sf || !sp.node?.isValid) return;
+      if (this.tabArtToken[i] !== token) return;
+      sp.spriteFrame = sf;
+    });
+  }
+
   setTab(index: number): void {
     this.tabs.forEach((t, i) => {
       const on = i === index;
       this.tabPills[i]!.active = on;
-      this.tabIcons[i]!.color = on ? new Color(255, 255, 255, 255) : new Color(160, 160, 160, 255);
+      this.setTabArt(i, on);
       const lab = this.tabLabels[i]!;
       lab.color = on ? new Color(109, 61, 10, 255) : new Color(232, 217, 195, 255);
       // Web `.tabbar .tab.on .tab-label { text-shadow: 0 1px 0 rgba(255,255,255,.4) }`（ui.css:1301）

@@ -4,6 +4,9 @@ import {
 } from 'cc';
 const { ccclass } = _decorator;
 
+/** 珠体外发光 / 接地影统一走这套「多层递减」近似（Cocos 无高斯模糊） */
+import { paintGlow } from '../界面/uiPaint';
+
 /**
  * 关卡珠 —— **逐值照抄 Web**（`web/ui.css:737-875` + `web/ui/map.ts:857-868`）
  *
@@ -305,16 +308,9 @@ export class LevelNode extends Component {
         this.radial(g, cy, 0, -0.46 * d, 0.64 * d, 0.52 * d, dim(raw.lower), 0.72);
     }
 
-    /** `box-shadow: 0 0 blur spread color` 的外发光：由外向内多层递减叠加 */
+    /** `box-shadow: 0 0 blur spread color` 的外发光：统一走 `paintGlow` 的多层递减 */
     private glowRing(g: Graphics, cy: number, r0: number, blur: number, c: Color): void {
-        for (let i = 8; i >= 1; i--) {
-            const t = i / 8;
-            const a = Math.max(0, Math.round(c.a * (1 - t) ** 1.8 * 0.5));
-            if (a <= 0) continue;
-            g.fillColor = new Color(c.r, c.g, c.b, a);
-            g.circle(0, cy, r0 + blur * t);
-            g.fill();
-        }
+        paintGlow(g, cy, r0, blur, c, 10);
     }
 
     /** `radial-gradient(rx ry at cx cy, color, transparent stop)`：多层椭圆近似（Graphics 无渐变） */
