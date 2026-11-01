@@ -125,7 +125,7 @@ export function computeMergeGroups(grid: Grid): MergeGroup[] {
     buckets.set(root, list);
   }
 
-  const roots = [...buckets.keys()].sort((a, b) => a - b);
+  const roots = Array.from(buckets.keys()).sort((a, b) => a - b);
   const groups: MergeGroup[] = [];
   roots.forEach((root, groupId) => {
     const cells = buckets.get(root)!.slice().sort((a, b) => a - b);

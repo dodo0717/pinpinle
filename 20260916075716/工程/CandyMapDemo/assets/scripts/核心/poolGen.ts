@@ -124,7 +124,8 @@ function generateOne(
    * 否则关卡会莫名变难。同能力的动物之间保持 rng 打乱后的顺序（排序稳定），
    * 所以「换种子 → 换一套动物」。素材充足时所有动物能力相同 → 等价于纯随机。
    */
-  const shuffled = rng.shuffle([...byAnimal.keys()]);
+  // ⚠️ 必须用 Array.from：构建器把 [...map.keys()] 降级成 [].concat(map.keys())，对迭代器语义是错的
+  const shuffled = rng.shuffle(Array.from(byAnimal.keys()));
   const ability = (animal: string): number => byAnimal.get(animal)!.length;
   const ordered = [...shuffled].sort((a, b) => ability(b) - ability(a));
 
@@ -233,7 +234,7 @@ export function generateLevelPools(
   const skipped: number[] = [];
   const notes: PoolNote[] = [];
 
-  const available = [...new Set(availableIds)]
+  const available = Array.from(new Set(availableIds))
     .filter((id) => Number.isInteger(id) && id >= 0 && id <= MAX_ART_ID)
     .sort((a, b) => a - b);
 
