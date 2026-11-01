@@ -1,7 +1,7 @@
 import {
   _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers,
   Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite,
-  SpriteFrame, resources, Font, tween, Vec3, EventTouch,
+  SpriteFrame, resources, Font, tween, Vec3, EventTouch, Canvas, Camera,
 } from 'cc';
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
@@ -138,6 +138,7 @@ export class MapBootstrap extends Component {
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
         this.visibleSize = view.getVisibleSize();
         this.screenH = this.visibleSize.height || DESIGN_H;
+        this.ensureCamera();   // 打包后场景里的相机绑定会丢，运行时兜底补一台正交 UI 相机
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
         startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
@@ -173,6 +174,70 @@ export class MapBootstrap extends Component {
         if (!this.content?.isValid) return;
         this.rebuildLevelNodes();
         this.refreshTopbar();
+    }
+
+    /**
+     * **UI 相机兜底 —— 打包产物必须有这一段**
+     *
+     * 场景文件里写了 Canvas + Camera（正交、orthoHeight 960）的绑定，但构建打包后
+     * `Canvas.cameraComponent` 这个引用会丢，引擎只剩默认 3D 相机：透视投影、
+     * orthoHeight 10、clearColor #333333。而所有 UI 都是按 1080×1920 设计坐标
+     * 摆的（坐标动辄几百上千），全落在这台相机的视野之外 —— 症状就是
+     * 「控制台干净、场景也加载成功，但屏幕一片灰」。
+     *
+     * 预览环境（preview/game.html）由 shim 自动补相机，所以一直看不出问题。
+     * 这里在运行时把参数补齐：正交投影、正交高度 = 可视高度/2、相机放到可视区中心、
+     * 底色换成 Web 首页那片夜空蓝。
+     */
+    private ensureCamera(): void {
+        const canvasNode = this.node.parent ?? this.node;
+        const canvas = canvasNode.getComponent(Canvas) ?? canvasNode.addComponent(Canvas);
+
+        // 场景那台相机是直接挂在 **Canvas 节点本身** 上的，位置跟着 Canvas 走，
+        // 于是相机和 UI（都在同一坐标系里）永远贴在一起、距离为 0，全被近裁剪面切掉。
+        // 这里改成 Cocos 的标准结构：Canvas 留在原点，**相机放到独立子节点、退到 z=1000 往 -Z 看**，
+        // UI 节点在 z≈0 → 与相机相距约 1000，正好落在 near(1)~far(2000) 之内。
+        const stale = canvasNode.getComponent(Camera);
+        if (stale) stale.destroy();
+
+        let camNode = canvasNode.getChildByName('Camera');
+        if (!camNode) {
+            camNode = new Node('Camera');
+            camNode.parent = canvasNode;
+        }
+        camNode.setPosition(0, 0, 1000);
+        const cam = camNode.getComponent(Camera) ?? camNode.addComponent(Camera);
+        // ⚠️ Canvas 节点保持在原点，别去移动它：UI 全是它的子节点，一起移等于没动
+
+        // ⚠️ 运行时 cc 命名空间**没有导出** CameraProjection / Camera.ClearFlag 枚举
+        // （tsc 能过是因为 d.ts 里有声明，但打包后取不到），只能写数值：
+        //    projection: 0 = CameraProjection.ORTHO（1 = PERSPECTIVE，默认值，就是灰屏元凶）
+        //    clearFlags: 7 = Camera.ClearFlag.SOLID_COLOR
+        cam.projection = 0;
+        // 相机要退到 z=1000 处往 -Z 看，UI 都在 z≈0：远裁剪面必须 > 1000，
+        // 否则 UI 距离正好等于 far，会被远裁剪面切掉（同样表现为灰屏）
+        cam.near = 1;
+        cam.far = 2000;
+        cam.priority = 1073741824;          // 压在其它相机之上
+        cam.visibility = Layers.Enum.UI_2D;  // 只渲染 2D UI 层
+        cam.clearFlags = 7;
+        cam.clearColor = new Color(28, 18, 58, 255);
+
+        // 关键：把打包时丢掉的绑定补回去，Canvas 之后会自己维护它
+        canvas.cameraComponent = cam;
+
+        const fit = (): void => {
+            cam.orthoHeight = view.getVisibleSize().height / 2;
+        };
+        fit();
+        view.on('design-resolution-changed', fit);
+        console.log(
+            '[map] ensureCamera: 相机数=' + canvasNode.getComponents(Camera).length +
+            ' ortho=' + cam.orthoHeight +
+            ' proj=' + cam.projection +
+            ' vis=' + cam.visibility +
+            ' 可视高度=' + view.getVisibleSize().height,
+        );
     }
 
     // ========== 兜底背景 / 屏幕自适应 ==========
