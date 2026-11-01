@@ -73,6 +73,8 @@ export class HomeHUD extends Component {
   /** 教学按钮（体力胶囊正下方） */
   btnTutorial: Node = null!;
   private plusNode: Node = null!;
+  /** 体力胶囊本体（Web `.home-stamina` 整块可点，不只是那个 ＋） */
+  private staminaNode: Node = null!;
   /** 底栏 4 个页签节点（顺序与 Web 一致：首页 / 排行榜 / 图鉴 / 设置） */
   tabs: Node[] = [];
   private nickLabel: Label = null!;
@@ -139,7 +141,10 @@ export class HomeHUD extends Component {
       { color: new Color(40, 20, 5, 89), dx: 0, dy: -3 });
 
     // 体力胶囊 + 红心 + 数字 + ＋
+    // Web 的 `.home-stamina` 是**一整个 button**（300×108）包住红心 / 数字 / ＋（`web/ui/map.ts:402-413`），
+    // 子元素全是 span 不单独响应 —— 点胶囊任意位置都触发加体力。只有 ＋ 可点是热区缩水。
     const stamina = this.mkNode(root, 'TopStamina', STAMINA.w, STAMINA.h, STAMINA.x, STAMINA.y);
+    this.staminaNode = stamina;
     this.makeSprite(stamina, 'Img', 'ui/home/pill', STAMINA.w, STAMINA.h, 0, 0);
     this.makeSprite(stamina, 'Heart', 'ui/home/heart', HEART.w, HEART.h, HEART.x, HEART.y);
     this.staminaLabel = this.label(stamina, '0', 32, new Color(255, 255, 255, 255), HEARTS.w, HEARTS.h, HEARTS.x, HEARTS.y, true);
@@ -316,7 +321,9 @@ export class HomeHUD extends Component {
     onPlus: () => void;
   }): void {
     this.btnTutorial.on(Node.EventType.TOUCH_END, () => cbs.onTutorial(), this);
-    this.plusNode.on(Node.EventType.TOUCH_END, () => cbs.onPlus(), this);
+    // ⚠️ 事件挂在**整个胶囊**上（`staminaNode`），不是 `plusNode`：Web 那里红心 / 数字 / ＋
+    //    都只是胶囊内部的 span，点哪都冒泡到 button 触发 `onAddStamina()`。
+    this.staminaNode.on(Node.EventType.TOUCH_END, () => cbs.onPlus(), this);
     this.navLeft.on(Node.EventType.TOUCH_END, () => cbs.onNav(-1), this);
     this.navRight.on(Node.EventType.TOUCH_END, () => cbs.onNav(1), this);
     this.pagerUp.on(Node.EventType.TOUCH_END, () => cbs.onPage(-1), this);

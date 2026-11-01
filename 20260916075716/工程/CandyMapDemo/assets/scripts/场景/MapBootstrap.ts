@@ -83,11 +83,42 @@ const BEADS = {
 const NODE_BOX = 142;
 
 /**
- * 兜底背景层配色 —— 采样自底图上下边缘，保证铺满时与地图无缝衔接：
- * 上半 = w1_bg_top 顶部天空色，下半 = w1_bg_bottom 底部草地色。
+ * 兜底背景层（Web `.map { background: var(--map-sky) }`，web/ui.css:616-621）。
+ *
+ * ⚠️ Web 是**四段线性渐变**，而且**每 5 个世界换一套**（15 个世界循环 3 轮），
+ *    不是「上半天空色 + 下半草地色」两条硬边 —— 之前那种画法会把天地切成两个色块。
  */
-const BACKDROP_TOP = new Color(122, 169, 202, 255);
-const BACKDROP_BOTTOM = new Color(184, 195, 68, 255);
+const MAP_SKY: Color[][] = [
+    // world-0 小镇：#bfe6ff → #e8f7ff → #fff3d6 → #ffe1a8
+    [new Color(191, 230, 255, 255), new Color(232, 247, 255, 255), new Color(255, 243, 214, 255), new Color(255, 225, 168, 255)],
+    // world-1 果园：#cfe9d2 → #eaf8e4 → #fff2cf → #ffdca0
+    [new Color(207, 233, 210, 255), new Color(234, 248, 228, 255), new Color(255, 242, 207, 255), new Color(255, 220, 160, 255)],
+    // world-2 滑雪场：#d7d9ff → #eae9ff → #ffe6c9 → #ffd7a0
+    [new Color(215, 217, 255, 255), new Color(234, 233, 255, 255), new Color(255, 230, 201, 255), new Color(255, 215, 160, 255)],
+    // world-3 海岸线：#aee7f5 → #d9f6fb → #ffefc9 → #ffe0a6
+    [new Color(174, 231, 245, 255), new Color(217, 246, 251, 255), new Color(255, 239, 201, 255), new Color(255, 224, 166, 255)],
+    // world-4 花海山丘：#cdeec9 → #e9f9e2 → #fff3d0 → #ffddb0
+    [new Color(205, 238, 201, 255), new Color(233, 249, 226, 255), new Color(255, 243, 208, 255), new Color(255, 221, 176, 255)],
+];
+/** 渐变站点的位置（0 = 顶，1 = 底） */
+const SKY_STOPS = [0, 0.38, 0.72, 1];
+
+/** 在四段渐变里按位置插值取色（t: 0 = 屏幕顶，1 = 屏幕底） */
+function skyColorAt(stops: Color[], t: number): Color {
+    let i = 0;
+    while (i < SKY_STOPS.length - 2 && t > SKY_STOPS[i + 1]!) i++;
+    const a = SKY_STOPS[i]!;
+    const b = SKY_STOPS[i + 1]!;
+    const k = b > a ? (t - a) / (b - a) : 0;
+    const c0 = stops[i]!;
+    const c1 = stops[i + 1]!;
+    return new Color(
+        Math.round(c0.r + (c1.r - c0.r) * k),
+        Math.round(c0.g + (c1.g - c0.g) * k),
+        Math.round(c0.b + (c1.b - c0.b) * k),
+        255,
+    );
+}
 
 const TEXT_BROWN = new Color(90, 50, 25);
 const TEXT_WHITE = new Color(255, 255, 255);
@@ -262,12 +293,16 @@ export class MapBootstrap extends Component {
         const g = bg.addComponent(Graphics);
         const halfW = w / 2;
         const halfH = h / 2;
-        g.fillColor = BACKDROP_TOP;
-        g.rect(-halfW, 0, w, halfH);
-        g.fill();
-        g.fillColor = BACKDROP_BOTTOM;
-        g.rect(-halfW, -halfH, w, halfH);
-        g.fill();
+        // Web 是四段渐变（180deg），逐条带插值；条带数只为够平滑，不影响观感
+        const stops = MAP_SKY[this.worldIndex % MAP_SKY.length]!;
+        const BANDS = 64;
+        for (let i = 0; i < BANDS; i++) {
+            const yTop = halfH - (h * i) / BANDS;
+            const yBot = halfH - (h * (i + 1)) / BANDS;
+            g.fillColor = skyColorAt(stops, (i + 0.5) / BANDS);
+            g.rect(-halfW, yBot, w, yTop - yBot + 1);
+            g.fill();
+        }
     }
 
     /** 贴顶：inset = 元素顶边到屏幕顶边的距离 + 元素半高 */
