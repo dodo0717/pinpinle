@@ -109,7 +109,32 @@ export class HomeHUD extends Component {
     // 木牌 + 头像 + 昵称
     const user = this.mkNode(root, 'TopUser', USER.w, USER.h, USER.x, USER.y);
     this.makeSprite(user, 'Img', 'ui/home/banner', USER.w, USER.h, 0, 0);
+    // 头像：84×84 圆徽章 = 奶白底 #FFF8E7 + 4px 金边 #F5C542 + 0 3px 0 rgba(0,0,0,.18)
+    // （Web `.home-avatar`，ui.css:938-943 —— 只写一个 🐶 emoji 会少掉整块圆牌）
+    const av = this.mkNode(user, 'AvatarBadge', AVATAR.w, AVATAR.h, AVATAR.x, AVATAR.y);
+    const ag = av.addComponent(Graphics);
+    const ar = AVATAR.w / 2;
+    ag.fillColor = new Color(0, 0, 0, 46);              // 0 3px 0 rgba(0,0,0,.18)
+    ag.circle(0, -3, ar);
+    ag.fill();
+    ag.fillColor = new Color(255, 248, 231, 255);       // #FFF8E7
+    ag.circle(0, 0, ar);
+    ag.fill();
+    ag.lineWidth = 4;
+    ag.strokeColor = new Color(245, 197, 66, 255);      // #F5C542
+    ag.circle(0, 0, ar - 2);
+    ag.stroke();
     this.label(user, '🐶', 56, new Color(255, 255, 255, 255), AVATAR.w, AVATAR.h, AVATAR.x, AVATAR.y);
+    // 昵称：棕胶囊底 #6B4A2F + radius 100 + padding 8/22 + 0 3px 0 rgba(0,0,0,.18)
+    // （Web `.home-nick`，ui.css:944-949；实测框 124×68 = 文字 80 + padding 44）
+    const nb = this.mkNode(user, 'NickBg', NICK.w, NICK.h, NICK.x, NICK.y);
+    const ng = nb.addComponent(Graphics);
+    ng.fillColor = new Color(0, 0, 0, 46);
+    this.roundRect(ng, -NICK.w / 2, -NICK.h / 2 - 3, NICK.w, NICK.h, NICK.h / 2);
+    ng.fill();
+    ng.fillColor = new Color(107, 74, 47, 255);         // #6B4A2F
+    this.roundRect(ng, -NICK.w / 2, -NICK.h / 2, NICK.w, NICK.h, NICK.h / 2);
+    ng.fill();
     this.nickLabel = this.label(user, HOME.nickname, 40, new Color(255, 233, 199, 255), NICK.w, NICK.h, NICK.x, NICK.y, true,
       { color: new Color(40, 20, 5, 89), dx: 0, dy: -3 });
 
@@ -120,17 +145,29 @@ export class HomeHUD extends Component {
     this.staminaLabel = this.label(stamina, '0', 32, new Color(255, 255, 255, 255), HEARTS.w, HEARTS.h, HEARTS.x, HEARTS.y, true);
     this.plusNode = this.makeSprite(stamina, 'Plus', 'ui/home/plus', PLUS.w, PLUS.h, PLUS.x, PLUS.y).node;
     // 恢复倒计时（Web：满体力时空串 —— 不显示任何东西）
-    this.recoverLabel = this.label(root, '', 22, new Color(255, 233, 176, 255), RECOVER.w, RECOVER.h, RECOVER.x, RECOVER.y, false,
-      { color: new Color(0, 0, 0, 140), dx: 0, dy: -2 });
+    // ⚠️ 生效的是后写那条规则（ui.css:1238）：白色 #fff + text-shadow 0 2px 4px rgba(40,20,5,.6)，
+    //    不是早先那条 #FFE9C7（ui.css:960）——后者被同源选择器覆盖了。
+    this.recoverLabel = this.label(root, '', 22, new Color(255, 255, 255, 255), RECOVER.w, RECOVER.h, RECOVER.x, RECOVER.y, false,
+      { color: new Color(40, 20, 5, 153), dx: 0, dy: -2 });
 
     // 教学按钮：金渐变胶囊 + 底影
     this.btnTutorial = this.mkNode(root, 'BtnTutorial', TUT.w, TUT.h, TUT.x, TUT.y);
     const g = this.btnTutorial.addComponent(Graphics);
+    // 双层投影（ui.css:1360-1370）：柔影 0 10px 22px rgba(90,50,0,.35) 垫底 + 实影 0 6px 0 rgba(140,80,20,.55)
+    g.fillColor = new Color(90, 50, 0, 45);
+    this.roundRect(g, -TUT.w / 2 - 10, -TUT.h / 2 - 18, TUT.w + 20, TUT.h + 24, 48);
+    g.fill();
     g.fillColor = new Color(140, 80, 20, 140);   // 底影 0 6px 0 rgba(140,80,20,.55)
     this.roundRect(g, -TUT.w / 2, -TUT.h / 2 - 6, TUT.w, TUT.h, 42);
     g.fill();
     this.fillVGradient(g, -TUT.w / 2, -TUT.h / 2, TUT.w, TUT.h, 42, GOLD_TOP, GOLD_BOTTOM, 14);
-    this.label(this.btnTutorial, `❓${TUTORIAL.entry}`, 44, new Color(107, 58, 0, 255), TUT.w, TUT.h, 0, 0, true);
+    // Web 拆两段（padding 0 30px + gap 10）：❓ 46px + 文字 44px letter-spacing 2px
+    const iconX = -TUT.w / 2 + 30 + 23;
+    const textX = iconX + 23 + 10 + (TUT.w - 60 - 46 - 10) / 2;
+    this.label(this.btnTutorial, '❓', 46, new Color(107, 58, 0, 255), 46, 46, iconX, 0);
+    const tutText = this.label(this.btnTutorial, TUTORIAL.entry, 44, new Color(107, 58, 0, 255),
+      TUT.w - 60 - 46 - 10, TUT.h, textX, 0, true);
+    tutText.spacingX = 2;   // Web `.home-tutorial-text { letter-spacing: 2px }`
   }
 
   /* ---------------------------------------------------------------- 换世界箭头 / 翻页 */
@@ -139,8 +176,9 @@ export class HomeHUD extends Component {
     // navLeft/navRight/pagerUp/pagerDown = **点击盒**；navLeftV 等 = 可见的圆（用于调透明度）
     this.navLeftV = this.goldCircle(root, 'NavLeft', '‹', NAV_L.x, NAV_L.y, NAV_SIZE);
     this.navRightV = this.goldCircle(root, 'NavRight', '›', NAV_R.x, NAV_R.y, NAV_SIZE);
-    this.pagerUpV = this.goldCircle(root, 'PagerUp', '▲', PAGER_X, PAGER_UP_Y, PAGER_SIZE);
-    this.pagerDownV = this.goldCircle(root, 'PagerDown', '▼', PAGER_X, PAGER_DOWN_Y, PAGER_SIZE);
+    // 翻页箭头的字形是 46px（`ui.css:1304-1312`），比换世界箭头的 78px 小 —— 别混用
+    this.pagerUpV = this.goldCircle(root, 'PagerUp', '▲', PAGER_X, PAGER_UP_Y, PAGER_SIZE, 46, 22);
+    this.pagerDownV = this.goldCircle(root, 'PagerDown', '▼', PAGER_X, PAGER_DOWN_Y, PAGER_SIZE, 46, 22);
     this.navLeft = this.navLeftV.hit;
     this.navRight = this.navRightV.hit;
     this.pagerUp = this.pagerUpV.hit;
@@ -148,12 +186,27 @@ export class HomeHUD extends Component {
     // 页点：两页（每个世界固定 2 屏，与 Web 的 PAGE 数一致）
     for (let i = 0; i < 2; i++) {
       const d = this.mkNode(root, `PagerDot${i}`, 18, 18, PAGER_X, (i === 0 ? DOT_GAP / 2 : -DOT_GAP / 2));
-      const g = d.addComponent(Graphics);
-      g.fillColor = new Color(255, 246, 218, 255);
-      g.circle(0, 0, 9);
-      g.fill();
+      this.paintDot(d, i === 0);
       this.dots.push(d);
     }
+  }
+
+  /**
+   * 页点（Web `.map-pager-dot`，ui.css:922-926）：**两点都是 18×18，选中不变大**，只换底色。
+   *   未选中 rgba(255,255,255,.78) + 0 2px 0 rgba(198,140,50,.3)
+   *   选中    var(--honey) #e0a94a  + 0 2px 0 rgba(180,120,40,.45)
+   * ⚠️ 之前这里把选中的半径加到 10、还用了页签金 #ffd977，是 Cocos 端自创的。
+   */
+  private paintDot(d: Node, on: boolean): void {
+    const g = d.getComponent(Graphics) ?? d.addComponent(Graphics);
+    g.clear();
+    const r = 9;
+    g.fillColor = on ? new Color(180, 120, 40, 115) : new Color(198, 140, 50, 77);
+    g.circle(0, -2, r);
+    g.fill();
+    g.fillColor = on ? new Color(224, 169, 74, 255) : new Color(255, 255, 255, 199);
+    g.circle(0, 0, r);
+    g.fill();
   }
 
   /**
@@ -165,10 +218,17 @@ export class HomeHUD extends Component {
    * 第 1 世界的第 1 关珠心正好落在右边箭头的方框角上，导致「点关卡珠没反应」。
    * 内接正方形边长 = size / √2，整个都落在可见圆内 —— 视觉不变，命中范围与 Web 的圆形相当。
    */
-  private goldCircle(root: Node, name: string, glyph: string, x: number, y: number, size: number): { visual: Node; hit: Node } {
+  private goldCircle(root: Node, name: string, glyph: string, x: number, y: number, size: number,
+      glyphSize = 78, glowBlur = 26): { visual: Node; hit: Node } {
     const n = this.mkNode(root, name, size, size, x, y);
     const hit = this.mkNode(n, 'Hit', Math.round(size / Math.SQRT2), Math.round(size / Math.SQRT2), 0, 0);
     const g = n.addComponent(Graphics);
+    // 外发光 halo（ui.css:1262 的 `0 0 26px rgba(255,206,110,.8)`）—— 垫在最底
+    for (let i = 3; i >= 1; i--) {
+      g.fillColor = new Color(255, 206, 110, Math.round(204 * (0.32 - i * 0.07)));
+      g.circle(0, 0, size / 2 + (glowBlur / 26) * i * 9);
+      g.fill();
+    }
     // 底影 0 8px 0 rgba(140,70,10,.5)
     g.fillColor = new Color(140, 70, 10, 128);
     g.circle(0, -8, size / 2);
@@ -188,9 +248,12 @@ export class HomeHUD extends Component {
     g.strokeColor = new Color(255, 243, 214, 255);
     g.circle(0, 0, size / 2 - 2.5);
     g.stroke();
-    this.label(n, glyph, 78, new Color(255, 255, 255, 255), size, size, 0, 0, true);
-    // 呼吸：1 → 1.06 → 1
-    tween(n).repeatForever(tween<Node>().to(0.8, { scale: new Vec3(1.06, 1.06, 1) }).to(0.8, { scale: new Vec3(1, 1, 1) })).start();
+    // 字形：text-shadow 0 3px 0 rgba(120,60,0,.45)（ui.css:1259）
+    this.label(n, glyph, glyphSize, new Color(255, 255, 255, 255), size, size, 0, 0, true,
+      { color: new Color(120, 60, 0, 115), dx: 0, dy: -3 });
+    // ⚠️ 这里原本有个 `scale 1→1.06→1` 的循环呼吸，已删：
+    //    Web 的 `@keyframes nav-breathe` 只改 drop-shadow 辉光，**不动 transform**。
+    //    动 scale 会让圆钮连同它的圆形命中盒一起缩放，边界珠的点击时灵时不灵。
     return { visual: n, hit };
   }
 
@@ -199,8 +262,8 @@ export class HomeHUD extends Component {
   private buildTabbar(root: Node): void {
     const bar = this.mkNode(root, 'Tabbar', TABBAR_POS.w, TABBAR_POS.h, TABBAR_POS.x, TABBAR_POS.y);
     const g = bar.addComponent(Graphics);
-    // 外投影 0 18px 40px rgba(0,0,0,.18)：扩散近似
-    g.fillColor = new Color(0, 0, 0, 46);
+    // 外投影 0 18px 40px rgba(20,10,0,.5)：扩散近似（ui.css:1284）
+    g.fillColor = new Color(20, 10, 0, 128);
     this.roundRect(g, -TABBAR_POS.w / 2 - 10, -TABBAR_POS.h / 2 - 18 + 10, TABBAR_POS.w + 20, TABBAR_POS.h + 20, 44);
     g.fill();
     // 木纹渐变 #6b4426 → #4a2d18
@@ -260,8 +323,8 @@ export class HomeHUD extends Component {
     this.pagerDown.on(Node.EventType.TOUCH_END, () => cbs.onPage(1), this);
     this.tabs.forEach((t, i) => {
       t.on(Node.EventType.TOUCH_END, () => cbs.onTab(i), this);
-      // :active 反馈：按下缩一点
-      t.on(Node.EventType.TOUCH_START, () => tween(t).to(0.08, { scale: new Vec3(0.96, 0.96, 1) }).start(), this);
+      // :active 反馈：Web 是 `transform: scale(.94)`（ui.css:1018）——别写成别的数
+      t.on(Node.EventType.TOUCH_START, () => tween(t).to(0.08, { scale: new Vec3(0.94, 0.94, 1) }).start(), this);
       t.on(Node.EventType.TOUCH_CANCEL, () => tween(t).to(0.1, { scale: new Vec3(1, 1, 1) }).start(), this);
     });
     void cbs.onBack;
@@ -278,7 +341,11 @@ export class HomeHUD extends Component {
       const on = i === index;
       this.tabPills[i]!.active = on;
       this.tabIcons[i]!.color = on ? new Color(255, 255, 255, 255) : new Color(160, 160, 160, 255);
-      this.tabLabels[i]!.color = on ? new Color(109, 61, 10, 255) : new Color(232, 217, 195, 255);
+      const lab = this.tabLabels[i]!;
+      lab.color = on ? new Color(109, 61, 10, 255) : new Color(232, 217, 195, 255);
+      // Web `.tabbar .tab.on .tab-label { text-shadow: 0 1px 0 rgba(255,255,255,.4) }`（ui.css:1301）
+      lab.enableShadow = on;
+      if (on) { lab.shadowColor = new Color(255, 255, 255, 102); lab.shadowOffset = new Vec2(0, -1); }
       void t;
     });
   }
@@ -293,10 +360,7 @@ export class HomeHUD extends Component {
 
   /** 翻页：当前页高亮、到边界时按钮变淡 */
   setPager(page: number, pages: number): void {
-    this.dots.forEach((d, i) => {
-      const g = d.getComponent(Graphics);
-      if (g) { g.clear(); g.fillColor = i === page ? new Color(255, 217, 119, 255) : new Color(255, 246, 218, 255); g.circle(0, 0, i === page ? 10 : 9); g.fill(); }
-    });
+    this.dots.forEach((d, i) => this.paintDot(d, i === page));
     this.setOpacity(this.pagerUpV.visual, page > 0 ? 255 : 77);
     this.setOpacity(this.pagerDownV.visual, page < pages - 1 ? 255 : 77);
     this.pagerUpV.hit.active = page > 0;

@@ -697,7 +697,8 @@ export class MapBootstrap extends Component {
             this.makeSprite(node, 'Bead', BEADS.plain, NODE_BOX, NODE_BOX, 0, -3.5);
 
             const ln = node.addComponent(LevelNode);
-            ln.init(lv.level, lv.level === cur, st === 'locked', stars);
+            // 本世界最后一关挂 🏆（Web：`node.level === WORLDS[w].to`，web/ui/map.ts:867）
+            ln.init(lv.level, lv.level === cur, st === 'locked', stars, lv.level === WORLDS[this.worldIndex]!.to);
             if (this.fontAsset) ln.setFont(this.fontAsset);
             this.levelNodes.push(ln);
             node.on(Node.EventType.TOUCH_END, () => this.onLevelTap(lv.level), this);
