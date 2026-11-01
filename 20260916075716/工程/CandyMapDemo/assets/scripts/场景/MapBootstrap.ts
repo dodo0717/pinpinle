@@ -907,8 +907,11 @@ export class MapBootstrap extends Component {
     private buildUI() {
         this.mountHUD();
         this.createLevelPreview();
-        // 首启自动开教学抽屉（Web 版同口径：没进过序章就先带一遍；关掉即记 seen，不会反复弹）
-        if (!GS.tutorial.seen) this.scheduleOnce(() => this.openTutorialDrawer(), 0.6);
+        // ⚠️ 这里原本有一句「首启自动开教学抽屉」（`if (!GS.tutorial.seen) ...`），已删除。
+        //    Web 端 openTutorialDrawer 只有**两个调用点**：地图屏的教学按钮（web/main.ts:1222）
+        //    和设置屏的教学按钮（web/main.ts:546）——**没有任何自动弹出**。
+        //    Cocos 端多出来的这句会让新玩家一进游戏就被满屏教学文字糊脸。
+        //    教学入口就是 HUD 右上角那个「❓教学」按钮，玩家自己点。
     }
 
     /** 教学入口：按钮在 HUD 里（体力胶囊正下方，与 Web 同位置），这里只接行为 */
