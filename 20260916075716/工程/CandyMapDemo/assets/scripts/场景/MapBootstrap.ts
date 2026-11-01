@@ -74,10 +74,10 @@ const FLIP_IN_MS = 420;    // 换世界：翻入
  * 未过关 / 1~2 星 / 3 星，用统一素球着色才能保证三态只差颜色这一件事。
  * （更早的 `level_balloon_1~10` 那 10 个贴图**从来就不存在**，早已废弃。）
  */
-const BEADS = {
-    plain: 'map/node/node-todo',
-} as const;
-/** 节点盒：Web 实测 `.node` = 142.08 屏幕 px（= 轨道 202 px × fitScale），取 142 */
+// ⚠️ 这里原本有 `const BEADS = { plain: 'map/node/node-todo' }`，已删除：
+//    三张关卡珠贴图（`node-todo / node-star1 / node-star3`）由 `LevelNode.paintArt()`
+//    按**星级**自行挑选，这里不再预铺任何默认图。
+/** 节点盒初值；真实大小由 `LevelNode.init()` 按星级重算（142.1 / 180.5 / 215.5） */
 const NODE_BOX = 142;
 
 /**
@@ -685,10 +685,10 @@ export class MapBootstrap extends Component {
             // 困难档被 3 星门槛挡住的关，外观必须是**锁定态**（Web: status = 'locked'）
             const st = this.isNightmareBlocked(lv.level) ? 'locked' : levelStatus(p, lv.level);
             const stars = recordOf(p, lv.level).stars;
-            // 三色水晶球统一用「素球」贴图，颜色由 LevelNode 按星级着色（见 LevelNode 文件头）
-            // Web 的 `.node-art` 比 `.node-gel`（正中在路点上）低 5 轨道 px（≈3.5 屏幕 px）——
-            // 贴图自带底部投影，刻意下移让投影压住路缘
-            this.makeSprite(node, 'Bead', BEADS.plain, NODE_BOX, NODE_BOX, 0, -3.5);
+            // ⚠️ 这里原本有一句 `this.makeSprite(node, 'Bead', BEADS.plain, ...)` 预铺 todo 图，已删除：
+            //    它和 LevelNode.paintArt 的 `resources.load` 是两条独立的异步回调，
+            //    谁后到谁覆盖 —— 实测跑出来 1~2 星/3 星珠的贴图被写死成 todo 图。
+            //    贴图整块交给 `LevelNode.paintArt()` 负责（`map.ts:860` 的 `.node-art`）。
 
             const ln = node.addComponent(LevelNode);
             // 本世界最后一关挂 🏆（Web：`node.level === WORLDS[w].to`，web/ui/map.ts:867）
