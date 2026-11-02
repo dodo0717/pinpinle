@@ -57,3 +57,19 @@ export function applyUiFont(l: Label, weight: 'bold' | 'medium' = 'bold'): void 
   });
   if (!loading) void preloadUiFont();
 }
+
+/**
+ * 设置文本 + 按需套字体的合体入口：文本里**有 emoji 时把字体还原成系统默认**
+ * （`font = null` → 回到 `fontFamily` 系统字体，emoji 才有字形）。
+ *
+ * 为什么需要它：`applyUiFont` 只在调用那一刻看文本 —— 先套了字体、后把 string 换成
+ * 带 emoji 的（如 PLAY 难度钮「简单」→「🔒 困难」），emoji 就会变成豆腐块。
+ */
+export function applyUiText(l: Label, text: string, weight: 'bold' | 'medium' = 'bold'): void {
+  l.string = text;
+  if (EMOJI_RE.test(text)) {
+    l.font = null;
+    return;
+  }
+  applyUiFont(l, weight);
+}

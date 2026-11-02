@@ -19,14 +19,21 @@
  *
  * 【手段差异（视觉对齐、手段不同）】
  *   - 描边：shim 没有 `LabelOutline`（真引擎有），关卡号的 3px 金描边用**八向错位文本**近似；
- *   - 文字阴影：用 `LabelShadow`（shim 不画，已在 HomeHUD 那批登记过）；
- *   - CSS 的 `box-shadow 高斯模糊`用低透明同心 roundRect 层近似；竖向渐变用逐条带近似；
- *   - CSS `letter-spacing:2px`（Play 文案）无法表达，字宽用估算值排布（见 `textWidth`）；
+ *   - 文字阴影：用 Label 自带阴影属性（3.8.2 起 `LabelShadow` 组件已废弃）；
+ *   - CSS `letter-spacing:2px`（Play 文案）无法表达，字宽用估算值排布（见 `estimateWidth`）；
  *   - CSS keyframes 三段用两段 tween 近似（0.33s quadOut 到 +6%，再 0.22s backOut 回 0）。
+ *
+ * 【毛边根治（2026-11-02）】麻绳（6 条色带 + 三角化圆角）、✕（Graphics `circle()` 硬边圆）
+ *   改预烘贴图 `fx/lp-rope` / `fx/lp-close`；全部文字套 HarmonyOS Sans SC（含 emoji 的
+ *   文案走 `applyUiText` 自动还原系统字体）；⚠️ 顺手修了一处方向写反的老 bug：
+ *   带硬下影的切图（Play 钮 dy=8、难度钮 dy=6）节点应**下移** dy/2、文字上移 dy/2
+ *   （本体画在 canvas 顶部 → 本体中心比贴图中心高 dy/2；与 tab-pill 的 offY=-3 同一套），
+ *   原来写成上移/下移，按钮整体偏高 8px/6px。
  */
 
 import { Node, UITransform, Graphics, Label, Color, Layers, UIOpacity, Sprite, tween, Vec2, Vec3 } from 'cc';
 import { mkFx, mkSprite, setSprite } from './uiPaint';
+import { applyUiFont, applyUiText } from './fontUtil';
 
 export type LevelMode = 'normal' | 'nightmare';
 
@@ -171,28 +178,23 @@ export class LevelPreview {
     this.buildPlay(card);
   }
 
-  /** 麻绳：12px 宽的竖线，横向渐变 #7a4f29 → #c98a4f(45%) → #7a4f29，圆角 6 */
+  /**
+   * 麻绳：12px 宽的竖线，横向渐变 #7a4f29 → #c98a4f(45%) → #7a4f29，圆角 6，
+   * `inset 0 0 0 1px rgba(0,0,0,.18)`。
+   * ⚠️ 原来用 Graphics：渐变拆 6 条色带（12px 宽里塞 6 条 2px 台阶）+ 三角化圆角 → 毛边。
+   *    改预烘贴图 `fx/lp-rope`（12×64 片段，九宫格 [8,8,6,6]：上下是圆角端头、中间是
+   *    带内描边的直边，纵向拉伸不变形 —— 结算吊牌的绳子更高，同一张贴图直接复用）。
+   */
   private buildRope(drop: Node): void {
     const rope = new Node('rope');
     rope.layer = Layers.Enum.UI_2D;
     rope.addComponent(UITransform).setContentSize(ROPE_W, ROPE_H);
     // 顶到屏幕顶（y=+960），底到牌子上缘再压进 8px
     rope.setPosition(0, STAGE_H / 2 - ROPE_H / 2, 0);
-    const g = rope.addComponent(Graphics);
-    const bands = 6;
-    const bw = ROPE_W / bands;
-    for (let i = 0; i < bands; i++) {
-      // 45% 处最亮：按「到中线的距离」在两端色与中间色之间插值
-      const t = 1 - Math.abs(i - (bands - 1) / 2) / ((bands - 1) / 2);
-      g.fillColor = lerpColor(C_ROPE_A, C_ROPE_B, t);
-      g.rect(-ROPE_W / 2 + i * bw, -ROPE_H / 2, bw + 0.5, ROPE_H);
-      g.fill();
-    }
-    // inset 0 0 0 1px rgba(0,0,0,.18)：描一圈内阴影
-    g.lineWidth = 1;
-    g.strokeColor = new Color(0, 0, 0, Math.round(0.18 * 255));
-    g.roundRect(-ROPE_W / 2 + 0.5, -ROPE_H / 2 + 0.5, ROPE_W - 1, ROPE_H - 1, 6);
-    g.stroke();
+    const s = rope.addComponent(Sprite);
+    s.sizeMode = Sprite.SizeMode.CUSTOM;
+    s.type = Sprite.Type.SLICED;
+    setSprite(s, 'fx/lp-rope');
     rope.parent = drop;
   }
 
@@ -216,24 +218,19 @@ export class LevelPreview {
     return card;
   }
 
-  /** ✕：60×60 圆，牌内 top 22 / right 26 */
+  /** ✕：60×60 圆 #b06a3a + `0 3px 0 rgba(0,0,0,.25)`，牌内 top 22 / right 26。
+   *  ⚠️ 原来是 Graphics `circle()`（三角化多边形 = 硬边圆）→ 预烘贴图 `fx/lp-close`
+   *     （60×63：本体 60 画在顶部、下方 3 是硬投影）→ 节点下移 1.5、✕ 上移 1.5。 */
   private buildClose(card: Node): void {
     const x = CARD_W / 2 - 26 - CLOSE_SIZE / 2;                        // 牌内右边距 26
     const y = CARD_H / 2 - 22 - CLOSE_SIZE / 2;                        // 牌内上边距 22
     const n = new Node('closeBtn');
     n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(CLOSE_SIZE, CLOSE_SIZE);
-    n.setPosition(x, y, 0);
-    const g = n.addComponent(Graphics);
-    // box-shadow 0 3px 0 rgba(0,0,0,.25)
-    g.fillColor = C_DARK25;
-    g.circle(0, -3, CLOSE_SIZE / 2);
-    g.fill();
-    g.fillColor = C_CLOSE_BG;
-    g.circle(0, 0, CLOSE_SIZE / 2);
-    g.fill();
+    n.addComponent(UITransform).setContentSize(CLOSE_SIZE, CLOSE_SIZE + 3);
+    n.setPosition(x, y - 1.5, 0);            // 本体中心比贴图中心高 1.5 → 节点下移 1.5
+    mkSprite(n, 'fx/lp-close', CLOSE_SIZE, CLOSE_SIZE + 3);
     n.parent = card;
-    mkLabel(n, '✕', 34, 0, 0, C_WHITE, CLOSE_SIZE, true);
+    mkLabel(n, '✕', 34, 0, 1.5, C_WHITE, CLOSE_SIZE, true);
     n.on(Node.EventType.TOUCH_END, () => this.close());
   }
 
@@ -248,6 +245,8 @@ export class LevelPreview {
     }
     this.levelLabels.push(mkLabel(card, '', LEVEL_FS, 0, y, C_LEVEL, CONTENT_W, true));
     const main = this.levelLabels[this.levelLabels.length - 1];
+    // 全项目 UI 字体统一 HarmonyOS Sans SC（「第 N 关」无 emoji，可以直接套）
+    for (const l of this.levelLabels) applyUiFont(l);
     // ⚠️ 3.8.2 起走 Label 自带的阴影属性（`LabelShadow` 的 color/offset 已废弃）
     main.enableShadow = true;
     main.shadowColor = new Color(0, 0, 0, Math.round(0.12 * 255));   // 0 4px 0 rgba(0,0,0,.12)
@@ -270,6 +269,7 @@ export class LevelPreview {
       n.addComponent(Graphics);
       n.parent = card;
       this.modeLabels[m] = mkLabel(n, MODE_LABEL[m], 40, 0, 0, C_WHITE, MODE_W - 12, true);
+      applyUiFont(this.modeLabels[m]);
       n.on(Node.EventType.TOUCH_END, () => this.pick(m));
       this.modeNodes[m] = n;
     }
@@ -299,6 +299,7 @@ export class LevelPreview {
     ];
     for (const s of specs) {
       const part = mkLabel(row, s.text, s.size, 0, 0, s.color, s.size * 6, false);
+      applyUiFont(part);
       this.starParts.push({ node: part.node, label: part, kind: s.kind });
     }
   }
@@ -308,18 +309,19 @@ export class LevelPreview {
     const y = -CARD_H / 2 + 88 + PLAY_H / 2;
     const n = new Node('play');
     n.layer = Layers.Enum.UI_2D;
-    // 贴图 378x146：多出的 8px 是 Web `0 8px 0 rgba(20,120,40,.5)` 的硬边下影，
-    // 节点按 146 建、上移 4，让本体（138 高）的中心回到 y
+    // 贴图 378x146：多出的 8px 是 Web `0 8px 0 rgba(20,120,40,.5)` 的硬边下影
+    //（本体画在 canvas 顶部）→ 本体中心比贴图中心高 4：节点**下移** 4 本体中心才落在 y，
+    // 文字相对节点**上移** 4（与 tab-pill / btn-view 同一套，反了按钮会整体偏高 8px）
     n.addComponent(UITransform).setContentSize(PLAY_W, PLAY_H + 8);
-    n.setPosition(0, y + 4, 0);
+    n.setPosition(0, y - 4, 0);
     // 胶囊按钮 → 九宫格切图（左右各 69 是唯一不拉伸的圆角区），渐变不再拆条带
     const bs = n.addComponent(Sprite);
     bs.sizeMode = Sprite.SizeMode.CUSTOM;
     bs.type = Sprite.Type.SLICED;
     setSprite(bs, 'fx/btn-play');
     n.parent = card;
-    // 文字相对节点下移 4，抵消上面为下影做的上移 → 视觉上仍在本体正中
-    mkLabel(n, 'Play', PLAY_FS, 0, -4, C_WHITE, PLAY_W, true);
+    const playLabel = mkLabel(n, 'Play', PLAY_FS, 0, 4, C_WHITE, PLAY_W, true);
+    applyUiFont(playLabel);
     n.on(Node.EventType.TOUCH_END, () => {
       if (!this.openState) return;
       this.h.onPlay(this.level, this.curMode);
@@ -353,12 +355,12 @@ export class LevelPreview {
     for (const m of ['normal', 'nightmare'] as LevelMode[]) {
       const n = this.modeNodes[m];
       const w = widths[m];
-      // 贴图 206x100（多出 6px 是 `0 6px 0` 的硬边下影）→ 节点按 100 建、上移 3 让本体居中
+      // 贴图 206x100（多出 6px 是 `0 6px 0` 的硬边下影，本体画在 canvas 顶部）
+      // → 本体中心比贴图中心高 3：节点**下移** 3、文字相对节点**上移** 3
       n.getComponent(UITransform)!.setContentSize(w, MODE_H + 6);
-      n.setPosition(xs[m], MODE_ROW_Y + 3, 0);
+      n.setPosition(xs[m], MODE_ROW_Y - 3, 0);
       this.modeLabels[m].node.getComponent(UITransform)!.setContentSize(w - 12, MODE_H);
-      // 文字下移 3 抵消节点的上移（贴图里给下影留了位，本体中心在节点中心下方 3）
-      this.modeLabels[m].node.setPosition(0, -3, 0);
+      this.modeLabels[m].node.setPosition(0, 3, 0);
       const isLocked = m === 'nightmare' && locked;
       const on = m === this.curMode;
       // 胶囊（Web `.lp-mode`）→ 九宫格切图：未选 #5A5A5A / 选中 #FF6B35 / 门槛未达 #4A4A4A（无下影）
@@ -367,7 +369,9 @@ export class LevelPreview {
       ms.sizeMode = Sprite.SizeMode.CUSTOM;
       ms.type = Sprite.Type.SLICED;
       setSprite(ms, isLocked ? 'fx/mode-lock' : on ? 'fx/mode-on' : 'fx/mode-off');
-      this.modeLabels[m].string = isLocked ? `🔒 ${MODE_LABEL[m]}` : MODE_LABEL[m];
+      // ⚠️ 锁定态文案带 🔒 —— 走 applyUiText：含 emoji 时自动把字体还原成系统默认
+      //    （HarmonyOS Sans 是纯中文字体，不含 emoji 字形，硬套会变豆腐块）
+      applyUiText(this.modeLabels[m], isLocked ? `🔒 ${MODE_LABEL[m]}` : MODE_LABEL[m]);
       this.modeLabels[m].color = isLocked ? C_MODE_LOCK_TEXT : C_WHITE;
       const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
       op.opacity = isLocked ? Math.round(0.85 * 255) : 255;

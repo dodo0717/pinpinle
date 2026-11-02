@@ -2,7 +2,7 @@
   "ver": "1.0.27",
   "importer": "image",
   "imported": true,
-  "uuid": "547932bf-0e73-4844-b1c6-25c0ea42c261",
+  "uuid": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed",
   "files": [
     ".json",
     ".png"
@@ -10,8 +10,8 @@
   "subMetas": {
     "6c48a": {
       "importer": "texture",
-      "uuid": "547932bf-0e73-4844-b1c6-25c0ea42c261@6c48a",
-      "displayName": "card-result",
+      "uuid": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed@6c48a",
+      "displayName": "card-hang",
       "id": "6c48a",
       "name": "texture",
       "userData": {
@@ -22,7 +22,7 @@
         "mipfilter": "none",
         "anisotropy": 0,
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "547932bf-0e73-4844-b1c6-25c0ea42c261",
+        "imageUuidOrDatabaseUri": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed",
         "visible": false
       },
       "ver": "1.0.22",
@@ -34,8 +34,8 @@
     },
     "f9941": {
       "importer": "sprite-frame",
-      "uuid": "547932bf-0e73-4844-b1c6-25c0ea42c261@f9941",
-      "displayName": "card-result",
+      "uuid": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed@f9941",
+      "displayName": "card-hang",
       "id": "f9941",
       "name": "spriteFrame",
       "userData": {
@@ -45,10 +45,14 @@
         "offsetY": 0,
         "trimX": 0,
         "trimY": 0,
-        "width": 640,
-        "height": 780,
-        "rawWidth": 640,
-        "rawHeight": 780,
+        "width": 820,
+        "height": 689,
+        "rawWidth": 820,
+        "rawHeight": 689,
+        "borderTop": 44,
+        "borderBottom": 44,
+        "borderLeft": 44,
+        "borderRight": 44,
         "packable": true,
         "pixelsToUnit": 100,
         "pivotX": 0.5,
@@ -56,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -320,
-            -390,
+            -410,
+            -344.5,
             0,
-            320,
-            -390,
+            410,
+            -344.5,
             0,
-            -320,
-            390,
+            -410,
+            344.5,
             0,
-            320,
-            390,
+            410,
+            344.5,
             0
           ],
           "indexes": [
@@ -79,12 +83,12 @@
           ],
           "uv": [
             0,
-            780,
-            640,
-            780,
+            689,
+            820,
+            689,
             0,
             0,
-            640,
+            820,
             0
           ],
           "nuv": [
@@ -98,25 +102,21 @@
             1
           ],
           "minPos": [
-            -320,
-            -390,
+            -410,
+            -344.5,
             0
           ],
           "maxPos": [
-            320,
-            390,
+            410,
+            344.5,
             0
           ]
         },
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "547932bf-0e73-4844-b1c6-25c0ea42c261@6c48a",
+        "imageUuidOrDatabaseUri": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed@6c48a",
         "atlasUuid": "",
         "trimType": "auto",
-        "displayName": "card-result",
-        "borderTop": 0,
-        "borderBottom": 0,
-        "borderLeft": 0,
-        "borderRight": 0
+        "displayName": "card-hang"
       },
       "ver": "1.0.12",
       "imported": true,
@@ -130,6 +130,6 @@
     "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
     "hasAlpha": true,
-    "redirect": "547932bf-0e73-4844-b1c6-25c0ea42c261@6c48a"
+    "redirect": "32dfffd0-a7fd-4fb1-8e85-79db602fb1ed@6c48a"
   }
 }

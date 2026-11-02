@@ -182,6 +182,8 @@ export class GameBootstrap extends Component {
     this.result = ResultPopup.create(this.node);
     this.result.rootNode().setSiblingIndex(this.node.children.length - 1); // 压在 HUD 之上
     this.toast = this.mount('Toast', ToastLayer);
+    // 置灰按钮「点了弹提示」：Web result.ts:124 `toast(item.disabledHint)`
+    this.result.setToast((msg) => this.toast.show(msg, 2600));
     this.audio = this.mount('Audio', GameAudio);
     this.guide = this.mount('Guide', GuideBar);
     this.buildHud();
