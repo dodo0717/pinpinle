@@ -17,3 +17,9 @@ node_modules/
 .playwright-cli/
 _s.log
 _s.err
+
+# 浏览器/DevTools 缓存（误入过一次：含 >100MB 文件，GitHub 拒收）
+_cdp5/
+
+# 浏览器/DevTools 缓存（曾误入暂存区：单个 >150MB，GitHub 拒收）
+_cdp*/
