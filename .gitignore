@@ -63,3 +63,11 @@ _s.err
 # ---------- 12. 小游戏压缩素材(生成产物, 用 tools/minify-assets.mjs 可重新生成, 不入库) ----------
 /20260916075716/工程/CandyMapDemo/minigame/assets/
 
+
+# ---------- 13. 浏览器/DevTools 缓存（单个 >150MB，GitHub 拒收；2026-11-02 曾误入暂存区） ----------
+_cdp*/
+
+# 调试临时产物（2026-11-02）
+/_t/
+/_err.mjs
+/20260916075716/工程/CandyMapDemo/docs/dump/_tmp1.json
