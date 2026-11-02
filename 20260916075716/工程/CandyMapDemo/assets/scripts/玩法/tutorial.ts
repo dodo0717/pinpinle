@@ -381,77 +381,65 @@ export class TutorialDrawer {
     this.panel = panel;
     this.panelWrap = panelWrap;
 
-    /* ---- 内容坐标系：panel 中心 (0,0)，Web `.tut-panel` 是 `padding: 46px 40px` ---- */
+    /* ---- 内容坐标系：panel 中心 (0,0)。
+     *      ⚠️ 2026-11-02 二次修正：之前按 CSS 推算的布局与 Web 实际渲染差很多，
+     *      现在 y 全部来自 Web 运行时实测（offsetTop → Cocos y = 960 − cssTop），
+     *      卡片矩形 / 按钮宽度 / 图解间距都照实测值抄 ---- */
     const L0 = -PANEL_W / 2 + 40;                 // 内容左边缘 −381
-    const R0 = PANEL_W / 2 - 40;                  // 内容右边缘 381
     const CW = PANEL_W - 80;                      // 内容宽 762
-    const T0 = 960 - 46;                          // 内容顶 914
 
-    /* head：`.tut-title` 56/900/#7a4100（左对齐）+ `.tut-close` 76 圆（右），mb 30 */
-    const headY = T0 - 38;
-    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + (CW - 96) / 2, headY, C_TITLE, CW - 96, 0);
+    /* head：`.tut-title` 56/900/#7a4100（左对齐）+ `.tut-close` 76 圆（右上，实测中心 x=+343） */
+    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + (CW - 96) / 2, 876, C_TITLE, CW - 96, 0);
     const closeBtn = new Node('close');
     closeBtn.layer = Layers.Enum.UI_2D;
     closeBtn.addComponent(UITransform).setContentSize(76, 76);
-    closeBtn.setPosition(R0 - 38, headY, 0);
+    closeBtn.setPosition(343, 876, 0);
     closeBtn.parent = panel;
     mkSprite(closeBtn, 'fx/tut-close', 76, 76);
     this.addText(closeBtn, '✕', 44, 0, 0, C_TITLE, 76, 1);
     closeBtn.on(Node.EventType.TOUCH_END, () => this.close());
 
-    /* 卡 1：状态（`.tut-status-line` 38px / 行高 1.9 / #9a6a2a，done → #2f8a3f + ✅） */
-    let top = headY - 38 - 30;                              // 808
-    const card1H = 28 * 2 + STATUS_LH * 2;                  // 200
-    this.addCard(panel, CW, card1H, 0, top - card1H / 2, false);
-    const s1 = this.addStatusLine(panel, L0 + 30, top - 28 - STATUS_LH / 2);
+    /* 卡 1（实测 y120 h258）：两行状态，行中心 749 / 673（行距 76） */
+    this.addCard(panel, CW, 258, 0, 711, false);
+    const s1 = this.addStatusLine(panel, L0 + 30, 749);
     this.statusNormalMark = s1[0];
     this.statusNormal = s1[1];
-    const s2 = this.addStatusLine(panel, L0 + 30, top - 28 - STATUS_LH * 1.5);
+    const s2 = this.addStatusLine(panel, L0 + 30, 673);
     this.statusNightmareMark = s2[0];
     this.statusNightmare = s2[1];
 
-    /* 卡 2：主按钮 118 + 次按钮 96（`.tut-btn` mb 22，主次差一档一眼可分） */
-    top -= card1H + 28;                                     // 580
-    const card2H = 28 * 2 + (BTN_H + 7) + 22 + (BTN_GHOST_H + 5);
-    this.addCard(panel, CW, card2H, 0, top - card2H / 2, false);
-    let by = top - 28 - (BTN_H + 7) / 2;
-    const b1 = this.addTutButton(panel, CW - 60, BTN_H, 0, by, true, () => this.handlers.onStartNormal());
+    /* 卡 2（实测 y293 h374）：⚠️ 两个按钮**撑满整张卡**（Web 实测按钮宽 = 卡宽 762，
+     *    左缘与卡 padding 外缘齐平），中心 555 / 426 —— 之前缩进 30 是错的 */
+    this.addCard(panel, CW, 374, 0, 480, false);
+    const b1 = this.addTutButton(panel, CW, BTN_H, 0, 555, true, () => this.handlers.onStartNormal());
     this.btnNormalLabel = b1[1];
     this.btnNormalSprite = b1[0];
-    by -= (BTN_H + 7) / 2 + 22 + (BTN_GHOST_H + 5) / 2;
-    const b2 = this.addTutButton(panel, CW - 60, BTN_GHOST_H, 0, by, false, () => {
+    const b2 = this.addTutButton(panel, CW, BTN_GHOST_H, 0, 426, false, () => {
       if (this.btnNightmareDim) return;
       this.handlers.onStartNightmare();
     });
     this.btnNightmareLabel = b2[1];
     this.btnNightmareSprite = b2[0];
 
-    /* 卡 3：怎么玩（标题 + 真实贴纸图解 + 四步说明） */
-    top -= card2H + 28;                                     // 248
-    const figH = FIG_PX * 2 + 26 + (36 + 2 + FIG_PX);       // 292
-    const howH = 48 * 4 + 18 * 3;                           // 246
-    const card3H = 28 * 2 + 46 + 22 + figH + 26 + howH;     // 688
-    this.addCard(panel, CW, card3H, 0, top - card3H / 2, false);
-    this.addText(panel, TUTORIAL.howTitle, 46, L0 + 30 + 300, top - 28 - 23, C_TITLE, 600, 0);
-    // 图解区：整块水平居中（左列 152 + gap 22 + 箭头 48 + gap 22 + 右列 152 = 396）
-    const figTop = top - 28 - 46 - 22;                      // 152
-    this.addFigure(panel, TUTORIAL_IMAGE_IDS[0], 0, figTop - figH / 2);
+    /* 卡 3（实测 y582 h806）：标题中心 348、图解块中心 165、四步行中心实测
+     *    −37 / −127 / −241 / −331（②③两条在 Web 里换行成两行，步距 114 而非 66） */
+    this.addCard(panel, CW, 806, 0, -25, false);
+    this.addText(panel, TUTORIAL.howTitle, 46, L0 + 30 + 300, 348, C_TITLE, 600, 0);
+    this.addFigure(panel, TUTORIAL_IMAGE_IDS[0], 0, 165);
     const hows: Array<[string, string]> = [
       ['①', TUTORIAL.how1], ['②', TUTORIAL.how2], ['③', TUTORIAL.how3], ['④', TUTORIAL.how4],
     ];
-    let hy = figTop - figH - 26;                            // how 区顶
-    for (const [no, body] of hows) {
-      this.addHowRow(panel, no, body, L0 + 30, hy - 24);
-      hy -= 48 + 18;
+    const howY = [-37, -127, -241, -331];
+    for (let i = 0; i < hows.length; i += 1) {
+      this.addHowRow(panel, hows[i][0], hows[i][1], L0, howY[i]);
     }
 
-    /* 卡 4：补充（`.tut-card-note` 虚线边 + 30px 小字） */
-    top -= card3H + 28;                                     // −468
-    const card4H = 28 * 2 + 51 * 3;
-    this.addCard(panel, CW, card4H, 0, top - card4H / 2, true);
-    this.addText(panel, TUTORIAL.noteTime, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25, C_NOTE, CW - 120, 0);
-    this.addText(panel, TUTORIAL.noteStar, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25 - 51, C_NOTE, CW - 120, 0);
-    this.addText(panel, TUTORIAL.noteNightmare, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25 - 102, C_NOTE, CW - 120, 0);
+    /* note 卡（实测 y1303 h187，⚠️ 宽 740 —— 比普通卡窄 22，右侧缩进） */
+    const NOTE_W = 740;
+    this.addCard(panel, NOTE_W, 187, L0 + NOTE_W / 2, -437, true);
+    this.addText(panel, TUTORIAL.noteTime, 30, L0 + 30 + (NOTE_W - 60) / 2, -385, C_NOTE, NOTE_W - 60, 0);
+    this.addText(panel, TUTORIAL.noteStar, 30, L0 + 30 + (NOTE_W - 60) / 2, -436, C_NOTE, NOTE_W - 60, 0);
+    this.addText(panel, TUTORIAL.noteNightmare, 30, L0 + 30 + (NOTE_W - 60) / 2, -487, C_NOTE, NOTE_W - 60, 0);
 
     root.active = false;
   }
@@ -469,6 +457,9 @@ export class TutorialDrawer {
     l.lineHeight = size + 12;
     l.color = color;
     l.string = str;
+    // Web 的教学面板文字字重全部在 600~900（fs38/700 状态行、fs32/600 正文、fs56/900 标题），
+    //    Cocos Label 默认 400 → 视觉明显偏细，统一开粗体近似
+    l.isBold = true;
     // ⚠️ 打包后 cc 命名空间里的枚举可能被摇掉，直接用数值（0=LEFT / 1=CENTER / 1=CENTER）
     const any = l as unknown as { horizontalAlign: number; verticalAlign: number };
     any.horizontalAlign = align;
@@ -483,6 +474,19 @@ export class TutorialDrawer {
    * `note` = Web 的 `.tut-card-note`（虚线边 + `rgba(255,236,200,.8)` 底）。
    */
   private addCard(parent: Node, w: number, h: number, x: number, y: number, note: boolean): void {
+    // `.tut-card` 自带投影 `0 6px 16px rgba(120,70,10,.12)`（实测 computedStyle）——
+    //    投影是兄弟节点且**先加**（渲染在卡片下），节点按「形状 + blur 留白」建、下移 dy/2
+    if (!note) {
+      const sh = new Node('csh');
+      sh.layer = Layers.Enum.UI_2D;
+      sh.addComponent(UITransform).setContentSize(w + 32, h + 32);
+      sh.setPosition(x, y - 6, 0);
+      sh.parent = parent;
+      const ss = sh.addComponent(Sprite);
+      ss.sizeMode = Sprite.SizeMode.CUSTOM;
+      ss.type = Sprite.Type.SLICED;
+      setSprite(ss, 'fx/card-shadow');
+    }
     const n = new Node('card');
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(w, h);
@@ -576,7 +580,19 @@ export class TutorialDrawer {
       this.loadStickerPiece(n, imageId, pos, px);
     };
 
-    // 左列：「3 缺 1」—— 右下角是 `.tut-fig-gap`（虚线缺口 → 预烘焙切图）
+    // `.tut-fig-grid` 自带投影 `0 4px 10px rgba(90,50,0,.25)`（实测 computedStyle，两列都有）
+    //    —— 阴影贴图必须是**兄弟节点且先加**，否则会被贴纸盖住
+    for (const col of [COL1, COL2]) {
+      const sh = new Node('gsh');
+      sh.layer = Layers.Enum.UI_2D;
+      sh.addComponent(UITransform).setContentSize(172, 176);
+      sh.parent = fig;
+      sh.setPosition(col, gy - (col === COL2 ? 49 : 0) - 2, 0);
+      mkSprite(sh, 'fx/grid-shadow', 172, 176);
+    }
+
+    // 左列：「3 缺 1」—— 右下角是 `.tut-fig-gap`（**4px 实线白边** + rgba(60,35,0,.45) 底 + 圆角 8；
+    //    ⚠️ 之前按 memory 记的「虚线」烘错了，运行时 computedStyle 是 solid）
     mkPiece(COL1 - px / 2, gy + px / 2, 0);
     mkPiece(COL1 + px / 2, gy + px / 2, 1);
     mkPiece(COL1 - px / 2, gy - px / 2, 2);
@@ -587,29 +603,30 @@ export class TutorialDrawer {
     gap.setPosition(COL1 + px / 2, gy - px / 2, 0);
     mkSprite(gap, 'fx/tut-fig-gap', px, px);
 
-    // `.tut-fig-move`：网格下方 26 处，↑ + 待拖的那块
-    const moveTop = top - px * 2 - 26;                  // −32
+    // `.tut-fig-move`：网格下方实测间距 38（↑ 顶 833 − 网格底 795），↑ + 待拖的那块
+    const moveTop = top - px * 2 - 38;
     this.addText(fig, '↑', 36, COL1, moveTop - 18, C_FIG_UP, 60, 1);
     mkPiece(COL1, moveTop - 36 - 2 - px / 2, 3);
 
     // `.tut-fig-arrow`：➜ 48px，垂直居中于整块
     this.addText(fig, '➜', 48, 0, 0, C_FIG_ARROW, 60, 1);
 
-    // 右列：拼成整图 + `.tut-fig-grid.done` 的金色发光框（切图）+ `.tut-fig-cap`
-    mkPiece(COL2 - px / 2, gy + px / 2, 0);
-    mkPiece(COL2 + px / 2, gy + px / 2, 1);
-    mkPiece(COL2 - px / 2, gy - px / 2, 2);
-    mkPiece(COL2 + px / 2, gy - px / 2, 3);
+    // 右列：⚠️ 实测 done 列的 y 比左列**低 49**（692 vs 643），不是同一水平线
+    const gy2 = gy - 49;
+    mkPiece(COL2 - px / 2, gy2 + px / 2, 0);
+    mkPiece(COL2 + px / 2, gy2 + px / 2, 1);
+    mkPiece(COL2 - px / 2, gy2 - px / 2, 2);
+    mkPiece(COL2 + px / 2, gy2 - px / 2, 3);
     const glow = new Node('glow');
     glow.layer = Layers.Enum.UI_2D;
     glow.addComponent(UITransform).setContentSize(px * 2, px * 2);
     glow.parent = fig;
-    glow.setPosition(COL2, gy, 0);
+    glow.setPosition(COL2, gy2, 0);
     const gsp = glow.addComponent(Sprite);
     gsp.sizeMode = Sprite.SizeMode.CUSTOM;
     gsp.type = Sprite.Type.SLICED;
     setSprite(gsp, 'fx/tut-fig-glow');
-    this.addText(fig, '✨ +1 组', 32, COL2, top - px * 2 - 12 - 22, C_FIG_UP, 240, 1);
+    this.addText(fig, '✨ +1 组', 32, COL2, -82, C_FIG_UP, 240, 1);
   }
 
   /**

@@ -200,7 +200,9 @@ export class GameBootstrap extends Component {
 
     // 教学全家桶（序章）：横幅钉在棋盘上方、手指挂在棋盘里、聚光灯盖全屏
     this.tutBanner = TutorialBanner.create(this.node);
-    this.tutBanner.setPosition(0, 700); // 棋盘（780 ~ -640）内部顶端，不挡 HUD 也不离开盘面视线
+    // Web `.tut-banner` 是 `top: 250px` **顶部锚定**（挂 #stage）→ Cocos 顶边 y = 960 − 250 = 710，
+    //    单行本体高 101 → 中心 y = 710 − 50.5 ≈ 660。之前放 700 是拍脑袋，偏下 40px。
+    this.tutBanner.setPosition(0, 660);
     this.tutHud = TutorialHud.create(this.node, () => this.exitTutorial());
     this.tutHand = HandHint.create(this.view.node);
     this.tutSpot = SpotlightLayer.create(this.node);
