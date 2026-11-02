@@ -12,7 +12,7 @@
  */
 
 import {
-  Node, Label, UITransform, Graphics, Color, Layers, UIOpacity, tween,
+  Node, Label, UITransform, Graphics, Color, Layers, UIOpacity, tween, Tween,
   Sprite, SpriteFrame, Texture2D, resources, Rect, Vec2, Vec3,
 } from 'cc';
 import {
@@ -816,14 +816,20 @@ export class TutorialHud {
    * 每拼成 1 组亮一颗（Web `.tut-progress i.on`）。
    * ⚠️ 亮起的贴图是 76×76（四周留给 `0 0 14px rgba(255,190,60,.9)` 的发光），未亮的是 34×34，
    *    所以换图要连节点尺寸一起改；`.on` 的 `scale(1.18)` 也照抄。
+   * Web `.tut-progress i` 有 `transition: ... .25s ease`（ui.css:1612）→ 缩放用 0.25s tween
+   * 平滑过渡（贴图本身没法渐变，尺寸切换瞬间、缩放平滑 —— 视觉主体是那 1.18 的弹一下）。
    */
   setProgress(n: number): void {
     for (let i = 0; i < this.dots.length; i += 1) {
       const on = i < n;
       const sp = this.dots[i];
-      sp.node.getComponent(UITransform)!.setContentSize(on ? 76 : PROG_D, on ? 76 : PROG_D);
+      const node = sp.node;
+      node.getComponent(UITransform)!.setContentSize(on ? 76 : PROG_D, on ? 76 : PROG_D);
       setSprite(sp, on ? 'fx/tut-progress-on' : 'fx/tut-progress-off');
-      sp.node.setScale(on ? 1.18 : 1, on ? 1.18 : 1, 1);
+      Tween.stopAllByTarget(node);
+      const cur = node.scale.x;
+      node.setScale(cur, cur, 1);
+      tween(node).to(0.25, { scale: new Vec3(on ? 1.18 : 1, on ? 1.18 : 1, 1) }).start();
     }
   }
 

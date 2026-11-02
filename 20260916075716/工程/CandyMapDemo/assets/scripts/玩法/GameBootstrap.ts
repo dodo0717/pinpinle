@@ -13,7 +13,7 @@
 
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
-  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween,
+  view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween, Tween, Sprite,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -29,6 +29,7 @@ import {
 import { unlockedImageIds, clearedCount } from './meta';
 import { createSpeech, type GameSpeech } from './speech';
 import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
+import { setSprite } from '../界面/uiPaint';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
 import { HandHint } from './handHint';
 import {
@@ -1499,79 +1500,96 @@ export class GameBootstrap extends Component {
     const total = this.cfg.rows * this.cfg.cols;
     for (let i = 0; i < total; i++) {
       const n = this.view.cellNode(i);
-      const dim = n.getChildByName('tutDim');
-      if (dim) dim.destroy();
       const gap = n.getChildByName('tutGap');
-      if (gap) gap.destroy();
+      if (gap) { Tween.stopAllByTarget(gap); gap.destroy(); }
       const pulse = n.getChildByName('tutPulse');
-      if (pulse) {
-        tween(pulse.getComponent(UIOpacity)!).stop();
-        pulse.destroy();
-      }
+      if (pulse) { Tween.stopAllByTarget(pulse); pulse.destroy(); }
+      const op = n.getComponent(UIOpacity);
+      if (op) op.opacity = 255;   // 撤销 tutDim 的 opacity .5
+      Tween.stopAllByTarget(n);   // 停掉脉冲的 scale 循环，缩放还原
+      n.setScale(1, 1, 1);
     }
     this.view.setHint([]); // 恢复提示缩放（BoardView 无 clearHint，空数组 = 全部还原）
   }
 
-  /** 教学压暗：除 `keep` 之外的格子全盖上半透明罩 */
+  /**
+   * 教学压暗：除 `keep` 之外的格子全压暗。
+   * Web `.cell.dim { opacity:.5; filter: grayscale(.7) }`（ui.css:1502）——直接作用在格子本体上，
+   * 不再盖深色矩形。Cocos 的 Sprite.color 是乘算、做不到 grayscale（见灰度切图经验），
+   * 这里做 opacity .5 → 128（BoardView 的 CellRef 本来就挂在 root 的 UIOpacity 上）。
+   */
   private tutDim(keep: number[]): void {
     const total = this.cfg.rows * this.cfg.cols;
     for (let i = 0; i < total; i++) {
       const n = this.view.cellNode(i);
-      let dim = n.getChildByName('tutDim');
+      const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
       if (keep.includes(i)) {
-        if (dim) dim.destroy();
+        op.opacity = 255;
         continue;
       }
-      if (dim) continue;
-      dim = new Node('tutDim');
-      dim.layer = Layers.Enum.UI_2D;
-      dim.addComponent(UITransform).setContentSize(this.view.step - GAP, this.view.step - GAP);
-      const g = dim.addComponent(Graphics);
-      const s = this.view.step - GAP;
-      g.rect(-s / 2, -s / 2, s, s);
-      g.fillColor = new Color(40, 42, 52, 150);
-      g.fill();
-      dim.parent = n;
-      dim.setPosition(0, 0, 0);
+      op.opacity = 128;
     }
   }
 
-  /** 缺口框：金色描边提示"拖到这里" */
+  /**
+   * 缺口框：Web `.cell.gap::after`（ui.css:1506-1510）= `inset:8 / radius:12 /
+   * 5px **dashed** rgba(255,236,170,.95)` + `tutGap 1.1s` 呼吸（opacity .55↔1 + scale .97↔1.03）。
+   * 用预烘焙的虚线框贴图 `fx/cell-gap-frame`（120×120 九宫格 20，本体=虚线框），
+   * 尺寸 = 格子 − 16（inset 8 两边）；原来是 6px 实线金框（Graphics 硬边），与 Web 不同。
+   */
   private tutGapBox(index: number): void {
     const n = this.view.cellNode(index);
     if (n.getChildByName('tutGap')) return;
+    const s = this.view.cellW - 16;
     const gap = new Node('tutGap');
     gap.layer = Layers.Enum.UI_2D;
-    const s = this.view.step - GAP;
     gap.addComponent(UITransform).setContentSize(s, s);
-    const g = gap.addComponent(Graphics);
-    g.roundRect(-s / 2 + 4, -s / 2 + 4, s - 8, s - 8, 12);
-    g.strokeColor = new Color(255, 214, 90, 255);
-    g.lineWidth = 6;
-    g.stroke();
+    const sp = gap.addComponent(Sprite);
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    sp.type = Sprite.Type.SLICED;
+    setSprite(sp, 'fx/cell-gap-frame');
+    const op = gap.addComponent(UIOpacity);
+    gap.setScale(0.97, 0.97, 1);
     gap.parent = n;
     gap.setPosition(0, 0, 0);
+    // tutGap 1.1s ease-in-out infinite → 半周期 0.55s；opacity .55↔1
+    tween(op).repeatForever(tween(op).to(0.55, { opacity: 141 }).to(0.55, { opacity: 255 })).start();
+    tween(gap).repeatForever(
+      tween(gap).to(0.55, { scale: new Vec3(1.03, 1.03, 1) }).to(0.55, { scale: new Vec3(0.97, 0.97, 1) }),
+    ).start();
   }
 
-  /** 目标块脉冲：金色呼吸圈（循环 tween，玩家一按即被 guard 停掉） */
+  /**
+   * 目标块脉冲：Web `.cell.pulse`（ui.css:1504/1514-1517）= `tutPulse 1.1s ease-in-out infinite`：
+   * `scale 1↔1.07` + `brightness 1↔1.18`，作用在**格子本体**上（不是外圈金框）。
+   * scale 直接 tween 格子节点（同 setHint 的手段）；brightness 用白色圆角罩 0↔46 透明度近似
+   * （1.18 ≈ 向白压 18%）。玩家一按即被 guard 停掉。
+   */
   private tutPulse(index: number): void {
     const n = this.view.cellNode(index);
     if (!n || index < 0) return;
+    Tween.stopAllByTarget(n);
+    n.setScale(1, 1, 1);
+    tween(n).repeatForever(
+      tween(n).to(0.55, { scale: new Vec3(1.07, 1.07, 1) }).to(0.55, { scale: new Vec3(1, 1, 1) }),
+    ).start();
+
     const old = n.getChildByName('tutPulse');
-    if (old) old.destroy();
+    if (old) { Tween.stopAllByTarget(old); old.destroy(); }
+    const s = this.view.cellW;
     const p = new Node('tutPulse');
     p.layer = Layers.Enum.UI_2D;
-    const s = this.view.step - GAP;
     p.addComponent(UITransform).setContentSize(s, s);
     const g = p.addComponent(Graphics);
-    g.roundRect(-s / 2 - 6, -s / 2 - 6, s + 12, s + 12, 16);
-    g.strokeColor = new Color(255, 214, 90, 255);
-    g.lineWidth = 8;
-    g.stroke();
+    const r = Math.round(s * 0.1);   // pieceRadius(cell)：与碎片圆角同口径
+    g.fillColor = new Color(255, 255, 255, 255);
+    g.roundRect(-s / 2, -s / 2, s, s, r);
+    g.fill();
     const op = p.addComponent(UIOpacity);
+    op.opacity = 0;
     p.parent = n;
     p.setPosition(0, 0, 0);
-    tween(op).repeatForever(tween(op).to(0.5, { opacity: 90 }).to(0.5, { opacity: 255 })).start();
+    tween(op).repeatForever(tween(op).to(0.55, { opacity: 46 }).to(0.55, { opacity: 0 })).start();
   }
 
   /** 教学 step1：摆盘 + 演示落点（简单指缺口；困难指"下一步"） */
@@ -1661,8 +1679,16 @@ export class GameBootstrap extends Component {
           ? this.tut.groupCells.includes(index)
           : true;
     if (allowed) return true;
-    // 零文字反馈：按错的那块抖一下 + 目标块脉冲一次
-    this.view.playReject([index], 0, -8);
+    // 零文字反馈：按错的那块左右抖两下 + 目标块脉冲一次（重摆脉冲）
+    // Web `main.ts:920-927`：`.cell.shake`（tutShake .32s ±7px），不是回弹
+    const n = this.view.cellNode(index);
+    const base = n.position.clone();
+    Tween.stopAllByTarget(n);
+    tween(n)
+      .to(0.08, { position: new Vec3(base.x - 7, base.y, 0) })
+      .to(0.16, { position: new Vec3(base.x + 7, base.y, 0) })
+      .to(0.08, { position: new Vec3(base.x, base.y, 0) })
+      .start();
     const hintAt = this.tut.step === 1 ? this.tut.targetIndex : this.tut.groupCells[0];
     if (hintAt !== undefined && hintAt >= 0) this.tutPulse(hintAt);
     return false;
@@ -1735,7 +1761,7 @@ export class GameBootstrap extends Component {
         //    不许再弹横幅 —— 否则同一句话横幅和气泡各显示一遍，屏幕上全是字
         const tip = this.tutScript().flag;
         this.speech.speak(tip);
-        this.tutSpot.show(this.hudRectOf('score'), {
+        this.tutSpot.show(this.hudRectOf('goal'), {
           tip,
           onNext: () => this.tutorialStepTime(),
         });
@@ -1888,12 +1914,40 @@ export class GameBootstrap extends Component {
     }
   }
 
-  /** 聚光灯目标矩形（顶栏固定坐标：计分面板 (51,822) 246×162 / 计时块 (390,822) 228×160）。
-   *  用常量而非 getBoundingBoxToWorld / node.position —— 预览 shim 未实现这两个 API。 */
-  private hudRectOf(kind: 'score' | 'time'): SpotlightRect {
-    return kind === 'score'
-      ? { cx: 51, cy: 822, w: 246, h: 162 }
-      : { cx: 390, cy: 822, w: 228, h: 160 };
+  /**
+   * 聚光灯目标矩形 —— 顶栏固定坐标，来自 docs/dump/web-game.json 的运行时实测
+   * （1080×1920 逻辑坐标、y 向下，换算：cx = x+w/2−540，cy = 960−y−h/2）：
+   * - `#hud-goal` = 旗 SVG(240.42,102,60×72) ∪ 数字(312.42,105,35×66)
+   *   → 盒 240.42..347.56 × 102..174，中心 (294,138) → Cocos (−246,822)，107×72。
+   *   （之前圈的是 `#hud-score` 计分面板 —— Web main.ts:996 圈的是 `#hud-goal` 目标旗。）
+   * - `#hud-timer` = (816.52,108) 227.5×60 → 中心 (930.3,138) → Cocos (390,822)，228×60。
+   *   （旧值 h:160 把面板高度当成了计时块高度，Web 实测 timer 只有 60 高。）
+   *  用常量而非 getBoundingBoxToWorld / node.position —— 预览 shim 未实现这两个 API。
+   */
+  private hudRectOf(kind: 'goal' | 'time'): SpotlightRect {
+    return kind === 'goal'
+      ? { cx: -246, cy: 822, w: 107, h: 72 }
+      : { cx: 390, cy: 822, w: 228, h: 60 };
+  }
+
+  /**
+   * `#hud-goal-num.bump`（ui.css:1621-1626）：scale 1→1.7(40%)→1 + 颜色 #fff2c0，0.5s。
+   * ⚠️ **Web 端目前是死代码**：CSS 有定义，但 main.ts 全文 grep 不到任何触发点
+   * （v4.1 把旗子数字改成固定 star1 后，"数字少 1"的跳变没了）。按「绝不新增 Web
+   * 没有的行为」纪律，这里同样只提供动画、**不接线**；Web 若启用，在拼组处调本方法即可。
+   */
+  bumpGoalNum(): void {
+    const n = this.hudGoalNum.node;
+    const l = this.hudGoalNum;
+    const orig = l.color.clone();
+    Tween.stopAllByTarget(n);
+    n.setScale(1, 1, 1);
+    tween(n)
+      .to(0.2, { scale: new Vec3(1.7, 1.7, 1) })
+      .call(() => { l.color = new Color(255, 242, 192, 255); })
+      .to(0.3, { scale: new Vec3(1, 1, 1) })
+      .call(() => { l.color = orig; })
+      .start();
   }
 
   private runGuide(step: number): void {

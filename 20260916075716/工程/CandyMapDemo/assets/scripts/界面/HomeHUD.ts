@@ -66,8 +66,6 @@ const TAB = { w: 235, h: 131, dx: 245, y: CY(1750, 131) - TABBAR_POS.y };
 const TAB_ICON = { w: 84, h: 78, dy: CY(1758, 78) - CY(1750, 131) };
 const TAB_LABEL = { h: 36, dy: CY(1840, 36) - CY(1750, 131) };
 
-const GOLD_TOP = new Color(255, 233, 168, 255);   // #ffe9a8
-const GOLD_BOTTOM = new Color(240, 180, 69, 255);  // #f0b445
 const ARROW_TOP = new Color(255, 228, 155, 255);   // #ffe49b
 const ARROW_MID = new Color(247, 177, 63, 255);    // #f7b13f
 const ARROW_BOTTOM = new Color(217, 123, 18, 255); // #d97b12
@@ -164,23 +162,21 @@ export class HomeHUD extends Component {
     this.recoverLabel = this.label(root, '', 22, new Color(255, 255, 255, 255), RECOVER.w, RECOVER.h, RECOVER.x, RECOVER.y, false,
       { color: new Color(40, 20, 5, 153), dx: 0, dy: -2 });
 
-    // 教学按钮：金渐变胶囊 + 底影
-    this.btnTutorial = this.mkNode(root, 'BtnTutorial', TUT.w, TUT.h, TUT.x, TUT.y);
-    const g = this.btnTutorial.addComponent(Graphics);
-    // 双层投影（ui.css:1360-1370）：柔影 0 10px 22px rgba(90,50,0,.35) 垫底 + 实影 0 6px 0 rgba(140,80,20,.55)
-    g.fillColor = new Color(90, 50, 0, 45);
-    this.roundRect(g, -TUT.w / 2 - 10, -TUT.h / 2 - 18, TUT.w + 20, TUT.h + 24, 48);
-    g.fill();
-    g.fillColor = new Color(140, 80, 20, 140);   // 底影 0 6px 0 rgba(140,80,20,.55)
-    this.roundRect(g, -TUT.w / 2, -TUT.h / 2 - 6, TUT.w, TUT.h, 42);
-    g.fill();
-    this.fillVGradient(g, -TUT.w / 2, -TUT.h / 2, TUT.w, TUT.h, 42, GOLD_TOP, GOLD_BOTTOM, 14);
+    // 教学按钮：预烘焙切图 `fx/home-tutorial`（渐变 #ffe9a8→#f0b445 + 双阴影已在图里；
+    // 原来的 Graphics 版渐变拆条带 + 阴影是放大实心矩形 → 正是"毛边/材质不对"的来源）。
+    // 贴图 400×134（temp/_panel6.html:65-83）：本体 84 画在 canvas 16..100，四周是
+    // `0 6px 0` 硬影 + `0 10px 22px` 柔影的留白 → 本体中心比贴图中心高 67−58=9px，
+    // 节点整体下移 9、内部图标/文字上移 9，本体中心才落在 Web 实测的 196（=TUT.y）。
+    const TUT_BODY_DY = 9;
+    this.btnTutorial = this.mkNode(root, 'BtnTutorial', TUT.w, 134, TUT.x, TUT.y - TUT_BODY_DY);
+    const tsp = this.makeSprite(this.btnTutorial, 'Img', 'ui/fx/home-tutorial', TUT.w, 134, 0, 0);
+    tsp.type = Sprite.Type.SLICED;   // 九宫格 [58,58,58,76]：横向拉伸圆角不变形
     // Web 拆两段（padding 0 30px + gap 10）：❓ 46px + 文字 44px letter-spacing 2px
     const iconX = -TUT.w / 2 + 30 + 23;
     const textX = iconX + 23 + 10 + (TUT.w - 60 - 46 - 10) / 2;
-    this.label(this.btnTutorial, '❓', 46, new Color(107, 58, 0, 255), 46, 46, iconX, 0);
+    this.label(this.btnTutorial, '❓', 46, new Color(107, 58, 0, 255), 46, 46, iconX, TUT_BODY_DY);
     const tutText = this.label(this.btnTutorial, TUTORIAL.entry, 44, new Color(107, 58, 0, 255),
-      TUT.w - 60 - 46 - 10, TUT.h, textX, 0, true);
+      TUT.w - 60 - 46 - 10, TUT.h, textX, TUT_BODY_DY, true);
     tutText.spacingX = 2;   // Web `.home-tutorial-text { letter-spacing: 2px }`
   }
 
