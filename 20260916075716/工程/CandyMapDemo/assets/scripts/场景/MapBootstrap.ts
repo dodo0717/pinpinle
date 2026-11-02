@@ -15,6 +15,10 @@ import { LeaderboardScreen } from '../界面/LeaderboardScreen';
 import { challengeState, type LeaderboardView } from '../界面/leaderboardModel';
 import { TutorialDrawer } from '../玩法/tutorial';
 import { GameBootstrap } from '../玩法/GameBootstrap';
+// 音效单例（WebAudio 合成，与 web/ui/audio.ts 同口径）：首页没有 Game 节点，
+// 播放器只在关卡层挂着的话，地图页的点击就解不了锁 —— Web 版是一个全局 audio。
+import { sfx } from '../玩法/sfx';
+import { speech } from '../玩法/speech';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
@@ -181,6 +185,11 @@ export class MapBootstrap extends Component {
         // UI 字体：教学/弹窗/气泡等**不走** makeLabel 的文字此前一直用 Cocos 默认字体，
         //    与 Web（PingFang SC / 微软雅黑）不是一套字形。这里开局预读一次，避免首次弹面板时字突然跳。
         void preloadUiFont();
+        // 读档后声音开关要真的生效（否则界面上是「关」，耳朵里还在响）—— web/main.ts:479-481
+        sfx.setSound(GS.meta.settings.sound);
+        sfx.setBgm(GS.meta.settings.bgm);
+        // 打包后模块懒执行：onLoad 这一刻 `speech` 可能还没被赋值（GameBootstrap 那侧实测过）
+        if (speech) speech.setEnabled(GS.meta.settings.voice);
         // 右上角菜单转发：只有小游戏有这个入口，别的宿主一律 false（这里不弹提示，没入口就当没有）
         setMenuShare(() => ({ title: SHARE.menuTitle, query: 'from=menu' }));
         // 从「已解锁到的那一关」所在世界开局，而不是永远从第 1 世界（否则 180 关要一路翻过去）
@@ -552,6 +561,9 @@ export class MapBootstrap extends Component {
     }
 
     private onDragStart(e: EventTouch): void {
+        // 真实手势 → 解锁音频（浏览器要求手势后才能出声）。web/main.ts:3726 挂在全局 pointerdown 上，
+        // 这里挂在地图拖动起手（首页最主要的手势）与关卡珠点击（enterLevel）两处，等价覆盖。
+        sfx.unlock();
         if (this.drag) return;
         const y = e.getUILocation().y;
         this.drag = {
@@ -882,7 +894,12 @@ export class MapBootstrap extends Component {
                 onChange: (p) => {
                     if (p.sound !== undefined) GS.setSound(p.sound);
                     if (p.bgm !== undefined) GS.setBgm(p.bgm);
+                    // 开关要**立刻**作用到声音上：等刷新才生效会让人以为开关坏了（web/main.ts:551-553）
+                    if (p.sound !== undefined) sfx.setSound(p.sound);
+                    if (p.bgm !== undefined) sfx.setBgm(p.bgm);
                     if (p.voice !== undefined) GS.setVoice(p.voice);
+                    // 关掉就立刻闭嘴（正念到一半也要停）—— web/main.ts:555
+                    if (p.voice !== undefined) speech.setEnabled(p.voice);
                     this.settingsScreen.render(GS.meta.settings);
                 },
                 onTutorial: () => this.openTutorialDrawer(),
@@ -1033,6 +1050,7 @@ export class MapBootstrap extends Component {
      * 进入关卡：隐藏地图，显示兄弟节点 `Game`（挂 GameBootstrap）并开局。
      */
     private enterLevel(level: number): void {
+        sfx.unlock();   // 真实手势解锁音频（与地图拖动起手那处等价，Web 是全局 pointerdown）
         if (levelStatus(GS.progress, level) === 'locked') {
             this.toast.show(HOME.lockedToast, 1600);
             return;

@@ -1,146 +1,40 @@
 /**
- * 音效 —— 对应 web/ui/audio.ts。
+ * 音效组件 —— `GameBootstrap` 用 `mount('Audio', GameAudio)` 挂在关卡节点上。
  *
- * 原版用 WebAudio 现场合成 11 个音槽（swap / eliminate / drop / tick / rush / win /
- * fail / honor ×3），好处是零素材。Cocos 里走 `AudioSource` + `resources/audio/*`，
- * 素材缺失时**静默降级**（不能因为少了音频文件就让游戏起不来）。
+ * 真正的发声在 `sfx.ts`（WebAudio 现场合成，逐字移植 `web/ui/audio.ts`，零素材）：
+ * 本文件只是**一层委托**，保留节点挂载的用法，同时让没有 Game 节点的首页
+ * （地图 / 设置页）也能直接用同一个 `sfx` 单例 —— Web 版 `const audio = createAudio()`
+ * 本来也是全局一份，不存在「进关才创建播放器」这回事。
  *
- * 两个开关（§11.4 音效 / 背景音乐）在这里收口：界面只管 `setSound` / `setBgm`，
+ * 两个开关（§11.4 音效 / 背景音乐）仍然在这里收口：界面只管 `setSound` / `setBgm`，
  * 不用在每个播放点判开关 —— 否则漏判一处就是「关了音效还有声音」。
+ *
+ * ⚠️ 3.8 的 `AudioSource` 那条老路已废弃：`assets/resources/audio/` 里从来没有任何素材，
+ *    所有 `play()` 都在「缺素材 → 静默」分支里空转，等于**全程无声**。现在改走合成，
+ *    听感与 Web 端一致，也不给小游戏包体加压。将来有真素材了只换 `sfx.ts` 内部实现。
  */
 
-import { _decorator, Component, Node, AudioSource, AudioClip, resources, game, Game } from 'cc';
+import { _decorator, Component } from 'cc';
+import { sfx, type SfxName, type SfxState } from './sfx';
 const { ccclass } = _decorator;
 
-/** 11 个音槽，与原版一一对应 */
-export type SoundName =
-  | 'swap'
-  | 'eliminate'
-  | 'drop'
-  | 'tick'
-  | 'rush'
-  | 'win'
-  | 'fail'
-  | 'honorGod'
-  | 'honorKing'
-  | 'honorPass'
-  | 'reject';
-
-const CLIP_PATH: Record<SoundName, string> = {
-  swap: 'audio/swap',
-  eliminate: 'audio/eliminate',
-  drop: 'audio/drop',
-  tick: 'audio/tick',
-  rush: 'audio/rush',
-  win: 'audio/win',
-  fail: 'audio/fail',
-  honorGod: 'audio/honor_god',
-  honorKing: 'audio/honor_king',
-  honorPass: 'audio/honor_pass',
-  reject: 'audio/reject',
-};
-
-const BGM_PATH = 'audio/bgm';
+/** 11 个音槽，与 Web 端一一对应（命名沿用 Cocos 侧） */
+export type SoundName = SfxName;
 
 @ccclass('GameAudio')
 export class GameAudio extends Component {
-  private src: AudioSource = null!;
-  private bgmSrc: AudioSource = null!;
-  private clips = new Map<SoundName, AudioClip>();
-  private soundOn = true;
-  private bgmOn = true;
-  /** 倒计时是否在走 —— 决定 BGM 该不该响（原版 syncAudio） */
-  private running = false;
+  setSound(on: boolean): void { sfx.setSound(on); }
 
-  onLoad(): void {
-    this.src = this.node.addComponent(AudioSource);
-    this.bgmSrc = this.node.addComponent(AudioSource);
-    this.bgmSrc.loop = true;
-    this.loadAll();
-    // 切后台时停 BGM，回前台按 running 恢复（否则后台还在响）
-    game.on(Game.EVENT_HIDE, this.onHide, this);
-    game.on(Game.EVENT_SHOW, this.onShow, this);
-  }
+  setBgm(on: boolean): void { sfx.setBgm(on); }
 
-  onDestroy(): void {
-    game.off(Game.EVENT_HIDE, this.onHide, this);
-    game.off(Game.EVENT_SHOW, this.onShow, this);
-  }
+  /** 倒计时是否在走 —— 决定滴答与 BGM 该不该响（原版 `syncAudio`） */
+  setRunning(on: boolean): void { sfx.setRunning(on); }
 
-  private loadAll(): void {
-    for (const key of Object.keys(CLIP_PATH) as SoundName[]) {
-      resources.load(CLIP_PATH[key], AudioClip, (err, clip) => {
-        if (err || !clip) return;   // 缺素材静默：不打印、不阻断
-        this.clips.set(key, clip);
-      });
-    }
-    resources.load(BGM_PATH, AudioClip, (err, clip) => {
-      if (err || !clip) return;
-      this.bgmSrc.clip = clip;
-      this.syncBgm();
-    });
-  }
+  play(name: SoundName): void { sfx.play(name); }
 
-  /* ------------------------------------------------------------ 开关 */
+  /** 首次用户手势解锁（浏览器要求手势后才允许出声） */
+  unlock(): void { sfx.unlock(); }
 
-  setSound(on: boolean): void { this.soundOn = on; }
-
-  setBgm(on: boolean): void {
-    this.bgmOn = on;
-    this.syncBgm();
-  }
-
-  /**
-   * 与主循环的判据逐字对齐：`started && !paused && !finished && 在局内`。
-   * 只要有一处不一致，就会出现「倒计时停了 BGM 还在放」这类声音对不上的问题。
-   */
-  setRunning(on: boolean): void {
-    this.running = on;
-    this.syncBgm();
-  }
-
-  private syncBgm(): void {
-    if (!this.bgmSrc) return;
-    if (this.bgmOn && this.running && this.bgmSrc.clip) {
-      if (!this.bgmSrc.playing) this.bgmSrc.play();
-    } else if (this.bgmSrc.playing) {
-      this.bgmSrc.stop();
-    }
-  }
-
-  private onHide(): void { if (this.bgmSrc?.playing) this.bgmSrc.pause(); }
-  private onShow(): void {
-    if (!this.bgmSrc) return;
-    // ⚠️ 3.8 的 `AudioSource` 没有 `resume()`（那是 Web Audio 的口径）；暂停后继续 = 再 `play()`
-    if (this.bgmOn && this.running && this.bgmSrc.clip && !this.bgmSrc.playing) this.bgmSrc.play();
-  }
-
-  /* ------------------------------------------------------------ 播放 */
-
-  play(name: SoundName): void {
-    if (!this.soundOn || !this.src) return;
-    const clip = this.clips.get(name);
-    if (!clip) return;
-    this.src.playOneShot(clip, 1);
-  }
-
-  /**
-   * 首次用户手势解锁（Cocos 需要，否则自动播放被拦）。
-   * 素材还没加载完时什么都不做 —— 拿 null 去 playOneShot 在真机上是会崩的。
-   */
-  unlock(): void {
-    if (!this.src) return;
-    const clip = this.clips.get('swap');
-    if (clip) this.src.playOneShot(clip, 0);
-  }
-
-  /** 排查用：音效开关 / BGM 是否在响 / 已加载几个音槽 */
-  state(): { sound: boolean; bgm: boolean; running: boolean; clips: number } {
-    return {
-      sound: this.soundOn,
-      bgm: this.bgmOn && this.running,
-      running: this.running,
-      clips: this.clips.size,
-    };
-  }
+  /** 排查用：是否已解锁 / 音效开关 / BGM 开关 / 倒计时状态 */
+  state(): SfxState { return sfx.state(); }
 }

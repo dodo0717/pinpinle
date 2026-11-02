@@ -27,7 +27,8 @@ import {
   setPlatformToast, shareCard, sharer, startTracking,
 } from './platformBridge';
 import { unlockedImageIds, clearedCount } from './meta';
-import { createSpeech, type GameSpeech } from './speech';
+// 语音用单例：设置页（首页）改的「语音说明」开关要作用到教学里的同一股声音
+import { speech, createSpeech, type GameSpeech } from './speech';
 import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
 import { setSprite } from '../界面/uiPaint';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
@@ -214,7 +215,8 @@ export class GameBootstrap extends Component {
     this.tutHud = TutorialHud.create(this.node, () => this.exitTutorial());
     this.tutHand = HandHint.create(this.view.node);
     this.tutSpot = SpotlightLayer.create(this.node);
-    this.speech = createSpeech();
+    // 同上：模块导出可能还没就绪，兜一个实例，保证教学的 speak/stop 永远拿得到东西
+    this.speech = speech ?? createSpeech();
   }
 
   onDestroy(): void {
@@ -653,6 +655,9 @@ export class GameBootstrap extends Component {
     this.view.setCells(final);
     this.view.applyMerge(computeMergeDisplay(this.engine.board));
     this.view.playFall(drops, spawns);
+    // Web 版这里响**两声**（main.ts:2289 下压、:2313 补位落定）—— 那边掉落与补位是两段动画，
+    // 这边合在 playFall 里一次播完，所以补一次延后的 drop，节奏才对得上。
+    this.scheduleOnce(() => this.audio.play('drop'), ANIM.fall);
     this.scheduleOnce(() => this.afterResolve(), ANIM.fall + cols * ANIM.stagger + RESOLVE_TAIL);
   }
 
@@ -692,6 +697,11 @@ export class GameBootstrap extends Component {
     const s = GS.meta.settings;
     this.audio.setSound(s.sound);
     this.audio.setBgm(s.bgm);
+    // 教学语音同理（web/main.ts:481）：设置页可能在地图场景改过开关，进关时重新应用。
+    // ⚠️ 打包后模块是**懒执行**的：本方法在 onLoad 里（约 8ms）就跑，那一刻 `speech`
+    //    这个模块导出可能还没被赋值 —— 直接解引用会每帧刷一条 TypeError（实测）。
+    //    这里判一下；`startLevel` 里还会再调一次，开关一定补得上。
+    if (speech) speech.setEnabled(s.voice);
   }
 
   /**
