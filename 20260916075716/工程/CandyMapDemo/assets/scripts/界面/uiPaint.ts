@@ -42,7 +42,13 @@ export const SKY_A = new Color(63, 131, 216, 255);   // #3f83d8
 export const SKY_B = new Color(111, 169, 234, 255);  // #6fa9ea（42% 处）
 export const SKY_C = new Color(169, 208, 245, 255);  // #a9d0f5
 
-/** 整屏渐变底：`linear-gradient(180deg,#3f83d8 0%,#6fa9ea 42%,#a9d0f5 100%)` */
+/**
+ * 整屏渐变底：`linear-gradient(180deg,#3f83d8 0%,#6fa9ea 42%,#a9d0f5 100%)`。
+ *
+ * ⚠️ 40 条色带的 `fillVGrad` 铺满 1080×1920 = **整屏色带台阶**（毛边最显眼的一处）→
+ *    改铺预烘焙贴图 `fx/sky-screen`（16×1920，竖向渐变每一列完全相同，横拉 1080 是恒等插值）。
+ *    Graphics 版本留着做缺图兜底（贴图是子节点，永远盖在上面）。
+ */
 export function paintScreenBg(parent: Node, name = 'bg'): Node {
   const n = new Node(name);
   n.layer = Layers.Enum.UI_2D;
@@ -50,6 +56,7 @@ export function paintScreenBg(parent: Node, name = 'bg'): Node {
   const g = n.addComponent(Graphics);
   fillVGrad(g, STAGE_W, STAGE_H, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
   n.parent = parent;
+  mkSprite(n, 'fx/sky-screen', STAGE_W, STAGE_H);
   return n;
 }
 
@@ -172,28 +179,27 @@ export function setSprite(sp: Sprite, res: string): void {
 }
 
 /**
- * 96px 白字大标题（Web 的 `.lb-title / .col-title / .set-title`）：
- * `text-shadow: 0 8px 0 rgba(90,45,10,.55), ±6px 0 0 rgba(90,45,10,.35)` —— 用**八向错位文本**近似描边。
+ * 96px 白字大标题（Web 的 `.lb-title / .col-title / .set-title`）。
  * 实测三屏标题的字中心都在 **(540, 113)**。
+ *
+ * ⚠️ Web 的 text-shadow **只有三条**（ui.css:121 / 224 / 424）：
+ *   `0 8px 0 rgba(90,45,10,.55), 6px 0 0 rgba(90,45,10,.35), -6px 0 0 rgba(90,45,10,.35)`
+ *   原来的「八向错位」多出上侧与四条斜向，字被糊成一团（看着就是毛边）—— 这里逐条对齐 Web，
+ *   只下 8、左右各 6。
  */
 export const TITLE_FS = 96;
-/** 描边错位（模拟 CSS 的多重 text-shadow：下 8px 最深、左右 6px 稍浅） */
+/** 投影错位：Web 的三条 text-shadow（Cocos y 向上 → CSS 的「下 8px」是 −8） */
 const TITLE_STROKE_MAIN = new Color(90, 45, 10, Math.round(0.55 * 255));
 const TITLE_STROKE_SIDE = new Color(90, 45, 10, Math.round(0.35 * 255));
-const OUTLINE_8: Array<[number, number, Color]> = [
-  [0, -8, TITLE_STROKE_MAIN],   // Web 的主投影：0 8px 0（Cocos y 向上 → -8）
-  [0, 8, TITLE_STROKE_SIDE],    // 上侧补一道（Web 没有，但八向才描得均匀）
-  [6, 0, TITLE_STROKE_SIDE],
-  [-6, 0, TITLE_STROKE_SIDE],
-  [5, -5, TITLE_STROKE_SIDE],
-  [5, 5, TITLE_STROKE_SIDE],
-  [-5, -5, TITLE_STROKE_SIDE],
-  [-5, 5, TITLE_STROKE_SIDE],
+const OUTLINE_TITLE: Array<[number, number, Color]> = [
+  [0, -8, TITLE_STROKE_MAIN],   // 0 8px 0（主投影，最深）
+  [6, 0, TITLE_STROKE_SIDE],    // 6px 0 0
+  [-6, 0, TITLE_STROKE_SIDE],   // -6px 0 0
 ];
 
 export function mkTitle(parent: Node, title: string): void {
   const y = STAGE_H / 2 - 113;
-  for (const [dx, dy, c] of OUTLINE_8) {
+  for (const [dx, dy, c] of OUTLINE_TITLE) {
     mkText(parent, title, TITLE_FS, dx, y - dy, c, 900, true, 'center');
   }
   mkText(parent, title, TITLE_FS, 0, y, WHITE, 900, true, 'center');

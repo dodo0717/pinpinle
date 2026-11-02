@@ -17,15 +17,17 @@
  * 贴图在最内层的「内框」里：`left 6% / top 5% / 86%×89%`（Web 的 `.col-img`，object-fit:cover）。
  *
  * ⚠️「已解锁」由调用方以集合传入（每 10 星解锁一张），界面不算 —— 解锁条件属于进度规则。
- * ⚠️ 108 张贴纸**不全量加载**：格子照建（只有 Graphics 卡底，很便宜），贴图按**可视范围**发请求
+ * ⚠️ 108 张贴纸**不全量加载**：格子照建（只有一张切图节点），贴图按**可视范围**发请求
  *   （视口上下各多留 `PRELOAD_ROWS` 行），滚到哪加载到哪；走 CDN 时这条更重要。
  *
  * 【手段差异（视觉对齐、手段不同）】
- *   - 卡底切图 → `fillVGrad` 程序绘制（色值取切图采样）；
  *   - Web 的 `object-fit:cover`（512 方图放大填满竖框、左右各裁 ~13%）→ Cocos 没有 cover，
  *     用「正方形 Sprite 节点 + `Mask` 裁到内框」等价实现；
- *   - Web 网格有自己的金色滚动条（`::-webkit-scrollbar`）—— 这里用 `ScrollView`，不画滚动条；
- *   - 未解锁的锁：Web 画在 card-locked.png 里，这里程序画一个挂锁（锁梁 + 锁体 + 锁孔）。
+ *   - Web 网格有自己的金色滚动条（`::-webkit-scrollbar`）—— 这里用 `ScrollView`，不画滚动条。
+ *
+ * 【毛边根治（2026-11-02）】卡内渐变 + 圆角 118 原来是 `fillVGrad` 40 条色带 + 三角化圆角，
+ *   整屏最大的一块面上就是最显眼的色带台阶 → 改用预烘焙贴图 `fx/card-col`（半分辨率 528×664）；
+ *   格子底也删掉了每格 32 条色带的手绘渐变，与 Web 一样只铺 `card-*.png` 切图。
  */
 
 import { Node, UITransform, Graphics, Label, Sprite, Color, Layers, ScrollView, Mask } from 'cc';
@@ -87,24 +89,11 @@ const IMG_L = 0.06;
 const IMG_T = 0.05;
 const IMG_W = 0.86;
 const IMG_H = 0.89;
-/** 卡底圆角（切图四角透明，按 298×389 的比例估 ~8%） */
-const CELL_R = 24;
 
 /** 已解锁卡底的三色轮换（与 `web/ui/collection.ts` 的 CARD_SKINS 逐字同序） */
 const CARD_SKINS = ['card-blue', 'card-pink', 'card-orange'] as const;
 /** 未解锁卡底（切图里已经画好金锁，不用程序画） */
 const CARD_LOCKED = 'card-locked';
-
-/**
- * 卡底的**兜底渐变**（切图没加载出来时用）：颜色是 `card-*.png` 的像素采样，
- * 锁定卡的分区采样（整体均色会被金锁拉偏）：底色 #1e2031、金锁 #d2b174、底条 #5a4839。
- */
-const SKIN_FALLBACK: Array<[Color, Color, Color]> = [
-  [new Color(146, 190, 226, 255), new Color(175, 231, 243, 255), new Color(146, 182, 201, 255)],
-  [new Color(231, 195, 177, 255), new Color(244, 225, 184, 255), new Color(208, 186, 169, 255)],
-  [new Color(227, 180, 208, 255), new Color(244, 222, 209, 255), new Color(204, 183, 177, 255)],
-  [new Color(35, 38, 58, 255), new Color(30, 32, 49, 255), new Color(23, 25, 39, 255)],
-];
 
 /** 视口上下各多加载几行：滚动时不出现「刚滚到还是空的」 */
 const PRELOAD_ROWS = 2;
@@ -176,6 +165,11 @@ export class CollectionScreen {
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
     card.setPosition(0, CARD_CX, 0);
     card.parent = root;
+    // 卡内渐变（`fillVGrad` 40 条色带 + 三角化圆角 118 = 色带台阶 + 圆角毛边）→
+    // 预烘焙贴图 `fx/card-col`（528×664 半分辨率，拉伸 2× 与全分辨率无差）。
+    // ⚠️ 必须**先于**网格加入（子节点按加入顺序绘制），否则卡底会盖住格子。
+    //    `paintCard()` 的 Graphics 留在卡节点上做缺图兜底 —— 子节点永远盖在父节点之上。
+    mkSprite(card, 'fx/card-col', CARD_W, CARD_H);
     this.paintCard(card.addComponent(Graphics));
 
     // 卡内可滚网格（Mask 裁剪，shim 里不滚动但会裁；真引擎可滚）
@@ -244,14 +238,11 @@ export class CollectionScreen {
       cell.layer = Layers.Enum.UI_2D;
       cell.addComponent(UITransform).setContentSize(CELL_W, CELL_H);
       cell.setPosition((c - 1) * COL_STRIDE, top - r * ROW_STRIDE, 0);
-      // 兜底渐变（切图没加载出来时的底）；切图本身 `100% 100%` 铺满（与 Web 同口径）
-      const [a, b, d] = owned
-        ? SKIN_FALLBACK[imageId % SKIN_FALLBACK.length]!
-        : SKIN_FALLBACK[SKIN_FALLBACK.length - 1]!;
-      const g = cell.addComponent(Graphics);
-      // ⚠️ 条带要够细：圆角只有 24px，条带 40px 高时圆角处会出现方形台阶（露出底下的卡内渐变）
-      fillVGrad(g, CELL_W, CELL_H, a, b, d, 0.5, CELL_R, 32);
       cell.parent = this.content;
+      // ⚠️ 原来每格都 `fillVGrad` 32 条色带当兜底 → 108 格 × 32 = 3456 个矩形，
+      //    而且圆角 24 处必然出现方形台阶。Web 的 `.col-cell` 只有 `background: 切图 100% 100%`
+      //    一张底图，没有手绘渐变 —— 这里照 Web 口径只铺切图（`card-blue/pink/orange/locked`），
+      //    不再手绘（`SKIN_FALLBACK` 随之删除）。
       // 卡底切图（已解锁三色轮换 / 未解锁的锁卡——锁画在图里，不用程序画）
       mkSprite(cell, `collection/${owned ? CARD_SKINS[imageId % CARD_SKINS.length]! : CARD_LOCKED}`, CELL_W, CELL_H);
 

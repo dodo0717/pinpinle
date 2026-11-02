@@ -18,11 +18,16 @@
  * ⚠️ 新手教学入口永久保留：首页按钮会在「困难模式累计通关 ≥10 关」后隐藏，
  * 但玩家可能还想回看（策划案 §14 决策 3）。
  *
+ * 【毛边根治（2026-11-02）】原来卡内木纹、开关、查看钮全是 Graphics 硬画：
+ *   - 卡：木纹被拆成 8 条色带 + 三角化圆角 118 → 预烘焙贴图 `fx/card-set`（480×675）；
+ *   - 开关：`fillVGrad` 胶囊 + `circle()` 圆旋钮（三角化多边形 = 硬边圆）→ 只留 Web 的两张
+ *     `toggle-on/off` 切图切换（`web/ui/settings.ts:53-61` 的 `backgroundImage` 切换，旋钮在图里）；
+ *   - 查看钮：色带 + 放大实心矩形当投影 → 预烘焙 `fx/btn-view`（含 `0 5px 0` 硬投影）。
+ *   现在程序绘制只剩**缺图兜底**（卡节点的 `drawWood()`，子节点贴图永远盖在上面）。
+ *
  * 【手段差异（视觉对齐、手段不同）】
- *   - 切图（back / icon / toggle）→ 程序绘制，色值取切图采样；
- *   - CSS `repeating-linear-gradient(93deg…)` 的木纹 → 等宽的半透明竖条纹（条纹几乎垂直，
- *     那 3° 的倾斜这里不做，登记为差异）；
- *   - `text-shadow` → 错位深色文本副本（shim 没有描边组件）。
+ *   - `text-shadow` → 错位深色文本副本（shim 没有描边组件）；
+ *   - `.set-toggle:active` 的 `scale(.94)`、`.set-tutorial-btn:active` 的 `translateY(3px)` 未做。
  */
 
 import { Node, UITransform, Graphics, Label, Color, Layers } from 'cc';
@@ -83,13 +88,13 @@ const TOGGLE_X = ROW_W / 2 - ROW_PAD_X - TOGGLE_W / 2;
 const LABEL_X = ICON_X + ICON_SIZE / 2 + ROW_GAP_X;
 const LABEL_W = TOGGLE_X - TOGGLE_W / 2 - ROW_GAP_X - LABEL_X;
 
-/** 「查看」钮：140×76，38px 白字，橙渐变 + 0 5px 0 投影 */
+/**
+ * 「查看」钮：Web `.set-tutorial-btn` 140×76，38px 白字 900，橙渐变 `#ffd479→#ef9b28`
+ * + `0 5px 0 rgba(150,80,10,.6)`。本体 + 硬投影都烘在 `fx/btn-view` 里（见 `mkTutorialRow`）。
+ */
 const TUT_BTN_W = 140;
 const TUT_BTN_H = 76;
 const TUT_BTN_FS = 38;
-const TUT_BTN_A = new Color(255, 212, 121, 255);   // #ffd479
-const TUT_BTN_B = new Color(239, 155, 40, 255);    // #ef9b28
-const TUT_BTN_SHADOW = new Color(150, 80, 10, Math.round(0.6 * 255));
 
 /**
  * 版本号：整宽居中，40px `#44507a` + `text-shadow 0 2px 0 rgba(255,255,255,.35)`。
@@ -162,6 +167,11 @@ export class SettingsScreen {
     card.parent = root;
     const cg = card.addComponent(Graphics);
     drawWood(cg, CARD_W, CARD_H, CARD_A, CARD_B, CARD_C, CARD_R);
+    // 木纹内板（Web `.set-card`：93deg 的 9px 周期细木纹 + 三段棕渐变，radius 118）→
+    // 预烘焙贴图 `fx/card-set`（480×675 半分辨率，含 clip 在圆角内的木纹）。
+    // ⚠️ 必须**先于**行条加入（子节点按加入顺序绘制），否则卡底会盖住行条；
+    //    上面 `drawWood()` 的 Graphics 留在卡节点上做缺图兜底（子节点永远盖在父节点之上）。
+    mkSprite(card, 'fx/card-set', CARD_W, CARD_H);
 
     // 行容器：顶部对齐卡的内容区（padding-top 46）
     const rowsY = CARD_H / 2 - CARD_PAD_T;
@@ -213,30 +223,15 @@ export class SettingsScreen {
     slot.addComponent(UITransform).setContentSize(TOGGLE_W, TOGGLE_H);
     slot.setPosition(TOGGLE_X, 0, 0);
     slot.parent = row;
-    const knob = new Node('knob');
-    knob.layer = Layers.Enum.UI_2D;
-    knob.addComponent(UITransform).setContentSize(TOGGLE_H - 12, TOGGLE_H - 12);
-    knob.parent = slot;
     const art = mkSprite(slot, 'settings/toggle-off', TOGGLE_W, TOGGLE_H);
 
+    // ⚠️ 开关与 Web 口径一致：**只有背景切图切换**（`web/ui/settings.ts:53-61` 的
+    //    `btn.style.backgroundImage = toggle-on/off`），没有任何程序绘制 —— 旋钮是画在
+    //    toggle-on/off 两张切图里的。原来这里在切图之上又叠了 `fillVGrad` 胶囊 + 一个
+    //    Graphics 圆旋钮（`circle()` 是三角化多边形 = 硬边圆），正是毛边的来源，已删。
+    //    切图缺失时开关为空（Web 同样只有 background-image，缺图也是空）。
     const sync = (on: boolean): void => {
       setSprite(art, `settings/toggle-${on ? 'on' : 'off'}`);
-      const sg = slot.getComponent(Graphics) ?? slot.addComponent(Graphics);
-      sg.clear();
-      // 槽：竖向渐变（toggle-on/off 两张切图的采样）
-      fillVGrad(
-        sg, TOGGLE_W, TOGGLE_H,
-        on ? new Color(119, 181, 101, 255) : new Color(113, 109, 117, 255),
-        on ? new Color(173, 224, 151, 255) : new Color(158, 156, 161, 255),
-        on ? new Color(90, 154, 64, 255) : new Color(106, 102, 108, 255),
-        0.5, TOGGLE_H / 2, 8,
-      );
-      const kg = knob.getComponent(Graphics) ?? knob.addComponent(Graphics);
-      kg.clear();
-      kg.circle(0, 0, (TOGGLE_H - 12) / 2);
-      kg.fillColor = new Color(230, 232, 214, 255);   // 旋钮采样 #d1d9c2 提亮一点
-      kg.fill();
-      knob.setPosition(on ? TOGGLE_W / 2 - TOGGLE_H / 2 : -(TOGGLE_W / 2 - TOGGLE_H / 2), 0, 0);
     };
     const keys: Array<keyof SettingsPatch> = ['bgm', 'sound', 'voice'];
     slot.on(Node.EventType.TOUCH_END, () => {
@@ -261,17 +256,18 @@ export class SettingsScreen {
     mkText(row, TUTORIAL.drawerTitle, LABEL_FS, x + w / 2, -4, LABEL_STROKE, w, true, 'left');
     mkText(row, TUTORIAL.drawerTitle, LABEL_FS, x + w / 2, 0, LABEL_COLOR, w, true, 'left');
 
+    // Web `.set-tutorial-btn`：140×76 胶囊 + 渐变 #ffd479→#ef9b28 + `0 5px 0 rgba(150,80,10,.6)`。
+    // 贴图 `fx/btn-view` 是 140×**81**（本体 76 画在**顶部**、下方 5 是硬投影）→
+    // 本体中心比贴图中心高 2.5 → 节点整体**下移** 2.5（本体中心才落在行的 0 位），
+    // 文字相对节点**上移** 2.5（回到本体中心）。别搞反，反了按钮会整体偏高 5px。
+    const TUT_BTN_DY = 5;
     const btn = new Node('btn');
     btn.layer = Layers.Enum.UI_2D;
-    btn.addComponent(UITransform).setContentSize(TUT_BTN_W, TUT_BTN_H);
-    btn.setPosition(TOGGLE_X + TOGGLE_W / 2 - TUT_BTN_W / 2, 0, 0);
-    const bg = btn.addComponent(Graphics);
-    bg.fillColor = TUT_BTN_SHADOW;
-    bg.roundRect(-TUT_BTN_W / 2, -TUT_BTN_H / 2 - 5, TUT_BTN_W, TUT_BTN_H, TUT_BTN_H / 2);
-    bg.fill();
-    fillVGrad(bg, TUT_BTN_W, TUT_BTN_H, TUT_BTN_A, TUT_BTN_A, TUT_BTN_B, 0.5, TUT_BTN_H / 2, 8);
+    btn.addComponent(UITransform).setContentSize(TUT_BTN_W, TUT_BTN_H + TUT_BTN_DY);
+    btn.setPosition(TOGGLE_X + TOGGLE_W / 2 - TUT_BTN_W / 2, -TUT_BTN_DY / 2, 0);
     btn.parent = row;
-    mkText(btn, SETTINGS.tutorialView, TUT_BTN_FS, 0, 0, WHITE, TUT_BTN_W, true, 'center');
+    mkSprite(btn, 'fx/btn-view', TUT_BTN_W, TUT_BTN_H + TUT_BTN_DY);
+    mkText(btn, SETTINGS.tutorialView, TUT_BTN_FS, 0, TUT_BTN_DY / 2, WHITE, TUT_BTN_W, true, 'center');
     btn.on(Node.EventType.TOUCH_END, () => this.h.onTutorial());
   }
 
