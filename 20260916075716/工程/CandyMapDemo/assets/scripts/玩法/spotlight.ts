@@ -192,7 +192,14 @@ export class SpotlightLayer {
     // 贴图 108×124：本体 76 居中，四周是 `0 6px 16px` 阴影的留白
     next.addComponent(UITransform).setContentSize(NEXT_D + 32, NEXT_D + 48);
     mkSprite(next, 'fx/spot-next', NEXT_D + 32, NEXT_D + 48);
-    const nl = next.addComponent(Label);
+    // ⚠️ ▾ 的 Label 不能直接 addComponent 在 next 上 —— 子节点（黄圆贴图）永远渲染在
+    //    父节点自身之上，字会被贴图整个盖住（实测 ▾ 消失、黄圆空白）。挂成贴图之后的
+    //    兄弟子节点，才在圆的上面。
+    const labelNode = new Node('label');
+    labelNode.layer = Layers.Enum.UI_2D;
+    labelNode.addComponent(UITransform).setContentSize(NEXT_D + 32, NEXT_D + 48);
+    labelNode.parent = next;
+    const nl = labelNode.addComponent(Label);
     nl.fontSize = NEXT_FONT;
     nl.lineHeight = NEXT_D;
     nl.color = NEXT_TEXT;
@@ -205,7 +212,7 @@ export class SpotlightLayer {
     (nl as unknown as { overflow: number }).overflow = 1;
     // ⚠️ overflow 是在 string/font 之后才设的，字体（applyUiFont 异步 ttf）首测时还是 NONE，
     //    节点已被挤成 37×96 且 CLAMP 不会还原 —— 这里显式恢复圆钮尺寸（实测必须）。
-    next.getComponent(UITransform)!.setContentSize(NEXT_D + 32, NEXT_D + 48);
+    labelNode.getComponent(UITransform)!.setContentSize(NEXT_D + 32, NEXT_D + 48);
     // 点「▾ 继续」= 继续（Web `next.addEventListener('click')`，spotlight.ts:77-83）
     next.on(Node.EventType.TOUCH_END, () => this.proceed());
     next.parent = root;

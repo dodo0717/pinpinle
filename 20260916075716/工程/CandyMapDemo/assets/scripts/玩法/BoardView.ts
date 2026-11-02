@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, Rect, Texture2D, resources, Vec3, tween, Color, UIOpacity, Graphics, Label, HorizontalTextAlignment, Mask } from 'cc';
+import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, Rect, Texture2D, resources, Vec3, tween, Tween, Color, UIOpacity, Graphics, Label, HorizontalTextAlignment, Mask } from 'cc';
 const { ccclass } = _decorator;
 import type { MergeDisplay } from '../核心/merge';
 import { pieceGeometry, QUADRANT_PX, type PieceGeometryInput } from './geometry';
@@ -576,8 +576,21 @@ export class BoardView extends Component {
       tween(ref.root)
         .to(ANIM.vanish * 0.35, { scale: new Vec3(1.15, 1.15, 1) })
         .to(ANIM.vanish * 0.65, { scale: new Vec3(0, 0, 1) })
-        .call(() => { ref.root.active = false; })
         .start();
+    }
+    // ⚠️⚠️ 不能在这里 `ref.root.active = false`！与 GameBootstrap 的
+    // `scheduleOnce(playCollapse, ANIM.vanish)` 是**同帧竞争**：playCollapse 里 setCells
+    // 刚把格子复活（setCellFace 无条件 active=true）、playFall 刚起跳，vanish 的收尾 call
+    // 再把节点关掉 —— deactivate 会**停掉节点上的 action**，下落/补位 tween 全部冻在
+    // 起跳位置：表现为「消除后棋盘错乱」（块叠在别处、大片空盘、还有两格飞出棋盘顶）。
+    // 可见性交给 setCellFace 的 `active = pieceId !== null` 统一管 —— 缩到 0 已经不可见。
+  }
+
+  /** 打断若干格 root 上的残留动效（消除→下压的衔接处用，防 vanish 残段把新块缩没/关掉） */
+  stopCellTweens(indices: readonly number[]): void {
+    for (const i of indices) {
+      const ref = this.cells[i];
+      if (ref) Tween.stopAllByTarget(ref.root);
     }
   }
 

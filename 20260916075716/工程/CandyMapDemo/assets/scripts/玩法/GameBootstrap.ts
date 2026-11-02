@@ -637,6 +637,9 @@ export class GameBootstrap extends Component {
 
   /** 下压 + 补位：由「碎片ID 从哪格到哪格」反推位移 */
   private playCollapse(st: ResolveStages): void {
+    // 与 playVanish 的收尾同帧竞争（见 BoardView.playVanish 的注释）：
+    // 先停掉消除格 root 上可能还在跑的 vanish 残段，再复活/下压，别让它把新块缩没或关掉。
+    this.view.stopCellTweens(st.eliminatedCells);
     const before = st.afterEliminate;
     const final = this.engine.board.toArray();
     const cols = this.cfg.cols;

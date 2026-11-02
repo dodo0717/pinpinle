@@ -37,9 +37,11 @@ export async function preloadUiFont(): Promise<void> {
  * ⚠️⚠️ 带 emoji 的文本**绝对不能**套 ttf：HarmonyOS Sans SC 是纯中文字体、不含 emoji 字形，
  *    套上之后 emoji 会渲染成空白/豆腐块 —— 教学里到处是 emoji
  *    （状态行 ✅○、补充 🕒⭐🔒、图解 ✨、手指 👆、关闭 ✕、箭头 ➜↑▾ 等）。
+ *    ⚠️ ▾(U+25BE) 在几何图形区 25A0-25FF —— 之前漏了这一段，聚光灯「继续」钮的
+ *    ▾ 被套上 ttf 后渲染成空白，黄圆里没有箭头（实测踩过）。
  *    Web 那边 emoji 也是由系统 emoji 字体渲染的，所以这里让它们继续走系统默认字体。
  */
-const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{FE0F}]/u;
+const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{25A0}-\u{25FF}\u{FE0F}]/u;
 
 /**
  * 给一个 Label 套上 UI 字体。字体还没加载完时先挂回调，加载完回填
