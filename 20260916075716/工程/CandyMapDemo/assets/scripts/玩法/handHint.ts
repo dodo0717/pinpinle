@@ -89,6 +89,12 @@ export class HandHint {
   /** 挂到棋盘并循环演示。`from`/`to` 为棋盘局部坐标（格子中心） */
   play(from: Vec3, to: Vec3): void {
     this.stop();
+    // ⚠️ 自愈挂载（Web 不需要、Cocos 必须）：`BoardView.build()` 每次建盘都会
+    //    `this.node.removeAllChildren()` 清旧格子，把常驻在棋盘节点里的这根手指一起摘下
+    //    → 手指从此 parent=NULL，`playing=true` 却永远不渲染（2026-11-02 实测：
+    //    tutHand.playing=true、root.parent=NULL、全场景搜不到 HandHint 节点）。
+    //    Web 的 `.tut-hand` 挂在 `#board`，格重建只清 `.cell`，所以没这问题。
+    if (this.parent?.isValid && this.root.parent !== this.parent) this.root.parent = this.parent;
     this.playing = true;
     this.root.setPosition(from.x, from.y, 0);
     this.flash.setPosition(to.x - from.x, to.y - from.y, 0);
