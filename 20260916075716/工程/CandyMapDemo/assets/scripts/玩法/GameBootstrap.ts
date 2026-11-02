@@ -1598,10 +1598,18 @@ export class GameBootstrap extends Component {
   }
 
   /**
-   * 目标块脉冲：Web `.cell.pulse`（ui.css:1504/1514-1517）= `tutPulse 1.1s ease-in-out infinite`：
-   * `scale 1↔1.07` + `brightness 1↔1.18`，作用在**格子本体**上（不是外圈金框）。
-   * scale 直接 tween 格子节点（同 setHint 的手段）；brightness 用白色圆角罩 0↔46 透明度近似
-   * （1.18 ≈ 向白压 18%）。玩家一按即被 guard 停掉。
+   * 目标块脉冲：Web `.cell.pulse`（ui.css:1504 / 1514-1517）
+   *   animation: tutPulse 1.1s ease-in-out infinite
+   *   @keyframes tutPulse {
+   *     0%,100% { transform: scale(1);    filter: brightness(1); }
+   *     50%     { transform: scale(1.07); filter: brightness(1.18); }
+   *   }
+   * 作用在**格子本体**上（不是外圈金框）。
+   *
+   * ⚠️ 照 Web 实现：**不能加任何白色罩层**。Cocos 没有 `filter: brightness`，
+   *    早期用「白色圆角矩形 + UIOpacity 呼吸」近似，构建包里后挂的 UIOpacity 对
+   *    Graphics 不生效 → 白罩渲染成不透明纯白，教学目标格/融合组变「白块」。
+   *    brightness(1.18) 这点轻微提亮在 Cocos 里做不到就**不做**（Web 的观感主体是缩放呼吸）。
    */
   private tutPulse(index: number): void {
     const n = this.view.cellNode(index);
@@ -1611,23 +1619,6 @@ export class GameBootstrap extends Component {
     tween(n).repeatForever(
       tween(n).to(0.55, { scale: new Vec3(1.07, 1.07, 1) }).to(0.55, { scale: new Vec3(1, 1, 1) }),
     ).start();
-
-    const old = n.getChildByName('tutPulse');
-    if (old) { Tween.stopAllByTarget(old); old.destroy(); }
-    const s = this.view.cellW;
-    const p = new Node('tutPulse');
-    p.layer = Layers.Enum.UI_2D;
-    p.addComponent(UITransform).setContentSize(s, s);
-    const g = p.addComponent(Graphics);
-    const r = Math.round(s * 0.1);   // pieceRadius(cell)：与碎片圆角同口径
-    g.fillColor = new Color(255, 255, 255, 255);
-    g.roundRect(-s / 2, -s / 2, s, s, r);
-    g.fill();
-    const op = p.addComponent(UIOpacity);
-    op.opacity = 0;
-    p.parent = n;
-    p.setPosition(0, 0, 0);
-    tween(op).repeatForever(tween(op).to(0.55, { opacity: 46 }).to(0.55, { opacity: 0 })).start();
   }
 
   /** 教学 step1：摆盘 + 演示落点（简单指缺口；困难指"下一步"） */
