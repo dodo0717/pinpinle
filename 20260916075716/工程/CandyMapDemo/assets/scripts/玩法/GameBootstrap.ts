@@ -169,7 +169,12 @@ export class GameBootstrap extends Component {
   /* ================================================================ 生命周期 */
 
   onLoad(): void {
-    view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.FIXED_WIDTH);
+    // ⚠️ 适配策略必须和首页一致：**SHOW_ALL**（1080×1920 等比缩放 + 完整显示 + 留边）。
+    //    这里原来是 `FIXED_WIDTH` —— 它锁宽度、**可视高度随窗口变**（宽屏下只剩 ±304），
+    //    一进关就把主玩法压成「屏幕中间一条」：棋盘/HUD/顶栏全部错位或被裁，
+    //    表现就是「第一关进去后主玩法分辨率不对」。Web 的 `#stage` 是写死的 1080×1920
+    //    + `fitStage()` 等比缩放摆正（web/index.html:58-65），全程一个策略，不存在进关换分辨率。
+    view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.SHOW_ALL);
 
     const host = new Node('BoardHost');
     host.parent = this.node;
