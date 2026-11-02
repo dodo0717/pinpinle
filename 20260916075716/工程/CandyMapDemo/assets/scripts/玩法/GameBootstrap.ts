@@ -1452,6 +1452,7 @@ export class GameBootstrap extends Component {
     this.paintAll();
     this.view.playDropIn();
     this.setPaused(true); // 序章不计时：onTick 也不 schedule，时间永远不走
+    this.setTimerFrozen(true);   // Web `main.ts:894`：倒计时灰显，玩家一眼看出「这里不计时」
 
     const lay = built.layout;
     this.tut = {
@@ -1826,6 +1827,7 @@ export class GameBootstrap extends Component {
     this.tutClearMarks();
     this.finished = true;
     this.setPaused(true);
+    this.setTimerFrozen(false);   // Web `main.ts:1126`：结算时解除灰显
     if (m === 'nightmare') GS.updateTutorial({ nightmareCleared: true });
     else GS.updateTutorial({ normalCleared: true });
     this.grantTutorialReward();
@@ -1833,9 +1835,11 @@ export class GameBootstrap extends Component {
     this.audio.play('win');
     this.speech.speak(TUTORIAL_VOICE.done);
     // 用结算弹窗底板：只有「教学完成 + 继续第 1 关 + 回首页」（用户要求能多简就多简）
-    this.dialog.show(TUTORIAL.doneTitle, [TUTORIAL.rewardFreeLevel], [
-      { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
+    // ⚠️ Web（main.ts:1143-1181）：奖励照发，但**弹窗不写奖励行**（用户要求能多简就多简），
+    //    且按钮是「主：继续第 1 关」在上、「次：回首页」在下 —— 之前多了一行奖励、顺序也是反的
+    this.dialog.show(TUTORIAL.doneTitle, [], [
       { text: TUTORIAL.donePrimary, onClick: () => { this.dialog.hide(); this.startLevel(1); }, primary: true },
+      { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
     ]);
   }
 
@@ -1865,22 +1869,23 @@ export class GameBootstrap extends Component {
     this.tutClearMarks();
     this.finished = true;
     this.setPaused(true);
+    this.setTimerFrozen(false);   // Web `main.ts:1204`
   }
 
-  /** 跳过教学（横幅旁的「跳过」入口）—— 发奖励但不算完成 */
-  skipTutorial(): void {
-    if (!this.tut) return;
-    this.tut = null;
-    this.tutBanner.hide();
-    this.tutHand.stop();
-    this.tutSpot.hide();
-    this.tutClearMarks();
-    this.finished = true;
-    this.setPaused(true);
-    this.dialog.show(TUTORIAL.doneTitle, [], [
-      { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
-      { text: TUTORIAL.donePrimary, onClick: () => { this.dialog.hide(); this.startLevel(1); }, primary: true },
-    ]);
+  /**
+   * Web `#hud-timer.frozen`（main.ts:894/1035/1044）：序章不计时时倒计时块 `opacity:.45 + grayscale(1)`。
+   * ⚠️ Cocos 没有 CSS filter，grayscale 做不到（见「灰度切图」那条经验），这里用 **UIOpacity 115**
+   *    近似「淡下去」，再把两个 Label 调成灰蓝，视觉上就是"这块暂时不算数"。
+   */
+  private setTimerFrozen(on: boolean): void {
+    const t = this.timerNode;
+    if (!t || !t.isValid) return;
+    const op = t.getComponent(UIOpacity) ?? t.addComponent(UIOpacity);
+    if (on) tween(op).stop();          // 别和 danger 脉冲抢同一条 tween
+    op.opacity = on ? 115 : 255;
+    for (const l of t.getComponentsInChildren(Label)) {
+      l.color = on ? new Color(198, 205, 216) : new Color(255, 233, 176);
+    }
   }
 
   /** 聚光灯目标矩形（顶栏固定坐标：计分面板 (51,822) 246×162 / 计时块 (390,822) 228×160）。

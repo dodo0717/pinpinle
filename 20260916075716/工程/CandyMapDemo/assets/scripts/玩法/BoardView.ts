@@ -2,6 +2,7 @@ import { _decorator, Component, Node, Sprite, SpriteFrame, UITransform, Layers, 
 const { ccclass } = _decorator;
 import type { MergeDisplay } from '../核心/merge';
 import { pieceGeometry, QUADRANT_PX, type PieceGeometryInput } from './geometry';
+import { applyUiFont } from '../界面/fontUtil';
 
 /** 得分飘字时长（秒）—— 原版 FLOAT_MS = 500，与消除并行 */
 const FLOAT_SEC = 0.5;
@@ -558,6 +559,7 @@ export class BoardView extends Component {
     l.lineHeight = 40;
     l.color = new Color(255, 214, 92, 255);
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
+    applyUiFont(l);
     const op = n.addComponent(UIOpacity);
 
     // HUD 分数面板中心（cocos 坐标）换算到棋盘本地：面板 (51, 822) − 棋盘容器 (0, -125)

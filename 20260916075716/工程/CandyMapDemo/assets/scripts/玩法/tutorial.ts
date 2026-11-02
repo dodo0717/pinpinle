@@ -27,6 +27,7 @@ import {
 } from '../核心/index';
 import { TUTORIAL, TUTORIAL_VOICE } from './text';
 import { mkSprite, setSprite } from '../界面/uiPaint';
+import { applyUiFont } from '../界面/fontUtil';
 
 /* ------------------------------------------------------------------ 序章配置 */
 
@@ -388,8 +389,9 @@ export class TutorialDrawer {
     const L0 = -PANEL_W / 2 + 40;                 // 内容左边缘 −381
     const CW = PANEL_W - 80;                      // 内容宽 762
 
-    /* head：`.tut-title` 56/900/#7a4100（左对齐）+ `.tut-close` 76 圆（右上，实测中心 x=+343） */
-    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + (CW - 96) / 2, 876, C_TITLE, CW - 96, 0);
+    /* head：`.tut-title` 56/900/#7a4100（**左对齐**，实测盒宽 394）+ `.tut-close` 76 圆（右上 x=+343）
+     *    ⚠️ Web 的 `.tut-head` 是 `justify-content: space-between`，标题贴左，不是居中 */
+    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + 197, 876, C_TITLE, 394, 0);
     const closeBtn = new Node('close');
     closeBtn.layer = Layers.Enum.UI_2D;
     closeBtn.addComponent(UITransform).setContentSize(76, 76);
@@ -408,13 +410,14 @@ export class TutorialDrawer {
     this.statusNightmareMark = s2[0];
     this.statusNightmare = s2[1];
 
-    /* 卡 2（实测 y293 h374）：⚠️ 两个按钮**撑满整张卡**（Web 实测按钮宽 = 卡宽 762，
-     *    左缘与卡 padding 外缘齐平），中心 555 / 426 —— 之前缩进 30 是错的 */
+    /* 卡 2（实测 y293 h374）：⚠️ 按钮是 `width:100%` + 左右各 **−34 负 margin**（贴在卡内容区
+     *    之外）→ 渲染宽 762、左缘比卡还靠左 34，中心 x = −34（不是居中 0）。
+     *    实测证据：按钮 offsetLeft=40 / 卡 offsetLeft=74，同一 offsetParent 下差 34。 */
     this.addCard(panel, CW, 374, 0, 480, false);
-    const b1 = this.addTutButton(panel, CW, BTN_H, 0, 555, true, () => this.handlers.onStartNormal());
+    const b1 = this.addTutButton(panel, CW, BTN_H, -34, 555, true, () => this.handlers.onStartNormal());
     this.btnNormalLabel = b1[1];
     this.btnNormalSprite = b1[0];
-    const b2 = this.addTutButton(panel, CW, BTN_GHOST_H, 0, 426, false, () => {
+    const b2 = this.addTutButton(panel, CW, BTN_GHOST_H, -34, 426, false, () => {
       if (this.btnNightmareDim) return;
       this.handlers.onStartNightmare();
     });
@@ -460,6 +463,8 @@ export class TutorialDrawer {
     // Web 的教学面板文字字重全部在 600~900（fs38/700 状态行、fs32/600 正文、fs56/900 标题），
     //    Cocos Label 默认 400 → 视觉明显偏细，统一开粗体近似
     l.isBold = true;
+    // ⚠️ 字体：教学模块此前一直用 Cocos 默认字体，与 Web（PingFang SC / 微软雅黑）不是一套字形
+    applyUiFont(l);
     // ⚠️ 打包后 cc 命名空间里的枚举可能被摇掉，直接用数值（0=LEFT / 1=CENTER / 1=CENTER）
     const any = l as unknown as { horizontalAlign: number; verticalAlign: number };
     any.horizontalAlign = align;
@@ -591,8 +596,9 @@ export class TutorialDrawer {
       mkSprite(sh, 'fx/grid-shadow', 172, 176);
     }
 
-    // 左列：「3 缺 1」—— 右下角是 `.tut-fig-gap`（**4px 实线白边** + rgba(60,35,0,.45) 底 + 圆角 8；
-    //    ⚠️ 之前按 memory 记的「虚线」烘错了，运行时 computedStyle 是 solid）
+    // 左列：「3 缺 1」—— 右下角是 `.tut-fig-gap`（`4px **dashed** rgba(255,255,255,.9)` + rgba(60,35,0,.45) 底 + 圆角 8）
+    //    ⚠️ 上一轮我只 dump 了 border 的**颜色**就断定是实线、把贴图重烘成实线 —— 是误改。
+    //       CSS 原文（ui.css:1452）明确是 dashed，现已改回虚线。教训：dump 要连 borderStyle 一起看。
     mkPiece(COL1 - px / 2, gy + px / 2, 0);
     mkPiece(COL1 + px / 2, gy + px / 2, 1);
     mkPiece(COL1 - px / 2, gy - px / 2, 2);
@@ -611,8 +617,8 @@ export class TutorialDrawer {
     // `.tut-fig-arrow`：➜ 48px，垂直居中于整块
     this.addText(fig, '➜', 48, 0, 0, C_FIG_ARROW, 60, 1);
 
-    // 右列：⚠️ 实测 done 列的 y 比左列**低 49**（692 vs 643），不是同一水平线
-    const gy2 = gy - 49;
+    // 右列：⚠️ 实测 done 列比左列低（692 vs 643）；按 Web 的 flex 居中推算是 −41.5（不是 −49）
+    const gy2 = gy - 41.5;
     mkPiece(COL2 - px / 2, gy2 + px / 2, 0);
     mkPiece(COL2 + px / 2, gy2 + px / 2, 1);
     mkPiece(COL2 - px / 2, gy2 - px / 2, 2);

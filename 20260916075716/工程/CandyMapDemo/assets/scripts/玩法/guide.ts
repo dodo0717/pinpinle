@@ -7,6 +7,7 @@
  */
 
 import { _decorator, Component, Node, Graphics, UITransform, Label, Color, Layers, HorizontalTextAlignment, VerticalTextAlignment, UIOpacity, tween } from 'cc';
+import { applyUiFont } from '../界面/fontUtil';
 const { ccclass } = _decorator;
 
 const BAR_W = 880;
@@ -45,6 +46,7 @@ export class GuideBar extends Component {
     l.color = new Color(255, 255, 255, 255);
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     l.verticalAlign = VerticalTextAlignment.CENTER;
+    applyUiFont(l);
     this.label = l;
 
     this.op = this.bar.addComponent(UIOpacity);

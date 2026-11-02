@@ -6,6 +6,7 @@
  */
 
 import { _decorator, Component, Node, Graphics, UITransform, Label, Color, Layers, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
+import { applyUiFont } from '../界面/fontUtil';
 const { ccclass } = _decorator;
 
 export interface DialogButton {
@@ -116,6 +117,7 @@ export class GameDialog extends Component {
     l.color = color;
     l.horizontalAlign = HorizontalTextAlignment.CENTER;
     l.verticalAlign = VerticalTextAlignment.CENTER;
+    applyUiFont(l);
   }
 
   private button(b: DialogButton, x: number, y: number): void {

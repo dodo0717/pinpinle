@@ -14,6 +14,7 @@
 
 import { Node, Graphics, Sprite, Color, UITransform, Label, Layers, UIOpacity, tween, director, Director } from 'cc';
 import { mkSprite, setSprite } from '../界面/uiPaint';
+import { applyUiFont } from '../界面/fontUtil';
 
 export interface SpotlightRect {
   /** 洞的中心（设计坐标，屏幕中心为原点） */
@@ -78,6 +79,10 @@ export class SpotlightLayer {
   private open = false;
   /** 点击回调由持有者（GameBootstrap）注入 —— 用统一入口 onTouch 判断 */
   private onTapped: (() => void) | null = null;
+  /** 洞的四块「圆角补丁」：Web `.spot-hole` 是 radius 26 的圆角矩形，四块矩形围出的是直角 */
+  private corners: Node[] = [];
+  /** 洞外的呼吸金环（Web `spotBreath`：spread 4↔12 的 rgba(255,210,100,.55↔.18)） */
+  private ring: Node = null!;
 
   static create(parent: Node): SpotlightLayer {
     const s = new SpotlightLayer();
@@ -102,6 +107,34 @@ export class SpotlightLayer {
     shade.addComponent(Graphics);
     shade.parent = root;
     this.shade = shade;
+
+    /*
+     * ⚠️ 四块矩形围出来的洞是**直角**，而 Web `.spot-hole` 是 `border-radius: 26` 的圆角矩形
+     *    —— 每个角都少遮了一块月牙，看着就是"洞角是尖的"。这里补四块 26×26 的圆角补丁
+     *    （贴图 = 填遮罩色后挖掉一个 r=26 的圆），四个角靠 scaleX/scaleY = ±1 翻转复用一张。
+     */
+    for (let i = 0; i < 4; i += 1) {
+      const c = new Node('corner' + i);
+      c.layer = Layers.Enum.UI_2D;
+      c.addComponent(UITransform).setContentSize(26, 26);
+      c.parent = root;
+      const csp = c.addComponent(Sprite);
+      csp.sizeMode = Sprite.SizeMode.CUSTOM;
+      setSprite(csp, 'fx/spot-hole-corner');
+      this.corners.push(c);
+    }
+
+    // 呼吸金环：九宫格环贴图，尺寸 = 洞 + 环宽 12×2
+    const ring = new Node('ring');
+    ring.layer = Layers.Enum.UI_2D;
+    ring.addComponent(UITransform).setContentSize(200, 200);
+    ring.addComponent(UIOpacity).opacity = 46;
+    ring.parent = root;
+    const rsp = ring.addComponent(Sprite);
+    rsp.sizeMode = Sprite.SizeMode.CUSTOM;
+    rsp.type = Sprite.Type.SLICED;
+    setSprite(rsp, 'fx/spot-ring');
+    this.ring = ring;
 
     // 气泡底板（先于文字加，渲染在文字下层）→ 预烘焙九宫格贴图
     const tipBg = new Node('tipBg');
@@ -128,6 +161,7 @@ export class SpotlightLayer {
     (tl as unknown as { horizontalAlign: number }).horizontalAlign = 1;
     (tl as unknown as { verticalAlign: number }).verticalAlign = 1;
     (tl as unknown as { overflow: number }).overflow = 3;
+    applyUiFont(tl);
     tip.parent = root;
     this.tipNode = tip;
 
@@ -142,6 +176,7 @@ export class SpotlightLayer {
     nl.lineHeight = NEXT_D;
     nl.color = NEXT_TEXT;
     nl.string = '▾';
+    applyUiFont(nl);
     (nl as unknown as { horizontalAlign: number }).horizontalAlign = 1;
     (nl as unknown as { verticalAlign: number }).verticalAlign = 1;
     // ⚠️ Label 默认 overflow=NONE 会把节点尺寸改成文字大小，76×76 的圆钮会被挤成 37×96。
@@ -268,6 +303,32 @@ export class SpotlightLayer {
     if (right < R) g.rect(right, bottom, R - right, hy);
     g.fill();
 
+    /* 洞的四角补圆角：补丁 26×26，靠 scaleX/scaleY = ±1 让"挖掉的那一角"朝向洞心 */
+    const cw = right - left;
+    const ch = top - bottom;
+    const cpos: Array<[number, number, number, number]> = [
+      [left + 13, top - 13, 1, 1],        // 左上：洞心在右下
+      [right - 13, top - 13, -1, 1],      // 右上：洞心在左下
+      [left + 13, bottom + 13, 1, -1],    // 左下：洞心在右上
+      [right - 13, bottom + 13, -1, -1],  // 右下：洞心在左上
+    ];
+    for (let i = 0; i < 4; i += 1) {
+      const [cx, cy, sx, sy] = cpos[i];
+      this.corners[i].setPosition(cx, cy, 0);
+      this.corners[i].setScale(sx, sy, 1);
+    }
+
+    /* 呼吸金环：尺寸 = 洞 + 环宽 12×2；Web `spotBreath 1.6s` → 半周期 0.8s，
+     *    opacity 在 .18(46) ↔ .55(140) 之间来回（spread 4↔12 用透明度近似） */
+    this.ring.getComponent(UITransform)!.setContentSize(cw + 24, ch + 24);
+    this.ring.setPosition(rect.cx, rect.cy, 0);
+    const rop = this.ring.getComponent(UIOpacity)!;
+    tween(rop).stop();
+    rop.opacity = 46;
+    tween(rop)
+      .repeatForever(tween(rop).to(0.8, { opacity: 140 }).to(0.8, { opacity: 46 }))
+      .start();
+
     // ⚠️ 下面这一段是 Web `spotlight.ts:96-113` 的逐行搬运：CSS 用「左上原点、y 向下」，
     //    这里先换算成 CSS 的 top/left 算完，再翻回 Cocos 的中心坐标，避免自己另起一套。
     const cssTop = T - top;      // 洞顶到屏幕上边缘
@@ -307,6 +368,7 @@ export class SpotlightLayer {
   hide(): void {
     this.open = false;
     this.onNextCb = null;
+    tween(this.ring.getComponent(UIOpacity)!).stop();   // 呼吸金环跟着收
     const op = this.root.getComponent(UIOpacity)!;
     tween(op).to(0.2, { opacity: 0 }).call(() => {
       if (!this.open) this.root.active = false;

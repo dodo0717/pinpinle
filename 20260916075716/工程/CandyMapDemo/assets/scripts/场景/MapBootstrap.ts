@@ -6,6 +6,7 @@ import {
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { HomeHUD } from '../界面/HomeHUD';
+import { preloadUiFont } from '../界面/fontUtil';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -177,6 +178,9 @@ export class MapBootstrap extends Component {
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
         startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
+        // UI 字体：教学/弹窗/气泡等**不走** makeLabel 的文字此前一直用 Cocos 默认字体，
+        //    与 Web（PingFang SC / 微软雅黑）不是一套字形。这里开局预读一次，避免首次弹面板时字突然跳。
+        void preloadUiFont();
         // 右上角菜单转发：只有小游戏有这个入口，别的宿主一律 false（这里不弹提示，没入口就当没有）
         setMenuShare(() => ({ title: SHARE.menuTitle, query: 'from=menu' }));
         // 从「已解锁到的那一关」所在世界开局，而不是永远从第 1 世界（否则 180 关要一路翻过去）
