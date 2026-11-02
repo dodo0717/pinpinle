@@ -119,32 +119,21 @@ export class HomeHUD extends Component {
     const user = this.mkNode(root, 'TopUser', USER.w, USER.h, USER.x, USER.y);
     this.makeSprite(user, 'Img', 'ui/home/banner', USER.w, USER.h, 0, 0);
     // 头像：84×84 圆徽章 = 奶白底 #FFF8E7 + 4px 金边 #F5C542 + 0 3px 0 rgba(0,0,0,.18)
-    // （Web `.home-avatar`，ui.css:938-943 —— 只写一个 🐶 emoji 会少掉整块圆牌）
-    const av = this.mkNode(user, 'AvatarBadge', AVATAR.w, AVATAR.h, AVATAR.x, AVATAR.y);
-    const ag = av.addComponent(Graphics);
-    const ar = AVATAR.w / 2;
-    ag.fillColor = new Color(0, 0, 0, 46);              // 0 3px 0 rgba(0,0,0,.18)
-    ag.circle(0, -3, ar);
-    ag.fill();
-    ag.fillColor = new Color(255, 248, 231, 255);       // #FFF8E7
-    ag.circle(0, 0, ar);
-    ag.fill();
-    ag.lineWidth = 4;
-    ag.strokeColor = new Color(245, 197, 66, 255);      // #F5C542
-    ag.circle(0, 0, ar - 2);
-    ag.stroke();
-    this.label(user, '🐶', 56, new Color(255, 255, 255, 255), AVATAR.w, AVATAR.h, AVATAR.x, AVATAR.y);
-    // 昵称：棕胶囊底 #6B4A2F + radius 100 + padding 8/22 + 0 3px 0 rgba(0,0,0,.18)
-    // （Web `.home-nick`，ui.css:944-949；实测框 124×68 = 文字 80 + padding 44）
-    const nb = this.mkNode(user, 'NickBg', NICK.w, NICK.h, NICK.x, NICK.y);
-    const ng = nb.addComponent(Graphics);
-    ng.fillColor = new Color(0, 0, 0, 46);
-    this.roundRect(ng, -NICK.w / 2, -NICK.h / 2 - 3, NICK.w, NICK.h, NICK.h / 2);
-    ng.fill();
-    ng.fillColor = new Color(107, 74, 47, 255);         // #6B4A2F
-    this.roundRect(ng, -NICK.w / 2, -NICK.h / 2, NICK.w, NICK.h, NICK.h / 2);
-    ng.fill();
-    this.nickLabel = this.label(user, HOME.nickname, 40, new Color(255, 233, 199, 255), NICK.w, NICK.h, NICK.x, NICK.y, true,
+    // （Web `.home-avatar`，ui.css:938-943；实测 docs/dump/web-home.json:95-113）。
+    // ⚠️ 原来用 Graphics `circle()` —— 三角化多边形 = 硬边圆（毛边）。改预烘焙贴图
+    //    `fx/avatar-badge`（84×87：本体 84 在顶部、下方 3 是硬投影）。
+    //    本体中心比贴图中心高 1.5 → 节点下移 1.5、emoji 上移 1.5。
+    const AV_DY = 3;
+    this.makeSprite(user, 'AvatarBadge', 'ui/fx/avatar-badge', AVATAR.w, AVATAR.h + AV_DY, AVATAR.x, AVATAR.y - AV_DY / 2);
+    this.label(user, '🐶', 56, new Color(255, 255, 255, 255), AVATAR.w, AVATAR.h, AVATAR.x, AVATAR.y + AV_DY / 2);
+    // 昵称：棕胶囊底 #6B4A2F + radius 100(=半高 34) + padding 8/22 + 0 3px 0 rgba(0,0,0,.18)
+    // （Web `.home-nick`，ui.css:944-949；实测框 124×68 = 文字 80 + padding 44，web-home.json:115-132）。
+    // ⚠️ 原来是 Graphics `roundRect()`（三角化硬边）→ 预烘焙贴图 `fx/nick-capsule`
+    //    （124×71：本体 68 在顶部 + 下方 3 硬投影；九宫格 [34,34,34,37]，昵称变长横向拉伸不变形）。
+    const NICK_DY = 3;
+    const nb = this.makeSprite(user, 'NickBg', 'ui/fx/nick-capsule', NICK.w, NICK.h + NICK_DY, NICK.x, NICK.y - NICK_DY / 2);
+    nb.type = Sprite.Type.SLICED;
+    this.nickLabel = this.label(user, HOME.nickname, 40, new Color(255, 233, 199, 255), NICK.w, NICK.h, NICK.x, NICK.y + NICK_DY / 2, true,
       { color: new Color(40, 20, 5, 89), dx: 0, dy: -3 });
 
     // 体力胶囊 + 红心 + 数字 + ＋
