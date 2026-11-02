@@ -1,0 +1,135 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "4d231684-f043-4884-bd98-2cc36d3da27d",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "4d231684-f043-4884-bd98-2cc36d3da27d@6c48a",
+      "displayName": "shadow-card-lp",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "4d231684-f043-4884-bd98-2cc36d3da27d",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "4d231684-f043-4884-bd98-2cc36d3da27d@f9941",
+      "displayName": "shadow-card-lp",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0,
+        "offsetY": -5,
+        "trimX": 0,
+        "trimY": 10,
+        "width": 948,
+        "height": 833,
+        "rawWidth": 948,
+        "rawHeight": 843,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -474,
+            -416.5,
+            0,
+            474,
+            -416.5,
+            0,
+            -474,
+            416.5,
+            0,
+            474,
+            416.5,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            0,
+            833,
+            948,
+            833,
+            0,
+            0,
+            948,
+            0
+          ],
+          "nuv": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0.9881376037959668,
+            1,
+            0.9881376037959668
+          ],
+          "minPos": [
+            -474,
+            -416.5,
+            0
+          ],
+          "maxPos": [
+            474,
+            416.5,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "4d231684-f043-4884-bd98-2cc36d3da27d@6c48a",
+        "atlasUuid": "",
+        "trimType": "auto",
+        "displayName": "shadow-card-lp",
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "fixAlphaTransparencyArtifacts": false,
+    "hasAlpha": true,
+    "redirect": "4d231684-f043-4884-bd98-2cc36d3da27d@6c48a"
+  }
+}

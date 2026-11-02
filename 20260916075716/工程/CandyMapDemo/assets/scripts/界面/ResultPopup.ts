@@ -12,7 +12,8 @@
  * 也不用 tween 的 onUpdate —— 预览 shim 未实现）。
  */
 
-import { Node, UITransform, Graphics, Label, Color, Layers, tween, Vec3 } from 'cc';
+import { Node, UITransform, Graphics, Label, Color, Layers, tween, Vec3, UIOpacity, Sprite } from 'cc';
+import { mkFx, mkSprite, setSprite } from './uiPaint';
 
 export interface ResultButton {
   text: string;
@@ -103,18 +104,20 @@ export class ResultPopup {
     }
     rope.parent = drop;
 
+    // 吊牌外投影 `0 26px 64px rgba(60,40,10,.45)`（Web `.lp-card`）→ 预烘焙模糊贴图。
+    //    贴图 768x934（= 640x780 + 2*64，再留出 26 的下移），中心比牌中心低 13（dy/2）
+    mkFx(drop, 'cardShadow', 'fx/shadow-card-result', 768, 934, 0, CARD_Y - 13);
+
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
     card.setPosition(0, CARD_Y, 0);
-    const cg = card.addComponent(Graphics);
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 34);
-    cg.fillColor = new Color(243, 217, 164, 255);
-    cg.fill();
-    cg.lineWidth = 10;
-    cg.strokeColor = new Color(185, 138, 75, 255);
-    cg.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 34);
-    cg.stroke();
+    // 牌面（米色渐变 #FFF8E7→#fdeccb + 6px 金边 #F5C542 + 圆角 38）→ 预烘焙切图。
+    //    ⚠️ 原来画的是 #F3D9A4 实色 + 10px 棕边 + 圆角 34，与 Web `.lp-card` 不是同一套材质。
+    //    ⚠️ 必须挂在 `drop` 上做**兄弟节点**、排在 `card` 之前：`show()` 每次都会
+    //    `card.children.destroy()` 清空内容，牌面若放进 card 会在第一次刷新时被一起销毁
+    //    （实测表现：牌面消失，只剩分数卡和按钮飘在半空）。
+    mkSprite(drop, 'fx/card-result', CARD_W, CARD_H, 0, CARD_Y);
     card.parent = drop;
     card.on(Node.EventType.TOUCH_END, () => undefined); // 牌子上点不算关闭
     this.card = card;
@@ -171,10 +174,9 @@ export class ResultPopup {
       box.layer = Layers.Enum.UI_2D;
       box.addComponent(UITransform).setContentSize(CARD_W - 80, 150);
       box.setPosition(0, y - 60, 0);
-      const bg = box.addComponent(Graphics);
-      bg.roundRect(-(CARD_W - 80) / 2, -75, CARD_W - 80, 150, 22);
-      bg.fillColor = new Color(255, 250, 238, 255);
-      bg.fill();
+      // 分数卡（米白渐变 #FFFDF6→#FBEFD2 + 3px 浅金边 #EAD08A + 圆角 28）→ 预烘焙切图
+      //    ⚠️ 原来是 #FFFAEE 实色 + 圆角 22，少了渐变和描边
+      mkSprite(box, 'fx/score-card', CARD_W - 80, 150);
       box.parent = card;
       this.mkLabel(box, opts.scoreLabel ?? '本关得分', 30, 0, 46, new Color(140, 110, 80), CARD_W - 100);
       const value = this.mkLabel(box, '0', 64, 0, -6, new Color(90, 50, 25), CARD_W - 100);
@@ -198,15 +200,20 @@ export class ResultPopup {
         const item = row[i]!;
         const btn = new Node('btn');
         btn.layer = Layers.Enum.UI_2D;
-        btn.addComponent(UITransform).setContentSize(bw, 96);
-        btn.setPosition(-(n - 1) * bw / 2 + i * bw, 0, 0);
-        const g = btn.addComponent(Graphics);
-        g.roundRect(-bw / 2 + 6, -48, bw - 12, 96, 48);
-        g.fillColor = item.dim ? new Color(176, 176, 184, 255)
-          : item.primary ? new Color(255, 196, 92, 255) : new Color(226, 226, 232, 255);
-        g.fill();
+        // 贴图 320x102：多出的 6px 是 Web `box-shadow: 0 6px 0` 的硬边下影，
+        // 所以节点按 102 建、整体上移 3，让**本体**（96 高）的圆心仍在 btnRow 的 0 位
+        btn.addComponent(UITransform).setContentSize(bw, 102);
+        btn.setPosition(-(n - 1) * bw / 2 + i * bw, 3, 0);
+        // 胶囊按钮（Web `.rs-btn` 深灰+金边 / `.primary` 绿渐变+深绿边）→ 九宫格切图：
+        // 左右各 48 是不拉伸的圆角区，中间横拉，任意宽度圆角都不会变成椭圆
+        const bs = btn.addComponent(Sprite);
+        bs.sizeMode = Sprite.SizeMode.CUSTOM;
+        bs.type = Sprite.Type.SLICED;
+        setSprite(bs, item.primary ? 'fx/rs-btn-primary' : 'fx/rs-btn');
+        // 置灰：Web 是 `.rs-btn.dim { opacity: .5 }` —— 换的是透明度，不是换一套灰底
+        if (item.dim) btn.addComponent(UIOpacity).opacity = 128;
         btn.parent = btnRow;
-        this.mkLabel(btn, item.text, 36, 0, 0, new Color(90, 50, 25), bw - 12);
+        this.mkLabel(btn, item.text, 36, 0, -3, new Color(255, 255, 255), bw - 12);
         btn.on(Node.EventType.TOUCH_END, () => {
           if (item.dim) return; // 置灰：只弹提示（由调用方 toast）——这里静默，避免重复提示
           this.hide();

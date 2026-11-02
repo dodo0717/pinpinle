@@ -25,7 +25,8 @@
  *   - CSS keyframes 三段用两段 tween 近似（0.33s quadOut 到 +6%，再 0.22s backOut 回 0）。
  */
 
-import { Node, UITransform, Graphics, Label, Color, Layers, UIOpacity, tween, Vec2, Vec3 } from 'cc';
+import { Node, UITransform, Graphics, Label, Color, Layers, UIOpacity, Sprite, tween, Vec2, Vec3 } from 'cc';
+import { mkFx, mkSprite, setSprite } from './uiPaint';
 
 export type LevelMode = 'normal' | 'nightmare';
 
@@ -195,47 +196,24 @@ export class LevelPreview {
     rope.parent = drop;
   }
 
-  /** 牌子：820×689，渐变 + 6px #F5C542 边框 + 半径 38 + 0 26px 64px 阴影 */
+  /**
+   * 牌子：820×689，米色渐变 + 6px #F5C542 边框 + 半径 38 + `0 26px 64px` 阴影。
+   * ⚠️ 牌面与阴影都改**预烘焙贴图**：原来用 24 条色带近似渐变、5 层同心圆角矩形近似模糊，
+   *    前者是横向条带、后者是同心台阶，加上圆角三角化硬边 —— 正是「材质不一样 + 毛边」的来源。
+   */
   private buildCard(drop: Node): Node {
+    // 外投影贴图 948x843（= 820x689 + 2*64，再留 26 的下移），中心比牌中心低 13（dy/2）
+    mkFx(drop, 'cardShadow', 'fx/shadow-card-lp', 948, 843, 0, CARD_LOCAL_Y - 13);
+
     const card = new Node('card');
     card.layer = Layers.Enum.UI_2D;
     card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
     card.setPosition(0, CARD_LOCAL_Y, 0);
-    const g = card.addComponent(Graphics);
-    this.paintCard(g);
+    mkSprite(card, 'fx/card-lp', CARD_W, CARD_H);
     card.parent = drop;
     // 牌子上点不算关闭：吃掉事件
     card.on(Node.EventType.TOUCH_END, () => undefined);
     return card;
-  }
-
-  private paintCard(g: Graphics): void {
-    g.clear();
-    // 阴影（0 26px 64px）：向下偏移 26、用 5 层低透明同心圆角矩形近似高斯模糊
-    for (let i = 4; i >= 0; i--) {
-      const spread = (i / 4) * 64;
-      const a = Math.round(C_CARD_SHADOW.a * (0.16 + 0.06 * (4 - i)));
-      g.fillColor = new Color(C_CARD_SHADOW.r, C_CARD_SHADOW.g, C_CARD_SHADOW.b, a);
-      g.roundRect(
-        -CARD_W / 2 - spread, -CARD_H / 2 - spread - 26,
-        CARD_W + spread * 2, CARD_H + spread * 2, 38 + spread,
-      );
-      g.fill();
-    }
-    // 牌面渐变（上 255,248,231 → 下 253,236,203）
-    const bands = 24;
-    const bh = CARD_H / bands;
-    for (let i = 0; i < bands; i++) {
-      const t = (bands - 1 - i) / (bands - 1);      // i=0 是最上一条（y 最大）
-      g.fillColor = lerpColor(C_CARD_TOP, C_CARD_BOT, t);
-      g.rect(-CARD_W / 2, CARD_H / 2 - (i + 1) * bh, CARD_W, bh + 0.6);
-      g.fill();
-    }
-    // 6px 边框：Web 是 border-box（边框在 820 里面），所以路径内缩半个线宽
-    g.lineWidth = 6;
-    g.strokeColor = C_CARD_BORDER;
-    g.roundRect(-CARD_W / 2 + 3, -CARD_H / 2 + 3, CARD_W - 6, CARD_H - 6, 35);
-    g.stroke();
   }
 
   /** ✕：60×60 圆，牌内 top 22 / right 26 */
@@ -330,23 +308,18 @@ export class LevelPreview {
     const y = -CARD_H / 2 + 88 + PLAY_H / 2;
     const n = new Node('play');
     n.layer = Layers.Enum.UI_2D;
-    n.addComponent(UITransform).setContentSize(PLAY_W, PLAY_H);
-    n.setPosition(0, y, 0);
-    const g = n.addComponent(Graphics);
-    const r = PLAY_H / 2;
-    g.fillColor = C_PLAY_SHADOW;
-    g.roundRect(-PLAY_W / 2, -PLAY_H / 2 - 8, PLAY_W, PLAY_H, r);
-    g.fill();
-    const bands = 16;
-    const bh = PLAY_H / bands;
-    for (let i = 0; i < bands; i++) {
-      const t = (bands - 1 - i) / (bands - 1);
-      g.fillColor = lerpColor(C_PLAY_TOP, C_PLAY_BOT, t);
-      g.rect(-PLAY_W / 2, PLAY_H / 2 - (i + 1) * bh, PLAY_W, bh + 0.6);
-      g.fill();
-    }
+    // 贴图 378x146：多出的 8px 是 Web `0 8px 0 rgba(20,120,40,.5)` 的硬边下影，
+    // 节点按 146 建、上移 4，让本体（138 高）的中心回到 y
+    n.addComponent(UITransform).setContentSize(PLAY_W, PLAY_H + 8);
+    n.setPosition(0, y + 4, 0);
+    // 胶囊按钮 → 九宫格切图（左右各 69 是唯一不拉伸的圆角区），渐变不再拆条带
+    const bs = n.addComponent(Sprite);
+    bs.sizeMode = Sprite.SizeMode.CUSTOM;
+    bs.type = Sprite.Type.SLICED;
+    setSprite(bs, 'fx/btn-play');
     n.parent = card;
-    mkLabel(n, 'Play', PLAY_FS, 0, 0, C_WHITE, PLAY_W, true);
+    // 文字相对节点下移 4，抵消上面为下影做的上移 → 视觉上仍在本体正中
+    mkLabel(n, 'Play', PLAY_FS, 0, -4, C_WHITE, PLAY_W, true);
     n.on(Node.EventType.TOUCH_END, () => {
       if (!this.openState) return;
       this.h.onPlay(this.level, this.curMode);
@@ -380,27 +353,20 @@ export class LevelPreview {
     for (const m of ['normal', 'nightmare'] as LevelMode[]) {
       const n = this.modeNodes[m];
       const w = widths[m];
-      n.getComponent(UITransform)!.setContentSize(w, MODE_H);
-      n.setPosition(xs[m], MODE_ROW_Y, 0);
+      // 贴图 206x100（多出 6px 是 `0 6px 0` 的硬边下影）→ 节点按 100 建、上移 3 让本体居中
+      n.getComponent(UITransform)!.setContentSize(w, MODE_H + 6);
+      n.setPosition(xs[m], MODE_ROW_Y + 3, 0);
       this.modeLabels[m].node.getComponent(UITransform)!.setContentSize(w - 12, MODE_H);
+      // 文字下移 3 抵消节点的上移（贴图里给下影留了位，本体中心在节点中心下方 3）
+      this.modeLabels[m].node.setPosition(0, -3, 0);
       const isLocked = m === 'nightmare' && locked;
       const on = m === this.curMode;
-      const g = n.getComponent(Graphics)!;
-      g.clear();
-      // box-shadow 0 6px 0：未锁时一条深色垫在下方（选中的阴影偏橙）
-      if (!isLocked) {
-        g.fillColor = on ? new Color(180, 80, 20, Math.round(0.45 * 255)) : C_DARK22;
-        g.roundRect(-w / 2, -MODE_H / 2 - 6, w, MODE_H, MODE_H / 2);
-        g.fill();
-      }
-      g.fillColor = isLocked ? C_MODE_LOCK_BG : on ? C_MODE_ON : C_MODE_OFF;
-      g.roundRect(-w / 2, -MODE_H / 2, w, MODE_H, MODE_H / 2);
-      g.fill();
-      // 3px 边框（内缩半个线宽）
-      g.lineWidth = 3;
-      g.strokeColor = isLocked ? C_MODE_LOCK_BORDER : C_MODE_BORDER;
-      g.roundRect(-w / 2 + 1.5, -MODE_H / 2 + 1.5, w - 3, MODE_H - 3, MODE_H / 2 - 1.5);
-      g.stroke();
+      // 胶囊（Web `.lp-mode`）→ 九宫格切图：未选 #5A5A5A / 选中 #FF6B35 / 门槛未达 #4A4A4A（无下影）
+      //    ⚠️ 原来三种状态都是 Graphics 硬画，圆角三角化 + 下影是纯色矩形（Web 是 0 6px 0 的硬边，勉强算对）
+      const ms = n.getComponent(Sprite) ?? n.addComponent(Sprite);
+      ms.sizeMode = Sprite.SizeMode.CUSTOM;
+      ms.type = Sprite.Type.SLICED;
+      setSprite(ms, isLocked ? 'fx/mode-lock' : on ? 'fx/mode-on' : 'fx/mode-off');
       this.modeLabels[m].string = isLocked ? `🔒 ${MODE_LABEL[m]}` : MODE_LABEL[m];
       this.modeLabels[m].color = isLocked ? C_MODE_LOCK_TEXT : C_WHITE;
       const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
