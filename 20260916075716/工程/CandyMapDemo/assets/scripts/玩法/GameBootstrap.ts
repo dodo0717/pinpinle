@@ -32,8 +32,8 @@ import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
 import { HandHint } from './handHint';
 import {
-  TutorialBanner, tutorialConfig, buildTutorialLayout, tutorialScript, tutorialSayDuration,
-  TUTORIAL_SEED, TUTORIAL_LEVEL,
+  TutorialBanner, TutorialHud, tutorialConfig, buildTutorialLayout, tutorialScript,
+  tutorialSayDuration, TUTORIAL_SEED, TUTORIAL_LEVEL,
 } from './tutorial';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
@@ -157,6 +157,8 @@ export class GameBootstrap extends Component {
     groupCells: number[];
   } | null = null;
   private tutBanner: TutorialBanner = null!;
+  /** 序章的三颗进度点 + 右上角「跳过教学」（Web `main.ts:652-673`） */
+  private tutHud: TutorialHud = null!;
   private tutHand: HandHint = null!;
   private tutSpot: SpotlightLayer = null!;
   private speech: GameSpeech = null!;
@@ -199,6 +201,7 @@ export class GameBootstrap extends Component {
     // 教学全家桶（序章）：横幅钉在棋盘上方、手指挂在棋盘里、聚光灯盖全屏
     this.tutBanner = TutorialBanner.create(this.node);
     this.tutBanner.setPosition(0, 700); // 棋盘（780 ~ -640）内部顶端，不挡 HUD 也不离开盘面视线
+    this.tutHud = TutorialHud.create(this.node, () => this.exitTutorial());
     this.tutHand = HandHint.create(this.view.node);
     this.tutSpot = SpotlightLayer.create(this.node);
     this.speech = createSpeech();
@@ -590,6 +593,8 @@ export class GameBootstrap extends Component {
             if (gained > 0) {
               this.view.floatScore(st.eliminatedCells[0] ?? 0, `+${gained}`);
               this.bumpScore();   // web showScoreFloat：飘字的同时 #hud-score.bump（0.26s）
+              // Web `main.ts:974`：序章里每拼成 1 组，进度点亮一颗（score 就是拼成的组数）
+              if (this.tut) this.tutHud.setProgress(Math.min(3, this.engine.score));
             }
             this.eliminatedOnce = true;
             this.runGuide(4);
@@ -1406,6 +1411,8 @@ export class GameBootstrap extends Component {
     this.dialog.hide();
     this.tutSpot.hide();
     this.tutBanner.hide();
+    // Web `main.ts:893-897`：序章开始 → 跳过按钮与三颗进度点一起出现，进度从 0 起
+    this.tutHud.show();
 
     const cfg = tutorialConfig(mode);
     this.cfg = cfg;
@@ -1811,6 +1818,7 @@ export class GameBootstrap extends Component {
     const m = this.tut.mode;
     this.tut = null;
     this.tutBanner.hide();
+    this.tutHud.hide();                 // Web `main.ts:1155`：结算前收起进度点与跳过按钮
     this.tutHand.stop();
     this.tutSpot.hide();
     this.tutClearMarks();
@@ -1827,6 +1835,34 @@ export class GameBootstrap extends Component {
       { text: TUTORIAL.doneSecondary, onClick: () => this.exitToHome() },
       { text: TUTORIAL.donePrimary, onClick: () => { this.dialog.hide(); this.startLevel(1); }, primary: true },
     ]);
+  }
+
+  /**
+   * 序章右上角「跳过教学」（Web `main.ts:1190`）：收起序章 UI → 记 seen → 回首页。
+   * ⚠️ 与 `finishTutorial()` 的界线：**不发奖励、不弹教学完成**，只是退出。
+   * ⚠️ Web 这里还有一句 `track(EVENT.tutorialSkip, { mode, step })`；Cocos 端 track 模块
+   *    目前全项目零调用点（尚未接线），先不接，避免凭空造一条没接通的上报。
+   */
+  private exitTutorial(): void {
+    if (!this.tut) return;
+    this.tutorialReset();
+    GS.updateTutorial({ seen: true });
+    GS.flush();
+    this.exitToHome();
+  }
+
+  /** 收起序章专属 UI（Web `tutorialReset`，main.ts:1201；不碰体力 —— 序章从没扣过） */
+  private tutorialReset(): void {
+    this.tut = null;
+    this.tutHud.hide();
+    this.tutBanner.hide();
+    this.speech.stop();   // 跳过 / 退出时别让语音继续念
+    this.tutHand.stop();
+    this.tutSpot.hide();
+    this.clearHint();
+    this.tutClearMarks();
+    this.finished = true;
+    this.setPaused(true);
   }
 
   /** 跳过教学（横幅旁的「跳过」入口）—— 发奖励但不算完成 */

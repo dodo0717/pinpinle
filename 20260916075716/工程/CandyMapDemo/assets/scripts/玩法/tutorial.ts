@@ -696,6 +696,119 @@ export class TutorialDrawer {
   }
 }
 
+/* ------------------------------------------------------------------ 序章进度点 + 跳过按钮 */
+/* ↓↓↓ 常量区开始（照 `web/ui.css` 的 `.tut-progress` / `.tut-skip` 抄） ↓↓↓ */
+/** `.tut-progress`：left 50% / top 196 → 三颗 34px、间距 16 → 步距 50 */
+const PROG_TOP = 196;
+const PROG_D = 34;
+const PROG_GAP = 16;
+const PROG_N = 3;
+/** `.tut-skip`：right 36 / top 210 / height 84 / padding 0 34 / 38px / #ffe9b8 */
+const SKIP_RIGHT = 36;
+const SKIP_TOP = 210;
+const SKIP_H = 84;
+const SKIP_PAD_H = 34;
+const SKIP_FS = 38;
+const C_SKIP_TEXT = new Color(255, 233, 184);
+/* ↑↑↑ 常量区结束 ↑↑↑ */
+
+/**
+ * 序章的「三颗进度点 + 跳过教学」（`web/main.ts:652-673`）。
+ *
+ * 进度点是零文字的「还差几组」信号：每拼成 1 组亮一颗
+ * （Web `setTutorialProgress(Math.min(3, score))`，main.ts:974）。
+ * ⚠️ Cocos 端原本完全没有这两个元件（只有埋点事件名 `tutorial_skip`，没有 UI）—— 补上。
+ */
+export class TutorialHud {
+  private root: Node = null!;
+  private dots: Sprite[] = [];
+
+  static create(parent: Node, onSkip: () => void): TutorialHud {
+    const h = new TutorialHud();
+    h.build(parent, onSkip);
+    return h;
+  }
+
+  private build(parent: Node, onSkip: () => void): void {
+    const root = new Node('TutorialHud');
+    root.layer = Layers.Enum.UI_2D;
+    root.addComponent(UITransform).setContentSize(1080, 1920);
+    root.parent = parent;
+    root.setPosition(0, 0, 0);
+    root.active = false;                       // 只有序章进行中才显示
+    this.root = root;
+
+    // 进度点：容器 top 196、高 34 → 中心 y = 960 − (196 + 17) = 747
+    const dots = new Node('progress');
+    dots.layer = Layers.Enum.UI_2D;
+    dots.addComponent(UITransform).setContentSize(PROG_D * PROG_N + PROG_GAP * (PROG_N - 1), PROG_D);
+    dots.setPosition(0, 960 - (PROG_TOP + PROG_D / 2), 0);
+    dots.parent = root;
+    const step = PROG_D + PROG_GAP;
+    for (let i = 0; i < PROG_N; i += 1) {
+      const n = new Node('i' + i);
+      n.layer = Layers.Enum.UI_2D;
+      n.addComponent(UITransform).setContentSize(PROG_D, PROG_D);
+      n.setPosition((i - 1) * step, 0, 0);
+      n.parent = dots;
+      const sp = n.addComponent(Sprite);
+      sp.sizeMode = Sprite.SizeMode.CUSTOM;
+      setSprite(sp, 'fx/tut-progress-off');
+      this.dots.push(sp);
+    }
+
+    // 跳过按钮：84 高胶囊 → 九宫格切图（左右各 42 是不拉伸的圆角区），宽度按文案 + padding 0 34
+    const w = TUTORIAL.skip.length * SKIP_FS + SKIP_PAD_H * 2;
+    const skip = new Node('skip');
+    skip.layer = Layers.Enum.UI_2D;
+    skip.addComponent(UITransform).setContentSize(w, SKIP_H);
+    skip.setPosition(540 - SKIP_RIGHT - w / 2, 960 - (SKIP_TOP + SKIP_H / 2), 0);
+    skip.parent = root;
+    const ss = skip.addComponent(Sprite);
+    ss.sizeMode = Sprite.SizeMode.CUSTOM;
+    ss.type = Sprite.Type.SLICED;
+    setSprite(ss, 'fx/tut-skip');
+    const ln = new Node('t');
+    ln.layer = Layers.Enum.UI_2D;
+    ln.addComponent(UITransform).setContentSize(w, SKIP_H);
+    const l = ln.addComponent(Label);
+    l.fontSize = SKIP_FS;
+    l.lineHeight = SKIP_H;
+    l.color = C_SKIP_TEXT;
+    l.string = TUTORIAL.skip;
+    ln.parent = skip;
+    skip.on(Node.EventType.TOUCH_END, () => onSkip());
+  }
+
+  show(): void {
+    this.root.active = true;
+    this.setProgress(0);
+  }
+
+  hide(): void {
+    this.root.active = false;
+  }
+
+  /**
+   * 每拼成 1 组亮一颗（Web `.tut-progress i.on`）。
+   * ⚠️ 亮起的贴图是 76×76（四周留给 `0 0 14px rgba(255,190,60,.9)` 的发光），未亮的是 34×34，
+   *    所以换图要连节点尺寸一起改；`.on` 的 `scale(1.18)` 也照抄。
+   */
+  setProgress(n: number): void {
+    for (let i = 0; i < this.dots.length; i += 1) {
+      const on = i < n;
+      const sp = this.dots[i];
+      sp.node.getComponent(UITransform)!.setContentSize(on ? 76 : PROG_D, on ? 76 : PROG_D);
+      setSprite(sp, on ? 'fx/tut-progress-on' : 'fx/tut-progress-off');
+      sp.node.setScale(on ? 1.18 : 1, on ? 1.18 : 1, 1);
+    }
+  }
+
+  destroy(): void {
+    if (this.root?.isValid) this.root.destroy();
+  }
+}
+
 /** 当前模式的语音文案（简单/困难两套，字段故意不齐 —— 取不到就是"这一步不讲"） */
 export function tutorialScript(mode: GameMode): {
   rule: string;
