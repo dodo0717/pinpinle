@@ -1037,6 +1037,15 @@ export class MapBootstrap extends Component {
             this.toast.show(HOME.lockedToast, 1600);
             return;
         }
+        // ⚠️ 体力 0 时**必须放弃本次进入**（对齐 web/main.ts:1759 `enterWithStamina`）。
+        //    原来的流程是「先隐藏地图 → 显示 Game → 在 beginLevel 里预扣体力」，扣不出来就
+        //    toast 后原地 return —— 玩家被留在一个**没建引擎的空关卡**里：棋盘是空的/残留的，
+        //    点哪都没反应（hitCell 还会因为 engine 为 null 抛异常），只能靠左上角返回退出。
+        //    `pending > 0` 不算（beginLevel 会先退还再重扣，那一颗能补上）。
+        if (GS.stamina.available <= 0 && GS.stamina.pending === 0) {
+            this.toast.show(HOME.staminaShort, 2600);
+            return;
+        }
         const game = this.gameNode?.isValid ? this.gameNode : this.ensureGameNode();
         const gb = game?.getComponent(GameBootstrap);
         if (!game || !gb) {

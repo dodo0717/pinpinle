@@ -351,9 +351,12 @@ export class GameBootstrap extends Component {
         if ((pre as { reason?: 'exhausted' | 'already-pending' }).reason === 'already-pending') {
           GS.refundStamina();
           const again = GS.preDeduct();
-          if (!again.ok) { this.toast.show(HOME.staminaShort, 2600); return; }
+          if (!again.ok) { this.toast.show(HOME.staminaShort, 2600); this.exitToHome(); return; }
         } else {
           this.toast.show(HOME.staminaShort, 2600);
+          // 兜底：正常路径下 MapBootstrap.enterLevel 已经先做过体力预检，走不到这里；
+          // 真走到了也不能把玩家留在「没有引擎的空关卡」里 —— 退回地图。
+          this.exitToHome();
           return;
         }
       }
@@ -447,14 +450,29 @@ export class GameBootstrap extends Component {
     host.on(Node.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
   }
 
+  /**
+   * 触摸点 → 棋盘节点的本地坐标。
+   *
+   * ⚠️ 坐标系坑（表现为「一进关整个主玩法点不动/拖不动」）：
+   *   `EventTouch.getUILocation()` 返回的是**UI 空间**坐标 —— 原点在可见区**左下角**，
+   *   范围 0..1080 / 0..1920；而 `UITransform.convertToNodeSpaceAR()` 吃的是**世界坐标** ——
+   *   原点在 Canvas 中心，范围 ±540 / ±960。两者差半个屏幕。
+   *   直接拿 UI 坐标去转换，点屏幕正中会算出 local=(539,1085)，落在 1044×1634 的棋盘外
+   *   → `hitCell()` 恒返回 -1 → `onTouchStart` 直接 return，整关任何操作都没反应。
+   *   （拖动只用到前后两点的**差值**，所以那边一直是对的 —— 只有这里取绝对位置。）
+   */
   private localOf(e: EventTouch): Vec3 {
     const p = e.getUILocation();
     const t = this.view.node.getComponent(UITransform)!;
-    return t.convertToNodeSpaceAR(new Vec3(p.x, p.y, 0));
+    const vs = view.getVisibleSize();
+    return t.convertToNodeSpaceAR(new Vec3(p.x - vs.width / 2, p.y - vs.height / 2, 0));
   }
 
   /** 本地坐标 → 格子下标，落在缝隙或界外返回 -1 */
   private hitCell(p: Vec3): number {
+    // 引擎还没建好（体力不足被拦在 beginLevel 中途、或加载中）时直接不响应：
+    // 原来这里会 `this.engine.board` 抛空指针，异常会打断整条触摸事件分发链
+    if (!this.engine) return -1;
     const s = this.view.step;
     const rows = this.cfg.rows;
     const cols = this.cfg.cols;
