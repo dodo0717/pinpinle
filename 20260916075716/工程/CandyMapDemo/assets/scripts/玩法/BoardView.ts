@@ -391,12 +391,19 @@ export class BoardView extends Component {
    */
   private frameFor(ref: CellRef, imageId: number, pieceId: number): SpriteFrame {
     const sf = new SpriteFrame();
-    sf.texture = this.texCache.get(imageId)!;
     sf.packable = false;
+    // ⚠️ 顺序不能反：必须先设 rect、后设 texture。
+    //   构建包实测（3.8.8）：先 texture 后 rect 造出的 SpriteFrame，在被重新赋给已显示过的
+    //   Sprite 时（教学重排 / 融合组刷新都会走这条路径）会渲染成纹理中心单像素的颜色 ——
+    //   uv 数组 dump 数值正常，但渲染出来是贴纸中心一粒像素的颜色（教学图池里
+    //   sticker_9 的中心恰好是米白纸面 → 教学的目标格/融合格变纯白块）。
+    //   先 rect 后 texture 则渲染正确。
+    const tex = this.texCache.get(imageId)!;
     const g = ref.geom;
     if (!g) {
       const pos = pieceId % 4;
       sf.rect = new Rect((pos % 2) * QUAD, Math.floor(pos / 2) * QUAD, QUAD, QUAD);
+      sf.texture = tex;
       return sf;
     }
     const geo = pieceGeometry(g);
@@ -408,6 +415,7 @@ export class BoardView extends Component {
       geo.inkW * sx,
       geo.inkH * sy,
     );
+    sf.texture = tex;
     return sf;
   }
 

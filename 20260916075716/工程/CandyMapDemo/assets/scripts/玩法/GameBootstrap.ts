@@ -1620,14 +1620,17 @@ export class GameBootstrap extends Component {
     p.addComponent(UITransform).setContentSize(s, s);
     const g = p.addComponent(Graphics);
     const r = Math.round(s * 0.1);   // pieceRadius(cell)：与碎片圆角同口径
-    g.fillColor = new Color(255, 255, 255, 255);
+    // ⚠️ 峰值 alpha(46≈Web 白罩 18%) 直接画进 fillColor，UIOpacity 呼吸只当开关 ——
+    //    构建包实测「后挂的 UIOpacity 对 Graphics 不生效」，若把 alpha=255 的白交给它压，
+    //    目标格会被渲染成不透明纯白块（教学「碎片变白框」的第二个白源）。
+    g.fillColor = new Color(255, 255, 255, 46);
     g.roundRect(-s / 2, -s / 2, s, s, r);
     g.fill();
     const op = p.addComponent(UIOpacity);
     op.opacity = 0;
     p.parent = n;
     p.setPosition(0, 0, 0);
-    tween(op).repeatForever(tween(op).to(0.55, { opacity: 46 }).to(0.55, { opacity: 0 })).start();
+    tween(op).repeatForever(tween(op).to(0.55, { opacity: 255 }).to(0.55, { opacity: 0 })).start();
   }
 
   /** 教学 step1：摆盘 + 演示落点（简单指缺口；困难指"下一步"） */
