@@ -266,7 +266,9 @@ export class LevelPreview {
       n.layer = Layers.Enum.UI_2D;
       n.addComponent(UITransform).setContentSize(MODE_W, MODE_H);
       n.setPosition(0, MODE_ROW_Y, 0);
-      n.addComponent(Graphics);
+      // ⚠️ 不要在这个节点上挂 Graphics（哪怕空的）：实测构建包里同节点挂着 Graphics 时
+      //    Sprite 不渲染 —— 胶囊底图（fx/mode-on/off/lock）全部消失，只剩文字裸在牌面上。
+      //    胶囊已改九宫格切图（见 syncModes），程序绘制不再需要，这里干脆不加。
       n.parent = card;
       this.modeLabels[m] = mkLabel(n, MODE_LABEL[m], 40, 0, 0, C_WHITE, MODE_W - 12, true);
       applyUiFont(this.modeLabels[m]);

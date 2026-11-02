@@ -975,7 +975,10 @@ export class MapBootstrap extends Component {
                 // 难度切换是全局的（换模式解锁范围会变），所以走地图原有的 setDifficulty
                 this.setDifficulty(mode === 'nightmare' ? 1 : 0);
             },
-            canNightmare: (level) => recordOf(GS.progress, level).stars >= 3,
+            // ⚠️ 跨模式查**简单档**（Web main.ts:1349 nightmareUnlocked = recordOf(progressByMode.normal, level).stars >= 3）。
+            //    原来用 GS.progress 查的是**当前模式**那份进度 —— 玩家切到困难模式后再开弹窗，
+            //    困难档自己永远 0 星 → 困难按钮永久锁死（state.ts 里写的规矩这里没照做）。
+            canNightmare: (level) => recordOf(GS.progressOf('normal'), level).stars >= 3,
             onClose: () => { /* 收起吊牌即可，地图不重建 */ },
             onPlay: (level) => this.enterLevel(level),
         });
