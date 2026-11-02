@@ -26,6 +26,7 @@ import {
   type Rng,
 } from '../核心/index';
 import { TUTORIAL, TUTORIAL_VOICE } from './text';
+import { mkSprite, setSprite } from '../界面/uiPaint';
 
 /* ------------------------------------------------------------------ 序章配置 */
 
@@ -172,11 +173,16 @@ export class TutorialBanner {
     root.parent = parent;
     this.root = root;
 
-    // 胶囊底板：圆角 = 高度一半（`border-radius: 999px`）
+    // 胶囊底板 → 预烘焙切图（九宫格：左右各 50 是不拉伸的圆角区，中间横拉）。
+    //    ⚠️ 原来用 Graphics 画胶囊，圆角被三角化成硬边；横幅宽度又随文案长短变，
+    //    做成九宫格正好一张图复用任意宽度，圆角也不会被拉成椭圆。
     const bg = new Node('bg');
     bg.layer = Layers.Enum.UI_2D;
     bg.addComponent(UITransform);
-    bg.addComponent(Graphics);
+    const bsp = bg.addComponent(Sprite);
+    bsp.sizeMode = Sprite.SizeMode.CUSTOM;
+    bsp.type = Sprite.Type.SLICED;
+    setSprite(bsp, 'fx/tut-banner');
     bg.parent = root;
     this.bg = bg;
 
@@ -223,11 +229,7 @@ export class TutorialBanner {
     const w = Math.min(tw + BANNER_PAD_H * 2, BANNER_MAX_W);
     const h = BANNER_LINE + BANNER_PAD_V * 2;
 
-    const g = this.bg.getComponent(Graphics)!;
-    g.clear();
-    g.fillColor = BANNER_BG;
-    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
-    g.fill();
+    // 只更新尺寸 —— 贴图是九宫格，本体由 Sprite 自己拉伸（圆角仍是不变的 50）
     this.bg.getComponent(UITransform)!.setContentSize(w, h);
     this.root.getComponent(UITransform)!.setContentSize(w, h);
   }
@@ -267,6 +269,34 @@ export class TutorialBanner {
 
 /* ------------------------------------------------------------------ 抽屉（首页教学面板） */
 
+/* ↓↓↓ 常量区开始（全部照 `web/ui.css` 的 `.tut-*` 抄） ↓↓↓ */
+/** `.tut-panel { width: 78% }` —— 设计宽 1080 × 78% = 842.4 → 842 */
+const PANEL_W = 842;
+/** 面板贴右（`right: 0`）→ 中心 x = 540 − 842/2 = 119 */
+const PANEL_X = 540 - PANEL_W / 2;
+/** `.tut-title` / `.tut-close` / `.tut-card-title`：#7a4100 */
+const C_TITLE = new Color(122, 65, 0);
+/** `.tut-status-line`（#9a6a2a）与其前置圆圈（#c8a978） */
+const C_STATUS = new Color(154, 106, 42);
+const C_STATUS_MARK = new Color(200, 169, 120);
+/** `.tut-status-line.done`：#2f8a3f */
+const C_STATUS_DONE = new Color(47, 138, 63);
+/** `.tut-note-line`：#9a6a2a */
+const C_NOTE = new Color(154, 106, 42);
+/** `.tut-how-body`：#6d4a1c */
+const C_HOW_BODY = new Color(109, 74, 28);
+/** `.tut-fig-up` / `.tut-fig-cap`：#e8760f；`.tut-fig-arrow`：#c0530f */
+const C_FIG_UP = new Color(232, 118, 15);
+const C_FIG_ARROW = new Color(192, 83, 15);
+/** `.tut-status-line`：38px × line-height 1.9 ≈ 72 */
+const STATUS_LH = 72;
+/** `.tut-btn` 118 高（下影 7）；`.tut-btn.ghost` 96 高（下影 5） */
+const BTN_H = 118;
+const BTN_GHOST_H = 96;
+/** `.tut-fig-grid`：2 × 76px 单块 */
+const FIG_PX = 76;
+/* ↑↑↑ 常量区结束 ↑↑↑ */
+
 export interface TutorialDrawerHandlers {
   onStartNormal: () => void;
   onStartNightmare: () => void;
@@ -281,11 +311,20 @@ export interface TutorialDrawerHandlers {
  */
 export class TutorialDrawer {
   private root: Node = null!;
+  private panelWrap: Node = null!;
   private panel: Node = null!;
+  /** 遮罩的透明度（Web `.tut-mask` 是 opacity 0→1 淡入） */
+  private maskOpacity: UIOpacity = null!;
+  /** 状态行的前置圆圈（Web 是 `.tut-status-line::before` 的 ○ / ✅） */
+  private statusNormalMark: Label = null!;
+  private statusNightmareMark: Label = null!;
   private statusNormal: Label = null!;
   private statusNightmare: Label = null!;
   private btnNormalLabel: Label = null!;
   private btnNightmareLabel: Label = null!;
+  /** 两个按钮的 Sprite（置灰要换整套贴图，不是换个色） */
+  private btnNormalSprite: Sprite = null!;
+  private btnNightmareSprite: Sprite = null!;
   private btnNightmareDim = false;
   private handlers: TutorialDrawerHandlers;
   private isOpenState = false;
@@ -308,77 +347,120 @@ export class TutorialDrawer {
     root.setPosition(0, 0, 0);
     this.root = root;
 
-    // 遮罩：只吃抽屉自己这一层
+    // 遮罩：只吃抽屉自己这一层。Web `.tut-mask` 是 `rgba(20,10,0,.45)`（原来写的纯黑 51% 偏冷）
     const mask = new Node('mask');
     mask.layer = Layers.Enum.UI_2D;
     mask.addComponent(UITransform).setContentSize(1080, 1920);
     const mg = mask.addComponent(Graphics);
     mg.rect(-540, -960, 1080, 1920);
-    mg.fillColor = new Color(0, 0, 0, 130);
+    mg.fillColor = new Color(20, 10, 0, 115);
     mg.fill();
     mask.parent = root;
     mask.on(Node.EventType.TOUCH_END, () => this.close());
+    // Web `.tut-mask` 是 opacity 0→1 淡入（.22s），这里用 UIOpacity 走同一条曲线
+    this.maskOpacity = mask.addComponent(UIOpacity);
+    this.maskOpacity.opacity = 0;
 
-    // 面板：竖长卡片
+    // 面板：Web `.tut-panel` 是 `right:0; top:0; bottom:0; width:78%` —— 贴右侧的**全高**抽屉，
+    //    不是居中的竖卡。1080 × 78% = 842.4 → 842；中心 x = 540 − 421 = 119。
+    //    ⚠️ 原来这里是 940×1560 居中卡片 + 6px 描边，与 Web 完全不是一回事。
+    const panelWrap = new Node('panelWrap');
+    panelWrap.layer = Layers.Enum.UI_2D;
+    panelWrap.addComponent(UITransform).setContentSize(PANEL_W, 1920);
+    panelWrap.setPosition(540 - PANEL_W / 2, 0, 0);
+    panelWrap.parent = root;
+    // `-10px 0 30px rgba(80,40,0,.35)`：只在面板**左侧**露出一条软阴影（上下溢出在屏外看不见）
+    mkSprite(panelWrap, 'fx/tut-panel-shadow', 40, 1920, -PANEL_W / 2 - 20, 0);
+    // 面板本体：渐变 #fffaf0→#ffeccd（无圆角、无描边）
+    mkSprite(panelWrap, 'fx/tut-panel', PANEL_W, 1920, 0, 0);
+
     const panel = new Node('panel');
     panel.layer = Layers.Enum.UI_2D;
-    panel.addComponent(UITransform).setContentSize(940, 1560);
-    const pg = panel.addComponent(Graphics);
-    pg.roundRect(-470, -780, 940, 1560, 36);
-    pg.fillColor = new Color(255, 250, 240, 255);
-    pg.fill();
-    pg.strokeColor = new Color(214, 158, 92, 255);
-    pg.lineWidth = 6;
-    pg.stroke();
-    panel.parent = root;
+    panel.addComponent(UITransform).setContentSize(PANEL_W, 1920);
+    panel.parent = panelWrap;
     this.panel = panel;
+    this.panelWrap = panelWrap;
 
-    let y = 740;
-    // 标题 + 关闭
-    this.addText(panel, TUTORIAL.drawerTitle, 44, 0, y, new Color(90, 50, 25));
-    const closeBtn = this.addButton(panel, '✕', 60, 60, 410, y, () => this.close());
-    void closeBtn;
-    y -= 100;
+    /* ---- 内容坐标系：panel 中心 (0,0)，Web `.tut-panel` 是 `padding: 46px 40px` ---- */
+    const L0 = -PANEL_W / 2 + 40;                 // 内容左边缘 −381
+    const R0 = PANEL_W / 2 - 40;                  // 内容右边缘 381
+    const CW = PANEL_W - 80;                      // 内容宽 762
+    const T0 = 960 - 46;                          // 内容顶 914
 
-    // 卡 1：状态
-    this.statusNormal = this.addText(panel, '', 32, -330, y, new Color(120, 80, 40));
-    this.statusNightmare = this.addText(panel, '', 32, -330, y - 56, new Color(120, 80, 40));
-    y -= 160;
+    /* head：`.tut-title` 56/900/#7a4100（左对齐）+ `.tut-close` 76 圆（右），mb 30 */
+    const headY = T0 - 38;
+    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + (CW - 96) / 2, headY, C_TITLE, CW - 96, 0);
+    const closeBtn = new Node('close');
+    closeBtn.layer = Layers.Enum.UI_2D;
+    closeBtn.addComponent(UITransform).setContentSize(76, 76);
+    closeBtn.setPosition(R0 - 38, headY, 0);
+    closeBtn.parent = panel;
+    mkSprite(closeBtn, 'fx/tut-close', 76, 76);
+    this.addText(closeBtn, '✕', 44, 0, 0, C_TITLE, 76, 1);
+    closeBtn.on(Node.EventType.TOUCH_END, () => this.close());
 
-    // 卡 2：按钮（主：开始教学；次：重玩困难序章）
-    this.btnNormalLabel = this.addButton(panel, TUTORIAL.start, 560, 104, 0, y, () => this.handlers.onStartNormal());
-    y -= 130;
-    this.btnNightmareLabel = this.addButton(panel, TUTORIAL.replayNightmare, 560, 104, 0, y, () => {
+    /* 卡 1：状态（`.tut-status-line` 38px / 行高 1.9 / #9a6a2a，done → #2f8a3f + ✅） */
+    let top = headY - 38 - 30;                              // 808
+    const card1H = 28 * 2 + STATUS_LH * 2;                  // 200
+    this.addCard(panel, CW, card1H, 0, top - card1H / 2, false);
+    const s1 = this.addStatusLine(panel, L0 + 30, top - 28 - STATUS_LH / 2);
+    this.statusNormalMark = s1[0];
+    this.statusNormal = s1[1];
+    const s2 = this.addStatusLine(panel, L0 + 30, top - 28 - STATUS_LH * 1.5);
+    this.statusNightmareMark = s2[0];
+    this.statusNightmare = s2[1];
+
+    /* 卡 2：主按钮 118 + 次按钮 96（`.tut-btn` mb 22，主次差一档一眼可分） */
+    top -= card1H + 28;                                     // 580
+    const card2H = 28 * 2 + (BTN_H + 7) + 22 + (BTN_GHOST_H + 5);
+    this.addCard(panel, CW, card2H, 0, top - card2H / 2, false);
+    let by = top - 28 - (BTN_H + 7) / 2;
+    const b1 = this.addTutButton(panel, CW - 60, BTN_H, 0, by, true, () => this.handlers.onStartNormal());
+    this.btnNormalLabel = b1[1];
+    this.btnNormalSprite = b1[0];
+    by -= (BTN_H + 7) / 2 + 22 + (BTN_GHOST_H + 5) / 2;
+    const b2 = this.addTutButton(panel, CW - 60, BTN_GHOST_H, 0, by, false, () => {
       if (this.btnNightmareDim) return;
       this.handlers.onStartNightmare();
     });
-    y -= 170;
+    this.btnNightmareLabel = b2[1];
+    this.btnNightmareSprite = b2[0];
 
-    // 卡 3：怎么玩四步（图解用真实贴纸切块画的「3 缺 1 → 拖一步 → 拼成」）
-    this.addText(panel, TUTORIAL.howTitle, 36, -360, y, new Color(90, 50, 25));
-    y -= 80;
-    this.addFigure(panel, TUTORIAL_IMAGE_IDS[0], -300, y);
+    /* 卡 3：怎么玩（标题 + 真实贴纸图解 + 四步说明） */
+    top -= card2H + 28;                                     // 248
+    const figH = FIG_PX * 2 + 26 + (36 + 2 + FIG_PX);       // 292
+    const howH = 48 * 4 + 18 * 3;                           // 246
+    const card3H = 28 * 2 + 46 + 22 + figH + 26 + howH;     // 688
+    this.addCard(panel, CW, card3H, 0, top - card3H / 2, false);
+    this.addText(panel, TUTORIAL.howTitle, 46, L0 + 30 + 300, top - 28 - 23, C_TITLE, 600, 0);
+    // 图解区：整块水平居中（左列 152 + gap 22 + 箭头 48 + gap 22 + 右列 152 = 396）
+    const figTop = top - 28 - 46 - 22;                      // 152
+    this.addFigure(panel, TUTORIAL_IMAGE_IDS[0], 0, figTop - figH / 2);
     const hows: Array<[string, string]> = [
       ['①', TUTORIAL.how1], ['②', TUTORIAL.how2], ['③', TUTORIAL.how3], ['④', TUTORIAL.how4],
     ];
-    let hy = y + 60;
+    let hy = figTop - figH - 26;                            // how 区顶
     for (const [no, body] of hows) {
-      this.addText(panel, no, 30, -110, hy, new Color(214, 158, 92));
-      this.addText(panel, body, 30, 140, hy, new Color(90, 50, 25), 560);
-      hy -= 58;
+      this.addHowRow(panel, no, body, L0 + 30, hy - 24);
+      hy -= 48 + 18;
     }
-    y = hy - 40;
 
-    // 卡 4：补充（小字、辅助色）
-    this.addText(panel, TUTORIAL.noteTime, 26, 0, y, new Color(150, 120, 90));
-    this.addText(panel, TUTORIAL.noteStar, 26, 0, y - 52, new Color(150, 120, 90));
-    this.addText(panel, TUTORIAL.noteNightmare, 26, 0, y - 104, new Color(150, 120, 90));
+    /* 卡 4：补充（`.tut-card-note` 虚线边 + 30px 小字） */
+    top -= card3H + 28;                                     // −468
+    const card4H = 28 * 2 + 51 * 3;
+    this.addCard(panel, CW, card4H, 0, top - card4H / 2, true);
+    this.addText(panel, TUTORIAL.noteTime, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25, C_NOTE, CW - 120, 0);
+    this.addText(panel, TUTORIAL.noteStar, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25 - 51, C_NOTE, CW - 120, 0);
+    this.addText(panel, TUTORIAL.noteNightmare, 30, L0 + 30 + (CW - 120) / 2, top - 28 - 25 - 102, C_NOTE, CW - 120, 0);
 
     root.active = false;
   }
 
-  /** 程序绘制的一行文字（锚点中心，可选宽度换行） */
-  private addText(parent: Node, str: string, size: number, x: number, y: number, color: Color, width = 860): Label {
+  /** 一行文字（锚点中心）。`align`：0 = 左（Web 的标题/正文多左对齐）、1 = 居中 */
+  private addText(
+    parent: Node, str: string, size: number, x: number, y: number,
+    color: Color, width = 860, align = 1,
+  ): Label {
     const n = new Node('t');
     n.layer = Layers.Enum.UI_2D;
     n.addComponent(UITransform).setContentSize(width, size + 16);
@@ -387,53 +469,101 @@ export class TutorialDrawer {
     l.lineHeight = size + 12;
     l.color = color;
     l.string = str;
+    // ⚠️ 打包后 cc 命名空间里的枚举可能被摇掉，直接用数值（0=LEFT / 1=CENTER / 1=CENTER）
+    const any = l as unknown as { horizontalAlign: number; verticalAlign: number };
+    any.horizontalAlign = align;
+    any.verticalAlign = 1;
     n.parent = parent;
     n.setPosition(x, y, 0);
     return l;
   }
 
-  /** 程序绘制按钮：圆角底 + 文本，返回文本 Label 便于改字 */
-  private addButton(parent: Node, str: string, w: number, h: number, x: number, y: number, onTap: () => void): Label {
-    const btn = new Node('btn');
-    btn.layer = Layers.Enum.UI_2D;
-    btn.addComponent(UITransform).setContentSize(w, h);
-    const g = btn.addComponent(Graphics);
-    g.roundRect(-w / 2, -h / 2, w, h, h / 2);
-    g.fillColor = new Color(255, 196, 92, 255);
-    g.fill();
-    btn.parent = parent;
-    btn.setPosition(x, y, 0);
-
-    const ln = new Node('t');
-    ln.layer = Layers.Enum.UI_2D;
-    ln.addComponent(UITransform).setContentSize(w - 24, h);
-    const l = ln.addComponent(Label);
-    l.fontSize = Math.min(36, h - 28);
-    l.lineHeight = h;
-    l.color = new Color(90, 50, 25, 255);
-    l.string = str;
-    ln.parent = btn;
-    btn.on(Node.EventType.TOUCH_END, () => onTap());
-    return l;
+  /**
+   * `.tut-card`：`rgba(255,255,255,.72)` 底 + 4px 边 + 圆角 28 → 预烘焙九宫格。
+   * `note` = Web 的 `.tut-card-note`（虚线边 + `rgba(255,236,200,.8)` 底）。
+   */
+  private addCard(parent: Node, w: number, h: number, x: number, y: number, note: boolean): void {
+    const n = new Node('card');
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w, h);
+    n.setPosition(x, y, 0);
+    n.parent = parent;
+    const sp = n.addComponent(Sprite);
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    sp.type = Sprite.Type.SLICED;
+    setSprite(sp, note ? 'fx/tut-card-note' : 'fx/tut-card');
   }
+
+  /** `.tut-status-line`：前置圆圈（Web 的 `::before` ○ / ✅）+ 38px 正文，返回 [圆圈, 正文] */
+  private addStatusLine(parent: Node, x: number, y: number): [Label, Label] {
+    const bodyW = PANEL_W - 80 - 120;                       // 内容宽减掉卡片内边距与圆圈
+    const mark = this.addText(parent, '○', 40, x + 22, y, C_STATUS_MARK, 44, 1);
+    const text = this.addText(parent, '', 38, x + 44 + 16 + bodyW / 2, y, C_STATUS, bodyW, 0);
+    return [mark, text];
+  }
+
+  /**
+   * `.tut-btn`：胶囊按钮 → 预烘焙九宫格（原来用 Graphics 画实色圆角，边缘是硬边）。
+   * `primary` = 主按钮（118 高 / 46px 白字 / 橙渐变）；否则是 `.ghost`（96 高 / 40px 深棕字 / 白底描边）。
+   * 贴图含硬下影 → 节点按「本体 + 下影」建高、文字下移 `dy/2` 才在本体正中。
+   */
+  private addTutButton(
+    parent: Node, w: number, h: number, x: number, y: number,
+    primary: boolean, onTap: () => void,
+  ): [Sprite, Label] {
+    const dy = primary ? 7 : 5;
+    const n = new Node('btn');
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(w, h + dy);
+    n.setPosition(x, y, 0);
+    n.parent = parent;
+    const sp = n.addComponent(Sprite);
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    sp.type = Sprite.Type.SLICED;
+    setSprite(sp, primary ? 'fx/tut-btn-primary' : 'fx/tut-btn-ghost');
+    const l = this.addText(n, '', primary ? 46 : 40, 0, -dy / 2,
+      primary ? new Color(255, 255, 255) : new Color(138, 75, 0), w - 40, 1);
+    n.on(Node.EventType.TOUCH_END, () => onTap());
+    return [sp, l];
+  }
+
+  /** `.tut-how-row`：44 圆序号（切图）+ 32px 正文 */
+  private addHowRow(parent: Node, no: string, body: string, x: number, y: number): void {
+    const n = new Node('no');
+    n.layer = Layers.Enum.UI_2D;
+    n.addComponent(UITransform).setContentSize(44, 44);
+    n.setPosition(x + 22, y, 0);
+    n.parent = parent;
+    mkSprite(n, 'fx/tut-how-no', 44, 44);
+    this.addText(n, no, 28, 0, 0, new Color(255, 255, 255), 44, 1);
+    const bodyW = PANEL_W - 80 - 120;
+    this.addText(parent, body, 32, x + 44 + 16 + bodyW / 2, y, C_HOW_BODY, bodyW, 0);
+  }
+
+  // ⚠️ 原 `addButton()`（Graphics 画实色圆角 + 棕字）已删除：
+  //    主/次按钮改用 `addTutButton()`，走 Web `.tut-btn` / `.tut-btn.ghost` 的预烘焙九宫格贴图。
 
   /**
    * 图解：左侧「3 缺 1 小棋盘 + 待拖块」→ 右侧「拼成发光 + ✨ +1 组」。
    * 用真实贴纸切块（与棋盘碎片同一套切法），素材缺失时退化为色块。
    */
   private addFigure(parent: Node, imageId: number, x: number, y: number): void {
+    const px = FIG_PX;                                  // 单块 76（Web `.tut-fig-grid` = 2×76）
+    const figH = px * 2 + 26 + (36 + 2 + px);           // 292
     const fig = new Node('fig');
     fig.layer = Layers.Enum.UI_2D;
-    fig.addComponent(UITransform);
+    fig.addComponent(UITransform).setContentSize(396, figH);
     fig.parent = parent;
     fig.setPosition(x, y, 0);
 
-    const px = 62; // 单块边长
-    const gx = px * 2 + 96; // 右列（拼成图）的水平偏移
+    const top = figH / 2;                               // 146
     const tint = hslColor((imageId * 53 + 25) % 360, 58, 62);
+    const COL1 = -122;                                  // 左列中心（152 + 22 + 48 + 22 + 152 = 396 居中）
+    const COL2 = 122;                                   // 右列中心
+    const gy = top - px;                                // 网格中心 y（列顶对齐）= 70
 
-    /** 一块碎片：色块兜底 + 贴纸切块覆盖；`glow` = 拼成后的金色描边 */
-    const mkPiece = (cx: number, cy: number, pos: number, glow: boolean): void => {
+    /** 一块碎片：色块兜底 + 贴纸切块覆盖 */
+    const mkPiece = (cx: number, cy: number, pos: number): void => {
       const n = new Node('p' + pos);
       n.layer = Layers.Enum.UI_2D;
       n.addComponent(UITransform).setContentSize(px, px);
@@ -441,41 +571,45 @@ export class TutorialDrawer {
       g.rect(-px / 2, -px / 2, px, px);
       g.fillColor = tint;
       g.fill();
-      if (glow) {
-        g.strokeColor = new Color(255, 226, 130, 255);
-        g.lineWidth = 5;
-        g.stroke();
-      }
       n.parent = fig;
       n.setPosition(cx, cy, 0);
       this.loadStickerPiece(n, imageId, pos, px);
     };
 
-    // 左列：「3 缺 1」—— 右下角是虚线缺口
-    mkPiece(-px, px, 0, false);
-    mkPiece(0, px, 1, false);
-    mkPiece(-px, 0, 2, false);
+    // 左列：「3 缺 1」—— 右下角是 `.tut-fig-gap`（虚线缺口 → 预烘焙切图）
+    mkPiece(COL1 - px / 2, gy + px / 2, 0);
+    mkPiece(COL1 + px / 2, gy + px / 2, 1);
+    mkPiece(COL1 - px / 2, gy - px / 2, 2);
     const gap = new Node('gap');
     gap.layer = Layers.Enum.UI_2D;
     gap.addComponent(UITransform).setContentSize(px, px);
-    const gg = gap.addComponent(Graphics);
-    gg.rect(-px / 2, -px / 2, px, px);
-    gg.strokeColor = new Color(214, 158, 92, 255);
-    gg.lineWidth = 3;
-    gg.stroke();
     gap.parent = fig;
-    gap.setPosition(0, 0, 0);
-    // 待拖块（在缺口下方，对应 Web 版 tut-fig-move）
-    mkPiece(0, -px - 26, 3, false);
-    this.addText(fig, '↑', 30, -px - 44, -px / 2 - 26, new Color(214, 158, 92));
-    this.addText(fig, '➜', 34, px + 26, 0, new Color(214, 158, 92));
+    gap.setPosition(COL1 + px / 2, gy - px / 2, 0);
+    mkSprite(gap, 'fx/tut-fig-gap', px, px);
 
-    // 右列：拼成整图（金色描边）+ ✨ +1 组
-    mkPiece(gx, px, 0, true);
-    mkPiece(gx + px, px, 1, true);
-    mkPiece(gx, 0, 2, true);
-    mkPiece(gx + px, 0, 3, true);
-    this.addText(fig, '✨ +1 组', 26, gx + px, -px - 14, new Color(150, 120, 90), 240);
+    // `.tut-fig-move`：网格下方 26 处，↑ + 待拖的那块
+    const moveTop = top - px * 2 - 26;                  // −32
+    this.addText(fig, '↑', 36, COL1, moveTop - 18, C_FIG_UP, 60, 1);
+    mkPiece(COL1, moveTop - 36 - 2 - px / 2, 3);
+
+    // `.tut-fig-arrow`：➜ 48px，垂直居中于整块
+    this.addText(fig, '➜', 48, 0, 0, C_FIG_ARROW, 60, 1);
+
+    // 右列：拼成整图 + `.tut-fig-grid.done` 的金色发光框（切图）+ `.tut-fig-cap`
+    mkPiece(COL2 - px / 2, gy + px / 2, 0);
+    mkPiece(COL2 + px / 2, gy + px / 2, 1);
+    mkPiece(COL2 - px / 2, gy - px / 2, 2);
+    mkPiece(COL2 + px / 2, gy - px / 2, 3);
+    const glow = new Node('glow');
+    glow.layer = Layers.Enum.UI_2D;
+    glow.addComponent(UITransform).setContentSize(px * 2, px * 2);
+    glow.parent = fig;
+    glow.setPosition(COL2, gy, 0);
+    const gsp = glow.addComponent(Sprite);
+    gsp.sizeMode = Sprite.SizeMode.CUSTOM;
+    gsp.type = Sprite.Type.SLICED;
+    setSprite(gsp, 'fx/tut-fig-glow');
+    this.addText(fig, '✨ +1 组', 32, COL2, top - px * 2 - 12 - 22, C_FIG_UP, 240, 1);
   }
 
   /**
@@ -515,22 +649,46 @@ export class TutorialDrawer {
   open(): void {
     this.isOpenState = true;
     this.root.active = true;
+    // Web：遮罩 opacity 0→1（.22s）+ 面板 `translateX(100%)` → `translateX(0)`（.24s）
+    this.maskOpacity.opacity = 0;
+    tween(this.maskOpacity).to(0.22, { opacity: 255 }).start();
+    this.panelWrap.setPosition(PANEL_X + PANEL_W, 0, 0);
+    tween(this.panelWrap).to(0.24, { position: new Vec3(PANEL_X, 0, 0) }).start();
   }
 
   close(): void {
     if (!this.isOpenState) return;
     this.isOpenState = false;
-    this.root.active = false;
     this.handlers.onClose();
+    tween(this.maskOpacity).to(0.22, { opacity: 0 }).start();
+    tween(this.panelWrap)
+      .to(0.24, { position: new Vec3(PANEL_X + PANEL_W, 0, 0) })
+      .call(() => { if (this.root?.isValid) this.root.active = false; })
+      .start();
   }
 
   /** 更新两个序章的状态行与困难按钮的可用性 */
   setStatus(normalDone: boolean, nightmareDone: boolean): void {
-    this.statusNormal.string = normalDone ? TUTORIAL.doneNormal : TUTORIAL.todoNormal;
-    this.statusNightmare.string = nightmareDone ? TUTORIAL.doneNightmare : TUTORIAL.todoNightmare;
+    this.paintStatusLine(this.statusNormalMark, this.statusNormal, normalDone,
+      TUTORIAL.doneNormal, TUTORIAL.todoNormal);
+    this.paintStatusLine(this.statusNightmareMark, this.statusNightmare, nightmareDone,
+      TUTORIAL.doneNightmare, TUTORIAL.todoNightmare);
+    // 困难序章要简单序章先达成 3 星（沿用正式关「同关简单三星」的门槛口径）。
+    //    ⚠️ 置灰换的是**整套 `.tut-btn.dim` 贴图**（#d8cdbf→#b4a795），不是换个色 ——
+    //    Sprite.color 是逐通道乘算，压不出 Web 那种灰。
     this.btnNightmareDim = !normalDone;
     this.btnNightmareLabel.string = normalDone ? TUTORIAL.replayNightmare : TUTORIAL.nightmareLocked;
+    setSprite(this.btnNightmareSprite, normalDone ? 'fx/tut-btn-ghost' : 'fx/tut-btn-dim');
+    this.btnNightmareLabel.color = normalDone ? new Color(138, 75, 0) : new Color(244, 239, 230);
     this.btnNormalLabel.string = normalDone ? TUTORIAL.replayNormal : TUTORIAL.start;
+  }
+
+  /** `.tut-status-line`（未做：○ #c8a978 + #9a6a2a 字；做了：✅ + #2f8a3f 字） */
+  private paintStatusLine(mark: Label, text: Label, done: boolean, doneText: string, todoText: string): void {
+    mark.string = done ? '✅' : '○';
+    mark.fontSize = done ? 34 : 40;
+    text.string = done ? doneText : todoText;
+    text.color = done ? C_STATUS_DONE : C_STATUS;
   }
 
   destroy(): void {

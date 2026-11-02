@@ -13,6 +13,7 @@
  */
 
 import { Node, Label, UITransform, Graphics, Color, UIOpacity, tween, Vec3, Layers } from 'cc';
+import { mkSprite } from '../界面/uiPaint';
 
 /** 演示一次的完整时长（ms），与 Web 版 CSS `tut-slide` 周期保持一致 */
 export const HAND_HINT_MS = 1600;
@@ -48,30 +49,32 @@ export class HandHint {
     root.setPosition(0, 0, 0);
     this.root = root;
 
+    // 手指：Web `.tut-hand` 是 52×52 的**白圆角块**（圆角 50% 50% 46% 46%）+ 外阴影 + 底部 inset，
+    //    ☝ 是叠在上面的 34px 字形（`.tut-hand-tip`）。原来这里只有一个 72px 的 👆 emoji。
     const hand = new Node('hand');
     hand.layer = Layers.Enum.UI_2D;
-    const ht = hand.addComponent(UITransform);
-    ht.setContentSize(96, 96);
-    const hl = hand.addComponent(Label);
-    hl.string = '👆';
-    hl.fontSize = 72;
-    hl.lineHeight = 96;
+    hand.addComponent(UITransform).setContentSize(90, 96);   // 贴图含外阴影，比本体大一圈
     hand.parent = root;
+    mkSprite(hand, 'fx/tut-hand', 90, 96);
+    const tip = new Node('tip');
+    tip.layer = Layers.Enum.UI_2D;
+    tip.addComponent(UITransform).setContentSize(40, 40);
+    const tl = tip.addComponent(Label);
+    tl.string = '☝';
+    tl.fontSize = 34;
+    tl.lineHeight = 40;
+    tip.parent = hand;
     this.hand = hand;
 
+    // 金光：Web `.tut-flash` 是 110×110 的**径向渐变**（中心 #ffe282 → 边缘透明）。
+    //    ⚠️ 原来用 Graphics 画实心圆 + 描边 —— 一块硬边圆饼，和 Web 的柔和光斑完全不同。
     const flash = new Node('flash');
     flash.layer = Layers.Enum.UI_2D;
-    flash.addComponent(UITransform).setContentSize(140, 140);
-    const fg = flash.addComponent(Graphics);
-    fg.circle(0, 0, 58);
-    fg.fillColor = new Color(255, 214, 90, 200);
-    fg.fill();
-    fg.strokeColor = new Color(255, 240, 180, 255);
-    fg.lineWidth = 6;
-    fg.stroke();
+    flash.addComponent(UITransform).setContentSize(110, 110);
+    flash.parent = root;
+    mkSprite(flash, 'fx/tut-flash', 110, 110);
     const fo = flash.addComponent(UIOpacity);
     fo.opacity = 0;
-    flash.parent = root;
     this.flash = flash;
   }
 

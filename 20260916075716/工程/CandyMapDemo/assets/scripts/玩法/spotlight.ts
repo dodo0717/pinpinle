@@ -12,7 +12,8 @@
  * 坐标：挂在 Canvas 根下，用 1080×1920 设计坐标（调用方把目标元素的包围盒换算好传入）。
  */
 
-import { Node, Graphics, Color, UITransform, Label, Layers, UIOpacity, tween, director, Director } from 'cc';
+import { Node, Graphics, Sprite, Color, UITransform, Label, Layers, UIOpacity, tween, director, Director } from 'cc';
+import { mkSprite, setSprite } from '../界面/uiPaint';
 
 export interface SpotlightRect {
   /** 洞的中心（设计坐标，屏幕中心为原点） */
@@ -33,7 +34,10 @@ export interface SpotlightOptions {
 }
 
 const DEFAULT_PAD = 14;
-const DARK = new Color(0, 0, 0, 170);
+/** Web `.spot-hole` 的挖洞压暗：`rgba(12, 6, 0, .74)`（原来写成纯黑 67%，偏冷也偏重） */
+const DARK = new Color(12, 6, 0, 189);
+/** `.spot-tip` 贴图高：本体 98（line 54 + padding 22*2）居中，四周 34 是 `0 10px 24px` 的留白 */
+const TIP_BG_H = 166;
 const DESIGN_W = 1080;
 const DESIGN_H = 1920;
 
@@ -99,12 +103,15 @@ export class SpotlightLayer {
     shade.parent = root;
     this.shade = shade;
 
-    // 气泡底板（先于文字加，渲染在文字下层）
+    // 气泡底板（先于文字加，渲染在文字下层）→ 预烘焙九宫格贴图
     const tipBg = new Node('tipBg');
     tipBg.layer = Layers.Enum.UI_2D;
-    tipBg.addComponent(UITransform).setContentSize(TIP_W, TIP_LINE + TIP_PAD_V * 2);
-    tipBg.addComponent(Graphics);
+    tipBg.addComponent(UITransform).setContentSize(TIP_W, TIP_BG_H);
     tipBg.parent = root;
+    const tsp = tipBg.addComponent(Sprite);
+    tsp.sizeMode = Sprite.SizeMode.CUSTOM;
+    tsp.type = Sprite.Type.SLICED;
+    setSprite(tsp, 'fx/spot-tip');
     this.tipBg = tipBg;
 
     // 短句气泡（贴在洞旁，show() 时按文字行数重画底板）
@@ -127,11 +134,9 @@ export class SpotlightLayer {
     // 「▾ 继续」圆钮（Web: 76×76 圆形 + rgba(255,200,90,.95) 底 + #7a4100 44px）
     const next = new Node('next');
     next.layer = Layers.Enum.UI_2D;
-    next.addComponent(UITransform).setContentSize(NEXT_D, NEXT_D);
-    const ng = next.addComponent(Graphics);
-    ng.circle(0, 0, NEXT_D / 2);
-    ng.fillColor = NEXT_BG;
-    ng.fill();
+    // 贴图 108×124：本体 76 居中，四周是 `0 6px 16px` 阴影的留白
+    next.addComponent(UITransform).setContentSize(NEXT_D + 32, NEXT_D + 48);
+    mkSprite(next, 'fx/spot-next', NEXT_D + 32, NEXT_D + 48);
     const nl = next.addComponent(Label);
     nl.fontSize = NEXT_FONT;
     nl.lineHeight = NEXT_D;
@@ -222,33 +227,15 @@ export class SpotlightLayer {
     const hx = w / 2;
     const hy = h / 2;
 
-    const g = this.tipBg.getComponent(Graphics)!;
-    g.clear();
-    // 阴影（Web: 0 10px 24px rgba(0,0,0,.35)）
-    g.fillColor = new Color(0, 0, 0, 90);
-    g.roundRect(-hx, -hy - 10, w, h, r);
-    g.fill();
-    // 渐变底：Graphics 没有渐变，用「下半色铺底 + 上半色盖上半段」逼近
-    g.fillColor = TIP_BOTTOM;
-    g.roundRect(-hx, -hy, w, h, r);
-    g.fill();
-    g.fillColor = TIP_TOP;
-    g.moveTo(-hx, 0);
-    g.lineTo(-hx, hy - r);
-    g.quadraticCurveTo(-hx, hy, -hx + r, hy);
-    g.lineTo(hx - r, hy);
-    g.quadraticCurveTo(hx, hy, hx, hy - r);
-    g.lineTo(hx, 0);
-    g.close();
-    g.fill();
-    // 描边
-    g.strokeColor = TIP_BORDER;
-    g.lineWidth = TIP_BORDER_W;
-    g.roundRect(-hx, -hy, w, h, r);
-    g.stroke();
+    // 气泡本体 → 预烘焙九宫格（渐变 #fff8e6→#ffe6b8 + 5px 金边 + 圆角 22 + `0 10px 24px` 阴影）。
+    //    ⚠️ 原来用 Graphics：渐变只能靠「上半块 + 下半块」两截逼近（中间一条硬接缝），
+    //    阴影是一块**不透明的实心圆角矩形**（Web 是高斯模糊），圆角也是三角化硬边。
+    //    贴图 400×166 里本体只有 98 高居中，四周是留给阴影的透明边 → 节点按 166 高建即可。
+    void hy; void r;
 
     const y = DESIGN_H / 2 - (cssTopPos + h / 2);
-    this.tipBg.getComponent(UITransform)!.setContentSize(w, h);
+    // 节点高度用贴图的 166（本体 98 居中，四周是阴影留白），宽度随文案 → 九宫格横向拉伸
+    this.tipBg.getComponent(UITransform)!.setContentSize(w, TIP_BG_H);
     this.tipBg.setPosition(cx, y, 0);
     this.tipNode.setPosition(cx, y, 0);
   }
