@@ -391,31 +391,23 @@ export class BoardView extends Component {
    */
   private frameFor(ref: CellRef, imageId: number, pieceId: number): SpriteFrame {
     const sf = new SpriteFrame();
+    sf.texture = this.texCache.get(imageId)!;
     sf.packable = false;
     const g = ref.geom;
-    let rect: Rect;
     if (!g) {
       const pos = pieceId % 4;
-      rect = new Rect((pos % 2) * QUAD, Math.floor(pos / 2) * QUAD, QUAD, QUAD);
-    } else {
-      const geo = pieceGeometry(g);
-      const sx = (g.groupCols * QUADRANT_PX) / geo.groupInkW;
-      const sy = (g.groupRows * QUADRANT_PX) / geo.groupInkH;
-      rect = new Rect(
-        g.quadCol * QUADRANT_PX + geo.inkLeft * sx,
-        g.quadRow * QUADRANT_PX + geo.inkTop * sy,
-        geo.inkW * sx,
-        geo.inkH * sy,
-      );
+      sf.rect = new Rect((pos % 2) * QUAD, Math.floor(pos / 2) * QUAD, QUAD, QUAD);
+      return sf;
     }
-    // ⚠️⚠️ 顺序不能反：必须**先设 rect、后设 texture**。
-    //   先 texture 后 rect 构造出的 SpriteFrame，uv 的 v 轴没有做 flipY 换算（实测 Creator
-    //   3.8.8 构建包：uv 数组数值看着正常，渲染却采样到纹理的镜像位置）——
-    //   表现为「每格显示同一贴纸的另一张卡」（都是完整图案，肉眼难辨）；
-    //   教学图池里 sticker_9 有个象限是大面积米白纸面，融合组恰好取到它 → 「白块」。
-    //   实测：先 rect 后 texture → 图案正确。
-    sf.rect = rect;
-    sf.texture = this.texCache.get(imageId)!;
+    const geo = pieceGeometry(g);
+    const sx = (g.groupCols * QUADRANT_PX) / geo.groupInkW;
+    const sy = (g.groupRows * QUADRANT_PX) / geo.groupInkH;
+    sf.rect = new Rect(
+      g.quadCol * QUADRANT_PX + geo.inkLeft * sx,
+      g.quadRow * QUADRANT_PX + geo.inkTop * sy,
+      geo.inkW * sx,
+      geo.inkH * sy,
+    );
     return sf;
   }
 

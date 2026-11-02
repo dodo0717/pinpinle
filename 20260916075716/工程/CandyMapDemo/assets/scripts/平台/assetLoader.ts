@@ -64,8 +64,6 @@ function loadRemoteSpriteFrame(res: ResolvedAsset, cb: (sf: SpriteFrame | null) 
       return;
     }
     const sf = new SpriteFrame();
-    // ⚠️ 先 rect 后 texture：反序构造 uv 不做 flipY 换算，整图会被上下镜像（BoardView.frameFor 实测踩过）
-    sf.rect = new ccns.Rect(0, 0, (tex as { width: number }).width, (tex as { height: number }).height);
     sf.texture = tex;
     cb(sf);
   });
