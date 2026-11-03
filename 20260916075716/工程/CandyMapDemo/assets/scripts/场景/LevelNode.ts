@@ -66,39 +66,24 @@ const GEO: Record<number, { boxK: number; ncy: number }> = {
 };
 
 interface GelBand {
-  top: Color; mid: Color; bot: Color;
-  /** 底部透光色 `--gel-lower`（ui.css:763 / 800 / 813） */
-  lower: Color;
-  /** 外发光 `--glow` / `--glow2` */
+  /** 外发光 `--glow` / `--glow2`（颜色跟珠色走：粉珠粉光 / 紫珠紫光 / 金珠金光） */
   glow: Color; glow2: Color;
   art: string;
 }
 
-/** 三态珠面参数（颜色/发光/贴图逐值取自 ui.css:760-765, 796-802, 809-815） */
+/** 三态参数（贴图取自美术新交付 `UI及角色/首页/关卡节点/`：todo=粉 / star1=紫+1星 / star3=金+皇冠+3星） */
 const GEL_BANDS: Record<number, GelBand> = {
   0: {
-    top: new Color(240, 250, 255, 255),
-    mid: new Color(166, 215, 250, 255),
-    bot: new Color(74, 143, 212, 255),
-    lower: new Color(194, 229, 255, 255),      // #c2e5ff
-    glow: new Color(150, 210, 255, 140),
-    glow2: new Color(150, 210, 255, 66),
+    glow: new Color(255, 150, 195, 140),
+    glow2: new Color(255, 150, 195, 66),
     art: ART.todo,
   },
   1: {
-    top: new Color(255, 238, 248, 255),
-    mid: new Color(249, 154, 210, 255),
-    bot: new Color(207, 61, 144, 255),
-    lower: new Color(255, 188, 226, 255),      // #ffbcE2
-    glow: new Color(255, 130, 205, 140),
-    glow2: new Color(255, 130, 205, 66),
+    glow: new Color(196, 110, 235, 140),
+    glow2: new Color(196, 110, 235, 66),
     art: ART.star1,
   },
   3: {
-    top: new Color(255, 248, 214, 255),
-    mid: new Color(255, 198, 62, 255),
-    bot: new Color(238, 124, 0, 255),
-    lower: new Color(255, 210, 122, 255),      // #ffd27a
     glow: new Color(255, 180, 60, 153),
     glow2: new Color(255, 180, 60, 77),
     art: ART.star3,
@@ -120,23 +105,6 @@ function grayscale(c: Color, amount: number, bright: number): Color {
     Math.round((c.g + (g - c.g) * amount) * bright),
     Math.round((c.b + (g - c.b) * amount) * bright),
     c.a,
-  );
-}
-
-/** 按站点插值：`linear-gradient(180deg, top 5%, mid 46%, bot 94%)`（ui.css:831） */
-function gradientAt(stops: Color[], pos: number[], t: number): Color {
-  let i = 0;
-  while (i < pos.length - 1 && t > pos[i + 1]!) i++;
-  const a = i === 0 ? 0 : pos[i]!;
-  const b = pos[i + 1] ?? 1;
-  const k = b > a ? Math.min(1, Math.max(0, (t - a) / (b - a))) : 0;
-  const c0 = stops[i]!;
-  const c1 = stops[Math.min(i + 1, stops.length - 1)]!;
-  return new Color(
-    Math.round(c0.r + (c1.r - c0.r) * k),
-    Math.round(c0.g + (c1.g - c0.g) * k),
-    Math.round(c0.b + (c1.b - c0.b) * k),
-    255,
   );
 }
 
@@ -179,9 +147,9 @@ export class LevelNode extends Component {
         this.node.getComponent(UITransform)?.setContentSize(box, box);
 
         const band = GEL_BANDS[state] ?? GEL_BANDS[0]!;
-        this.paintArt(band, box);
+        this.paintArt(band, box, locked);
         this.drawAo();
-        this.drawGel(state, locked);
+        this.drawGlow(state, locked);
         if (!locked) this.drawNum();          // Web：锁定珠不显示数字
         if (locked) {
             this.drawLock();
@@ -200,14 +168,13 @@ export class LevelNode extends Component {
     /* ---------------------------------------------------------------- 切图层 */
 
     /**
-     * `.node-art`（ui.css:771-775）：`position:absolute; inset:0` → **铺满整个盒子**，
-     * `background: var(--art) 0 0 / 100% 100% no-repeat`，`mix-blend-mode: multiply`。
+     * 珠体贴图（美术新交付 `UI及角色/首页/关卡节点/node_*_200.png`，2026-11-03 两套选一套：
+     * 保留**贴图套**、去掉旧的程序绘制珠体 —— 珠体颜色/高光全在图里，程序渐变层会把贴图盖住）。
      *
-     * ⚠️ 之前这里干了三件 Web 没有的事：给贴图 `color` 染色、 MonoBehaviour染色、把贴图往下挪 3.5px。
-     *    Web 只是把它整块铺在盒子上当纹理（白底透出下面 gel 的浓郁渐变，深色细节保留），
-     *     Cocos 的 Sprite 没有 multiply 混合模式，这里退化为「原图直接铺满 + 不染色」。
+     * ⚠️ 锁定态：Web 是对珠体做 `grayscale(.82) brightness(.9)`（ui.css:860），
+     *    贴图模式下用 `sprite.color` 灰化近似（乘法压暗，观感 ≈ 灰调珠）。
      */
-    private paintArt(band: GelBand, box: number): void {
+    private paintArt(band: GelBand, box: number, locked: boolean): void {
         // ⚠️ 贴图节点由这里自己建：**不能让 MapBootstrap 先用 todo 图铺一个**。
         //    两条 `resources.load` 回调谁后到谁生效，实测结果是 todo 图把 star1/star3 顶掉了。
         let bead = this.node.getChildByName('Bead');
@@ -221,7 +188,7 @@ export class LevelNode extends Component {
         bead.getComponent(UITransform)?.setContentSize(box, box);
         bead.setPosition(0, 0);
         const sp = bead.getComponent(Sprite)!;
-        sp.color = new Color(255, 255, 255, 255);   // 不染色
+        sp.color = locked ? new Color(205, 205, 210, 255) : new Color(255, 255, 255, 255);
         resources.load(`${band.art}/spriteFrame`, SpriteFrame, (err, sf) => {
             if (err || !sf || !this.isValid) return;
             sp.spriteFrame = sf;
@@ -267,57 +234,38 @@ export class LevelNode extends Component {
      *   ④ 竖向主渐变    `linear(180deg, top 5%, mid 46%, bot 94%)`
      * 外加两层 box-shadow 外发光：`0 0 nd*.16 nd*.045 glow` + `0 0 nd*.36 nd*.11 glow2`。
      */
-    private drawGel(state: number, locked: boolean): void {
+    /**
+     * 珠体外发光（Web 的两层 `box-shadow`：`0 0 nd*.16 nd*.045 glow` + `0 0 nd*.36 nd*.11 glow2`）。
+     *
+     * ⚠️ 2026-11-03 珠体两套渲染选一套：旧的程序绘制珠体（gel 主渐变 + 三层高光）已删除 ——
+     *    它是不透明层、盖在贴图上，美术新交付的珠子贴图（粉/紫/金，颜色高光全在图里）完全显示不出来；
+     *    现在珠子 = 纯贴图 + 这两层外发光辉光贴图。
+     */
+    private drawGlow(state: number, locked: boolean): void {
         const raw = GEL_BANDS[state] ?? GEL_BANDS[0]!;
         const dim = (c: Color): Color => (locked ? grayscale(c, 0.82, 0.9) : c);
-        // ⚠️ gel 必须是**子节点**：Cocos 里子节点永远渲染在父节点之上，
-        //    直接把 Graphics 加到 this.node 的话，它会被 Bead 子节点盖住；
-        //    而 Web 的顺序是 art 在下、gel 在上（`map.ts:860-861`，后来者居上）。
         const r = this.gelD / 2;
         const d = this.gelD;
         const cy = this.gelY;
 
-        // ① 外发光（Web 的两层 `box-shadow`：`0 0 d*.16 d*.045 glow` + `0 0 d*.36 d*.11 glow2`）
         // ⚠️ 用**预烘焙的模糊贴图**（canvas `shadowBlur`，与 CSS box-shadow 的 blur 同定义=2σ），
         //    不要用「多层同心圆叠加」—— 每层都是硬边，叠出来就是一圈圈同心台阶（毛边）。
         //    贴图是白色，颜色/强度由 `sprite.color` 调制；形状只跟 `r0:blur` 比例有关，
         //    所以 d 变化时整张等比缩放即可复用（`GEL_D` 基准）。
-        // ⚠️ 发光要在 gel **之前**插为兄弟节点，否则子节点会盖住珠体。
+        // ⚠️ 辉光垫在贴图**之下**（setSiblingIndex(1)，Ao 之上）：Web 里 box-shadow 画在珠体后面，
+        //    若插在 Bead 之上，半透明光晕会罩住珠面。
         this.mkGlow('Glow2', 'ui/fx/glow-bead-2', (r + d * 0.11 + d * 0.36) * 2, cy, dim(raw.glow2));
         this.mkGlow('Glow1', 'ui/fx/glow-bead-1', (r + d * 0.045 + d * 0.16) * 2, cy, dim(raw.glow));
-
-        const gel = new Node('Gel');
-        gel.parent = this.node;
-        gel.layer = Layers.Enum.UI_2D;
-        gel.addComponent(UITransform).setContentSize(this.gelD, this.gelD);
-        const g = gel.addComponent(Graphics);
-
-        // ② 珠体主渐变：站点 5% / 46% / 94%
-        const stops = [dim(raw.top), dim(raw.mid), dim(raw.bot)];
-        const N = 40;
-        for (let i = 0; i < N; i++) {
-            const t = (i + 0.5) / N;                    // 0 = 顶
-            const rel = (r - d * t);                    // 条带中心相对圆心的纵向偏移（带符号）
-            const half = Math.sqrt(Math.max(0, r * r - rel * rel));
-            if (half <= 0.5) continue;
-            g.fillColor = gradientAt(stops, [0.05, 0.46, 0.94], t);
-            g.rect(-half, cy + rel - d / N / 2, half * 2, d / N + 0.6);
-            g.fill();
-        }
-
-        // ③ 三层高光（坐标以 gel 盒左上为原点的百分比 → 换算到圆心为原点，y 轴向上为正）
-        this.radial(g, cy, -0.23 * d, 0.32 * d, 0.26 * d, 0.18 * d, new Color(255, 255, 255, 255), 0.70);
-        this.radial(g, cy, -0.17 * d, 0.25 * d, 0.44 * d, 0.34 * d, new Color(255, 255, 255, 235), 0.64);
-        this.radial(g, cy, 0, -0.46 * d, 0.64 * d, 0.52 * d, dim(raw.lower), 0.72);
     }
 
-    /** 铺一张预烘焙的辉光贴图（白色贴图 + `color` 调制），插在 gel 之前当底层 */
+    /** 铺一张预烘焙的辉光贴图（白色贴图 + `color` 调制），垫在珠体贴图之下（Ao 之上） */
     private mkGlow(name: string, res: string, size: number, cy: number, c: Color): Node {
         const n = new Node(name);
         n.parent = this.node;
         n.layer = Layers.Enum.UI_2D;
         n.addComponent(UITransform).setContentSize(size, size);
         n.setPosition(0, cy);          // 跟着珠心（`--ncy`）走
+        n.setSiblingIndex(1);          // Ao(0) 之上、Bead 之下 —— box-shadow 在珠后面
         const sp = n.addComponent(Sprite);
         sp.sizeMode = Sprite.SizeMode.CUSTOM;
         sp.color = c;
@@ -326,19 +274,6 @@ export class LevelNode extends Component {
             sp.spriteFrame = sf;
         });
         return n;
-    }
-
-    /** `radial-gradient(rx ry at cx cy, color, transparent stop)`：多层椭圆近似（Graphics 无渐变） */
-    private radial(g: Graphics, baseY: number, dx: number, dy: number, rx: number, ry: number, c: Color, stop: number): void {
-        for (let i = 10; i >= 1; i--) {
-            const t = i / 10;
-            if (t > stop * 1.35) continue;
-            const a = Math.max(0, Math.round(c.a * Math.max(0, (stop - t) / stop) ** 1.2));
-            if (a <= 0) continue;
-            g.fillColor = new Color(c.r, c.g, c.b, a);
-            g.ellipse(dx, baseY + dy, rx * t, ry * t);
-            g.fill();
-        }
     }
 
     /* ---------------------------------------------------------------- 数字 / 锁 / 宠物 / 奖杯 */
