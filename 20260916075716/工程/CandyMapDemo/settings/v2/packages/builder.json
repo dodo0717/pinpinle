@@ -35,5 +35,29 @@
         }
       }
     }
+  },
+  "textureCompressConfig": {
+    "userPreset": {
+      "7bh2DLmvJP9qcFmk6vKluI": {
+        "name": "小游戏-贴纸",
+        "options": {
+          "miniGame": {
+            "jpg": {
+              "quality": 90
+            }
+          }
+        }
+      },
+      "48H4ItEeBIDLWXbzXcEoTM": {
+        "name": "小游戏-底图",
+        "options": {
+          "miniGame": {
+            "jpg": {
+              "quality": 78
+            }
+          }
+        }
+      }
+    }
   }
 }

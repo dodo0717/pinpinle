@@ -16,6 +16,24 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（Cocos 端首次出包达标：主包 4.66 MB → 1.96 MB）**：用户在 Creator 里完成三项设置并构建
+  `build/wechatgame-005`：① 纹理压缩预设 `小游戏-贴纸`（JPG q90，108 张）/ `小游戏-底图`（JPG q78，15 张），
+  只对 Mini Game 生效，Web 不压（写在 `builder.json` 的 `textureCompressConfig` 与各图 `.meta` 的
+  `compressSettings`）；② 底图拼接模式 Repeat → Clamp（非 2 次幂贴图在 WebGL1 下本来就会被降级）；
+  ③ 功能裁剪（`engine.json`）：关掉 3D、物理、Spine、DragonBones、粒子、Tiled、富文本、动画、WebView、
+  WebSocket、运行状态统计，保留 2D/UI/遮罩/图形/斜切/仿射/缓动/音频。
+  结果：主包 **1.96 MB**（引擎 cc.js 2.84 → 1.34 MB，bullet / spine wasm 不再打包），`remote/resources`
+  27.4 MB / 733 个文件，资源服务器 `https://candy.aidertech.cn/mini-assets/`。
+  Creator 预览实测：首页、进关、拖动、消除正常。**待做**：上传 `remote/` 到服务器、微信开发者工具与真机预览。
+
+- **2026-11-03（修：换场景后进关拖不动方块）**：`Map.scene` 换成 3.8 标准结构后 Canvas 开了
+  `alignCanvasWithScreen`，节点被摆到可见区中心（如 640,360），世界原点不再是 Canvas 中心。
+  `GameBootstrap.localOf()` 原来用「`getUILocation()` 减半个屏幕」当世界坐标，整体偏了半屏 →
+  `hitCell()` 恒为 -1，按下就被忽略。改为与小游戏线一致：`getLocation()` 经 UI 相机 `screenToWorld`
+  转世界坐标（新增 `uiCamera()`，沿父链找 Canvas 的 cameraComponent），找不到相机才退回旧换算。
+  拖动位移只用前后两点差值，不受影响；地图页拖动同理（只用 y 差值）。单测 281/281、tsc 0 错；
+  **待 Creator 预览确认能拖动。**
+
 - **2026-11-03（修：Creator 打开工程报 `Cannot read properties of null (reading 'anchorX')`）**：
   main 上的 `assets/scenes/Map.scene` 是旧的手写版 —— Canvas、Bootstrap 两个节点都缺 `UITransform`
   （Canvas 组件依赖它），相机也直接挂在 Canvas 节点上。小游戏线 10-24 已按 Cocos 3.8 标准结构重写过

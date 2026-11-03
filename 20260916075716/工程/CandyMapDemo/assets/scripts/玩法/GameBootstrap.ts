@@ -14,6 +14,7 @@
 import {
   _decorator, Component, Node, UITransform, Vec3, Vec2, Layers, Graphics, Label, Color,
   view, ResolutionPolicy, game, Game, EventTouch, UIOpacity, tween, Tween, Sprite,
+  Camera, Canvas, director,
 } from 'cc';
 import { BoardView, ANIM, GAP } from './BoardView';
 import { GameDialog } from './GameDialog';
@@ -467,12 +468,38 @@ export class GameBootstrap extends Component {
    *   直接拿 UI 坐标去转换，点屏幕正中会算出 local=(539,1085)，落在 1044×1634 的棋盘外
    *   → `hitCell()` 恒返回 -1 → `onTouchStart` 直接 return，整关任何操作都没反应。
    *   （拖动只用到前后两点的**差值**，所以那边一直是对的 —— 只有这里取绝对位置。）
+   *
+   * ⚠️ 2026-11-03：Map.scene 换成 3.8 标准结构后（Canvas 开 alignCanvasWithScreen，节点被摆到可见区中心），
+   *   世界原点不再是 Canvas 中心，上面「减半个屏幕」的换算整体偏了半屏 → 又变成拖不动。
+   *   改为与小游戏线一致：屏幕坐标经 UI 相机 `screenToWorld` 转世界坐标 —— 和引擎自己的命中判定同一条路，
+   *   不依赖 Canvas 摆在哪。找不到相机时才退回旧换算。
    */
   private localOf(e: EventTouch): Vec3 {
-    const p = e.getUILocation();
     const t = this.view.node.getComponent(UITransform)!;
+    const cam = this.uiCamera();
+    if (cam) {
+      const s = e.getLocation();
+      const world = cam.screenToWorld(new Vec3(s.x, s.y, 0));
+      return t.convertToNodeSpaceAR(new Vec3(world.x, world.y, 0));
+    }
+    const p = e.getUILocation();
     const vs = view.getVisibleSize();
     return t.convertToNodeSpaceAR(new Vec3(p.x - vs.width / 2, p.y - vs.height / 2, 0));
+  }
+
+  private cam: Camera | null = null;
+
+  /** 拍 UI 层的相机（Canvas 上挂的那台）；找不到时由 localOf 退回 UI 坐标换算 */
+  private uiCamera(): Camera | null {
+    if (this.cam?.isValid) return this.cam;
+    let p: Node | null = this.node;
+    while (p) {
+      const canvas = p.getComponent(Canvas);
+      if (canvas?.cameraComponent) { this.cam = canvas.cameraComponent; return this.cam; }
+      p = p.parent;
+    }
+    this.cam = director.getScene()?.getComponentInChildren(Camera) ?? null;
+    return this.cam;
   }
 
   /** 本地坐标 → 格子下标，落在缝隙或界外返回 -1 */
