@@ -16,6 +16,14 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（上传 Cocos 构建 `wechatgame-005` 的远程资源）**：`remote/resources`（733 个文件、27.4 MB）
+  先传到服务器暂存目录 `/home/game/mini-assets/remote.new-20261103`，逐个 md5 与本地核对全部一致后再替换：
+  旧的 `remote/`（10-24 那次构建，269 个文件）改名为 **`remote.bak-20261103`**（回退：改回原名即可）。
+  公网抽查 9 个文件（config / jpg / png / ttf / import json）200 且 md5 一致，带 `access-control-allow-origin: *`。
+  **未动 nginx**：7 个 nginx 配置 md5、容器列表与状态、`pp/`（纯代码线素材，247 个文件）指纹均与上传前一致，
+  `pp/` 公网图与 `/game/api/` 响应不变。本地 `remote/` 已移到 `build/_remote-uploaded/wechatgame-005`，
+  构建目录剩 1.96 MB。⚠️ 以后每次重新构建都要重传 `remote/`（资源 uuid / 文件名会变）。
+
 - **2026-11-03（Cocos 端首次出包达标：主包 4.66 MB → 1.96 MB）**：用户在 Creator 里完成三项设置并构建
   `build/wechatgame-005`：① 纹理压缩预设 `小游戏-贴纸`（JPG q90，108 张）/ `小游戏-底图`（JPG q78，15 张），
   只对 Mini Game 生效，Web 不压（写在 `builder.json` 的 `textureCompressConfig` 与各图 `.meta` 的
