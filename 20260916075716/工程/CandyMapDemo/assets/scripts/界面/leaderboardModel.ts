@@ -107,18 +107,23 @@ export function avatarIndexOf(name: string): number {
 /**
  * 总分榜：本地确定性 mock 的累计总分榜（无后端，纯展示）。
  *
- * ⚠️ 其余 1000 名是**模拟玩家（基石数据）**，他们的「简单/困难」拆分也是 mock 出来的分布；
- * 但「我」这一行必须用**真实分模式累计分**（`my`）—— 简单 = 简单模式所有关的
- * 本关最高分之和，困难同理，没玩过的模式就是 0，绝不按比例虚构。
+ * ── 两列口径（2026-11-03 用户纠正）──────────────────────────────────
+ *   **简单 / 困难两列各自是独立累计分，总分 = 简单 + 困难**：
+ *     · 简单列：每个人都有一个值（大家都玩过简单）；
+ *     · 困难列：**约一半的人从没玩过困难模式 → 就是 0**，玩了的人才计分；
+ *     · 绝不按 0.6 / 0.4 之类比例把一个总分「拆」成两列（那是假数据：
+ *       会让每个模拟玩家的困难分都 > 0，与「没玩就是 0」的规则直接冲突）。
+ *   「我」这一行同样是真实值：简单 = 简单模式所有关本关最高分之和，困难同理。
  */
 export function buildTotalBoard(my: { simple: number; hard: number }): LeaderboardRow[] {
   // 用第 1 关的 1000 个固定昵称作为稳定身份，避免按关洗牌导致玩家对不上
   const names = mockBoardNames(1);
   const rng = new Rng(20260914);
   const rows: LeaderboardRow[] = names.map((name) => {
-    const total = 380 + rng.int(600); // 380 ~ 979
-    const simple = Math.round(total * 0.6);
-    const hard = total - simple;
+    const simple = 380 + rng.int(600);            // 简单累计 380 ~ 979
+    // 困难模式不是人人都玩：约 45% 的人困难列有分，其余 55% 是 0（没玩就是 0）
+    const hard = rng.int(100) < 45 ? 60 + rng.int(340) : 0;
+    const total = simple + hard;                  // 当关/累计总分 = 简单 + 困难
     // 总分榜里 `score` 就是累计总分（与 Web `.lb-row` 的总分列同源）
     return { rank: 0, name, score: total, simple, hard, total, mine: false };
   });

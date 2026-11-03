@@ -72,6 +72,15 @@ test('总分榜：1001 行（1000 模拟 + 我），名次连续且我的分是�
   for (let i = 1; i < rows.length; i++) {
     assert.ok((rows[i - 1]!.total ?? 0) >= (rows[i]!.total ?? 0), `第 ${i} 行破坏了降序`);
   }
+
+  // 两列口径（2026-11-03）：总分 = 简单 + 困难，困难列必须是「没玩就是 0」而不是按比例拆
+  const others = rows.filter((r) => !r.mine);
+  for (const r of others) {
+    assert.equal(r.total, (r.simple ?? 0) + (r.hard ?? 0), `${r.name} 的总分不等于简单+困难`);
+  }
+  assert.ok(others.some((r) => r.hard === 0), '必须有人从没玩过困难（困难列 = 0）');
+  assert.ok(others.some((r) => (r.hard ?? 0) > 0), '也必须有人玩过困难（困难列 > 0）');
+  assert.ok(others.some((r) => r.simple > 0), '每个人都玩过简单（简单列 > 0）');
 });
 
 test('总分榜是确定性的：同一份输入每次打开都一样（本地 mock，无后端）', () => {

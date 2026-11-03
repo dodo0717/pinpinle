@@ -813,7 +813,14 @@ export class MapBootstrap extends Component {
     /**
      * 某关的榜单数据（与 web/main.ts 的 `leaderboardView` 同口径）。
      *
-     * 「简单 / 困难」两列只能取两套进度的真值（`myScores`），绝不由单个分数按比例拆。
+     * ── 当关分数口径（2026-11-03 用户纠正）──────────────────────────────
+     *   **当关总分 = 简单模式本关分 + 困难模式本关分**：
+     *     · 简单打了多少就是多少；
+     *     · 困难没玩就是 0，玩了才计分；
+     *     · 不再「只看当前模式」—— 原来切到简单/困难各看一份榜，同一关会出现两个不同的
+     *       「我的分数」，与「当关总分合计是简单+困难」的规则不符。
+     *   上榜分（`boardBest`）仍然只记 3★ 及以上（策划 §7.4：1★/2★/续命局不上榜），
+     *   所以这里取两套进度各自的 `boardBest` 相加 —— 既符合合计口径，也不让 1★/2★ 混进榜单。
      */
     private leaderboardView(level: number): LeaderboardView {
         const progress = GS.progress;
@@ -821,18 +828,24 @@ export class MapBootstrap extends Component {
         const status = levelStatus(progress, level);
         const cfg = buildLevelConfigs(GS.mode)[level - 1];
         const line = cfg ? { star1: cfg.star1, star2: cfg.star2, star3: cfg.star3 } : { star1: 1, star2: 2, star3: 3 };
-        const board = boardSnapshot(level, line, rec.boardBest);
+        // 两套模式各自的**上榜分**（没玩 / 没到 3★ = 0），合计才是这一关的总分
+        const simpleBoard = recordOf(GS.data.progress.normal, level).boardBest;
+        const hardBoard = recordOf(GS.data.progress.nightmare, level).boardBest;
+        const levelTotal = simpleBoard + hardBoard;
+        const board = boardSnapshot(level, line, levelTotal);
         return {
             level,
             rows: board.rows,
             totalPlayers: board.totalPlayers,
             myRank: board.myRank,
             boardBest: board.myBoardBest,
-            personalBest: rec.personalBest,
-            myScores: {
-                simple: recordOf(GS.data.progress.normal, level).personalBest,
-                hard: recordOf(GS.data.progress.nightmare, level).personalBest,
-            },
+            // 没上榜时成绩条显示「个人最高分」：两套模式各取本关最高分再相加
+            // （简单打了 5 分就是 5 分，困难没玩就是 0 —— 同样不按比例拆分）
+            personalBest:
+                recordOf(GS.data.progress.normal, level).personalBest +
+                recordOf(GS.data.progress.nightmare, level).personalBest,
+            // 三列显示与名次基准必须是同一个数，否则会出现「显示 600 却按 500 排名」
+            myScores: { simple: simpleBoard, hard: hardBoard },
             mode: GS.mode,
             // 已通关但素材不足（被跳过）的关卡也进不去，challengeState 会给出对应文案
             challenge: challengeState(level, status, !!cfg),
