@@ -6,7 +6,6 @@ import {
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { HomeHUD } from '../界面/HomeHUD';
-import { preloadUiFont } from '../界面/fontUtil';
 import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { StartupLoading } from '../界面/StartupLoading';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
@@ -203,9 +202,8 @@ export class MapBootstrap extends Component {
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
         startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
-        // UI 字体：教学/弹窗/气泡等**不走** makeLabel 的文字此前一直用 Cocos 默认字体，
-        //    与 Web（PingFang SC / 微软雅黑）不是一套字形。这里开局预读一次，避免首次弹面板时字突然跳。
-        void preloadUiFont();
+        // UI 字体：改由启动加载页第二阶段预读（StartupLoading.startLoading → preloadUiFont），
+        //    第一阶段不能下字体（2×340 KB），否则又和加载页背景抢带宽。
         // 读档后声音开关要真的生效（否则界面上是「关」，耳朵里还在响）—— web/main.ts:479-481
         sfx.setSound(GS.meta.settings.sound);
         sfx.setBgm(GS.meta.settings.bgm);
@@ -215,22 +213,30 @@ export class MapBootstrap extends Component {
         setMenuShare(() => ({ title: SHARE.menuTitle, query: 'from=menu' }));
         // 从「已解锁到的那一关」所在世界开局，而不是永远从第 1 世界（否则 180 关要一路翻过去）
         this.worldIndex = worldIndexOf(GS.progress.unlocked);
+        // 场景里挂本组件的节点实际叫 Bootstrap，而 GameBootstrap 返回时按 'Map' 查找，
+        // 两边名字对不上会造成「进得去、回不来」，这里统一成 Map
+        this.node.name = 'Map';
+        // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进（hud 未建时 refreshTopbar 自己跳过）
+        GS.onMetaChange(() => this.refreshTopbar());
+        this.schedule(this.onTick, 1);
+        // 启动加载页分两阶段（2026-11-03，修「一片黄、快到 100% 才出背景」）：
+        //   ① 只下加载页自己的三张图 → 玩家第一眼看到完整加载页；
+        //   ② 再建首页（buildHome，会发出首屏 28 张切图 + 底图请求）、下字体、推进度条，下完淡出。
+        // 淡出后才开始后台预下载各整屏切图（见 preloadUiAssets），不和首屏抢带宽。
+        StartupLoading.show(this.node, DESIGN_W, this.screenH, this.firstScreenAssets(),
+            () => this.buildHome(), () => this.preloadUiAssets());
+    }
+
+    /** 建首页（原来直接写在 onLoad 里；现在由启动加载页第二阶段调用，避免和加载页背景抢带宽） */
+    private buildHome(): void {
         this.buildBackdrop();
         this.mountDialogs();
         this.buildLevelPositions();
         this.buildUI();
         this.buildMap();
         this.raiseOverlays();
-        // 场景里挂本组件的节点实际叫 Bootstrap，而 GameBootstrap 返回时按 'Map' 查找，
-        // 两边名字对不上会造成「进得去、回不来」，这里统一成 Map
-        this.node.name = 'Map';
         this.ensureGameNode();
-        // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进
-        GS.onMetaChange(() => this.refreshTopbar());
-        this.schedule(this.onTick, 1);
-        // 启动加载页盖在首页之上：首屏素材（当前世界底图 / 关卡珠 / 顶栏页签切图 / 字体）下完再淡出。
-        // 淡出后才开始后台预下载各整屏切图（见 preloadUiAssets），不和首屏抢带宽。
-        StartupLoading.show(this.node, DESIGN_W, this.screenH, this.firstScreenAssets(), () => this.preloadUiAssets());
+        this.refreshTopbar();
     }
 
     /** 首屏要先下好的贴图（resources 路径）：加载页的进度条按这些的真实下载数走 */
