@@ -16,6 +16,22 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（微信小游戏出包准备：字体子集化 + resources 远程包）**：
+  - **字体子集化（已实测）**：`assets/resources/font/` 两个 HarmonyOS ttf 用 fonttools 子集化后
+    **原地替换**（.meta / uuid 不变）：16 MB → **0.68 MB**（各约 340 KB）。字符表 `tools/font-chars.txt`
+    重新扫描（1377 个非 ASCII 字符）+ ASCII/Latin-1/CJK 标点/全角区。逐字核对：游戏用到的 1461 个字符里
+    原字体有的 1437 个**全部保留**，其余 24 个（emoji、▶◀✕⭐ 等）原字体本来就没有，走系统字体兜底，行为不变。
+  - **打包方式（用户拍板：远程资源）**：`settings/v2/packages/builder.json` 恢复 10-24（`c50f61f`）
+    跑通过的 Bundle 配置 —— 小游戏平台下 `resources` 为**远程包**（wechatgame 覆盖 `isRemote: true`），
+    构建后 `remote/` 上传到 `https://candy.aidertech.cn/mini-assets/`（server 已在构建配置里）。
+    该配置 11-01 补 `.meta` 时被重置为空，导致之后构建会把 60 MB 资源全塞进主包。代码零改动。
+  - **图片压缩（用户拍板：构建时由 Creator 压，源图不动）**：实测建议值 —— 贴纸 JPG q90（4:4:4）
+    49 MB → 约 11 MB（PSNR ≥ 35.8）、世界底图 JPG q78 → 10.3 MB（PSNR ≥ 40.6）；
+    UI 切图含透明，256 色量化 PSNR 最低 25.8（排行榜金框/彩带有色带），**UI 建议不压**（只 6.4 MB，且走远程）。
+    预设需在编辑器里建并挂到图片上（未手写 meta：Creator 3.8.8 的 compressSettings 格式本机核实不到，
+    手写错字段曾让 Creator 启动卡死），步骤见 `docs/小游戏包体方案.md` 第六节。
+  - 验证：单测 245/245、可移植性守卫通过。**未验证**：编辑器构建、真机远程加载。
+
 - **2026-10-30（修「图鉴溢出框 / 排行榜分页器压行」，三次迭代）**：根因是 `.col-card` /
   `.lb-card` 的 padding **小于金框切图（frame.png 以 100% 100% 拉伸铺满）的边框宽度**——
   边框约占卡片宽高的 4~5%，1080 设计分辨率下约 45~55px，且框底还有 border-radius 118px
