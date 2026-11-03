@@ -184,6 +184,9 @@ export class MapBootstrap extends Component {
         this.ensureCamera();   // 打包后场景里的相机绑定会丢，运行时兜底补一台正交 UI 相机
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
+        // ⚠️ 难度页签必须跟存档里的模式对齐（否则重进游戏后：珠子按困难档渲染、
+        //    弹出的关卡牌却是简单模式 —— 两个来源各自为政）
+        this.diffIndex = GS.mode === 'nightmare' ? 1 : 0;
         startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
         // UI 字体：教学/弹窗/气泡等**不走** makeLabel 的文字此前一直用 Cocos 默认字体，
         //    与 Web（PingFang SC / 微软雅黑）不是一套字形。这里开局预读一次，避免首次弹面板时字突然跳。
@@ -807,15 +810,20 @@ export class MapBootstrap extends Component {
         // 时间戳闸门（`Date.now() < x`）会误伤「刚拖完紧接着点下一颗」的正常操作，
         // 而且 Web 根本没这回事（web/ui/map.ts:876 `if (dragMoved || flipping) return`）。
         if (this.drag?.moved) return;
-        // 困难档门槛要先判：被门槛挡住时用的是另一句提示，不是「先通关第 N 关」
-        const blocked = this.isNightmareBlocked(level);
         const board = this.levelBoardOf(level);
-        if (blocked || (!board.cleared && !board.unlocked)) {
-            this.toast.show(
-                blocked ? MAP.nightmareLocked : MAP.locked(Math.max(1, level - 1)),
-                1800,   // Web 用的是 1800（web/ui/map.ts:721）
-            );
+        // 真没解锁（两套模式都进不了）才硬拦
+        if (!board.cleared && !board.unlocked) {
+            this.toast.show(MAP.locked(Math.max(1, level - 1)), 1800);   // Web 用 1800（web/ui/map.ts:721）
             return;
+        }
+        // ⚠️ 困难门槛拦住时**不能就此打住**（2026-11-03 用户踩到的死锁）：
+        //    困难模式下点「简单还没 3 星」的关 → 提示完就没了；可门槛要的正是
+        //    「这关的简单 3 星」，而地图上没有模式切换按钮 → 简单版也玩不了 →
+        //    困难永远开不了。所以提示照给，但**自动切回简单模式**弹出关卡牌，
+        //    让玩家立刻去拿那张门票。
+        if (this.isNightmareBlocked(level)) {
+            this.toast.show(MAP.nightmareLocked, 1800);
+            this.setDifficulty(0);
         }
         this.openPreview(level);
     }
