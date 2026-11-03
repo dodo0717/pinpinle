@@ -849,7 +849,8 @@ export class MapBootstrap extends Component {
      * + 我的成绩条与「我」行高亮 + 关卡榜内的**「挑战本关」**按钮。
      *
      * ⚠️ 榜单名次一律由核心层 `boardSnapshot` 算，界面不自己排一遍（避免两处口径分叉）；
-     *    模拟玩家只有一份成绩 → 只落在当前模式那一列，另一列 0（不按比例拆分数）。
+     *    AI 角色的简单/困难两列按 60%~80% 拆分（`leaderboardModel.mockRowScores`），
+     *    本机玩家两列永远是进度表里的真实分（不拆）。
      */
     private showLeaderboardScreen() {
         if (!this.leaderboard) {

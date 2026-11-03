@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  AI_SCORE_MAX_LEVEL,
   HONOR_RULE,
   TOTAL_LEVELS,
   boardSnapshot,
+  hasAiScores,
   honorForLevel,
   honorOf,
   mockBoardNames,
   mockBoardScores,
+  mockSplitOf,
   percentileText,
   rankStats,
 } from '../assets/scripts/core/index';
@@ -108,8 +111,8 @@ describe('M9 · 三档判定（§三 / §四）', () => {
 
 describe('M9 · 灰盒数据源（1000 名模拟玩家，基石数据）', () => {
   it('模拟分数全部 ≥ 本关 3★ 线，且人数固定', () => {
-    // 末关用 TOTAL_LEVELS 派生，不写死 60（关卡会继续扩充）
-    for (const level of [1, 15, 35, TOTAL_LEVELS]) {
+    // 只到 AI_SCORE_MAX_LEVEL（66 关）：更后面的关卡按用户口径不配置 AI 分数
+    for (const level of [1, 15, 35, AI_SCORE_MAX_LEVEL]) {
       const scores = mockBoardScores(level, LINE);
       assert.strictEqual(scores.length, HONOR_RULE.mockPlayers);
       assert.ok(scores.every((s) => s >= LINE.star3), `第${level}关出现低于 3★ 线的分数`);
@@ -124,6 +127,47 @@ describe('M9 · 灰盒数据源（1000 名模拟玩家，基石数据）', () =>
   it('昵称不重名', () => {
     const names = mockBoardNames(20);
     assert.strictEqual(new Set(names).size, names.length);
+  });
+});
+
+describe('M9 · AI 分数口径（2026-11-03 用户定稿）', () => {
+  it(`只配置到第 ${AI_SCORE_MAX_LEVEL} 关，之后不再造 AI 分数`, () => {
+    assert.strictEqual(AI_SCORE_MAX_LEVEL, 66);
+    assert.strictEqual(hasAiScores(AI_SCORE_MAX_LEVEL), true);
+    assert.strictEqual(hasAiScores(AI_SCORE_MAX_LEVEL + 1), false);
+    assert.strictEqual(mockBoardScores(AI_SCORE_MAX_LEVEL, LINE).length, HONOR_RULE.mockPlayers);
+    assert.strictEqual(mockBoardScores(AI_SCORE_MAX_LEVEL + 1, LINE).length, 0, '67 关起没有 AI');
+    assert.strictEqual(mockBoardScores(TOTAL_LEVELS, LINE).length, 0, '末关也没有 AI');
+  });
+
+  it('第 67 关起榜单只有本机：没上榜 = 空榜，上榜 = 第 1 名', () => {
+    const empty = boardSnapshot(AI_SCORE_MAX_LEVEL + 1, LINE, 0);
+    assert.strictEqual(empty.totalPlayers, 0);
+    assert.strictEqual(empty.rows.length, 0);
+    assert.strictEqual(empty.myRank, null);
+
+    const alone = boardSnapshot(AI_SCORE_MAX_LEVEL + 1, LINE, 12);
+    assert.strictEqual(alone.totalPlayers, 1);
+    assert.strictEqual(alone.myRank, 1);
+    assert.deepStrictEqual(alone.rows.map((r) => [r.rank, r.mine]), [[1, true]]);
+  });
+
+  it('简单分占 60%~80%，困难分 = 总分 − 简单分（两列都 > 0 且求和自洽）', () => {
+    for (const total of [5, 9, 12, 18, 30, 47]) {
+      for (const name of ['软糯布丁', '元气团子', '星星汤圆', '柠檬果冻']) {
+        const split = mockSplitOf(15, name, total);
+        const ratio = (split.simple / total) * 100;
+        assert.ok(ratio >= 60 - 100 / total && ratio <= 80 + 100 / total, `${name}@${total} 比例 ${ratio.toFixed(1)}%`);
+        assert.strictEqual(split.simple + split.hard, total, '两列必须等于总分');
+        assert.ok(split.simple > 0 && split.hard > 0, '两列都必须 > 0');
+        assert.strictEqual(mockSplitOf(15, name, total).simple, split.simple, '同一角色同一关必须稳定');
+      }
+    }
+    // 不同角色 / 不同关的比例不该完全一样（随机确实在起作用）
+    const ratios = new Set(
+      ['软糯布丁', '元气团子', '星星汤圆', '柠檬果冻', '奶盖花卷', '樱桃蛋糕'].map((n) => mockSplitOf(15, n, 30).simple),
+    );
+    assert.ok(ratios.size >= 2, `6 个角色只落到 ${ratios.size} 种拆分，随机性不足`);
   });
 });
 

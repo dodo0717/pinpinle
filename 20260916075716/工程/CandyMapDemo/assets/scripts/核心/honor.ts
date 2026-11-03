@@ -25,6 +25,14 @@
  *   本地确定性生成，每个关卡固定同一批人、同一批分数，刷新/重开都一样（便于复现与验收）。
  *   后端接入后只需替换 `mockBoardScores` / `mockBoardNames`，其余全部不用动。
  *
+ * ── AI 角色分数口径（2026-11-03 用户定稿，替代原先「随手随机」的假数据）──────
+ *   · 先给每个角色每关一个**总分**（`mockBoardScores`，地板 3★、天花板 1.6×3★）；
+ *   · 再把总分拆两列：**简单分 = 总分 × 60%~80%（确定性随机）**，**困难分 = 总分 − 简单分**
+ *     （`mockSplitOf`）。两列都 > 0 —— 这是用户明确要的口径，不是历史那个「按 0.6/0.4
+ *     硬拆本机真实分」的 bug（那个拆的是**玩家自己的成绩**，这里拆的是 AI 的模拟数据）；
+ *   · AI 分数**只配置到第 66 关**（`AI_SCORE_MAX_LEVEL`），67 关及以后不再造 AI 分数 ——
+ *     榜单只有本机玩家（空榜显示「暂无记录」），排名/百分比也按「场上只有我」计算。
+ *
  * ── 人口口径对档位的影响（2026-11-03 更新）──────────────────────────────
  *   总玩家数 = 1000 名模拟玩家 + 本机 1 人 = **1001 人**，于是：
  *   ① 「超神」要求 名次 ≤ 100 且 总人数 > 100 → 进前 100 名才算（1001 人里前 ~10%），不再"上榜即超神"；
@@ -69,6 +77,57 @@ export const HONOR_RULE = {
 
 /** 本机玩家在榜上的名字（真实昵称接入后替换） */
 export const MY_BOARD_NAME = '我';
+
+/**
+ * AI 角色分数**配置到第几关为止**（2026-11-03 用户：66 关之后不用设计 AI 分数）。
+ *
+ * 67 关及以后 `mockBoardScores` 返回空数组 —— 榜单里没有 AI 角色，
+ * 玩家就是本关唯一的参赛者（百分比 0、名次 1，自然落进「优秀」档）。
+ */
+export const AI_SCORE_MAX_LEVEL = 66;
+
+/** 本关是否配置了 AI 分数（关卡榜/结算排名都要先问一句，否则 67+ 关会凭空多出 1000 个对手） */
+export function hasAiScores(level: number): boolean {
+  return Number.isFinite(level) && level >= 1 && level <= AI_SCORE_MAX_LEVEL;
+}
+
+/**
+ * AI 角色简单分占总分的比例区间（%），含两端 —— 用户口径 60%~80%。
+ *
+ * 剩下那部分**全部算困难分**：`hard = total - simple`，不另做一次随机，
+ * 以保证「简单 + 困难 = 总分」这两列永远自洽。
+ */
+export const MOCK_SIMPLE_RATIO = { min: 60, max: 80 } as const;
+
+/** AI 角色单关成绩的两列拆分 */
+export interface MockSplit {
+  /** 简单分 = 总分 × 60%~80%（四舍五入） */
+  simple: number;
+  /** 困难分 = 总分 − 简单分 */
+  hard: number;
+  /** 该关总分（= simple + hard） */
+  total: number;
+}
+
+function hashNameSeed(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * 把某个 AI 角色**单关的总分**拆成简单 / 困难两列（用户口径 2026-11-03）。
+ *
+ * 随机必须**确定性**：种子 = 关号 + 昵称哈希，所以同一关同一个角色每次打开都是同一个比例，
+ * 不会出现「刷新一次排名就变了」。比例均匀落在 60~80（21 档）。
+ */
+export function mockSplitOf(level: number, name: string, total: number): MockSplit {
+  const rng = new Rng((hashNameSeed(name) ^ (level * 7717 + 131)) >>> 0);
+  const stations = MOCK_SIMPLE_RATIO.max - MOCK_SIMPLE_RATIO.min + 1; // 21 档：60..80
+  const ratio = MOCK_SIMPLE_RATIO.min + rng.int(stations);
+  const simple = Math.round((total * ratio) / 100);
+  return { simple, hard: total - simple, total };
+}
 
 /* ------------------------------------------------------------------ 统计口径（§2） */
 
@@ -169,8 +228,13 @@ export function mockBoardNames(level: number): string[] {
  * 用 `(1 - t)^1.6` 分布 —— 高手稀疏、大多数人贴着地板扎堆，接近真实的天梯形态。
  * 额外叠 ±3 的确定性抖动：1000 人时 ±1 会让「每档分数」扎上千人，
  * 扩到 ±3 把并列密度降到合理范围，同时仍能验证「同分同名次 + 名次跳号 + 并列百名」。
+ *
+ * ⚠️ 这里给的是**总分**（关卡榜那一列「总分」）；简单/困难两列由
+ * `mockSplitOf(level, name, total)` 按 60%~80% 现拆，别在别处再拆一次。
+ * ⚠️ `level > AI_SCORE_MAX_LEVEL`（第 67 关起）返回**空数组**：用户要求后面不再设计 AI 分数。
  */
 export function mockBoardScores(level: number, line: HonorLines): number[] {
+  if (!hasAiScores(level)) return [];
   const star3 = line.star3;
   const span = Math.max(6, Math.round(star3 * 1.6));
   const rng = new Rng(level * 104729 + 17);

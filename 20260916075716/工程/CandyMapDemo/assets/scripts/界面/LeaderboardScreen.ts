@@ -667,7 +667,8 @@ export class LeaderboardScreen {
       if (r.mine) {
         return { ...r, simple: view.myScores.simple, hard: view.myScores.hard, total: view.myScores.simple + view.myScores.hard };
       }
-      return { ...r, ...mockRowScores(r.score, view.mode) };
+      // AI 角色：简单 = 本关总分 × 60%~80%（确定性随机），困难 = 总分 − 简单分
+      return { ...r, ...mockRowScores(this.curLevel, r.name, r.score) };
     });
   }
 

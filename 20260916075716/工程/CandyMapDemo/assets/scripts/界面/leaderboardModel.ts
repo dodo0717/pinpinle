@@ -9,12 +9,25 @@
  * ⚠️ **没有后端**：1000 名玩家（基石数据）来自 `核心/honor.ts` 的确定性 mock（本地模拟数据，
  * 同一关每次打开都一样），界面上必须写明这一点（`LEADERBOARD` 文案里的口径说明）。
  *
- * ⚠️ **禁止按比例拆分数**（历史 bug）：曾经用 0.6 / 0.4 把一个分硬拆成「简单/困难」
- * 两列，结果「简单 23 分」被显示成「简单 14 / 困难 9」，而困难模式根本没玩过。
- * 两列只能各自来自对应模式的进度表。
+ * ── 两列（简单 / 困难）的口径（2026-11-03 用户定稿）────────────────
+ *   · **AI 角色**：每关先有总分 `mockBoardScores`，再按 `mockSplitOf` 拆成
+ *     简单 = 总分 × 60%~80%（确定性随机）、困难 = 总分 − 简单分；
+ *     总分榜 = 第 1~66 关逐关累加（67 关起不再有 AI 分数）。
+ *   · **本机玩家**：永远用两套进度表里的**真实值**（`myScores` / `myTotals`），不做任何拆分 ——
+ *     历史 bug 说的就是这条：曾经把玩家自己的一次得分按 0.6 / 0.4 硬拆，
+ *     结果「困难 9 分」显示出来，而玩家根本没玩过困难模式。
  */
 
-import { Rng, mockBoardNames, TOTAL_LEVELS, type LevelStatus, type GameMode } from '../核心/index';
+import {
+  LEVEL_STAR_LINES,
+  AI_SCORE_MAX_LEVEL,
+  mockBoardNames,
+  mockBoardScores,
+  mockSplitOf,
+  TOTAL_LEVELS,
+  type LevelStatus,
+  type GameMode,
+} from '../核心/index';
 import { LEADERBOARD } from '../玩法/text';
 
 /** 《通关及排名》§七：每页 20 名 */
@@ -61,7 +74,12 @@ export interface LeaderboardView {
    * 分模式的成绩只能来自各自的进度表，不允许由单个分数按比例拆。
    */
   myScores: { simple: number; hard: number };
-  /** 当前玩法模式：模拟玩家只有一份成绩，落在对应那一列 */
+  /**
+   * 当前玩法模式（仅作记录）。
+   *
+   * 2026-11-03 起 AI 角色两列都按 60%~80% 拆分（`mockRowScores`），不再「只落当前模式那一列」，
+   * 所以这里不再参与 AI 行的列计算；本机行一直用 `myScores`。
+   */
   mode: GameMode;
   /** 「挑战本关」按钮状态 */
   challenge: ChallengeState;
@@ -82,15 +100,19 @@ export function challengeState(level: number, status: LevelStatus, playable: boo
 }
 
 /**
- * 关卡榜里模拟玩家那一行的三栏。
+ * 关卡榜里 AI 角色那一行的三栏。
  *
- * 模拟玩家只有**一份**成绩（当前模式的该关上榜分），所以它只落在当前模式那一列，
- * 另一列就是「没玩过 = 0」—— 不再按 0.6 / 0.4 拆成两个假数字。
+ * 用户口径（2026-11-03）：简单分 = 该关总分 × 60%~80%（确定性随机），
+ * 困难分 = 总分 − 简单分 —— 两列都 > 0，百分比由 `mockSplitOf` 保证稳定。
  * 本机玩家（`mine`）不用这个函数，走 `view.myScores`（两套进度表的真实值）。
  */
-export function mockRowScores(score: number, mode: GameMode): { simple: number; hard: number; total: number } {
-  const inSimple = mode === 'normal';
-  return { simple: inSimple ? score : 0, hard: inSimple ? 0 : score, total: score };
+export function mockRowScores(
+  level: number,
+  name: string,
+  score: number,
+): { simple: number; hard: number; total: number } {
+  const split = mockSplitOf(level, name, score);
+  return { simple: split.simple, hard: split.hard, total: split.total };
 }
 
 function hashStr(s: string): number {
@@ -104,29 +126,67 @@ export function avatarIndexOf(name: string): number {
   return hashStr(name) % AVATAR_VARIANTS;
 }
 
+/** AI 角色累计分的缓存（确定性数据，与「我」无关，算一次就够） */
+let mockTotalsCache: Array<{ name: string; simple: number; hard: number; total: number }> | null = null;
+
+/**
+ * 1000 个 AI 角色的累计成绩 = **第 1~66 关逐关相加**（用户口径 2026-11-03）。
+ *
+ * 每关：`mockBoardScores` 给总分 → `mockSplitOf` 拆简单/困难 → 按昵称累加。
+ * 67 关起 `mockBoardScores` 返回空（`AI_SCORE_MAX_LEVEL`），所以后面的关卡不贡献分数。
+ *
+ * ⚠️ 身份用**昵称**而不是「第 i 个」：`mockBoardNames` 每关洗牌，同一个下标在不同关
+ * 是不同的人，只有昵称才是稳定身份。
+ * ⚠️ 结果按 `LEVEL_STAR_LINES` 计算，与具体进度/存档无关 → 缓存；换关卡配置时需重启即可。
+ */
+function mockTotalScores(): Array<{ name: string; simple: number; hard: number; total: number }> {
+  if (mockTotalsCache) return mockTotalsCache;
+  const names = mockBoardNames(1);
+  const acc = new Map<string, { simple: number; hard: number }>();
+  for (const name of names) acc.set(name, { simple: 0, hard: 0 });
+
+  for (let level = 1; level <= AI_SCORE_MAX_LEVEL; level++) {
+    const line = LEVEL_STAR_LINES[level];
+    if (!line) continue;
+    const scores = mockBoardScores(level, { star1: line[0], star2: line[1], star3: line[2] });
+    if (scores.length === 0) continue;
+    const levelNames = mockBoardNames(level);
+    for (let i = 0; i < scores.length; i++) {
+      const name = levelNames[i]!;
+      const bucket = acc.get(name);
+      if (!bucket) continue; // 理论上不会：两套名字都来自同一个 40×25 池
+      const split = mockSplitOf(level, name, scores[i]!);
+      bucket.simple += split.simple;
+      bucket.hard += split.hard;
+    }
+  }
+
+  mockTotalsCache = names.map((name) => {
+    const a = acc.get(name)!;
+    return { name, simple: a.simple, hard: a.hard, total: a.simple + a.hard };
+  });
+  return mockTotalsCache;
+}
+
 /**
  * 总分榜：本地确定性 mock 的累计总分榜（无后端，纯展示）。
  *
- * ── 两列口径（2026-11-03 用户纠正）──────────────────────────────────
- *   **简单 / 困难两列各自是独立累计分，总分 = 简单 + 困难**：
- *     · 简单列：每个人都有一个值（大家都玩过简单）；
- *     · 困难列：**约一半的人从没玩过困难模式 → 就是 0**，玩了的人才计分；
- *     · 绝不按 0.6 / 0.4 之类比例把一个总分「拆」成两列（那是假数据：
- *       会让每个模拟玩家的困难分都 > 0，与「没玩就是 0」的规则直接冲突）。
- *   「我」这一行同样是真实值：简单 = 简单模式所有关本关最高分之和，困难同理。
+ * ── 两列口径（2026-11-03 用户定稿）──────────────────────────────────
+ *   · AI 角色：第 1~66 关逐关累加，每关的简单/困难按 `mockSplitOf` 拆（60%~80%）；
+ *     总分 = 简单 + 困难，一定自洽。
+ *   · 「我」：真实值 —— 简单 = 简单模式所有关本关最高分之和，困难同理（不做任何拆分）。
+ *   · 67 关以后不再有 AI 分数，所以**总分榜与关卡榜的 AI 部分都止步于 66 关**。
  */
 export function buildTotalBoard(my: { simple: number; hard: number }): LeaderboardRow[] {
-  // 用第 1 关的 1000 个固定昵称作为稳定身份，避免按关洗牌导致玩家对不上
-  const names = mockBoardNames(1);
-  const rng = new Rng(20260914);
-  const rows: LeaderboardRow[] = names.map((name) => {
-    const simple = 380 + rng.int(600);            // 简单累计 380 ~ 979
-    // 困难模式不是人人都玩：约 45% 的人困难列有分，其余 55% 是 0（没玩就是 0）
-    const hard = rng.int(100) < 45 ? 60 + rng.int(340) : 0;
-    const total = simple + hard;                  // 当关/累计总分 = 简单 + 困难
-    // 总分榜里 `score` 就是累计总分（与 Web `.lb-row` 的总分列同源）
-    return { rank: 0, name, score: total, simple, hard, total, mine: false };
-  });
+  const rows: LeaderboardRow[] = mockTotalScores().map((t) => ({
+    rank: 0,
+    name: t.name,
+    score: t.total, // 总分榜里 `score` 就是累计总分（与 Web `.lb-row` 的总分列同源）
+    simple: t.simple,
+    hard: t.hard,
+    total: t.total,
+    mine: false,
+  }));
   // 把本机玩家「我」塞进榜单，方便看高亮效果（真实值，不做任何比例拆分）
   rows.push({
     rank: 0,
