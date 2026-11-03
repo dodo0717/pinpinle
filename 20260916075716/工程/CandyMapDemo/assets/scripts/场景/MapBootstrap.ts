@@ -29,7 +29,7 @@ import {
   adDenyText, playAd, setMenuShare, setPlatformToast, shareCard, startTracking,
 } from '../玩法/platformBridge';
 import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '../玩法/meta';
-import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, TOTAL_LEVELS } from '../核心/index';
+import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, type LevelStatus, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
 import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtAsset } from './worlds';
 // 底图固定走本地 resources（Web 口径：`/web/art/map-v2/*.jpg` 是静态本地图）
@@ -745,12 +745,14 @@ export class MapBootstrap extends Component {
     /**
      * 关卡节点的状态全部由进度派生（§7.3.3）：
      * 锁定 / 解锁 / 已通关 + 星级。
-     * 「当前关」= 已解锁到的最后一关，不另存一份 —— 存了就会和进度分叉。
+     * 「当前关」= 两套模式里**解锁到的最远关卡**，不另存一份 —— 存了就会和进度分叉。
+     *
+     * ⚠️ 状态与星级取**两套模式的最好结果**（2026-11-03 用户纠正）：
+     *    地图上没有模式页签，只按当前模式渲染会让「困难档已经 3 星的关」显示成未通关/锁定。
      */
     private createLevelNodes() {
         this.levelNodes = [];
-        const p = GS.progress;
-        const cur = Math.min(p.unlocked, LEVEL_COUNT);
+        const cur = Math.min(this.unlockedTo(), LEVEL_COUNT);
         for (let i = 0; i < this.levels.length; i++) {
             const lv = this.levels[i];
             const node = new Node('Level_' + lv.level);
@@ -759,9 +761,15 @@ export class MapBootstrap extends Component {
             node.addComponent(UITransform).setContentSize(NODE_BOX, NODE_BOX);
             node.setPosition(lv.x - DESIGN_W / 2, this.localY(lv.y));
 
+            // 状态/星级**两套模式取最好**（见 levelBoardOf 注释）——
+            // 困难档打过的关，在简单页签下也必须显示成已通关 + 对应星级，
+            // 否则玩家会看到「排行榜有 3 星、地图却是未通关/锁定」。
+            const board = this.levelBoardOf(lv.level);
             // 困难档被 3 星门槛挡住的关，外观必须是**锁定态**（Web: status = 'locked'）
-            const st = this.isNightmareBlocked(lv.level) ? 'locked' : levelStatus(p, lv.level);
-            const stars = recordOf(p, lv.level).stars;
+            const st = !board.cleared && this.isNightmareBlocked(lv.level)
+                ? 'locked'
+                : board.cleared ? 'cleared' : board.unlocked ? 'unlocked' : 'locked';
+            const stars = board.stars;
             // ⚠️ 这里原本有一句 `this.makeSprite(node, 'Bead', BEADS.plain, ...)` 预铺 todo 图，已删除：
             //    它和 LevelNode.paintArt 的 `resources.load` 是两条独立的异步回调，
             //    谁后到谁覆盖 —— 实测跑出来 1~2 星/3 星珠的贴图被写死成 todo 图。
@@ -801,7 +809,8 @@ export class MapBootstrap extends Component {
         if (this.drag?.moved) return;
         // 困难档门槛要先判：被门槛挡住时用的是另一句提示，不是「先通关第 N 关」
         const blocked = this.isNightmareBlocked(level);
-        if (blocked || levelStatus(GS.progress, level) === 'locked') {
+        const board = this.levelBoardOf(level);
+        if (blocked || (!board.cleared && !board.unlocked)) {
             this.toast.show(
                 blocked ? MAP.nightmareLocked : MAP.locked(Math.max(1, level - 1)),
                 1800,   // Web 用的是 1800（web/ui/map.ts:721）
@@ -811,12 +820,44 @@ export class MapBootstrap extends Component {
         this.openPreview(level);
     }
 
+    /** 「另一套模式」—— 地图上做合并显示时要同时看它 */
+    private otherMode(): GameMode {
+        return GS.mode === 'nightmare' ? 'normal' : 'nightmare';
+    }
+
+    /** 两套模式里**解锁到的最远关卡**（地图「已解锁范围」用它的较大值） */
+    private unlockedTo(): number {
+        return Math.max(GS.progress.unlocked, GS.progressOf(this.otherMode()).unlocked);
+    }
+
+    /**
+     * 某一关在地图上的展示状态 = **两套模式取最好**（2026-11-03 用户纠正）。
+     *
+     * 为什么不再只看当前模式：地图上只有关卡珠，没有「简单/困难」两个页签。
+     * 玩家困难档打到第 4 关（排行榜里有分数有 3 星），切回简单页签后地图却显示
+     * 「第 3 关未通关、第 4 关锁定、需要先通过上一关」—— 数据明明都在，界面像没打过。
+     * 所以珠子按「任一模有星就算通关、取较高星」显示；能不能进由 `openPreview`
+     * 自动切到**可玩的那套模式**解决（见 openPreview）。
+     */
+    private levelBoardOf(level: number): { stars: number; cleared: boolean; unlocked: boolean } {
+        const mine = recordOf(GS.progress, level).stars;
+        const other = recordOf(GS.progressOf(this.otherMode()), level).stars;
+        const stars = Math.max(mine, other);
+        return { stars, cleared: stars > 0, unlocked: level <= this.unlockedTo() };
+    }
+
     /**
      * 困难档门槛：同一关必须先在**简单模式**拿到 3 星（Web `nightmareUnlocked()`，
      * `NIGHTMARE_MIN_NORMAL_STARS = 3`）。两套进度各自独立，必须跨模式去查简单档。
+     *
+     * ⚠️ 例外：困难档**自己已经通关过这一关**时不再拦（门槛只管「首次进入」）。
+     *    否则旧规则时代打出来的困难成绩会被新门槛锁回去 —— 显示成锁定、进不去，
+     *    而排行榜里还挂着那关的分数。
      */
     private isNightmareBlocked(level: number): boolean {
-        return GS.mode === 'nightmare' && recordOf(GS.progressOf('normal'), level).stars < 3;
+        if (GS.mode !== 'nightmare') return false;
+        if (recordOf(GS.progressOf('nightmare'), level).stars > 0) return false;
+        return recordOf(GS.progressOf('normal'), level).stars < 3;
     }
 
     // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
@@ -887,7 +928,13 @@ export class MapBootstrap extends Component {
     private leaderboardView(level: number): LeaderboardView {
         const progress = GS.progress;
         const rec = recordOf(progress, level);
-        const status = levelStatus(progress, level);
+        // 「已通关 / 已解锁」取两套模式的最好结果，与地图珠子同口径
+        // （困难档通关过第 4 关 → 排行榜的「挑战本关」不能被简单档的锁定状态置灰）
+        const mineStatus = levelStatus(progress, level);
+        const otherStatus = levelStatus(GS.progressOf(this.otherMode()), level);
+        const status: LevelStatus = mineStatus === 'cleared' || otherStatus === 'cleared'
+            ? 'cleared'
+            : mineStatus === 'unlocked' || otherStatus === 'unlocked' ? 'unlocked' : 'locked';
         const cfg = buildLevelConfigs(GS.mode)[level - 1];
         const line = cfg ? { star1: cfg.star1, star2: cfg.star2, star3: cfg.star3 } : { star1: 1, star2: 2, star3: 3 };
         // 两套模式各自的**上榜分**（没玩 / 没到 3★ = 0），合计才是这一关的总分
@@ -1068,7 +1115,9 @@ export class MapBootstrap extends Component {
             // ⚠️ 跨模式查**简单档**（Web main.ts:1349 nightmareUnlocked = recordOf(progressByMode.normal, level).stars >= 3）。
             //    原来用 GS.progress 查的是**当前模式**那份进度 —— 玩家切到困难模式后再开弹窗，
             //    困难档自己永远 0 星 → 困难按钮永久锁死（state.ts 里写的规矩这里没照做）。
-            canNightmare: (level) => recordOf(GS.progressOf('normal'), level).stars >= 3,
+            // 困难档自己已经通关过这一关也算解锁（旧规则时代的成绩不能被新门槛锁回去）
+            canNightmare: (level) => recordOf(GS.progressOf('normal'), level).stars >= 3
+                || recordOf(GS.progressOf('nightmare'), level).stars > 0,
             onClose: () => { /* 收起吊牌即可，地图不重建 */ },
             onPlay: (level) => this.enterLevel(level),
         });
@@ -1076,9 +1125,29 @@ export class MapBootstrap extends Component {
         this.preview.rootNode().setSiblingIndex(this.node.children.length - 1);
     }
 
-    /** 「开始游戏」→ 吊出关卡详情牌（不再直接进关） */
+    /**
+     * 「开始游戏」→ 吊出关卡详情牌（不再直接进关）。
+     *
+     * 当前模式进不了这一关、而**另一套模式进得了**时，先自动切过去：
+     * 地图珠子是两套模式合并显示的，玩家点一颗「困难档打过、简单档没解锁」的珠子，
+     * 不切模式就会打开一张锁死的牌（说「需要先通过上一关」，可这关明明打过了）。
+     */
     private openPreview(level: number): void {
+        this.switchToPlayableMode(level);
         this.preview.open(level, (this.diffIndex === 1 ? 'nightmare' : 'normal') as LevelMode);
+    }
+
+    /** 这套模式里这关能不能玩（已解锁，或已有成绩 —— 旧档的 unlocked 可能落后于 levels） */
+    private canPlayIn(mode: GameMode, level: number): boolean {
+        const p = GS.progressOf(mode);
+        return level <= p.unlocked || recordOf(p, level).stars > 0;
+    }
+
+    /** 当前模式进不了这关、另一套模式能进 → 切到能进的那套（两套都进不了就什么都不做） */
+    private switchToPlayableMode(level: number): void {
+        if (this.canPlayIn(GS.mode, level)) return;
+        if (!this.canPlayIn(this.otherMode(), level)) return;
+        this.setDifficulty(GS.mode === 'nightmare' ? 0 : 1);
     }
 
     /**
@@ -1144,6 +1213,8 @@ export class MapBootstrap extends Component {
      */
     private enterLevel(level: number): void {
         sfx.unlock();   // 真实手势解锁音频（与地图拖动起手那处等价，Web 是全局 pointerdown）
+        // 牌面里选的可能不是当前模式（吊牌有难度切换）—— 先把模式对齐到能进的那套再判锁
+        this.switchToPlayableMode(level);
         if (levelStatus(GS.progress, level) === 'locked') {
             this.toast.show(HOME.lockedToast, 1600);
             return;
