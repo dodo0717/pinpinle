@@ -610,6 +610,10 @@ export class GameBootstrap extends Component {
   private playResolution(outcome: MoveOutcome, gained: number): void {
     const st = outcome.stages;
     if (!st) {
+      // 无消除的移动（没拼成组）：数据已变但没有任何演出会重摆 face ——
+      // 不补这一手，玩家看到的还是**移动前**的棋盘（「拖了却像弹回去」），
+      // 与盘面数据从此错位，教学里表现为怎么拖都「不对劲」。
+      this.view.setCells(this.engine.board.toArray());
       this.afterResolve();
       return;
     }

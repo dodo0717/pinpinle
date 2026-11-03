@@ -680,10 +680,20 @@ export class BoardView extends Component {
     }
   }
 
-  /** 取消拖动：整片归位 */
+  /**
+   * 拖动结束：整片归位。
+   *
+   * ⚠️ 这里必须是**立即归位**，不能用 tween：成功移动的同帧会走
+   * `doMove → tutorialAfterMove → tutClearMarks()`，那里 `Tween.stopAllByTarget`
+   * 是为了停脉冲缩放循环 —— 但它会**连刚启动的回位 tween 一起杀掉**，
+   * 被拖的组块就永远停在拖动预览的偏移位置上（表现为叠块 + 空位，棋盘看着「卡死」）。
+   * 这是与 `playVanish` 收尾同族的第三次同帧竞争（见 GameBootstrap 650 行注释）。
+   * 手感影响可忽略：取消路径有 `playReject` 的方向弹动兜底反馈。
+   */
   clearDrag(): void {
     for (const ref of this.cells) {
-      tween(ref.root).to(ANIM.swap, { position: new Vec3(ref.baseX, ref.baseY, 0) }).start();
+      Tween.stopAllByTarget(ref.root);
+      ref.root.setPosition(ref.baseX, ref.baseY, 0);
       this.drawShadow(ref, ref.geom ? 'merged' : 'normal');
     }
   }
