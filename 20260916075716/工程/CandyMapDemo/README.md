@@ -12,6 +12,10 @@
 | **Cocos 端**（主线，2026-11-03 的修复都落在这边） | `assets/scripts/场景/MapBootstrap.ts` 等，工程根 = 本目录（Cocos Creator 3.8.8） | 先构建，再 `node tools/serve-build.mjs 5182` → `http://localhost:5182/`（服务 `build/web-mobile/` 产物） |
 | **Web 预览版**（UI 逐屏校对用） | `web/index.html` + `web/main.ts` + `web/ui/*` | `node preview/serve.mjs` → `http://localhost:5181/web/index.html` |
 
+> 📦 **2026-11-03 起两版分开存储**：Web 版已独立成仓 **https://github.com/dodo0717/pinpinle-web**
+> （`web/` + `assets/scripts/核心/` + 贴纸资源，可直接跑）；本仓库保留一份 `web/` 作 Cocos 工程内
+> 的 UI 校对副本。⚠️ 两仓的 `assets/scripts/核心/` 是**同源双份**，改数值/规则要两边同步。
+
 - **共用算法层**：两端都引 `assets/scripts/核心/`（关卡配置、引擎、榜单、存档校验）—— 改数值只改这里，两边同时生效；界面层各写一份（`assets/scripts/界面|场景|玩法/` 对 `web/ui/`）
 - **Cocos 构建命令**：
   `CocosCreator.exe --project <本目录> --build "platform=web-mobile;buildPath=project://build"`
