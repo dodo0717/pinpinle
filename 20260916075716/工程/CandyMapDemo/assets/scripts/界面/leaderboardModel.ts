@@ -152,3 +152,16 @@ export function pageRows<T>(rows: readonly T[], page: number): T[] {
   const start = (clampPage(page, rows.length) - 1) * LEADERBOARD_PAGE_SIZE;
   return rows.slice(start, start + LEADERBOARD_PAGE_SIZE);
 }
+
+/**
+ * 「我」所在的那一页（1 起）。
+ *
+ * 结算页「查看排行榜」跳过来时用：**直接把玩家送到自己那页**，而不是让他从第 1 页翻。
+ * 找不到「我」（没上榜 / 名次在百强之外，榜单里根本没有这一行）时回第 1 页 ——
+ * 不能因为找不到就停在空页或末页。
+ */
+export function pageOfMyRow(rows: readonly { mine?: boolean }[]): number {
+  const idx = rows.findIndex((r) => r.mine);
+  if (idx < 0) return 1;
+  return clampPage(Math.floor(idx / LEADERBOARD_PAGE_SIZE) + 1, rows.length);
+}

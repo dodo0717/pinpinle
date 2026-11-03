@@ -18,6 +18,7 @@ import {
   pageCountOf,
   clampPage,
   pageRows,
+  pageOfMyRow,
 } from '../assets/scripts/界面/leaderboardModel';
 import { LEADERBOARD } from '../assets/scripts/玩法/text';
 
@@ -99,6 +100,26 @@ test('分页：每页 20 名，页码夹在合法区间，尾页只给剩下的�
   }
   assert.equal(all.length, rows.length);
   assert.equal(all[0], `1-${rows[0]!.name}`);
+});
+
+test('结算跳转定位：「我」所在页算得准，没上榜就回第 1 页', () => {
+  // 真实榜单：2000 分必进第 1 行（模拟玩家总分上限 979）→ 落在第 1 页
+  const rows = buildTotalBoard({ simple: 2000, hard: 0 });
+  assert.equal(pageOfMyRow(rows), 1, '第 1 行就是我 → 第 1 页');
+  // 0 分必然垫底（1001 行 / 51 页）→ 我在最后一页，跳转要直接送过去
+  assert.equal(pageOfMyRow(buildTotalBoard({ simple: 0, hard: 0 })), 51, '垫底 → 最后一页');
+
+  // 造一个「我在第 3 页第 5 行」的榜（第 45 行）
+  const fake = Array.from({ length: 60 }, (_, i) => ({ mine: i === 44 }));
+  assert.equal(pageOfMyRow(fake), 3, '第 45 行 → 第 3 页');
+
+  // 我在最后一行（页码正好等于总页数，不能越界成 4）
+  const tail = Array.from({ length: 40 }, (_, i) => ({ mine: i === 39 }));
+  assert.equal(pageOfMyRow(tail), 2, '第 40 行 → 第 2 页');
+
+  // 榜里根本没有我（例如名次 > 100 不在百强行里）→ 回第 1 页，不能停在空页
+  assert.equal(pageOfMyRow([{ mine: false }, { mine: false }]), 1);
+  assert.equal(pageOfMyRow([]), 1, '空榜也返回第 1 页');
 });
 
 test('头像配色按昵称哈希稳定取一种（同一玩家每次一样）', () => {

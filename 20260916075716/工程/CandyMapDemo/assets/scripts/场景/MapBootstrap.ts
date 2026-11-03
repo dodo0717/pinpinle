@@ -759,6 +759,21 @@ export class MapBootstrap extends Component {
     }
 
     // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
+    /**
+     * **外部入口**（结算页「查看排行榜」）：直接落到指定关的关卡榜，并翻到「我」所在页。
+     *
+     * 结算算的是「本关名次」，所以默认页签是关卡榜、默认关卡是调用方传的那一关 ——
+     * 让玩家点一下就看见自己在榜上的位置，而不是落在总分榜第 1 页从头找。
+     * 底栏同步高亮到「排行榜」（否则界面上是排行榜、底栏却还停在首页）。
+     */
+    openLeaderboard(opts: { tab?: 'total' | 'level'; level?: number; focusMine?: boolean } = {}): void {
+        const tab = opts.tab ?? 'level';
+        const focusMine = opts.focusMine !== false;
+        const level = Math.min(Math.max(1, opts.level ?? GS.progress.unlocked), LEVEL_COUNT);
+        this.setTab(1);                      // 底栏高亮 + 建屏（内部先按默认关渲染一次）
+        this.leaderboard?.openAt(tab, level, focusMine);
+    }
+
     /** 页签顺序与 Web 一致：0 首页 / 1 排行榜 / 2 图鉴 / 3 设置 */
     private setTab(i: number) {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一

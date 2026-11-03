@@ -21,7 +21,7 @@ import { ToastLayer, fmtMMSS } from './toast';
 import { GameAudio } from './audio';
 import { GuideBar } from './guide';
 import { GS } from './state';
-import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, SHARE, GUIDE, BOARD, TUTORIAL, TUTORIAL_VOICE } from './text';
+import { MODE_LABEL, HOME, HONOR, REVIVE, FAIL, SAVE, ADS, SHARE, GUIDE, TUTORIAL, TUTORIAL_VOICE } from './text';
 import {
   adDenyText, flushTracking, playAd, reportLevelEnd, reportLevelFail, reportLevelStart,
   setPlatformToast, shareCard, sharer, startTracking,
@@ -39,7 +39,7 @@ import {
 } from './tutorial';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
-  settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
+  settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel,
   TOTAL_LEVELS, reviveSecondsFor,
   type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement,
   type LevelConfig, type LevelSession, type Cell, type ProgressData, type GameMode,
@@ -838,7 +838,7 @@ export class GameBootstrap extends Component {
     if (this.levelIndex < TOTAL_LEVELS) row1.push({ text: HONOR.next, onClick: () => this.nextLevel(), primary: true });
     row1.push({ text: HONOR.retry, onClick: () => this.restart(), primary: row1.length === 0 });
     const row2: ResultButton[] = [];
-    if (boardBest > 0) row2.push({ text: HONOR.rank, onClick: () => this.showBoardDialog(boardBest) });
+    if (boardBest > 0) row2.push({ text: HONOR.rank, onClick: () => this.openLeaderboardForLevel() });
     // 分享入口：宿主没有分享能力时**连按钮都不摆**（摆了点不动比没有更糟）
     if (sharer().available()) row2.push({ text: SHARE.btn, onClick: () => this.shareResult(outcome, settlement) });
     row2.push({ text: HONOR.backHome, onClick: () => this.exitToHome() });
@@ -857,16 +857,27 @@ export class GameBootstrap extends Component {
     });
   }
 
-  /** 排行榜（灰盒 100 人 + 本机） */
-  private showBoardDialog(boardBest: number): void {
-    const snap = boardSnapshot(this.levelIndex, { star1: this.cfg.star1, star2: this.cfg.star2, star3: this.cfg.star3 }, boardBest);
-    const lines = [`第 ${this.levelIndex} 关 · ${BOARD.total(snap.totalPlayers)}`];
-    for (const r of snap.rows.slice(0, 6)) {
-      lines.push(`${r.rank}. ${r.name}　${r.score} 分`);
+  /**
+   * 「查看排行榜」= 回主页 + 直接把玩家送到**本关的关卡榜**上自己那一页。
+   *
+   * 原来这里弹的是灰盒文字框（前 6 名 + 我的名次），信息量比排行榜整屏少得多；
+   * 结算算的是「本关名次」，所以落点必须是关卡榜的**这一关**，而不是总分榜第 1 页。
+   * ⚠️ 不能 import MapBootstrap（它已 import 本文件 → 循环依赖），
+   *    所以在 Map 节点上用鸭子类型找那个有 `openLeaderboard` 的组件。
+   */
+  private openLeaderboardForLevel(): void {
+    const level = this.levelIndex;
+    const map = this.findMapNode();
+    this.exitToHome();
+    const host = map?.components.find(
+      (c) => typeof (c as unknown as { openLeaderboard?: unknown }).openLeaderboard === 'function',
+    ) as unknown as { openLeaderboard: (o: { tab: 'level'; level: number; focusMine: boolean }) => void } | undefined;
+    if (!host) {
+      // 找不到主页就不能静默 —— 玩家点了按钮没反应会以为按钮坏了
+      this.toast.show('当前场景没有主页节点，无法打开排行榜', 2000);
+      return;
     }
-    if (snap.myRank) lines.push(`我的名次 第 ${snap.myRank} 名`);
-    else lines.push('达到 3★ 才能上榜哦');
-    this.dialog.show('排行榜', lines, [{ text: '关闭', onClick: () => {}, primary: true }]);
+    host.openLeaderboard({ tab: 'level', level, focusMine: true });
   }
 
   /** 失败结算也走吊牌（同一骨架，没到星线就不画星级） */
