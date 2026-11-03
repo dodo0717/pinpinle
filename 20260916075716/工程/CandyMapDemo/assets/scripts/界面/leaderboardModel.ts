@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 排行榜整屏的**数据层**（从 web/ui/leaderboard.ts 移植，2026-10-30）。
  *
  * 为什么单独拆一个文件：整屏组件（`LeaderboardScreen.ts`）要 import `cc`，
@@ -6,7 +6,7 @@
  * （模拟玩家的两列分数怎么放、「挑战本关」什么时候置灰、每页切多少行）。
  * 把这些抽出来后，单测可以直接 import 本文件验证口径，不必开浏览器。
  *
- * ⚠️ **没有后端**：100 名玩家来自 `核心/honor.ts` 的确定性 mock（本地模拟数据，
+ * ⚠️ **没有后端**：1000 名玩家（基石数据）来自 `核心/honor.ts` 的确定性 mock（本地模拟数据，
  * 同一关每次打开都一样），界面上必须写明这一点（`LEADERBOARD` 文案里的口径说明）。
  *
  * ⚠️ **禁止按比例拆分数**（历史 bug）：曾经用 0.6 / 0.4 把一个分硬拆成「简单/困难」
@@ -107,12 +107,12 @@ export function avatarIndexOf(name: string): number {
 /**
  * 总分榜：本地确定性 mock 的累计总分榜（无后端，纯展示）。
  *
- * ⚠️ 其余 100 名是**模拟玩家**，他们的「简单/困难」拆分也是 mock 出来的分布；
+ * ⚠️ 其余 1000 名是**模拟玩家（基石数据）**，他们的「简单/困难」拆分也是 mock 出来的分布；
  * 但「我」这一行必须用**真实分模式累计分**（`my`）—— 简单 = 简单模式所有关的
  * 本关最高分之和，困难同理，没玩过的模式就是 0，绝不按比例虚构。
  */
 export function buildTotalBoard(my: { simple: number; hard: number }): LeaderboardRow[] {
-  // 用第 1 关的 100 个固定昵称作为稳定身份，避免按关洗牌导致玩家对不上
+  // 用第 1 关的 1000 个固定昵称作为稳定身份，避免按关洗牌导致玩家对不上
   const names = mockBoardNames(1);
   const rng = new Rng(20260914);
   const rows: LeaderboardRow[] = names.map((name) => {

@@ -20,18 +20,19 @@
  *   rank         = higherCount + 1                （同分同名次 → 名次会跳号）
  *   percentile   = lowerCount / (totalPlayers - 1)（totalPlayers ≤ 1 时为 0）
  *
- * ── 数据来源（M9 灰盒）──────────────────────────────────────────────
- *   本文件里的 100 名模拟玩家是**本地确定性数据**，用来在没有后端时把链路跑通：
- *   每个关卡固定同一批人、同一批分数，刷新/重开都一样（便于复现与验收）。
+ * ── 数据来源（M9 灰盒 / 基石数据）──────────────────────────────────────
+ *   本文件里的 **1000 名模拟玩家是基石数据**（2026-11-03 用户决定：扩到 1000 位，当作后端接入前的底座）：
+ *   本地确定性生成，每个关卡固定同一批人、同一批分数，刷新/重开都一样（便于复现与验收）。
  *   后端接入后只需替换 `mockBoardScores` / `mockBoardNames`，其余全部不用动。
  *
- * ⚠️ 已知的规则后果（2026-09-12 记录，待策划裁决）：
- *   在「100 名模拟玩家 + 本机 1 人 = 101 人」的口径下，
- *   ① 名次 ≤ 100 覆盖了 101 人里的 100 人 → 只要上了榜（≥3★）几乎必得「超神」；
- *   ② 「王者」要求「名次 > 100 且百分比 ≥ 90%」，而名次 > 100 意味着至少 100 人比你高，
- *      于是 percentile ≤ (N-101)/(N-1) —— 要让它 ≥ 90% 必须 N ≥ 1001。
- *      也就是说 **王者档在总玩家数不足 1001 时数学上不可达**。
- *   两条都只是数值门槛的后果，不是代码缺陷；真要修，改的是 `HONOR_RULE`，不是这里。
+ * ── 人口口径对档位的影响（2026-11-03 更新）──────────────────────────────
+ *   总玩家数 = 1000 名模拟玩家 + 本机 1 人 = **1001 人**，于是：
+ *   ① 「超神」要求 名次 ≤ 100 且 总人数 > 100 → 进前 100 名才算（1001 人里前 ~10%），不再"上榜即超神"；
+ *   ② 「王者」要求 名次 > 100 且 百分比 ≥ 90% → 名次 101~200 这一段正好落入（数学上可达了，
+ *      这正是 2026-09-12 记录的「N < 1001 时王者不可达」那条后果被 1000 人口径修掉的原因）；
+ *   ③ 名次 > 100 且 百分比 < 90% → 「优秀」。
+ *   ⚠️ 分数是整数、天花板仍是 3★线 ×1.6，所以 1001 人里顶端必然大量并列 —— 这是真实天梯形态，
+ *      不是 bug（并列名次会跳号，见 §四）。
  */
 
 import { Rng } from './rng';
@@ -54,8 +55,8 @@ export interface HonorLines {
  * 这几个数字全部来自策划案，集中放在这里是为了「改数值不用翻代码」。
  */
 export const HONOR_RULE = {
-  /** 模拟玩家数（灰盒占位数据源；后端接入后作废） */
-  mockPlayers: 100,
+  /** 模拟玩家数（基石数据源，2026-11-03 由 100 扩到 1000；后端接入后作废） */
+  mockPlayers: 1000,
   /** 上榜门槛星级：1★ / 2★ 与续命局一样**不上排行榜** */
   boardStars: 3,
   /** 百强榜的名次上限 */
@@ -135,11 +136,23 @@ export function honorOf(stats: HonorStats): HonorTier {
 
 /* ------------------------------------------------------------------ 灰盒数据源 */
 
-/** 模拟玩家昵称：10 个前缀 × 10 个后缀 = 100 个不重名的名字 */
-const MOCK_NAME_HEAD = ['软糯', '元气', '抱抱', '咕噜', '懒懒', '奶盖', '甜心', '小只', '月光', '薄荷'];
-const MOCK_NAME_TAIL = ['布丁', '团子', '豆豆', '柚子', '芝麻', '花卷', '包子', '汤圆', '奶糖', '年糕'];
+/**
+ * 模拟玩家昵称池：**40 个前缀 × 25 个后缀 = 1000 个不重名的名字**（`mockPlayers` 必须等于它）。
+ * ⚠️ 组合唯一性靠「前缀之间两两不同 且 后缀之间两两不同」保证，改池子时先数一遍乘积。
+ */
+const MOCK_NAME_HEAD = [
+  '软糯', '元气', '抱抱', '咕噜', '懒懒', '奶盖', '甜心', '小只', '月光', '薄荷',
+  '棉花', '草莓', '云朵', '橘子', '闪亮', '圆滚', '毛球', '桃子', '可可', '海盐',
+  '月牙', '星星', '雪球', '蜂蜜', '抹茶', '珍珠', '樱桃', '葡萄', '柠檬', '奶油',
+  '焦糖', '麦芽', '果冻', '奶泡', '爱睡', '粘人', '撒娇', '贪吃', '好奇', '发呆',
+];
+const MOCK_NAME_TAIL = [
+  '布丁', '团子', '豆豆', '柚子', '芝麻', '花卷', '包子', '汤圆', '奶糖', '年糕',
+  '蛋糕', '卷卷', '球球', '圆圆', '软软', '糖糖', '小喵', '小汪', '兔兔', '熊熊',
+  '饼饼', '果果', '酱酱', '丸丸', '啵啵',
+];
 
-/** 某关的 100 个模拟玩家昵称（同一关恒定，不同关洗牌不同） */
+/** 某关的 1000 个模拟玩家昵称（同一关恒定，不同关洗牌不同） */
 export function mockBoardNames(level: number): string[] {
   const all: string[] = [];
   for (const head of MOCK_NAME_HEAD) for (const tail of MOCK_NAME_TAIL) all.push(`${head}${tail}`);
@@ -147,14 +160,15 @@ export function mockBoardNames(level: number): string[] {
 }
 
 /**
- * 某关的 100 个模拟玩家分数。
+ * 某关的 1000 个模拟玩家分数（基石数据）。
  *
  * 硬约束（策划）：**全部 ≥ 本关 3★ 线** —— 因为 1★ / 2★ 的成绩根本不上榜，
- * 榜单上不该出现他们。
+ * 榜单上不该出现他们；天花板仍是 3★ 线的 1.6 倍（不擅自抬高）。
  *
  * 曲线：以 3★ 线为地板、3★ 线的 1.6 倍为天花板（至少 6 分），
  * 用 `(1 - t)^1.6` 分布 —— 高手稀疏、大多数人贴着地板扎堆，接近真实的天梯形态。
- * 额外叠 ±1 的确定性抖动：制造**并列**，正好用来验证「同分同名次 + 名次跳号 + 并列百名」。
+ * 额外叠 ±3 的确定性抖动：1000 人时 ±1 会让「每档分数」扎上千人，
+ * 扩到 ±3 把并列密度降到合理范围，同时仍能验证「同分同名次 + 名次跳号 + 并列百名」。
  */
 export function mockBoardScores(level: number, line: HonorLines): number[] {
   const star3 = line.star3;
@@ -164,7 +178,7 @@ export function mockBoardScores(level: number, line: HonorLines): number[] {
   for (let i = 0; i < HONOR_RULE.mockPlayers; i++) {
     const t = i / (HONOR_RULE.mockPlayers - 1);
     const curve = Math.pow(1 - t, 1.6);
-    const jitter = rng.int(3) - 1;
+    const jitter = rng.int(7) - 3;
     out.push(Math.max(star3, star3 + Math.round(span * curve) + jitter));
   }
   return out;
@@ -208,13 +222,19 @@ function rankedEntries(level: number, line: HonorLines, myBoardBest: number): Bo
   }));
   if (myBoardBest > 0) raw.push({ name: MY_BOARD_NAME, score: myBoardBest, mine: true });
 
-  const all = raw.map((item) => ({
-    ...item,
-    rank: 1 + raw.reduce((n, other) => (other.score > item.score ? n + 1 : n), 0),
-  }));
-
   // 分数降序；并列时把「我」顶到前面，其余按名字排（保证渲染顺序稳定）
-  return all.sort((a, b) => b.score - a.score || Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name));
+  const sorted = raw.sort(
+    (a, b) => b.score - a.score || Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name),
+  );
+
+  // 名次 = 分数**严格高于**自己的人数 + 1（同分同名次 → 名次跳号）。
+  // ⚠️ 1000 人时不能再用「每项扫全表」的 O(n²) 写法：排序后单趟即可，
+  //    分数一降档就把名次设成当前下标 +1，与旧口径逐值等价（并列者仍是同一个名次）。
+  let rank = 1;
+  return sorted.map((item, i) => {
+    if (i > 0 && item.score < sorted[i - 1]!.score) rank = i + 1;
+    return { ...item, rank };
+  });
 }
 
 /** 本关百名榜快照（排行榜页用） */

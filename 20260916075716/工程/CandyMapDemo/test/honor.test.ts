@@ -94,19 +94,19 @@ describe('M9 · 三档判定（§三 / §四）', () => {
     assert.strictEqual(honorOf(stats(101, 101, 0)), 'pass');
   });
 
-  it('⚠️ 已知后果：总玩家数只有 101 时，王者档数学上不可达', () => {
+  it('1001 人池子（1000 基石 + 我）里王者档刚好可达：卡在第 101 名', () => {
     // 名次 > 100 意味着至少 100 人比你高 → percentile ≤ (N-101)/(N-1)。
-    // 让它 ≥ 90% 需要 N ≥ 1001；101 人的池子里「不进百强」等价于「垫底」，
-    // 百分比必然是 0，只能落进优秀档。这不是代码缺陷，是数值门槛的后果。
-    for (let rank = 1; rank <= 101; rank++) {
-      const percentile = rank <= 100 ? (101 - rank) / 100 : 0;
-      const tier = honorOf(stats(101, rank, percentile * 100));
-      assert.notStrictEqual(tier, 'king', `101 人池子里第 ${rank} 名不该是王者`);
-    }
+    // N = 1001 时上界正好 90%：第 101 名（100 人比你高、孤立无并列）恰好卡在 90% → 王者；
+    // 第 102 名百分比就掉到 89.9% → 优秀。也就是说 1001 人口径下「王者」= 刚好卡在百强门外那一名，
+    // 这是数值门槛的必然（策划要放宽就改 HONOR_RULE.kingPercentile，不是改代码）。
+    assert.strictEqual(honorOf(stats(1001, 101, 90)), 'king', '第 101 名（90%）应是王者');
+    assert.strictEqual(honorOf(stats(1001, 102, 89.9)), 'pass', '第 102 名（89.9%）应是优秀');
+    // 第 100 名以内仍是超神（总人数 > 100 且名次 ≤ 100）
+    assert.strictEqual(honorOf(stats(1001, 100, 90.1)), 'god');
   });
 });
 
-describe('M9 · 灰盒数据源（100 名模拟玩家）', () => {
+describe('M9 · 灰盒数据源（1000 名模拟玩家，基石数据）', () => {
   it('模拟分数全部 ≥ 本关 3★ 线，且人数固定', () => {
     // 末关用 TOTAL_LEVELS 派生，不写死 60（关卡会继续扩充）
     for (const level of [1, 15, 35, TOTAL_LEVELS]) {
@@ -161,11 +161,18 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
 });
 
 describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
-  it('3★ 上榜 → 超神', () => {
-    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 9 });
-    assert.strictEqual(out.tier, 'god');
-    assert.strictEqual(out.stats.totalPlayers, 101);
-    assert.strictEqual(out.rankScore, 9);
+  it('3★ 上榜：接近天花板 → 超神；贴着 3★ 线的低分 → 优秀（1001 人口径）', () => {
+    // 1000 名基石数据下「上榜即超神」不再成立 —— 天梯从天花板（3★线×1.6）往下铺，
+    // 贴地板的分数在 1001 人里排 800 名开外，要进前 100 得打到接近天花板。
+    const ceiling = LINE.star3 + Math.max(6, Math.round(LINE.star3 * 1.6));
+    const high = honorForLevel({ level: 15, line: LINE, score: ceiling, stars: 3, revived: false, boardBest: ceiling });
+    assert.strictEqual(high.tier, 'god', `天花板 ${ceiling} 分应进前 100 → 超神（实际第 ${high.stats.rank} 名）`);
+    assert.strictEqual(high.stats.totalPlayers, HONOR_RULE.mockPlayers + 1, '1000 基石 + 我 = 1001');
+    assert.ok(high.stats.rank <= HONOR_RULE.boardRankMax);
+
+    const low = honorForLevel({ level: 15, line: LINE, score: LINE.star3, stars: 3, revived: false, boardBest: LINE.star3 });
+    assert.strictEqual(low.tier, 'pass', '贴 3★ 线的低分在 1001 人里排不进前 100');
+    assert.ok(low.stats.rank > 100, `实际名次 ${low.stats.rank}`);
   });
 
   it('1★ / 2★ 不上榜 → 优秀（百分比 0）', () => {

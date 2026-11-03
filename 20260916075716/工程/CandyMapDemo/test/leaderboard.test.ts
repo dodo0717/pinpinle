@@ -54,10 +54,10 @@ test('模拟玩家的两列分数：只落当前模式那一列，绝不按比�
   assert.deepEqual(nightmare, { simple: 0, hard: 23, total: 23 });
 });
 
-test('总分榜：101 行（100 模拟 + 我），名次连续且我的分是真实值不拆分', () => {
+test('总分榜：1001 行（1000 模拟 + 我），名次连续且我的分是真实值不拆分', () => {
   const rows = buildTotalBoard({ simple: 120, hard: 30 });
 
-  assert.equal(rows.length, 101, '100 名模拟玩家 + 本机 1 人');
+  assert.equal(rows.length, 1001, '1000 名模拟玩家（基石数据） + 本机 1 人');
   rows.forEach((r, i) => assert.equal(r.rank, i + 1, '名次必须连续'));
 
   const mine = rows.filter((r) => r.mine);
@@ -81,14 +81,15 @@ test('总分榜是确定性的：同一份输入每次打开都一样（本地 m
 
 test('分页：每页 20 名，页码夹在合法区间，尾页只给剩下的行', () => {
   const rows = buildTotalBoard({ simple: 0, hard: 0 });
-  assert.equal(pageCountOf(rows.length), 6, '101 行 → 6 页');
+  // 1001 行 → ceil(1001/20) = 51 页
+  assert.equal(pageCountOf(rows.length), 51, '1001 行 → 51 页');
 
   assert.equal(clampPage(0, rows.length), 1, '页码下限 1');
-  assert.equal(clampPage(99, rows.length), 6, '页码上限 = 总页数');
+  assert.equal(clampPage(99, rows.length), 51, '页码上限 = 总页数');
   assert.equal(pageCountOf(0), 1, '空榜也至少算 1 页');
 
   assert.equal(pageRows(rows, 1).length, 20);
-  assert.equal(pageRows(rows, 6).length, 1, '最后一页只剩 1 行');
+  assert.equal(pageRows(rows, 51).length, 1, '最后一页只剩 1 行');
   // 越界页码被夹住，不会取到空数组之外的东西（空榜时返回空）
   assert.equal(pageRows([], 3).length, 0);
   // 分页不重不漏：逐页拼回去等于全量
