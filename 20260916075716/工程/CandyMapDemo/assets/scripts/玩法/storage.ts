@@ -16,13 +16,24 @@
 /** 存档在介质里的键名（带版本号：改格式就换 key，旧档自然失效而不是被读坏） */
 export const SAVE_KEY = 'mengchong.save.v1';
 
+/**
+ * 存档**备份**键：每次成功落盘前，把盘上那一份（上一次的档）抄到这里。
+ *
+ * 为什么要它：主档只有一份，任何一次「读到空 / 写到空」都会让玩家几十关的进度
+ * 无声消失，而玩家只会说「你们又清我数据了」。有备份时：
+ *   · 主档为空（被清 / 被宿主抹掉）→ 启动自动从备份恢复；
+ *   · 主档坏掉（截断 / 被改）→ 同上。
+ * `removeSave()`（设置页「重置存档」）会把备份一并删掉，所以「真重置」不会第二天自己长回来。
+ */
+export const SAVE_BACKUP_KEY = 'mengchong.save.v1.bak';
+
 export type StorageKind = 'wx' | 'localStorage' | 'memory';
 
 interface Port {
   kind: StorageKind;
-  read(): string | null;
-  write(value: string): boolean;
-  remove(): void;
+  read(key: string): string | null;
+  write(key: string, value: string): boolean;
+  remove(key: string): void;
 }
 
 /** 微信小游戏全局对象的最小形状（只声明用到的三个 API，避免给 lib.dom 引入 wx 类型） */
@@ -39,25 +50,25 @@ function wxPort(): Port | null {
   if (typeof setStorageSync !== 'function' || typeof getStorageSync !== 'function') return null;
   return {
     kind: 'wx',
-    read: () => {
+    read: (key) => {
       try {
-        const v = getStorageSync(SAVE_KEY);
+        const v = getStorageSync(key);
         return typeof v === 'string' && v.length > 0 ? v : null;
       } catch {
         return null;
       }
     },
-    write: (value) => {
+    write: (key, value) => {
       try {
-        setStorageSync(SAVE_KEY, value);
+        setStorageSync(key, value);
         return true;
       } catch {
         return false;
       }
     },
-    remove: () => {
+    remove: (key) => {
       try {
-        removeStorageSync?.(SAVE_KEY);
+        removeStorageSync?.(key);
       } catch {
         /* 清不掉就算了，下一次 write 会覆盖 */
       }
@@ -70,25 +81,25 @@ function localStoragePort(): Port | null {
   if (!ls) return null;
   return {
     kind: 'localStorage',
-    read: () => {
+    read: (key) => {
       try {
-        return ls.getItem(SAVE_KEY);
+        return ls.getItem(key);
       } catch {
         return null;
       }
     },
-    write: (value) => {
+    write: (key, value) => {
       try {
-        ls.setItem(SAVE_KEY, value);
+        ls.setItem(key, value);
         return true;
       } catch {
         // 配额满 / 隐私模式：如实返回 false，界面据此提示「本次进度仅在内存」
         return false;
       }
     },
-    remove: () => {
+    remove: (key) => {
       try {
-        ls.removeItem(SAVE_KEY);
+        ls.removeItem(key);
       } catch {
         /* 同上 */
       }
@@ -97,16 +108,16 @@ function localStoragePort(): Port | null {
 }
 
 function memoryPort(): Port {
-  let value: string | null = null;
+  const store = new Map<string, string>();
   return {
     kind: 'memory',
-    read: () => value,
-    write: (v) => {
-      value = v;
+    read: (key) => store.get(key) ?? null,
+    write: (key, v) => {
+      store.set(key, v);
       return true;
     },
-    remove: () => {
-      value = null;
+    remove: (key) => {
+      store.delete(key);
     },
   };
 }
@@ -124,16 +135,28 @@ export function storageKind(): StorageKind {
 }
 
 export function readSave(): string | null {
-  return port().read();
+  return port().read(SAVE_KEY);
 }
 
 /** 落盘；返回 false = 没写进去（调用方必须提示玩家，不能静默） */
 export function writeSave(value: string): boolean {
-  return port().write(value);
+  return port().write(SAVE_KEY, value);
 }
 
+/** 读上一份存档（主档被清/写坏时用来救回进度） */
+export function readSaveBackup(): string | null {
+  return port().read(SAVE_BACKUP_KEY);
+}
+
+/** 写备份；失败无所谓（备份是加分项，不能因为它挡住主档落盘） */
+export function writeSaveBackup(value: string): boolean {
+  return port().write(SAVE_BACKUP_KEY, value);
+}
+
+/** 清档：主档与备份一起清 —— 否则「重置存档」第二天会自己长回来 */
 export function removeSave(): void {
-  port().remove();
+  port().remove(SAVE_KEY);
+  port().remove(SAVE_BACKUP_KEY);
 }
 
 /** 测试 / 诊断用：清掉探测缓存，让下一次调用重新选介质 */
