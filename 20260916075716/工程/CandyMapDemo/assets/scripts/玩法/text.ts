@@ -315,6 +315,8 @@ export const MAP = {
   best: (stars: string): string => `最好成绩 ${stars}`,
   start: '▶ 开始',
   later: '稍后再说',
+  /** 首次打开排行榜 / 图鉴 / 设置 / 教学整屏时，等切图下载的过场文案 */
+  loadingOverlay: '加载中…',
 } as const;
 
 /** 底部页签栏（非玩法屏常驻，玩法屏隐藏 —— 局内不允许跳走的入口） */

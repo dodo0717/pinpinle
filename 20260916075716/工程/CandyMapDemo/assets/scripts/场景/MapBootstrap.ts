@@ -7,6 +7,7 @@ import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
 import { HomeHUD } from '../界面/HomeHUD';
 import { preloadUiFont } from '../界面/fontUtil';
+import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -40,6 +41,13 @@ const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
 /** 进地图后在后台预下载的 UI 切图目录（排行榜 / 图鉴 / 设置 / 教学整屏用到的，合计约 5 MB） */
 const UI_PRELOAD_DIRS = ['ui/fx', 'ui/leaderboard', 'ui/collection', 'ui/settings'];
+/** 各整屏实际用到的切图目录（按各屏源码里的切图路径统计）；打开前要等这些下完 */
+const UI_DIRS_OF = {
+    leaderboard: ['ui/fx', 'ui/leaderboard'],
+    collection: ['ui/fx', 'ui/leaderboard', 'ui/collection'],
+    settings: ['ui/fx', 'ui/leaderboard', 'ui/settings'],
+    tutorial: ['ui/fx', 'ui/leaderboard', 'ui/collection'],
+} as const;
 
 /**
  * 上下留白 —— 与 Web 同口径（web/ui/map.ts 的 PAD_TOP 755 / PAD_BOTTOM 472 是**轨道坐标**，
@@ -223,13 +231,76 @@ export class MapBootstrap extends Component {
      *    预览 shim 没有 `preloadDir` → 直接跳过。
      */
     private preloadUiAssets(): void {
+        if (this.uiPreloadStarted) return;   // 幂等：定时触发与「玩家抢先点页签」两条路都会调到
+        this.uiPreloadStarted = true;
         const r = resources as unknown as {
             preloadDir?: (dir: string, onComplete?: (err: Error | null) => void) => void;
         };
-        if (typeof r.preloadDir !== 'function') return;
-        for (const dir of UI_PRELOAD_DIRS) {
-            r.preloadDir(dir, (err) => { if (err) console.warn('[map] UI 预下载失败: ' + dir); });
+        if (typeof r.preloadDir !== 'function') {
+            for (const dir of UI_PRELOAD_DIRS) this.uiReady.add(dir);
+            return;
         }
+        for (const dir of UI_PRELOAD_DIRS) {
+            r.preloadDir(dir, (err) => {
+                if (err) console.warn('[map] UI 预下载失败: ' + dir);
+                // 失败也算「结束」：不能让过场一直转下去，整屏照常打开、缺的图由各自 load 再拉
+                this.uiReady.add(dir);
+                this.flushUiWaiters();
+            });
+        }
+    }
+
+    private uiPreloadStarted = false;
+    /** 已下载完（或已失败结束）的切图目录 */
+    private uiReady = new Set<string>();
+    private uiWaiters: Array<() => void> = [];
+    private loadingOverlay: LoadingOverlay | null = null;
+    /** 正在等待打开的整屏（防止等待中连点页签重复排队） */
+    private pendingOpen: string | null = null;
+
+    private flushUiWaiters(): void {
+        const list = this.uiWaiters;
+        this.uiWaiters = [];
+        for (const fn of list) fn();
+    }
+
+    /**
+     * 打开整屏前，先确认它要用的切图目录都下载完了（2026-11-03，用户要求加「加载中」过场）。
+     *
+     * - 已就绪（预下载早就做完 / 第二次打开）→ 直接打开，不出过场；
+     * - 未就绪 → 150ms 后还没好才盖「加载中」（快的时候不闪一下），等齐或最多 8 秒后收起并打开；
+     * - 整屏在过场收起后的**下一帧**再建：建整屏本身也要几百毫秒，先让过场消失、不卡在半透明上。
+     */
+    private openWithLoading(key: string, dirs: readonly string[], open: () => void): void {
+        if (this.pendingOpen) return;
+        this.preloadUiAssets();
+        const ready = (): boolean => dirs.every((d) => this.uiReady.has(d));
+        if (ready()) { open(); return; }
+
+        this.pendingOpen = key;
+        let finished = false;
+        const showOverlay = (): void => {
+            if (finished) return;
+            if (!this.loadingOverlay) {
+                this.loadingOverlay = LoadingOverlay.create(this.node, DESIGN_W, this.screenH, MAP.loadingOverlay);
+            }
+            this.loadingOverlay.show();
+        };
+        const done = (): void => {
+            if (finished) return;
+            finished = true;
+            this.unschedule(showOverlay);
+            this.unschedule(onTimeout);
+            this.loadingOverlay?.hide();
+            this.pendingOpen = null;
+            this.scheduleOnce(() => { if (this.node.activeInHierarchy) open(); }, 0);
+        };
+        const onTimeout = (): void => { console.warn('[map] UI 切图等待超时，直接打开: ' + key); done(); };
+        const check = (): void => { if (ready()) done(); else this.uiWaiters.push(check); };
+
+        this.scheduleOnce(showOverlay, 0.15);
+        this.scheduleOnce(onTimeout, 8);
+        check();
     }
 
     onDestroy() {
@@ -794,9 +865,10 @@ export class MapBootstrap extends Component {
     private setTab(i: number) {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
         this.hud?.setTab(this.tabIndex);
-        if (i === 1) this.showLeaderboardScreen();
-        else if (i === 2) this.showCollectionScreen();
-        else if (i === 3) this.showSettingsScreen();
+        // 首次打开时切图可能还在下载 → 先走「加载中」过场（openWithLoading），就绪后再建整屏
+        if (i === 1) this.openWithLoading('leaderboard', UI_DIRS_OF.leaderboard, () => this.showLeaderboardScreen());
+        else if (i === 2) this.openWithLoading('collection', UI_DIRS_OF.collection, () => this.showCollectionScreen());
+        else if (i === 3) this.openWithLoading('settings', UI_DIRS_OF.settings, () => this.showSettingsScreen());
     }
 
     /**
@@ -933,7 +1005,7 @@ export class MapBootstrap extends Component {
                     if (p.voice !== undefined) speech.setEnabled(p.voice);
                     this.settingsScreen.render(GS.meta.settings);
                 },
-                onTutorial: () => this.openTutorialDrawer(),
+                onTutorial: () => this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer()),
             });
             this.settingsScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
@@ -989,7 +1061,7 @@ export class MapBootstrap extends Component {
 
     /** 教学入口：按钮在 HUD 里（体力胶囊正下方，与 Web 同位置），这里只接行为 */
     private onTutorialTap(): void {
-        this.openTutorialDrawer();
+        this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer());
     }
 
     /**
