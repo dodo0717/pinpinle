@@ -38,6 +38,8 @@ const DESIGN_W = 1080;
 const DESIGN_H = 1920;
 const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2 屏，完整高度）
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
+/** 进地图后在后台预下载的 UI 切图目录（排行榜 / 图鉴 / 设置 / 教学整屏用到的，合计约 5 MB） */
+const UI_PRELOAD_DIRS = ['ui/fx', 'ui/leaderboard', 'ui/collection', 'ui/settings'];
 
 /**
  * 上下留白 —— 与 Web 同口径（web/ui/map.ts 的 PAD_TOP 755 / PAD_BOTTOM 472 是**轨道坐标**，
@@ -207,6 +209,27 @@ export class MapBootstrap extends Component {
         // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进
         GS.onMetaChange(() => this.refreshTopbar());
         this.schedule(this.onTick, 1);
+        // 首屏地图先走，1 秒后再在后台预下载各整屏的 UI 切图（见 preloadUiAssets）
+        this.scheduleOnce(() => this.preloadUiAssets(), 1);
+    }
+
+    /**
+     * 后台预下载排行榜 / 图鉴 / 设置 / 教学用到的 UI 切图（2026-11-03）。
+     *
+     * ⚠️ 小游戏端 `resources` 是**远程包**：每张切图第一次用到时才从服务器下载。
+     *    整屏是懒创建的，首次点页签会同时发出几十个下载请求（排行榜约 2 MB），
+     *    表现为「点进去卡两三秒，图才陆续出来」。这里在进地图后先把文件下到本地缓存，
+     *    之后真正 load 时只剩解码。只下载不解析（`preloadDir`），不额外占纹理内存。
+     *    预览 shim 没有 `preloadDir` → 直接跳过。
+     */
+    private preloadUiAssets(): void {
+        const r = resources as unknown as {
+            preloadDir?: (dir: string, onComplete?: (err: Error | null) => void) => void;
+        };
+        if (typeof r.preloadDir !== 'function') return;
+        for (const dir of UI_PRELOAD_DIRS) {
+            r.preloadDir(dir, (err) => { if (err) console.warn('[map] UI 预下载失败: ' + dir); });
+        }
     }
 
     onDestroy() {
