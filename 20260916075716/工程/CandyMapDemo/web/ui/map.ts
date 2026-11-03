@@ -72,6 +72,14 @@ export interface MapHandlers {
   onMode: (mode: MapMode) => void;
   /** 点了某个可玩关卡（已通关的也能再挑战一次） */
   onPick: (level: number) => void;
+  /**
+   * 点了「被困难门槛拦住」的关（`lockNote === MAP.nightmareLocked`）。
+   *
+   * 门槛要的门票是「这一关的简单 3 星」，而地图上没有模式切换按钮 ——
+   * 只弹提示的话玩家连简单版都玩不了（简单版才是拿门票的地方），会卡成死锁。
+   * 调用方收到后应切回简单模式并照常打开关卡牌。
+   */
+  onGateFallback?: (level: number) => void;
   /** 点体力：加体力分支由调用方判定 */
   onAddStamina: () => void;
   /** 点首页右侧「教学」按钮：打开新手教学（序章）抽屉 */
@@ -719,6 +727,8 @@ export function createMapScreen(handlers: MapHandlers): MapScreen {
     if (flipping) return;
     if (node.status === 'locked') {
       toast(node.lockNote ?? MAP.locked(Math.max(1, node.level - 1)), 1800);
+      // 困难门槛拦住时提示照给，但还要给一条出路（否则拿门票的简单版都进不去）
+      if (node.lockNote === MAP.nightmareLocked) handlers.onGateFallback?.(node.level);
       return;
     }
     handlers.onPick(node.level);

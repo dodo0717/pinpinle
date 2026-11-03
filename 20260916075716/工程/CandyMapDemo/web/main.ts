@@ -40,6 +40,7 @@ import {
   honorForLevel,
   imageOf,
   levelStatus,
+  type LevelStatus,
   parseSave,
   positionOf,
   preDeductStamina,
@@ -1229,6 +1230,13 @@ const homeScreen = createMapScreen({
     }
     levelPreview.open(index, level, mode);
   },
+  // 困难门槛拦住时：切回简单模式并照常开牌 —— 门票（这关的简单 3 星）只能在简单版里拿，
+  // 光给一句提示会把玩家卡死（地图上没有模式切换按钮）。与 Cocos 端 onLevelTap 同口径。
+  onGateFallback: (level) => {
+    applyMode('normal');
+    const index = indexOfLevel(level);
+    if (index >= 0) levelPreview.open(index, level, 'normal');
+  },
 });
 
 const guide = createGuide();
@@ -1343,9 +1351,14 @@ function refreshCollection(): void {
  *
  * 两套进度是各自独立的（`progressByMode`），所以这里要**跨模式**去查简单档的星级；
  * 困难档自己那条「通关解锁下一关」的链子照旧（`levelStatus`），两条是「与」的关系。
+ *
+ * ⚠️ 例外（2026-11-03，与 Cocos 端 `MapBootstrap.isNightmareBlocked` 同口径）：
+ *    困难档**自己已经通关过这一关**时不再拦 —— 门槛只管「首次进入」，
+ *    不能把旧规则时代打出来的成绩锁回去（那会儿门槛查的是当前模式，可以链式往下打）。
  */
 const NIGHTMARE_MIN_NORMAL_STARS = 3;
 function nightmareUnlocked(level: number): boolean {
+  if (recordOf(progressByMode.nightmare, level).stars > 0) return true;
   return recordOf(progressByMode.normal, level).stars >= NIGHTMARE_MIN_NORMAL_STARS;
 }
 
@@ -1357,31 +1370,41 @@ function nightmareUnlocked(level: number): boolean {
  *   - `recordOf().stars / .personalBest` → 节点上的小星与历史最高分；
  *   - `GRID_BY_LEVEL` → 节点角标。
  *
- * ⚠️ 进度是**分模式**存的（`progressByMode`），所以切模式后这张地图要跟着换一套状态；
- * 「默认定位到当前解锁关」用的也是该模式的 `unlocked`，不是另一模式的。
+ * ⚠️ 进度是**分模式**存的（`progressByMode`），但地图上没有模式页签 ——
+ *    关卡珠的状态与星级**取两套模式的最好结果**（2026-11-03 用户纠正，与 Cocos 端
+ *    `MapBootstrap.levelBoardOf` 同口径）：否则困难档 3 星打过的关，在简单页签下会
+ *    显示成未通关/锁定，而排行榜里那关明明有分数有星数。
+ *    「默认定位到当前解锁关」也取两套 `unlocked` 的较大值。
  */
 function mapView(): MapView {
   const progress = progressByMode[mode];
+  const other = progressByMode[mode === 'nightmare' ? 'normal' : 'nightmare'];
+  const unlockedTo = Math.max(progress.unlocked, other.unlocked);
   const nodes: MapNode[] = [];
   for (let level = 1; level <= TOTAL_LEVELS; level++) {
     const grid = GRID_BY_LEVEL[level];
-    const record = recordOf(progress, level);
+    const mine = recordOf(progress, level);
+    const theirs = recordOf(other, level);
+    const stars = Math.max(mine.stars, theirs.stars);
+    const cleared = stars > 0;
     // 困难模式门槛：同一关必须先在简单模式拿到 3 星（两套进度独立，要跨模式查简单档）
     const blocked = mode === 'nightmare' && !nightmareUnlocked(level);
+    // 有成绩的关永远显示已通关（blocked 只压「没有成绩」的关，不能把打过的锁回去）
+    const status: LevelStatus = cleared ? 'cleared' : blocked ? 'locked' : level <= unlockedTo ? 'unlocked' : 'locked';
     nodes.push({
       level,
-      status: blocked ? 'locked' : levelStatus(progress, level),
-      stars: record.stars,
-      best: record.personalBest,
+      status,
+      stars,
+      best: Math.max(mine.personalBest, theirs.personalBest),
       grid: grid ? `${grid[0]}×${grid[1]}` : '',
-      lockNote: blocked ? MAP.nightmareLocked : undefined,
+      lockNote: !cleared && blocked ? MAP.nightmareLocked : undefined,
     });
   }
   return {
     mode,
     modeLabel: MODE_LABEL[mode],
-    currentLevel: progress.unlocked,
-    stars: recordOf(progress, progress.unlocked).stars,
+    currentLevel: Math.min(unlockedTo, TOTAL_LEVELS),
+    stars: Math.max(recordOf(progress, unlockedTo).stars, recordOf(other, unlockedTo).stars),
     totalLevels: TOTAL_LEVELS,
     nodes,
     // 还没有账号系统：先用占位头像与昵称（接账号时只改这一处）
