@@ -93,6 +93,8 @@ export class GameBootstrap extends Component {
   private toast: ToastLayer = null!;
   private audio: GameAudio = null!;
   private guide: GuideBar = null!;
+  /** 读档结果只播报一次（本组件每次进关卡都会 onLoad，重复播报会在关卡里再弹一遍存档提示） */
+  private announcedSave = false;
 
   private engine: PuzzleEngine = null!;
   private rng: Rng = null!;
@@ -196,9 +198,15 @@ export class GameBootstrap extends Component {
 
     // 动画播放中不落盘（§16）：此刻引擎里已是「交换后」状态，写下去等于承认这次交换
     GS.canWrite = () => !this.busy;
-    GS.init();
+    // ⚠️ 只在「地图还没初始化过」时才 init + 播报：本组件每次进关卡都会 onLoad 一次，
+    // 无条件 init 会重新读盘并把内存里未落盘的进度冲回旧值（见 GameState.init 的幂等注释），
+    // 表现就是玩家反复进出关卡后「关卡数据被重置」。
+    GS.init();          // 内部幂等：已初始化时只补一次落盘，不会重读档
+    if (!this.announcedSave) {
+      this.announcedSave = true;
+      this.announceSaveResult();
+    }
     startTracking();   // 埋点：建身份 + first_open / session_start（幂等）
-    this.announceSaveResult();
 
     this.bindInput();
     this.applyAudioSettings();

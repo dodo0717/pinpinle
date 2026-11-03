@@ -75,6 +75,13 @@ class GameState {
   canWrite: () => boolean = () => true;
 
   init(): void {
+    // ⚠️ 幂等：Map / Game 两个启动器都会调这里（GameBootstrap.onLoad 每进一次关卡就执行一次）。
+    // 已初始化时**只补一次落盘，绝不重新读盘** —— 重读会拿磁盘上的旧档覆盖内存里还没落盘的状态
+    // （刚解锁的关、刚改的模式/设置/体力），表现就是「每次进关卡 / 更新后关卡数据被重置」。
+    if (this.save) {
+      this.save.flush();
+      return;
+    }
     this.save = new SaveManager({
       snapshot: () => this.snapshot(),
       canWrite: () => this.canWrite(),

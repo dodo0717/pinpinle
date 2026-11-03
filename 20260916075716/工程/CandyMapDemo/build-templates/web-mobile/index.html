@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title>Cocos Creator | CandyMapDemo</title>
+
+  <!--http://www.html5rocks.com/en/mobile/mobifying/-->
+  <meta name="viewport"
+        content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true"/>
+
+  <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- force webkit on 360 -->
+  <meta name="renderer" content="webkit"/>
+  <meta name="force-rendering" content="webkit"/>
+  <!-- force edge on IE -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <meta name="msapplication-tap-highlight" content="no">
+
+  <!-- force full screen on some browser -->
+  <meta name="full-screen" content="yes"/>
+  <meta name="x5-fullscreen" content="true"/>
+  <meta name="360-fullscreen" content="true"/>
+
+  <!--fix fireball/issues/3568 -->
+  <!--<meta name="browsermode" content="application">-->
+  <meta name="x5-page-mode" content="app">
+
+  <!--<link rel="apple-touch-icon" href=".png" />-->
+  <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
+
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+
+  <!--
+    静态首屏加载页（照 web/index.html:444 的 #loading + ui.css:1319-1348）。
+    为什么必须是静态 DOM：引擎 bundle 还没下载/执行时 canvas 是空的，
+    这段时间（弱网可达数秒）没有任何画面 —— Web 版就是这么做的，这里逐项对齐。
+    切口由 assets/scripts/界面/LoadingScreen.ts 在进度到 100% 时移除（sys.isBrowser 分支）。
+    ⚠️ 尺寸全用 vw：stage 是 1080 宽，920/1080 = 85.2vw 等比缩放到任意视口。
+  -->
+  <style>
+    /* 实测某些宿主里内联 script 会被渲染成一块文本（display:block，实测高度 75px），
+       顶部一片 JS 源码 —— 显式藏掉，UA 默认行为在此不保险 */
+    script { display: none !important; }
+    #boot-loading {
+      position: fixed; inset: 0; z-index: 200;
+      background: url('./loading-bg.jpg') center / cover no-repeat #6fa9ea;
+      transition: opacity .4s ease;
+    }
+    #boot-loading.done { opacity: 0; pointer-events: none; }
+    .boot-bar {
+      position: absolute; left: 50%; bottom: 15.74vw; transform: translateX(-50%);
+      width: 85.19vw; height: 13.7vw;
+      background: url('./loading-bar-bg.png') center / 100% 100% no-repeat;
+    }
+    .boot-clip {
+      position: absolute; left: 2.78vw; right: 2.78vw; top: 2.04vw; bottom: 2.04vw;
+      overflow: hidden; border-radius: 999px;
+      background: rgba(46, 27, 11, .55);
+    }
+    .boot-fill {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+      background: url('./loading-bar-fill.png') center / 100% 100% no-repeat;
+      transition: width .25s ease;
+    }
+    .boot-num {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      font-size: 4.26vw; font-weight: 900; line-height: 1; color: #fff;
+      text-shadow: 0 .28vw 0 rgba(140, 70, 20, .65), 0 .56vw .93vw rgba(90, 40, 0, .35);
+    }
+  </style>
+</head>
+<body>
+  <div id="boot-loading">
+    <div class="boot-bar">
+      <div class="boot-clip"><div class="boot-fill"></div></div>
+      <div class="boot-num">0%</div>
+    </div>
+  </div>
+  <script>
+    // DOM 层的进度是「引擎启动中」的估算（场景接手后由 LoadingScreen 的真实计数接管）：
+    // 缓动逼近 90% 停住，绝不假装到 100% —— 真正的 100% 由场景内的加载页给。
+    (function () {
+      var el = document.getElementById('boot-loading');
+      if (!el) return;
+      var fill = el.querySelector('.boot-fill');
+      var num = el.querySelector('.boot-num');
+      var p = 0;
+      var timer = setInterval(function () {
+        p = Math.min(90, p + Math.max(1, Math.round((90 - p) * 0.12)));
+        if (fill) fill.style.width = p + '%';
+        if (num) num.textContent = p + '%';
+        if (p >= 90) clearInterval(timer);
+      }, 110);
+    })();
+  </script>
+
+  <div id="GameDiv" cc_exact_fit_screen="true">
+      <div id="Cocos3dGameContainer">
+        <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
+      </div>
+    </div>
+  
+
+<!-- Polyfills bundle. -->
+
+<script src="src/polyfills.bundle.js" charset="utf-8"> </script>
+
+
+<!-- SystemJS support. -->
+<script src="src/system.bundle.js" charset="utf-8"> </script>
+
+<!-- Import map -->
+<script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>
+
+<script>
+    System.import('./index.js').catch(function(err) { console.error(err); })
+</script>
+
+</body>
+</html>

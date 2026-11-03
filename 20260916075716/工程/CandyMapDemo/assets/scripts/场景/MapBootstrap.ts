@@ -12,6 +12,7 @@ import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
 import { SettingsScreen } from '../界面/SettingsScreen';
 import { LeaderboardScreen } from '../界面/LeaderboardScreen';
+import { LoadingScreen } from '../界面/LoadingScreen';
 import { challengeState, type LeaderboardView } from '../界面/leaderboardModel';
 import { TutorialDrawer } from '../玩法/tutorial';
 import { GameBootstrap } from '../玩法/GameBootstrap';
@@ -168,6 +169,8 @@ export class MapBootstrap extends Component {
     private drawer: TutorialDrawer = null!;
     /** 排行榜整屏（懒创建：首次点排行榜页签才建，100 行榜单不该在进地图时就摆一遍） */
     private leaderboard: LeaderboardScreen = null!;
+    /** 启动加载页（照 Web `#loading`；预热首屏切图后淡出销毁） */
+    private bootLoading: LoadingScreen = null!;
 
     onLoad() {
         // ⚠️ 适配策略必须吃 Web 口径：**SHOW_ALL**（等比缩放 + 完整显示 + 两侧/上下留边）。
@@ -207,6 +210,64 @@ export class MapBootstrap extends Component {
         // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进
         GS.onMetaChange(() => this.refreshTopbar());
         this.schedule(this.onTick, 1);
+        // 加载页最后挂：此刻地图已经画好，它盖在最上层 → 预热完再淡出，玩家看到的就是「加载 → 首页」
+        this.mountBootLoading();
+    }
+
+    /**
+     * 启动加载页（Web `#loading` 的 Cocos 版）。
+     *
+     * 为什么放在地图构建之后：地图是纯代码绘制（Graphics + 异步切图），首帧就已经有内容，
+     * 但切图要一张张读盘 —— 不盖一层的话首页会「先空白、再一块块冒出来」。这层盖住这段过程，
+     * 等预热计数跑完再淡出。
+     */
+    private mountBootLoading(): void {
+        if (this.bootLoading) return;
+        this.bootLoading = LoadingScreen.create(this.node);
+        this.bootLoading.rootNode().setSiblingIndex(this.node.children.length - 1);
+        this.bootLoading.setProgress(3);
+        void this.runBootLoading();
+    }
+
+    /**
+     * 预热首屏切图并驱动加载页进度。
+     *
+     * ⚠️ 进度是**真实计数**（`resources.loadDir` 的 onProgress 聚合），不是定时器假装走的条：
+     *    多目录并行时总量会陆续变大，所以百分比取「累计已完成 / 累计总数」，且 LoadingScreen
+     *    内部只增不减。只预热首页首屏要用的 4 个目录 —— 排行榜/图鉴/设置是懒创建，
+     *    把它们几百张图也塞进启动期会让「加载页本身变成等待」。
+     */
+    private async runBootLoading(): Promise<void> {
+        const dirs = ['map', 'map/node', 'ui/home', 'ui/fx'];
+        const stats = new Map<string, { done: number; total: number }>();
+        const report = (): void => {
+            let done = 0;
+            let total = 0;
+            for (const s of stats.values()) { done += s.done; total += s.total; }
+            if (total > 0) this.bootLoading?.setProgress(3 + (done / total) * 85);
+        };
+        const tasks = dirs.map((dir) => new Promise<void>((resolve) => {
+            stats.set(dir, { done: 0, total: 0 });
+            try {
+                resources.loadDir(dir, SpriteFrame, (done: number, total: number) => {
+                    stats.set(dir, { done, total });
+                    report();
+                }, () => resolve());
+            } catch {
+                resolve();   // 目录不存在 / 加载器报错都不该把玩家卡在加载页
+            }
+        }));
+        // 8s 硬超时：弱网/目录缺失时 loadDir 可能迟迟不回调，绝不能让加载页把玩家挡在门外
+        const timeout = new Promise<void>((r) => setTimeout(r, 8000));
+        try {
+            await Promise.race([Promise.all(tasks).then(() => undefined), timeout]);
+        } catch {
+            /* 预热失败照常进首页：切图各自还有一次懒加载兜底 */
+        }
+        this.bootLoading?.setProgress(93);
+        await preloadUiFont();          // 字体没就绪时首屏文字会跳字形（GameBootstrap 那侧实测过）
+        this.bootLoading?.setProgress(100);
+        void this.bootLoading?.finish();
     }
 
     onDestroy() {
