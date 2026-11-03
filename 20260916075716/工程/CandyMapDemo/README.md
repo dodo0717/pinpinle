@@ -16,6 +16,13 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（构建 `wechatgame-009`：去掉 Cocos 插屏 + 启动加载页，重传远程资源）**：插屏改为自定义
+  Logo（`logo.jpg` = 加载页背景缩到 1080×1920，`useDefaultLogo=false`，Cocos 标识已不再打包），主包 2.30 MB。
+  `remote/resources` 739 个文件（新增加载条切图、字体换新子集）按老流程上传：暂存 `remote.new-20261103b` →
+  服务器全量 md5 核对一致 → 替换，上一版（005~008 用的 733 个文件）备份为 **`remote.bak-20261103b`**。
+  公网抽查 9 个文件 md5 一致；nginx 配置 md5、进程数、7 个容器状态、`pp/`（247 个文件）指纹均与上传前相同，
+  未动 nginx。本地 remote 移到 `build/_remote-uploaded/wechatgame-009`。
+
 - **2026-11-03（新增：Cocos 端启动加载页，用户要求）**：新文件 `界面/StartupLoading.ts`（从小游戏线
   `buildLoading` 移植成独立组件）。版式对齐 Web `#loading`：`ui/loading/bg` cover 铺满 → 底部 920×148 进度槽
   （`bar-bg` + `bar-fill` 裁在内芯 860×104）→ 百分比 → **两行健康游戏忠告**（国内提审要求，文案在
