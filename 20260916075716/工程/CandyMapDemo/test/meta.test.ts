@@ -12,7 +12,7 @@
  *   - 百名榜的模拟玩家必须**确定性**（同一关两次一致）、恰好 100 名、
  *     且分数全部 ≥ 本关 3★ 线（1★ / 2★ 与续命局根本不上榜）。
  *
- * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/core/honor.ts`
+ * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/核心/honor.ts`
  * （`boardSnapshot` / `mockBoardScores`），界面模块不再自己造数据 —— 所以下面的用例
  * 改成直接核对 core 层，界面层只保留「挑战本关」状态机。
  */
@@ -34,7 +34,7 @@ import {
   mockBoardNames,
   mockBoardScores,
   type LevelOutcome,
-} from '../assets/scripts/core/index.ts';
+} from '../assets/scripts/核心/index.ts';
 import {
   AD_STAMINA_DAILY_MAX,
   STAMINA_RECOVER_MS,
@@ -256,9 +256,9 @@ test('百名榜：分数降序、名次升序且唯一、条目名次不超过 1
 });
 
 test('百名榜：我的上榜成绩会并进榜单，并给出我的名次', () => {
-  const snap = boardSnapshot(5, LINES, 999);
+  const snap = boardSnapshot(5, LINES, 99999);
   assert.equal(snap.totalPlayers, 101, '本机上榜后总玩家数 +1');
-  assert.equal(snap.myRank, 1, '999 分必然第一');
+  assert.equal(snap.myRank, 1, '99999 分必然第一');
   assert.equal(snap.rows.filter((row) => row.mine).length, 1, '「我」只能出现一次');
 });
 
@@ -272,6 +272,7 @@ function progressWithStars(stars: number[]): ReturnType<typeof createProgress> {
     const outcome: LevelOutcome = {
       level,
       score: want * 10,
+      points: want * 1000,
       star1: 10,
       star2: 20,
       star3: 30,

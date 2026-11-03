@@ -7,10 +7,10 @@
  * 按钮怎么排、埋点什么。把它和界面分开之后，三个档位可以在单测里被完整覆盖 ——
  * 而不是靠「打一局看看弹的是哪个档」。
  *
- * 三档（优先级从高到低）：
- *   超神 god  —— 总分 > 100 且名次 ≤ 100（进了百强）
- *   王者 king —— 没进百强，但百分比 ≥ 90%
- *   优秀 pass —— 其余
+ * 三档（优先级从高到低；2026-10-25 改为按名次占比，见 HONOR_RULE）：
+ *   超神 god  —— 名次 ≤ 10，或在前 1%
+ *   王者 king —— 名次在前 10%
+ *   优秀 pass —— 其余（含没上榜的 1★ / 2★ / 续命局）
  *
  * ── 统计口径（§2）────────────────────────────────────────────────────
  *   totalPlayers = 本关总玩家数（去重）
@@ -34,7 +34,9 @@
  *   两条都只是数值门槛的后果，不是代码缺陷；真要修，改的是 `HONOR_RULE`，不是这里。
  */
 
+import { BOARD_MIN_STARS } from './progress';
 import { Rng } from './rng';
+import { pointsOfGroups } from './scoring';
 
 /* ------------------------------------------------------------------ 类型与常量 */
 
@@ -60,10 +62,16 @@ export const HONOR_RULE = {
   boardStars: 3,
   /** 百强榜的名次上限 */
   boardRankMax: 100,
-  /** 「超神」还要求本关总玩家数**超过**这个数 */
-  godMinPlayers: 100,
-  /** 「王者」要求超越的玩家比例（%） */
-  kingPercentile: 90,
+  /**
+   * 2026-10-25 排行榜新规（design/leaderboard-rules.html）：档位改按「名次占比」，人少人多都成立。
+   *   超神：名次 ≤ godTopRank（人少时保底），或在前 godTopPct%
+   *   王者：名次在前 kingTopPct%
+   * 旧规则（超神 = 百强且总人数 > 100、王者 = 超越 ≥ 90%）在 101 人时上榜≈必得超神、
+   * 不足 1001 人时王者数学上不可达，已作废。
+   */
+  godTopRank: 10,
+  godTopPct: 1,
+  kingTopPct: 10,
 } as const;
 
 /** 本机玩家在榜上的名字（真实昵称接入后替换） */
@@ -126,10 +134,9 @@ export function percentileText(percentile: number): string {
  * ⚠️ 档位只由「名次 + 百分比」决定，**与星级无关** —— 星级只影响优秀档的星星图标。
  */
 export function honorOf(stats: HonorStats): HonorTier {
-  if (stats.totalPlayers > HONOR_RULE.godMinPlayers && stats.rank <= HONOR_RULE.boardRankMax) {
-    return 'god';
-  }
-  if (stats.percentile >= HONOR_RULE.kingPercentile) return 'king';
+  const n = Math.max(1, stats.totalPlayers);
+  if (stats.rank <= HONOR_RULE.godTopRank || stats.rank <= Math.ceil((n * HONOR_RULE.godTopPct) / 100)) return 'god';
+  if (stats.rank <= Math.ceil((n * HONOR_RULE.kingTopPct) / 100)) return 'king';
   return 'pass';
 }
 
@@ -165,7 +172,9 @@ export function mockBoardScores(level: number, line: HonorLines): number[] {
     const t = i / (HONOR_RULE.mockPlayers - 1);
     const curve = Math.pow(1 - t, 1.6);
     const jitter = rng.int(3) - 1;
-    out.push(Math.max(star3, star3 + Math.round(span * curve) + jitter));
+    const groups = Math.max(star3, star3 + Math.round(span * curve) + jitter);
+    // 2026-10-27 排行分：组数 ×100 + 每组平均 0~30 的速度分（scoring.ts），与真实玩家同一单位
+    out.push(pointsOfGroups(groups) + rng.int(groups * 30 + 1));
   }
   return out;
 }
@@ -238,7 +247,7 @@ export interface HonorInput {
   line: HonorLines;
   /** 本局实际得分（弹窗上「本关得分」显示的就是它） */
   score: number;
-  /** 本局星级（续命局按 §7.4 恒为 1） */
+  /** 本局星级（续命局最高 2，2026-10-27 评审 P1-8） */
   stars: number;
   /** 本局是否用过续命 */
   revived: boolean;
@@ -269,13 +278,17 @@ export interface HonorOutcome {
  *     这些分数一定低于所有模拟玩家，所以百分比是 0，稳定落进优秀档。
  */
 export function honorForLevel(input: HonorInput): HonorOutcome {
-  const onBoard = input.boardBest > 0;
+  // 上不上榜看的是**本局**成绩（≥3★ 且没续命），不是「这关历史上上过榜」——
+  // 否则以前 3★ 上过榜的关，这次续命或 1★ 通关也会被判成超神
+  const onBoard = !input.revived && input.stars >= BOARD_MIN_STARS && input.boardBest > 0;
   const scores = mockBoardScores(input.level, input.line);
   const pool = onBoard ? [...scores, input.boardBest] : scores;
-  const rankScore = onBoard ? input.boardBest : input.line.star1;
+  // 没上榜按 1★ 线计：星线是组数，换成排行分单位再比
+  const rankScore = onBoard ? input.boardBest : pointsOfGroups(input.line.star1);
   const stats = rankStats(pool, rankScore);
   return {
-    tier: honorOf(stats),
+    // 没上榜（1★ / 2★ / 续命局）恒为优秀：它们不参加排名，名次只是参考值
+    tier: onBoard ? honorOf(stats) : 'pass',
     stars: input.stars,
     boardBest: onBoard ? input.boardBest : 0,
     rankScore,

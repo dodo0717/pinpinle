@@ -40,8 +40,8 @@ import {
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
   settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
-  TOTAL_LEVELS, reviveSecondsFor,
-  type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement,
+  TOTAL_LEVELS, reviveSecondsFor, createTally, addElimination, onRevive,
+  type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement, type PointsTally,
   type LevelConfig, type LevelSession, type Cell, type ProgressData, type GameMode,
 } from '../核心/index';
 
@@ -100,6 +100,8 @@ export class GameBootstrap extends Component {
 
   /* ---------------------------------------------------------------- 局内现场 */
   private timeLeft = 0;
+  /** 本局排行分计分器（2026-11-03 从小游戏线移植，核心/scoring.ts）；判星仍看 engine.score（组数） */
+  private tally: PointsTally = createTally(0);
   private started = false;
   private paused = false;
   private busy = false;
@@ -339,6 +341,8 @@ export class GameBootstrap extends Component {
         eliminations: from.eliminations,
       });
       this.timeLeft = resumeTimeLeft(from, Date.now());
+      // 离线流逝的秒数不算进速度分间隔：基准跟着剩余时间一起扣（不超过原基准）
+      this.tally = { points: from.points, lastTimeLeft: Math.min(from.lastTimeLeft, from.lastTimeLeft - (from.timeLeft - this.timeLeft)) };
       this.revived = from.revived;
       this.revivedUsed = from.revivedUsed;
       this.swapMisses = from.swapMisses;
@@ -366,6 +370,7 @@ export class GameBootstrap extends Component {
       this.rng = new Rng(this.levelSeed);
       this.engine = new PuzzleEngine(this.cfg, this.rng);
       this.timeLeft = this.cfg.timeLimit;
+      this.tally = createTally(this.timeLeft);
       this.revived = false;
       this.revivedUsed = false;
       this.swapMisses = 0;
@@ -586,7 +591,9 @@ export class GameBootstrap extends Component {
     this.audio.play('swap');
     this.runGuide(3);
     this.tutorialAfterMove(); // 第 4 步「整片一起走」在此推进（动画播放前，Web 版同口径）
-    this.playResolution(outcome, outcome.score - before);
+    // 每消一组记一次排行分（基础 100 + 速度分），飘字显示这一组得了多少
+    const gained = outcome.score > before ? addElimination(this.tally, this.timeLeft) : 0;
+    this.playResolution(outcome, gained);
   }
 
   /* ================================================================ 消除演出 */
@@ -766,6 +773,7 @@ export class GameBootstrap extends Component {
     const outcome: LevelOutcome = {
       level: this.levelIndex,
       score: this.engine.score,
+      points: this.tally.points,
       star1: this.cfg.star1,
       star2: this.cfg.star2,
       star3: this.cfg.star3,
@@ -961,7 +969,9 @@ export class GameBootstrap extends Component {
     this.revivedUsed = true;
     this.finished = false;
     this.pendingOutcome = null;
-    this.timeLeft += reviveSecondsFor(this.levelIndex);
+    const reviveSec = reviveSecondsFor(this.levelIndex);
+    this.timeLeft += reviveSec;
+    onRevive(this.tally, reviveSec);
     this.setPaused(false);
     this.syncSession();
     GS.flush();
@@ -1472,6 +1482,7 @@ export class GameBootstrap extends Component {
 
     // 局内现场（对齐 beginLevel 的重置，但不扣体力、不建断点、不写进度）
     this.timeLeft = cfg.timeLimit;
+    this.tally = createTally(this.timeLeft);
     this.revived = false;
     this.revivedUsed = false;
     this.swapMisses = 0;
@@ -2006,6 +2017,8 @@ export class GameBootstrap extends Component {
       revivedUsed: this.revivedUsed,
       swapMisses: this.swapMisses,
       eliminatedOnce: this.eliminatedOnce,
+      points: this.tally.points,
+      lastTimeLeft: this.tally.lastTimeLeft,
       savedAt: Date.now(),
     };
     GS.setSession(s);

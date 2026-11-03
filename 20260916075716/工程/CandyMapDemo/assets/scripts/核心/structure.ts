@@ -86,8 +86,10 @@ export function isExactSquare(cells: readonly number[], cols: number): boolean {
   const rowSet = new Set(cells.map((i) => Math.floor(i / cols)));
   const colSet = new Set(cells.map((i) => i % cols));
   if (rowSet.size !== 2 || colSet.size !== 2) return false;
-  const r0 = Math.min(...rowSet);
-  const c0 = Math.min(...colSet);
+  // Set 先转数组再展开：Cocos 构建会把 `Math.min(...set)` 编译成 `Math.min.apply(Math, set)`，
+  // Set 没有 length → 恒得 Infinity（见 test/cocos-compat.test.ts）
+  const r0 = Math.min(...Array.from(rowSet));
+  const c0 = Math.min(...Array.from(colSet));
   const want = new Set([r0 * cols + c0, r0 * cols + c0 + 1, (r0 + 1) * cols + c0, (r0 + 1) * cols + c0 + 1]);
   if (want.size !== 4) return false;
   return cells.every((i) => want.has(i));

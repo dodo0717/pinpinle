@@ -14,13 +14,18 @@ import {
   starsFor,
   type LevelOutcome,
   type ProgressData,
-} from '../assets/scripts/core/index';
+} from '../assets/scripts/核心/index';
 
 /** 一关的星线（第 15 关的真实数值：5 / 7 / 9） */
 const LINES = { star1: 5, star2: 7, star3: 9 };
 
+/**
+ * 一局结果。`points`（排行分）默认等于 `score`（组数）：本文件只测「哪个最高分被抬、哪个不抬」，
+ * 让两者同值断言最直观；分数单位换算另见 scoring.test.ts。
+ */
 function outcome(partial: Partial<LevelOutcome> = {}): LevelOutcome {
-  return { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  const base = { level: 15, score: 6, ...LINES, revived: false, ...partial };
+  return { points: base.score, ...base };
 }
 
 describe('M4 · 星级折算（§7.2）', () => {
@@ -63,10 +68,24 @@ describe('M4 · 结算判定（§7.2 / §7.4 / §12.1）', () => {
     assert.strictEqual(starsFor(12, 7, 9, 11), 3, '超过 3★ 线继续拿 3★（分数没有上限）');
   });
 
-  it('续命局统一判 1 星，哪怕分数够到 3★（§7.4）', () => {
-    const s = settleLevel(outcome({ score: 12, revived: true }));
-    assert.ok(s);
-    assert.strictEqual(s.stars, 1, '续命局不能被判成 3 星');
+  it('续命局统一判 1★（§7.4 main 规则；评审 P1-8 的最高 2★ 已撤回）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.stars, 1, '够到 3★ 也只记 1★');
+    assert.strictEqual(settleLevel(outcome({ score: 7, revived: true }))!.stars, 1);
+    assert.strictEqual(settleLevel(outcome({ score: 5, revived: true }))!.stars, 1, '只够 1★ 就是 1★');
+  });
+
+  it('首次 3★ 返还 1 颗体力；以前拿过 3★ / 续命局 / 没到 3★ 都不返（评审 P1-5）', () => {
+    assert.strictEqual(settleLevel(outcome({ score: 9 }))!.refundStamina, true, '首次通关就 3★');
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 2, personalBest: 8, boardBest: 0, validBest: 8 })!.refundStamina,
+      true, '以前 2★，这次首次 3★',
+    );
+    assert.strictEqual(
+      settleLevel(outcome({ score: 9 }), { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 })!.refundStamina,
+      false, '以前拿过 3★',
+    );
+    assert.strictEqual(settleLevel(outcome({ score: 12, revived: true }))!.refundStamina, false, '续命局到不了 3★');
+    assert.strictEqual(settleLevel(outcome({ score: 8 }))!.refundStamina, false);
   });
 
   it('续命也没救回来（分数没够 1★）仍然是失败', () => {
@@ -103,7 +122,7 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
   it('拿到 3★ 的普通局同时更新两个最高分', () => {
     const s = settleLevel(outcome({ score: 9 }))!;
     const rec = applySettlement(undefined, outcome({ score: 9 }), s);
-    assert.deepStrictEqual(rec, { stars: 3, personalBest: 9, boardBest: 9 });
+    assert.deepStrictEqual(rec, { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 });
   });
 
   it('1★ / 2★ 成绩不上榜（《通关及排名》2026-09-12：上榜门槛 = 3★）', () => {
@@ -133,10 +152,18 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
     assert.strictEqual(rec.personalBest, 11, '个人最高分应该被刷新');
     assert.strictEqual(rec.boardBest, 8, '续命局不得抬高中上榜分');
     assert.strictEqual(rec.stars, 2, '历史星级只增不减');
+    assert.strictEqual(rec.validBest, 8, '续命局也不进有效分（总榜只认它，2026-10-25）');
+  });
+
+  it('有效分：1★ / 2★ 的未续命局照样计入（总榜口径），续命局不计', () => {
+    const one = settleLevel(outcome({ score: 5 }))!;
+    assert.strictEqual(applySettlement(undefined, outcome({ score: 5 }), one).validBest, 5);
+    const rv = settleLevel(outcome({ score: 11, revived: true }))!;
+    assert.strictEqual(applySettlement(undefined, outcome({ score: 11, revived: true }), rv).validBest, 0);
   });
 
   it('分数变低不会把记录改小', () => {
-    const before = { stars: 3, personalBest: 12, boardBest: 12 };
+    const before = { stars: 3, personalBest: 12, boardBest: 12, validBest: 12 };
     const s = settleLevel(outcome({ score: 5 }), before)!;
     const rec = applySettlement(before, outcome({ score: 5 }), s);
     assert.deepStrictEqual(rec, before);
@@ -144,23 +171,24 @@ describe('M4 · 记录口径（§7.4 + 《通关及排名》：个人最高分 v
 });
 
 describe('M4 · 关卡解锁（§7.3.3）', () => {
+  // 2026-10-24 起 createProgress 出厂 unlocked=4（用户要求 2/3/4 关默认可玩，用于三主题对比）
   const fresh = (): ProgressData => createProgress('normal');
 
-  it('初始只开第 1 关', () => {
+  it('初始开前 4 关（2026-10-24 临时口径，上线前改回 1）', () => {
     const data = fresh();
     assert.strictEqual(levelStatus(data, 1), 'unlocked');
-    assert.strictEqual(levelStatus(data, 2), 'locked');
+    assert.strictEqual(levelStatus(data, 4), 'unlocked');
+    assert.strictEqual(levelStatus(data, 5), 'locked');
   });
 
   it('首次达 1★ 解锁下一关，并把本关标成已通关', () => {
     const data = fresh();
     const o = outcome({ level: 1, score: 5 });
     const next = commitSettlement(data, o, settleLevel(o, undefined)!, 60);
-    assert.strictEqual(next.unlocked, 2);
+    assert.strictEqual(next.unlocked, 4, 'unlocked 只增不减，初始 4 不会被压回');
     assert.strictEqual(levelStatus(next, 1), 'cleared');
-    assert.strictEqual(levelStatus(next, 2), 'unlocked');
-    assert.strictEqual(levelStatus(next, 3), 'locked');
-    assert.strictEqual(data.unlocked, 1, '不得就地修改入参');
+    assert.strictEqual(levelStatus(next, 5), 'locked');
+    assert.strictEqual(data.unlocked, 4, '不得就地修改入参');
   });
 
   it('重复通关不推进进度', () => {
@@ -170,7 +198,7 @@ describe('M4 · 关卡解锁（§7.3.3）', () => {
     })();
     const o2 = outcome({ level: 1, score: 6 });
     const again = commitSettlement(first, o2, settleLevel(o2, recordOf(first, 1))!, 60);
-    assert.strictEqual(again.unlocked, 2, '重复挑战不得把 unlocked 推到 3');
+    assert.strictEqual(again.unlocked, 4, '重复挑战不得把 unlocked 推到 5');
   });
 
   it('在已解锁的高关卡重复挑战低关卡，不会把 unlocked 收回去', () => {
@@ -193,7 +221,7 @@ describe('M4 · 关卡解锁（§7.3.3）', () => {
   });
 
   it('recordOf 对没打过的关卡返回全 0，不返回 undefined', () => {
-    assert.deepStrictEqual(recordOf(fresh(), 42), { stars: 0, personalBest: 0, boardBest: 0 });
+    assert.deepStrictEqual(recordOf(fresh(), 42), { stars: 0, personalBest: 0, boardBest: 0, validBest: 0 });
   });
 });
 

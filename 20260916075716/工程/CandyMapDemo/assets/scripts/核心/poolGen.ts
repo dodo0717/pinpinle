@@ -50,7 +50,9 @@ export function confusionOf(imageIds: readonly number[]): number {
     const animal = animalOf(id) ?? `#${id}`;
     counts.set(animal, (counts.get(animal) ?? 0) + 1);
   }
-  return Math.max(...counts.values());
+  // Set/Map 迭代器一律先 Array.from 再展开：Cocos 构建的 loose 模式会把
+  // `Math.max(...iter)` 编译成 `Math.max.apply(Math, iter)`，迭代器没有 length → 结果错（见 test/cocos-compat.test.ts）
+  return Math.max(...Array.from(counts.values()));
 }
 
 /** 生成一关图池所需的输入 */

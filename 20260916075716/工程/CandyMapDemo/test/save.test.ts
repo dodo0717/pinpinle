@@ -31,7 +31,7 @@ import {
   type LevelSession,
   type SaveData,
   type SaveLimits,
-} from '../assets/scripts/core/index.ts';
+} from '../assets/scripts/核心/index.ts';
 
 /** 与 `web/main.ts` 组装的 SAVE_LIMITS 同口径（广告上限取 §13.3 的 5） */
 const LIMITS: SaveLimits = {
@@ -67,6 +67,8 @@ function realSession(level = 1, overrides: Partial<LevelSession> = {}): LevelSes
     revivedUsed: false,
     swapMisses: 0,
     eliminatedOnce: false,
+    points: 0,
+    lastTimeLeft: cfg.timeLimit,
     savedAt: T0,
     ...overrides,
   };
@@ -80,7 +82,7 @@ describe('save —— 往返一致与出厂值', () => {
     data.meta.adStaminaUsed = 2;
     data.meta.settings.bgm = false;
     data.progress.normal.unlocked = 4;
-    data.progress.normal.levels[3] = { stars: 2, personalBest: 210, boardBest: 180 };
+    data.progress.normal.levels[3] = { stars: 2, personalBest: 210, boardBest: 180, validBest: 200 };
     data.session = realSession(1, { score: 1, timeLeft: 77, started: true });
 
     const result = parseSave(serializeSave(data), fresh(), LIMITS, T0);
@@ -90,15 +92,50 @@ describe('save —— 往返一致与出厂值', () => {
     assert.deepEqual(result.data, data);
   });
 
-  it('出厂值：满体力 / 第 1 关解锁 / 无断点 / 两种模式都有进度', () => {
+  it('老存档没有 validBest：按个人最高分迁移，且不低于上榜分（2026-10-25）', () => {
+    const data = fresh();
+    const raw = JSON.parse(serializeSave(data));
+    raw.progress.normal.levels = { 2: { stars: 2, personalBest: 40, boardBest: 0 }, 3: { stars: 3, personalBest: 9, boardBest: 9 } };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.levels[2]?.validBest, 40);
+    assert.equal(result.data.progress.normal.levels[3]?.validBest, 9);
+    assert.equal(result.recovered, false, '迁移不算修复，不该弹「存档已修复」');
+  });
+
+  it('老存档没有 adReviveUsed：按 0 迁移，不算修复；非法值按 0 并记一条（2026-10-26 续命额度拆分）', () => {
+    const raw = JSON.parse(serializeSave(fresh()));
+    delete raw.meta.adReviveUsed;
+    const old = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(old.data.meta.adReviveUsed, 0);
+    assert.equal(old.recovered, false, '缺字段是迁移，不该弹「存档已修复」');
+
+    raw.meta.adReviveUsed = -3;
+    const bad = parseSave(JSON.stringify(raw), fresh(), { ...LIMITS, adReviveDailyMax: 10 }, T0);
+    assert.equal(bad.data.meta.adReviveUsed, 0);
+    assert.equal(bad.recovered, true);
+
+    raw.meta.adReviveUsed = 7;
+    const ok = parseSave(JSON.stringify(raw), fresh(), { ...LIMITS, adReviveDailyMax: 10 }, T0);
+    assert.equal(ok.data.meta.adReviveUsed, 7);
+  });
+
+  it('老存档 unlocked 小于出厂解锁数 → 读档抬到出厂值（2026-10-26 真机只显示 1、2 关）', () => {
+    const raw = JSON.parse(serializeSave(fresh()));
+    raw.progress.normal.unlocked = 2;
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 4);
+    assert.equal(result.recovered, false, '兜底不算修复');
+  });
+
+  it('出厂值：满体力 / 前 4 关解锁（2026-10-24 临时口径）/ 无断点 / 两种模式都有进度', () => {
     const data = fresh();
     assert.equal(data.version, SAVE_VERSION);
     assert.equal(data.meta.stamina.available, STAMINA_MAX);
     assert.equal(data.meta.stamina.pending, 0);
     assert.equal(data.meta.guideDone, false);
     assert.equal(data.session, null);
-    assert.equal(data.progress.normal.unlocked, 1);
-    assert.equal(data.progress.nightmare.unlocked, 1);
+    assert.equal(data.progress.normal.unlocked, 4);
+    assert.equal(data.progress.nightmare.unlocked, 4);
   });
 });
 
@@ -150,14 +187,14 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
     assert.equal(result.discarded, false, '字段级问题不该作废整档');
     assert.equal(result.recovered, true);
     const normal = result.data.progress.normal;
-    assert.equal(normal.unlocked, 1, 'unlocked=999 越界，应退回第 1 关');
+    assert.equal(normal.unlocked, 4, 'unlocked=999 越界，退回第 1 关后按出厂解锁数（4）兜底');
     assert.deepEqual(normal.levels[999], undefined, '越界关卡记录应被丢弃');
     assert.equal(normal.levels[1]?.stars, 0, '星级 9 应被夹到 0');
     assert.equal(normal.levels[1]?.personalBest, 0, '负分应被夹到 0');
     assert.ok(result.issues.some((s) => s.includes('999')), `应指出越界关卡号：${result.issues.join('；')}`);
   });
 
-  it('有通关记录但 unlocked 落后 → 自动抬到最高已通关关卡（不许自相矛盾）', () => {
+  it('有通关记录但 unlocked 落后 → 自动抬到「最高已通关关卡 + 1」（不许自相矛盾）', () => {
     const raw = {
       version: SAVE_VERSION,
       mode: 'normal',
@@ -168,7 +205,58 @@ describe('save —— 坏档降级（parseSave 永不抛错）', () => {
       session: null,
     };
     const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
-    assert.equal(result.data.progress.normal.unlocked, 5);
+    // 抬到 5 会让第 6 关永久锁死：重复通关第 5 关不会再解锁下一关
+    assert.equal(result.data.progress.normal.unlocked, 6);
+  });
+
+  it('unlocked 恰好等于最高已通关关卡 → 同样补到下一关', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: { mode: 'normal', unlocked: 5, levels: { 5: { stars: 2, personalBest: 40, boardBest: 0 } } },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 6);
+  });
+
+  it('通关最后一关时 unlocked 不越过总关数', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: {
+          mode: 'normal',
+          unlocked: 1,
+          levels: { [TOTAL_LEVELS]: { stars: 3, personalBest: 99, boardBest: 99 } },
+        },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, TOTAL_LEVELS);
+  });
+
+  it('坏掉 / 0 星的关卡记录不能抬高解锁进度', () => {
+    const raw = {
+      version: SAVE_VERSION,
+      mode: 'normal',
+      progress: {
+        normal: {
+          mode: 'normal',
+          unlocked: 2,
+          levels: { 1: { stars: 1, personalBest: 10, boardBest: 0 }, [TOTAL_LEVELS]: 'x', 30: { stars: 0, personalBest: 3, boardBest: 0 } },
+        },
+      },
+      meta: {},
+      session: null,
+    };
+    const result = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(result.data.progress.normal.unlocked, 4, '坏记录不抬进度：只按出厂解锁数（4）兜底，不会抬到 31 / 61');
   });
 
   it('元系统越界：体力 / 广告次数 / 恢复时间戳 / 开关类型都被降级', () => {
@@ -303,6 +391,24 @@ describe('save —— 断点能真的接上（恢复后棋盘与随机序列都�
     const outOfPool = [...ok.cells];
     outOfPool[0] = 0; // 第 1 关不含图 0 时才算越界；含则本条退化为重复碎片，仍应报出
     assert.ok(validateSnapshot(cfg, { ...ok, cells: outOfPool }).length > 0);
+  });
+
+  it('validateSnapshot 能指认池子结构被破坏（碎片合法但分布非法）', () => {
+    const cfg = buildLevelConfigs('normal').find((c) => c.rows === 4 && c.cols === 4);
+    assert.ok(cfg);
+    const ok = new PuzzleEngine(cfg, new Rng(9)).toSnapshot();
+    // 把池子5 那张图的一块换成备用池（场上 0 块）那张图的同位置碎片：
+    // 碎片仍然不重复、仍在本关图池内，但池子5 变成 0 组 —— 消除后补位必然崩
+    const imgOf = (p: number) => Math.floor(p / 4);
+    const counts = new Map<number, number>();
+    for (const c of ok.cells) counts.set(imgOf(c as number), (counts.get(imgOf(c as number)) ?? 0) + 1);
+    const full = [...counts].find(([, n]) => n === 4)![0];
+    const spare = cfg.imageIds.find((id) => !counts.has(id))!;
+    const bad = [...ok.cells];
+    const at = bad.findIndex((c) => imgOf(c as number) === full);
+    bad[at] = spare * 4 + ((bad[at] as number) % 4);
+    const issues = validateSnapshot(cfg, { ...ok, cells: bad });
+    assert.ok(issues.some((s) => s.includes('池子5')), `应指出池子5 异常：${issues.join('；')}`);
   });
 
   it('引擎用坏快照构造时必须当场抛错（不能带病开局）', () => {

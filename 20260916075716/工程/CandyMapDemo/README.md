@@ -16,6 +16,30 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（修：Creator 打开工程报 `Cannot read properties of null (reading 'anchorX')`）**：
+  main 上的 `assets/scenes/Map.scene` 是旧的手写版 —— Canvas、Bootstrap 两个节点都缺 `UITransform`
+  （Canvas 组件依赖它），相机也直接挂在 Canvas 节点上。小游戏线 10-24 已按 Cocos 3.8 标准结构重写过
+  （Canvas = UITransform + Canvas → 子节点 Camera + 子节点 Bootstrap = UITransform + MapBootstrap，
+  附 SceneGlobals），但没合回 main。本次直接取小游戏线那份；场景 uuid（`d3e4f5a6-…`，构建 startScene 用）
+  与 MapBootstrap 压缩 uuid（`a1b2cPU5fZ4kKvN7xI0VniQ`）都不变。**待 Creator 里重开场景确认报错消失。**
+
+- **2026-11-03（Cocos 线对齐小游戏线的核心规则层，用户拍板「一起对齐」）**：
+  - **新增**（从 `merge/main2-into-minigame` 原样搬入）：`核心/rank.ts`（总榜/关卡榜/有效分）、`scoring.ts`
+    （排行分 = 每组 100 + 速度分）、`rewards.ts`（金卡/章节宝箱/体力上限加成）、`retention.ts`（签到/每日挑战/回流）、
+    `release.ts`（测试 / 正式口径开关，当前 `test`，出厂解锁 4 关），配套单测 rank/scoring/rewards/retention。
+  - **按小游戏线更新**（main 自分叉后没改过，直接取）：`progress.ts`（`validBest`、`points`、首次 3★ 返体力、
+    `INITIAL_UNLOCKED` 走 release）、`save.ts`（`scoreUnit` + 老档 ×100 迁移、`retention`、续命广告次数）、
+    `honor.ts`（档位按名次占比）、`config.ts`、`structure.ts`；**三方合并**（两边都改过）：`engine.ts`、`merge.ts`、
+    `poolGen.ts`、`玩法/meta.ts`、`玩法/state.ts`、`test/honor|meta.test.ts` —— 冲突都是两边各加字段，全部保留
+    （main 的教学进度 / 语音开关 + 小游戏线的 retention / adReviveUsed / staminaMax）。
+  - **接线**：`GameBootstrap.ts` 与 `web/main.ts` 接入 `PointsTally`（开局 / 恢复断点 / 每次消除 / 续命 / 结算 /
+    断点都带 points）；Web 端读写档时原样保留 retention 与 adReviveUsed（暂不使用，不能被写丢）。
+    ⚠️ 判星仍看组数，**排行分只进最高分记录**；飘字从「+1」变成「+100~130」。
+    ⚠️ 出厂解锁关卡数现由 `release.ts` 决定（测试口径 4，正式口径 1），提审前要切 `prod`。
+  - 验证：单测 281/281、可移植性守卫 63 文件通过、`tsc` 新增错误为 0（剩下 9 条是 web/ui 既有错误）；
+    浏览器打开 Web 版零 JS 异常。**未验证**：Creator 构建、真机；新模块的 `.ts.meta` 由 Creator 打开工程时生成。
+  - 既有问题（非本次引入）：`test/smoke-game.mjs` 仍引用旧目录 `assets/scripts/game/`，且 `cc-shim` 缺 `Tween` 导出，跑不起来。
+
 - **2026-11-03（微信小游戏出包准备：字体子集化 + resources 远程包）**：
   - **字体子集化（已实测）**：`assets/resources/font/` 两个 HarmonyOS ttf 用 fonttools 子集化后
     **原地替换**（.meta / uuid 不变）：16 MB → **0.68 MB**（各约 340 KB）。字符表 `tools/font-chars.txt`
