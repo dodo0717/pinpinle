@@ -13,7 +13,7 @@
 
 import {
   Node, Label, UITransform, Graphics, Color, Layers, UIOpacity, tween, Tween,
-  Sprite, SpriteFrame, Texture2D, resources, Rect, Vec2, Vec3,
+  Sprite, SpriteFrame, Texture2D, resources, Rect, Vec2, Vec3, ScrollView, Mask,
 } from 'cc';
 import {
   TIME_LIMIT,
@@ -26,7 +26,9 @@ import {
   type Rng,
 } from '../核心/index';
 import { TUTORIAL, TUTORIAL_VOICE } from './text';
-import { mkSprite, setSprite } from '../界面/uiPaint';
+import {
+  mkSprite, setSprite, mkFx, mkBackButton, mkTitle, paintScreenBg, maskStencil, fillVGrad,
+} from '../界面/uiPaint';
 import { applyUiFont } from '../界面/fontUtil';
 
 /* ------------------------------------------------------------------ 序章配置 */
@@ -270,12 +272,28 @@ export class TutorialBanner {
 
 /* ------------------------------------------------------------------ 抽屉（首页教学面板） */
 
-/* ↓↓↓ 常量区开始（全部照 `web/ui.css` 的 `.tut-*` 抄） ↓↓↓ */
-/** `.tut-panel { width: 78% }` —— 设计宽 1080 × 78% = 842.4 → 842 */
-const PANEL_W = 842;
-/** 面板贴右（`right: 0`）→ 中心 x = 540 − 842/2 = 119 */
-const PANEL_X = 540 - PANEL_W / 2;
-/** `.tut-title` / `.tut-close` / `.tut-card-title`：#7a4100 */
+/* ↓↓↓ 常量区开始（2026-11-03 外壳改版：与排行榜/图鉴统一 —— 蓝天整屏 + 金框大卡 + 滚动内容） ↓↓↓ */
+/**
+ * ⚠️ 2026-11-03 用户要求：教学抽屉原来照 Web `.tut-*` 抄的是「贴右全高米黄抽屉」，
+ *    与排行榜/图鉴/设置的「蓝天整屏 + 金框大卡」风格不一致 —— 现在统一成后者
+ *    （与 Web 分叉：Web 端教学抽屉仍是米黄抽屉，这是用户指定的 Cocos 端专属改版）。
+ *    内容与交互**全部保留**：状态卡 / 重玩按钮 / 怎么玩图解 / 补充说明，仅容器变长卡+滚动。
+ */
+/** 大卡：1026×1404，屏顶 226 —— 与排行榜卡完全同尺寸同位置（`LeaderboardScreen.ts:69-71`） */
+const CARD_W = 1026;
+const CARD_H = 1404;
+const CARD_TOP = 226;
+/** 卡中心（Cocos y 向上）：960 − (226 + 1404/2) = 32 */
+const CARD_CY = 960 - (CARD_TOP + CARD_H / 2);
+/** 金框让开 50px（Web `frame.png` 边框宽 45~55）—— 内容视口两侧再让 10 → 906 宽（同排行榜行宽） */
+const VIEW_W = 906;
+/** 滚动视口高：卡 1404 − 上让 58（图鉴 padding-top 58 同款）− 下让 82 */
+const VIEW_H = 1264;
+/** 内容总高：状态卡 258 + 按钮卡 374 + 图解卡 806 + 说明卡 187 + 3×24 间距 */
+const CH = 1697;
+/** 内容左缘（视口 906 宽、内边距 30） */
+const L0 = -VIEW_W / 2 + 30;
+/** `.tut-title` / 卡片标题：#7a4100 */
 const C_TITLE = new Color(122, 65, 0);
 /** `.tut-status-line`（#9a6a2a）与其前置圆圈（#c8a978） */
 const C_STATUS = new Color(154, 106, 42);
@@ -306,16 +324,17 @@ export interface TutorialDrawerHandlers {
 }
 
 /**
- * 首页教学抽屉（Cocos 版：全屏遮罩 + 中间面板，程序绘制灰盒）。
- * 与 Web 版同构：状态卡（简单/困难完成态）+ 按钮卡 + 图解卡 + 补充卡。
- * ⚠️ 独立组件，不进屏状态机 —— 自带遮罩。
+ * 首页教学抽屉 → **2026-11-03 改版为「教学页」**（与排行榜/图鉴统一风格）：
+ * 蓝天整屏 + 左上返回钮 + 白字描边标题 + 金框大卡（1026×1404，卡内滚动）。
+ * 内容仍是原来四块：状态卡（简单/困难完成态）+ 重玩按钮卡 + 怎么玩图解卡 + 补充说明卡。
+ * ⚠️ 独立组件，不进屏状态机 —— 自带整屏根节点。
  */
 export class TutorialDrawer {
   private root: Node = null!;
-  private panelWrap: Node = null!;
-  private panel: Node = null!;
-  /** 遮罩的透明度（Web `.tut-mask` 是 opacity 0→1 淡入） */
-  private maskOpacity: UIOpacity = null!;
+  /** 整页淡入淡出用（原遮罩的 UIOpacity 改挂在根上） */
+  private rootOpacity: UIOpacity = null!;
+  /** 滚动内容容器（四块内容都挂这里） */
+  private content: Node = null!;
   /** 状态行的前置圆圈（Web 是 `.tut-status-line::before` 的 ○ / ✅） */
   private statusNormalMark: Label = null!;
   private statusNightmareMark: Label = null!;
@@ -347,104 +366,112 @@ export class TutorialDrawer {
     root.parent = parent;
     root.setPosition(0, 0, 0);
     this.root = root;
+    this.rootOpacity = root.addComponent(UIOpacity);
+    this.rootOpacity.opacity = 0;
 
-    // 遮罩：只吃抽屉自己这一层。Web `.tut-mask` 是 `rgba(20,10,0,.45)`（原来写的纯黑 51% 偏冷）
-    const mask = new Node('mask');
-    mask.layer = Layers.Enum.UI_2D;
-    mask.addComponent(UITransform).setContentSize(1080, 1920);
-    const mg = mask.addComponent(Graphics);
-    mg.rect(-540, -960, 1080, 1920);
-    mg.fillColor = new Color(20, 10, 0, 115);
+    // 整屏蓝天渐变 + 预烘贴图（`fx/sky-screen`）—— 与排行榜/图鉴/设置同一口味的页底
+    paintScreenBg(root);
+
+    // 左上返回钮（150×150 @(44,38)）：`collection/back` 切图 + 棕圆兜底，点击 = 关闭
+    mkBackButton(root, new Color(199, 139, 89, 255), new Color(216, 165, 112, 255),
+      () => this.close(), 'collection/back');
+
+    // 顶部标题：96px 白字 + 深棕描边（`mkTitle` 与图鉴/排行榜完全同款）
+    mkTitle(root, TUTORIAL.drawerTitle);
+
+    // 外投影（排行榜同款预烘贴图 1166×1570，中心比卡低 13）
+    mkFx(root, 'CardShadow', 'ui/fx/shadow-card-lb', 1166, 1570, 0, CARD_CY - 13);
+
+    // 金框大卡（1026×1404）：预烘蓝渐变卡底（`fx/card-col`，图鉴同款）+ Graphics 兜底 + frame 切图
+    const card = new Node('card');
+    card.layer = Layers.Enum.UI_2D;
+    card.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
+    card.setPosition(0, CARD_CY, 0);
+    card.parent = root;
+    mkSprite(card, 'fx/card-col', CARD_W, CARD_H);
+    const cg = card.addComponent(Graphics);
+    // 兜底渐变（缺图时）与图鉴 `paintCard` 同参数：#5ea0e9→#8dbcf0→#c3e2fb，mid 55%
+    this.paintCardBg(cg);
+
+    // 卡内滚动视口（Mask 裁剪；真引擎可滚，预览 shim 只裁不滚）
+    const svNode = new Node('scroll');
+    svNode.layer = Layers.Enum.UI_2D;
+    svNode.addComponent(UITransform).setContentSize(VIEW_W, VIEW_H);
+    // 视口顶 = 卡顶 − 58 → 相对卡中心向上 (CARD_H/2 − 58 − VIEW_H/2) = 12
+    svNode.setPosition(0, CARD_H / 2 - 58 - VIEW_H / 2, 0);
+    svNode.parent = card;
+    const sv = svNode.addComponent(ScrollView);
+    sv.vertical = true;
+    sv.horizontal = false;
+    const mask = svNode.addComponent(Mask);
+    mask.type = Mask.Type.GRAPHICS_STENCIL;
+    const mg = maskStencil(mask, svNode);
+    mg.roundRect(-VIEW_W / 2, -VIEW_H / 2, VIEW_W, VIEW_H, 40);
     mg.fill();
-    mask.parent = root;
-    mask.on(Node.EventType.TOUCH_END, () => this.close());
-    // Web `.tut-mask` 是 opacity 0→1 淡入（.22s），这里用 UIOpacity 走同一条曲线
-    this.maskOpacity = mask.addComponent(UIOpacity);
-    this.maskOpacity.opacity = 0;
 
-    // 面板：Web `.tut-panel` 是 `right:0; top:0; bottom:0; width:78%` —— 贴右侧的**全高**抽屉，
-    //    不是居中的竖卡。1080 × 78% = 842.4 → 842；中心 x = 540 − 421 = 119。
-    //    ⚠️ 原来这里是 940×1560 居中卡片 + 6px 描边，与 Web 完全不是一回事。
-    const panelWrap = new Node('panelWrap');
-    panelWrap.layer = Layers.Enum.UI_2D;
-    panelWrap.addComponent(UITransform).setContentSize(PANEL_W, 1920);
-    panelWrap.setPosition(540 - PANEL_W / 2, 0, 0);
-    panelWrap.parent = root;
-    // `-10px 0 30px rgba(80,40,0,.35)`：只在面板**左侧**露出一条软阴影（上下溢出在屏外看不见）
-    mkSprite(panelWrap, 'fx/tut-panel-shadow', 40, 1920, -PANEL_W / 2 - 20, 0);
-    // 面板本体：渐变 #fffaf0→#ffeccd（无圆角、无描边）
-    mkSprite(panelWrap, 'fx/tut-panel', PANEL_W, 1920, 0, 0);
+    const content = new Node('content');
+    content.layer = Layers.Enum.UI_2D;
+    content.addComponent(UITransform).setContentSize(VIEW_W, CH);
+    content.parent = svNode;
+    sv.content = content;
+    // 初始滚到顶部：content 顶边贴视口顶边
+    content.setPosition(0, VIEW_H / 2 - CH / 2, 0);
+    this.content = content;
 
-    const panel = new Node('panel');
-    panel.layer = Layers.Enum.UI_2D;
-    panel.addComponent(UITransform).setContentSize(PANEL_W, 1920);
-    panel.parent = panelWrap;
-    this.panel = panel;
-    this.panelWrap = panelWrap;
+    // 金框切图**最后**加：盖在内容之上（中空框只压住贴边的几 px，图鉴同款口径）
+    mkSprite(card, 'leaderboard/frame', CARD_W, CARD_H);
 
-    /* ---- 内容坐标系：panel 中心 (0,0)。
-     *      ⚠️ 2026-11-02 二次修正：之前按 CSS 推算的布局与 Web 实际渲染差很多，
-     *      现在 y 全部来自 Web 运行时实测（offsetTop → Cocos y = 960 − cssTop），
-     *      卡片矩形 / 按钮宽度 / 图解间距都照实测值抄 ---- */
-    const L0 = -PANEL_W / 2 + 40;                 // 内容左边缘 −381
-    const CW = PANEL_W - 80;                      // 内容宽 762
+    /* ---- 内容坐标系：content 中心 (0,0)，高 1697。四块自上而下 ---- */
 
-    /* head：`.tut-title` 56/900/#7a4100（**左对齐**，实测盒宽 394）+ `.tut-close` 76 圆（右上 x=+343）
-     *    ⚠️ Web 的 `.tut-head` 是 `justify-content: space-between`，标题贴左，不是居中 */
-    this.addText(panel, TUTORIAL.drawerTitle, 56, L0 + 197, 876, C_TITLE, 394, 0);
-    const closeBtn = new Node('close');
-    closeBtn.layer = Layers.Enum.UI_2D;
-    closeBtn.addComponent(UITransform).setContentSize(76, 76);
-    closeBtn.setPosition(343, 876, 0);
-    closeBtn.parent = panel;
-    mkSprite(closeBtn, 'fx/tut-close', 76, 76);
-    this.addText(closeBtn, '✕', 44, 0, 0, C_TITLE, 76, 1);
-    closeBtn.on(Node.EventType.TOUCH_END, () => this.close());
-
-    /* 卡 1（实测 y120 h258）：两行状态，行中心 749 / 673（行距 76） */
-    this.addCard(panel, CW, 258, 0, 711, false);
-    const s1 = this.addStatusLine(panel, L0 + 30, 749);
+    /* 状态卡（906×258）：两行状态，行距 76（相对卡中心 ±38） */
+    this.addCard(content, VIEW_W, 258, 0, 719, false);
+    const s1 = this.addStatusLine(content, L0 + 30, 757);
     this.statusNormalMark = s1[0];
     this.statusNormal = s1[1];
-    const s2 = this.addStatusLine(panel, L0 + 30, 673);
+    const s2 = this.addStatusLine(content, L0 + 30, 681);
     this.statusNightmareMark = s2[0];
     this.statusNightmare = s2[1];
 
-    /* 卡 2（实测 y293 h374）：⚠️ 按钮是 `width:100%` + 左右各 **−34 负 margin**（贴在卡内容区
-     *    之外）→ 渲染宽 762、左缘比卡还靠左 34，中心 x = −34（不是居中 0）。
-     *    实测证据：按钮 offsetLeft=40 / 卡 offsetLeft=74，同一 offsetParent 下差 34。 */
-    this.addCard(panel, CW, 374, 0, 480, false);
-    const b1 = this.addTutButton(panel, CW, BTN_H, -34, 555, true, () => this.handlers.onStartNormal());
+    /* 按钮卡（906×374）：主按钮 118 高 + 次按钮 96 高 */
+    this.addCard(content, VIEW_W, 374, 0, 379, false);
+    const b1 = this.addTutButton(content, VIEW_W - 60, 118, 0, 454, true, () => this.handlers.onStartNormal());
     this.btnNormalLabel = b1[1];
     this.btnNormalSprite = b1[0];
-    const b2 = this.addTutButton(panel, CW, BTN_GHOST_H, -34, 426, false, () => {
+    const b2 = this.addTutButton(content, VIEW_W - 60, 96, 0, 325, false, () => {
       if (this.btnNightmareDim) return;
       this.handlers.onStartNightmare();
     });
     this.btnNightmareLabel = b2[1];
     this.btnNightmareSprite = b2[0];
 
-    /* 卡 3（实测 y582 h806）：标题中心 348、图解块中心 165、四步行中心实测
-     *    −37 / −127 / −241 / −331（②③两条在 Web 里换行成两行，步距 114 而非 66） */
-    this.addCard(panel, CW, 806, 0, -25, false);
-    this.addText(panel, TUTORIAL.howTitle, 46, L0 + 30 + 300, 348, C_TITLE, 600, 0);
-    this.addFigure(panel, TUTORIAL_IMAGE_IDS[0], 0, 165);
+    /* 怎么玩图解卡（906×806）：标题 + 图解 + 四行说明 */
+    this.addCard(content, VIEW_W, 806, 0, -234, false);
+    this.addText(content, TUTORIAL.howTitle, 46, 0, 139, C_TITLE, 846, 0);
+    this.addFigure(content, TUTORIAL_IMAGE_IDS[0], 0, -44);
     const hows: Array<[string, string]> = [
       ['①', TUTORIAL.how1], ['②', TUTORIAL.how2], ['③', TUTORIAL.how3], ['④', TUTORIAL.how4],
     ];
-    const howY = [-37, -127, -241, -331];
+    const howY = [-246, -336, -450, -540];
     for (let i = 0; i < hows.length; i += 1) {
-      this.addHowRow(panel, hows[i][0], hows[i][1], L0, howY[i]);
+      this.addHowRow(content, hows[i][0], hows[i][1], L0, howY[i]);
     }
 
-    /* note 卡（实测 y1303 h187，⚠️ 宽 740 —— 比普通卡窄 22，右侧缩进） */
-    const NOTE_W = 740;
-    this.addCard(panel, NOTE_W, 187, L0 + NOTE_W / 2, -437, true);
-    this.addText(panel, TUTORIAL.noteTime, 30, L0 + 30 + (NOTE_W - 60) / 2, -385, C_NOTE, NOTE_W - 60, 0);
-    this.addText(panel, TUTORIAL.noteStar, 30, L0 + 30 + (NOTE_W - 60) / 2, -436, C_NOTE, NOTE_W - 60, 0);
-    this.addText(panel, TUTORIAL.noteNightmare, 30, L0 + 30 + (NOTE_W - 60) / 2, -487, C_NOTE, NOTE_W - 60, 0);
+    /* 补充说明卡（846×187，虚线边） */
+    const NOTE_W = 846;
+    this.addCard(content, NOTE_W, 187, 0, -755, true);
+    this.addText(content, TUTORIAL.noteTime, 30, 0, -703, C_NOTE, NOTE_W - 60, 0);
+    this.addText(content, TUTORIAL.noteStar, 30, 0, -754, C_NOTE, NOTE_W - 60, 0);
+    this.addText(content, TUTORIAL.noteNightmare, 30, 0, -805, C_NOTE, NOTE_W - 60, 0);
 
     root.active = false;
+  }
+
+  /** 卡底兜底渐变（图鉴 `paintCard` 同款）：预烘贴图 `fx/card-col` 缺图时由它兜住 */
+  private paintCardBg(g: Graphics): void {
+    g.clear();
+    fillVGrad(g, CARD_W, CARD_H,
+      new Color(94, 160, 233, 255), new Color(141, 188, 240, 255), new Color(195, 226, 251, 255),
+      0.55, 118, 40);
   }
 
   /** 一行文字（锚点中心）。`align`：0 = 左（Web 的标题/正文多左对齐）、1 = 居中 */
@@ -505,7 +532,7 @@ export class TutorialDrawer {
 
   /** `.tut-status-line`：前置圆圈（Web 的 `::before` ○ / ✅）+ 38px 正文，返回 [圆圈, 正文] */
   private addStatusLine(parent: Node, x: number, y: number): [Label, Label] {
-    const bodyW = PANEL_W - 80 - 120;                       // 内容宽减掉卡片内边距与圆圈
+    const bodyW = VIEW_W - 120;                             // 内容宽减掉卡片内边距与圆圈
     const mark = this.addText(parent, '○', 40, x + 22, y, C_STATUS_MARK, 44, 1);
     const text = this.addText(parent, '', 38, x + 44 + 16 + bodyW / 2, y, C_STATUS, bodyW, 0);
     return [mark, text];
@@ -545,7 +572,7 @@ export class TutorialDrawer {
     n.parent = parent;
     mkSprite(n, 'fx/tut-how-no', 44, 44);
     this.addText(n, no, 28, 0, 0, new Color(255, 255, 255), 44, 1);
-    const bodyW = PANEL_W - 80 - 120;
+    const bodyW = VIEW_W - 120;
     this.addText(parent, body, 32, x + 44 + 16 + bodyW / 2, y, C_HOW_BODY, bodyW, 0);
   }
 
@@ -672,20 +699,17 @@ export class TutorialDrawer {
   open(): void {
     this.isOpenState = true;
     this.root.active = true;
-    // Web：遮罩 opacity 0→1（.22s）+ 面板 `translateX(100%)` → `translateX(0)`（.24s）
-    this.maskOpacity.opacity = 0;
-    tween(this.maskOpacity).to(0.22, { opacity: 255 }).start();
-    this.panelWrap.setPosition(PANEL_X + PANEL_W, 0, 0);
-    tween(this.panelWrap).to(0.24, { position: new Vec3(PANEL_X, 0, 0) }).start();
+    // 整页淡入 0.22s（原来是遮罩淡入 + 面板右侧滑入；改整屏页后统一为淡入淡出）
+    this.rootOpacity.opacity = 0;
+    tween(this.rootOpacity).to(0.22, { opacity: 255 }).start();
   }
 
   close(): void {
     if (!this.isOpenState) return;
     this.isOpenState = false;
     this.handlers.onClose();
-    tween(this.maskOpacity).to(0.22, { opacity: 0 }).start();
-    tween(this.panelWrap)
-      .to(0.24, { position: new Vec3(PANEL_X + PANEL_W, 0, 0) })
+    tween(this.rootOpacity)
+      .to(0.22, { opacity: 0 })
       .call(() => { if (this.root?.isValid) this.root.active = false; })
       .start();
   }
