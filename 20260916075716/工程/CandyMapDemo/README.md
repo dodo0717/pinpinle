@@ -16,6 +16,19 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-03（新增：Cocos 端启动加载页，用户要求）**：新文件 `界面/StartupLoading.ts`（从小游戏线
+  `buildLoading` 移植成独立组件）。版式对齐 Web `#loading`：`ui/loading/bg` cover 铺满 → 底部 920×148 进度槽
+  （`bar-bg` + `bar-fill` 裁在内芯 860×104）→ 百分比 → **两行健康游戏忠告**（国内提审要求，文案在
+  `text.ts` 的 `LOADING.healthAdvice`）。进度按首屏素材真实下载数走（当前世界底图 + 27 张首页 / 关卡珠切图
+  `FIRST_SCREEN_UI` + 字体），至少停留 1.2 秒、最多 10 秒，0.5 秒淡出；某张失败也算完成，不会卡死；
+  显示期间挡住点击。淡出后才开始后台预下载整屏切图（不和首屏抢带宽）。
+  - 素材：`web/art/loading/bar-bg.png`、`bar-fill.png` 拷入 `assets/resources/ui/loading/`（新建 .meta，
+    sprite-frame）；`bg.jpg` 挂「小游戏-底图」JPG 压缩预设（仅 Mini Game）。
+  - 字体：健康忠告里有 8 个字（康抵沉盗良谨迷骗）不在子集里 → 重新扫描字符表（`gen-font-chars.ps1`）并
+    **从原始全量字体**（git `3b167f7`）重新子集化，逐字核对 0 缺字，体积仍约 340 KB / 个。
+  - ⚠️ Cocos 启动插屏（引擎 logo）需在 Creator 里按官方流程填游戏信息后勾「移除插屏」，代码改不了。
+  - ⚠️ 新增了资源、字体也换了 → 下次构建的 `remote/` 必须重新上传。单测 281/281、tsc 0 错。
+
 - **2026-11-03（新增：首次打开整屏前的「加载中」过场，用户要求）**：新文件 `界面/LoadingOverlay.ts`
   （半透明压暗 + 金色转圈 + 「加载中…」，纯程序绘制不依赖切图，显示期间挡住所有点击）。
   `MapBootstrap.openWithLoading()` 统一调度排行榜 / 图鉴 / 设置 / 教学抽屉（首页按钮与设置页入口）：

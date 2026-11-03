@@ -319,6 +319,16 @@ export const MAP = {
   loadingOverlay: '加载中…',
 } as const;
 
+/** 启动加载页（2026-11-03 从小游戏线移植到 Cocos 线，`界面/StartupLoading.ts`） */
+export const LOADING = {
+  pct: (n: number): string => `${n}%`,
+  /** 健康游戏忠告（加载页底部常驻，国家新闻出版署规定原文，国内提审必需，一字不能改） */
+  healthAdvice: [
+    '抵制不良游戏，拒绝盗版游戏。注意自我保护，谨防受骗上当。',
+    '适度游戏益脑，沉迷游戏伤身。合理安排时间，享受健康生活。',
+  ],
+} as const;
+
 /** 底部页签栏（非玩法屏常驻，玩法屏隐藏 —— 局内不允许跳走的入口） */
 export const TABBAR = {
   home: '首页',

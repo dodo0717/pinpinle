@@ -8,6 +8,7 @@ import { LevelNode } from './LevelNode';
 import { HomeHUD } from '../界面/HomeHUD';
 import { preloadUiFont } from '../界面/fontUtil';
 import { LoadingOverlay } from '../界面/LoadingOverlay';
+import { StartupLoading } from '../界面/StartupLoading';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -41,6 +42,16 @@ const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
 /** 进地图后在后台预下载的 UI 切图目录（排行榜 / 图鉴 / 设置 / 教学整屏用到的，合计约 5 MB） */
 const UI_PRELOAD_DIRS = ['ui/fx', 'ui/leaderboard', 'ui/collection', 'ui/settings'];
+/** 首屏切图（HomeHUD / LevelNode 里用到的，按源码统计）；底图按当前世界另加，见 firstScreenAssets */
+const FIRST_SCREEN_UI = [
+    'map/node/node-todo', 'map/node/node-star1', 'map/node/node-star3',
+    'ui/home/back', 'ui/home/banner', 'ui/home/pill', 'ui/home/heart', 'ui/home/plus',
+    'ui/home/tabbar-body', 'ui/home/tab-pill',
+    'ui/home/tab-home', 'ui/home/tab-rank', 'ui/home/tab-book', 'ui/home/tab-gear',
+    'ui/home/tab-home-gray', 'ui/home/tab-rank-gray', 'ui/home/tab-book-gray', 'ui/home/tab-gear-gray',
+    'ui/fx/avatar-badge', 'ui/fx/nick-capsule', 'ui/fx/home-tutorial', 'ui/fx/tabbar-shadow',
+    'ui/fx/glow-bead-1', 'ui/fx/glow-bead-2', 'ui/fx/glow-ring', 'ui/fx/glow-nav', 'ui/fx/glow-pager',
+];
 /** 各整屏实际用到的切图目录（按各屏源码里的切图路径统计）；打开前要等这些下完 */
 const UI_DIRS_OF = {
     leaderboard: ['ui/fx', 'ui/leaderboard'],
@@ -217,8 +228,14 @@ export class MapBootstrap extends Component {
         // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进
         GS.onMetaChange(() => this.refreshTopbar());
         this.schedule(this.onTick, 1);
-        // 首屏地图先走，1 秒后再在后台预下载各整屏的 UI 切图（见 preloadUiAssets）
-        this.scheduleOnce(() => this.preloadUiAssets(), 1);
+        // 启动加载页盖在首页之上：首屏素材（当前世界底图 / 关卡珠 / 顶栏页签切图 / 字体）下完再淡出。
+        // 淡出后才开始后台预下载各整屏切图（见 preloadUiAssets），不和首屏抢带宽。
+        StartupLoading.show(this.node, DESIGN_W, this.screenH, this.firstScreenAssets(), () => this.preloadUiAssets());
+    }
+
+    /** 首屏要先下好的贴图（resources 路径）：加载页的进度条按这些的真实下载数走 */
+    private firstScreenAssets(): string[] {
+        return [worldArtAsset(this.worldIndex).path, ...FIRST_SCREEN_UI];
     }
 
     /**
