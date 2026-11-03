@@ -276,11 +276,19 @@ export class MapBootstrap extends Component {
         // 关键：把打包时丢掉的绑定补回去，Canvas 之后会自己维护它
         canvas.cameraComponent = cam;
 
+        // ⚠️ 2026-11-03：相机铺满整个窗口，正交高度不能固定写可视高度/2（=960）。
+        //    手机屏比 9:16 更窄长（如 9:19.5），960 的半高按窗口宽高比换算出来的可视宽只有 ~885，
+        //    1080 宽的画面两侧被切掉（真机/开发者工具里「太挤了，两边看不到」）。
+        //    改为同时装下设计宽 1080 与设计高 1920：窄长屏按宽度反推高度，上下露留边色（= Web 的 SHOW_ALL）。
         const fit = (): void => {
-            cam.orthoHeight = view.getVisibleSize().height / 2;
+            const vs = view.getVisibleSize();
+            const frame = typeof view.getFrameSize === 'function' ? view.getFrameSize() : null;
+            const aspect = frame && frame.width > 0 && frame.height > 0 ? frame.width / frame.height : vs.width / vs.height;
+            cam.orthoHeight = Math.max(vs.height / 2, vs.width / aspect / 2);
         };
         fit();
         view.on('design-resolution-changed', fit);
+        view.on('canvas-resize', fit);
         console.log(
             '[map] ensureCamera: 相机数=' + canvasNode.getComponents(Camera).length +
             ' ortho=' + cam.orthoHeight +
