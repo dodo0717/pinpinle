@@ -22,7 +22,7 @@
  * 颜色一律来自 `web/art/**` 切图的**真实像素采样**（`node tools/art-samples.mjs`），不靠肉眼估。
  */
 
-import { Node, UITransform, Graphics, Label, Sprite, Color, Layers, type SpriteFrame } from 'cc';
+import { Node, UITransform, Graphics, Label, Sprite, Color, Layers, view, type SpriteFrame } from 'cc';
 import { resolveAsset } from '../平台/assetSource';
 import { loadSpriteFrame } from '../平台/assetLoader';
 
@@ -48,6 +48,18 @@ export const SKY_C = new Color(169, 208, 245, 255);  // #a9d0f5
  * 600 足够覆盖到 9:24 的超长屏。
  */
 export const BLEED = 600;
+
+/**
+ * 实际可见的设计高度（2026-11-04 全面屏适配）：相机按宽 1080 适配，比 9:16 更窄长的屏幕上
+ * 可见高度 > 1920（如 9:19.5 ≈ 2340）。首页 / 对局页按它排版，贴顶贴底的元素才能真正贴到屏幕边。
+ * 与 `MapBootstrap.ensureCamera()` 的正交高度同一算法；预览 shim 没有 getFrameSize → 1920。
+ */
+export function stageHeight(): number {
+  const vs = view.getVisibleSize();
+  const f = typeof view.getFrameSize === 'function' ? view.getFrameSize() : null;
+  const aspect = f && f.width > 0 && f.height > 0 ? f.width / f.height : vs.width / vs.height;
+  return Math.max(vs.height, vs.width / aspect);
+}
 
 /** 在 w×h（居中）区域的上下各补一条 BLEED 高的纯色：上接顶部色，下接底部色 */
 export function fillBleed(g: Graphics, w: number, h: number, top: Color, bot: Color): void {

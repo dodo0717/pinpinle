@@ -288,9 +288,10 @@ export class ResultPopup {
     this.cardBg.getComponent(UITransform)!.setContentSize(CARD_W, cardH);
     this.cardShadow.getComponent(UITransform)!.setContentSize(948, cardH + 128 + 26);
     // 麻绳：顶到屏幕顶，底压进牌子上缘 8px（`964 − 牌高/2`；PLAY 689 → 619.5 ✓ 实测吻合）
-    const ropeH = 964 - cardH / 2;
+    // 往上多伸 BLEED：窄长屏的顶部留边里绳子不断开
+    const ropeH = 964 - cardH / 2 + BLEED;
     this.rope.getComponent(UITransform)!.setContentSize(12, ropeH);
-    this.rope.setPosition(0, STAGE_H / 2 - ropeH / 2, 0);
+    this.rope.setPosition(0, STAGE_H / 2 + BLEED - ropeH / 2, 0);
 
     /* ---- 3) 放内容 ---- */
     let cursor = 0;

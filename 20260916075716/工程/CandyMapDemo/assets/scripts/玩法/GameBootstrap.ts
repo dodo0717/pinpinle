@@ -31,7 +31,8 @@ import { unlockedImageIds, clearedCount } from './meta';
 // 语音用单例：设置页（首页）改的「语音说明」开关要作用到教学里的同一股声音
 import { speech, createSpeech, type GameSpeech } from './speech';
 import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
-import { setSprite, fillBleed } from '../界面/uiPaint';
+import { setSprite, fillBleed, stageHeight } from '../界面/uiPaint';
+import { screenInsets, topEdge, bottomEdge } from '../平台/screenInsets';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
 import { HandHint } from './handHint';
 import {
@@ -179,12 +180,13 @@ export class GameBootstrap extends Component {
     //    表现就是「第一关进去后主玩法分辨率不对」。Web 的 `#stage` 是写死的 1080×1920
     //    + `fitStage()` 等比缩放摆正（web/index.html:58-65），全程一个策略，不存在进关换分辨率。
     view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.SHOW_ALL);
+    this.fitGeometry();
 
     const host = new Node('BoardHost');
     host.parent = this.node;
     host.layer = Layers.Enum.UI_2D;
-    host.addComponent(UITransform).setContentSize(CARD_INNER_W, BOARD_TOP - BOARD_BOTTOM);
-    host.setPosition(0, (BOARD_TOP + BOARD_BOTTOM) / 2);
+    host.addComponent(UITransform).setContentSize(CARD_INNER_W, this.boardTop - this.boardBottom);
+    host.setPosition(0, (this.boardTop + this.boardBottom) / 2);
     this.view = host.addComponent(BoardView);
 
     this.dialog = this.mount('Dialog', GameDialog);
@@ -214,8 +216,10 @@ export class GameBootstrap extends Component {
     this.tutBanner = TutorialBanner.create(this.node);
     // Web `.tut-banner` 是 `top: 250px` **顶部锚定**（挂 #stage）→ Cocos 顶边 y = 960 − 250 = 710，
     //    单行本体高 101 → 中心 y = 710 − 50.5 ≈ 660。之前放 700 是拍脑袋，偏下 40px。
-    this.tutBanner.setPosition(0, 660);
+    // 全面屏：横幅与教学进度条跟着顶栏一起下移（barY − 822 = 顶栏相对原设计的位移）
+    this.tutBanner.setPosition(0, 660 + this.barY - 822);
     this.tutHud = TutorialHud.create(this.node, () => this.exitTutorial());
+    this.node.getChildByName('TutorialHud')?.setPosition(0, this.barY - 822, 0);
     this.tutHand = HandHint.create(this.view.node);
     this.tutSpot = SpotlightLayer.create(this.node);
     // 同上：模块导出可能还没就绪，兜一个实例，保证教学的 speak/stop 永远拿得到东西
@@ -230,6 +234,30 @@ export class GameBootstrap extends Component {
 
   start(): void {
     if (this.autoStart) this.startLevel(this.levelIndex);
+  }
+
+  /* ---------------------------------------------------------------- 全面屏几何（2026-11-04） */
+  /** 实际可见设计高度（窄长屏 > 1920） */
+  private stageH = DESIGN_H;
+  /** 顶栏中心 y：原设计 822；全面屏贴屏幕顶并让开刘海与胶囊 */
+  private barY = DESIGN_H / 2 - CARD_INNER_TOP - TOPBAR_H / 2;
+  /** 棋盘区上下沿（Cocos y），原设计 692 / −942 */
+  private boardTop = BOARD_TOP;
+  private boardBottom = BOARD_BOTTOM;
+  private wrapH = WRAP_H;
+
+  /**
+   * 按实际屏幕算顶栏与棋盘区：顶栏贴顶（让开刘海 / 胶囊），棋盘区一直延到屏幕底（让开手势条）。
+   * 1080×1920 且无安全区时与原常量逐字一致（822 / 692 / −942 / 1634）。
+   */
+  private fitGeometry(): void {
+    const H = stageHeight() || DESIGN_H;
+    const ins = screenInsets(H);
+    this.stageH = H;
+    this.barY = H / 2 - topEdge(ins, CARD_INNER_TOP) - TOPBAR_H / 2;
+    this.boardTop = this.barY - TOPBAR_H / 2 - TOPBAR_MARGIN_BOTTOM;
+    this.boardBottom = -H / 2 + bottomEdge(ins, CARD_MARGIN + CARD_BORDER);
+    this.wrapH = this.boardTop - this.boardBottom;
   }
 
   private mount<T extends Component>(name: string, cls: new () => T): T {
@@ -436,9 +464,9 @@ export class GameBootstrap extends Component {
     const rows = this.cfg.rows;
     const cols = this.cfg.cols;
     const byW = (BOARD_FILL * DESIGN_W - GAP * (cols - 1)) / cols;
-    const byH = (BOARD_FILL * DESIGN_H - GAP * (rows - 1)) / rows;
+    const byH = (BOARD_FILL * this.stageH - GAP * (rows - 1)) / rows;
     const maxW = (CARD_INNER_W - BOARD_BORDER * 2 - GAP * (cols - 1)) / cols;
-    const maxH = (WRAP_H - BOARD_BORDER * 2 - GAP * (rows - 1)) / rows;
+    const maxH = (this.wrapH - BOARD_BORDER * 2 - GAP * (rows - 1)) / rows;
     const cell = Math.max(36, Math.floor(Math.min(byW, byH, maxW, maxH)));
     this.view.build(rows, cols, cell);
   }
@@ -1206,7 +1234,7 @@ export class GameBootstrap extends Component {
     card.parent = this.node;
     card.layer = Layers.Enum.UI_2D;
     const w = DESIGN_W - CARD_MARGIN * 2;    // 1064
-    const h = DESIGN_H - CARD_MARGIN * 2;    // 1904
+    const h = this.stageH - CARD_MARGIN * 2;    // 1904（全面屏下随屏高）
     card.addComponent(UITransform).setContentSize(w, h);
     const g = card.addComponent(Graphics);
     const iw = w - CARD_BORDER * 2;
@@ -1236,7 +1264,7 @@ export class GameBootstrap extends Component {
     bar.parent = card;
     bar.layer = Layers.Enum.UI_2D;
     bar.addComponent(UITransform).setContentSize(CARD_INNER_W, TOPBAR_H);
-    bar.setPosition(0, DESIGN_H / 2 - CARD_INNER_TOP - TOPBAR_H / 2);   // y=822（CSS 盒 18..258）
+    bar.setPosition(0, this.barY);   // 原设计 y=822（CSS 盒 18..258）；全面屏贴顶并让开胶囊
     const g = bar.addComponent(Graphics);
     const r = 26;
     // 天空蓝：linear-gradient(180deg, #5cb0ef, #3d8fd8)
@@ -1995,8 +2023,8 @@ export class GameBootstrap extends Component {
    */
   private hudRectOf(kind: 'goal' | 'time'): SpotlightRect {
     return kind === 'goal'
-      ? { cx: -246, cy: 822, w: 107, h: 72 }
-      : { cx: 390, cy: 822, w: 228, h: 60 };
+      ? { cx: -246, cy: this.barY, w: 107, h: 72 }
+      : { cx: 390, cy: this.barY, w: 228, h: 60 };
   }
 
   /**

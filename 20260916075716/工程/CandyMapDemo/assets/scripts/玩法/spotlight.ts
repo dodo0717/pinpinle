@@ -13,7 +13,7 @@
  */
 
 import { Node, Graphics, Sprite, Color, UITransform, Label, Layers, UIOpacity, tween, Tween, Vec3, director, Director } from 'cc';
-import { mkSprite, setSprite } from '../界面/uiPaint';
+import { mkSprite, setSprite, BLEED } from '../界面/uiPaint';
 import { applyUiFont } from '../界面/fontUtil';
 
 export interface SpotlightRect {
@@ -115,7 +115,7 @@ export class SpotlightLayer {
      */
     const blocker = new Node('blocker');
     blocker.layer = Layers.Enum.UI_2D;
-    blocker.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
+    blocker.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H + BLEED * 2);   // 窄长屏留边也要拦
     blocker.on(Node.EventType.TOUCH_END, () => { /* 暗区：不关闭、不透传 */ });
     blocker.parent = root;
     this.blocker = blocker;
@@ -344,8 +344,9 @@ export class SpotlightLayer {
     // 设计坐标（中心原点）→ 画布矩形（左上原点）方便画四块
     const L = -DESIGN_W / 2;
     const R = DESIGN_W / 2;
-    const B = -DESIGN_H / 2;
-    const T = DESIGN_H / 2;
+    // 压暗范围多铺 BLEED：窄长屏上下留边也一起压暗（2026-11-04 全面屏）
+    const B = -DESIGN_H / 2 - BLEED;
+    const T = DESIGN_H / 2 + BLEED;
 
     const g = this.shade.getComponent(Graphics)!;
     g.clear();

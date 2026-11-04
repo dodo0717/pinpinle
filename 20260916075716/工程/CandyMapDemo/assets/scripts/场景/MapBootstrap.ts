@@ -10,7 +10,8 @@ import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { StartupLoading } from '../界面/StartupLoading';
 import { watchForUpdate } from '../平台/update';
 import { whenSpritesIdle } from '../平台/assetLoader';
-import { fillBleed, warmUiSprites } from '../界面/uiPaint';
+import { fillBleed, warmUiSprites, stageHeight } from '../界面/uiPaint';
+import { screenInsets, topEdge, bottomEdge } from '../平台/screenInsets';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -217,7 +218,8 @@ export class MapBootstrap extends Component {
         //    表现为「画面只有中间一条」、教学 UI（气泡 y=549）整个落到屏幕外。
         view.setDesignResolutionSize(DESIGN_W, DESIGN_H, ResolutionPolicy.SHOW_ALL);
         this.visibleSize = view.getVisibleSize();
-        this.screenH = this.visibleSize.height || DESIGN_H;
+        // 2026-11-04 全面屏：按实际可见高度排版（窄长屏 > 1920），地图 / 底色 / 顶栏底栏才能铺满整屏
+        this.screenH = stageHeight() || DESIGN_H;
         this.ensureCamera();   // 打包后场景里的相机绑定会丢，运行时兜底补一台正交 UI 相机
         // 地图与关卡共用一份全局状态；关卡层先启动时会 init 过，这里保证幂等
         if (!GS.readResult) GS.init();
@@ -706,15 +708,28 @@ export class MapBootstrap extends Component {
     private snapToPage(page: number): void {
         if (!this.content?.isValid) return;
         this.page = Math.max(0, Math.min(PAGES - 1, page));
-        this.content.setPosition(0, -PAGE_H / 2 + this.page * PAGE_H);
+        this.content.setPosition(0, this.pageY0() + this.page * this.pageStride());
         this.hud?.setPager(this.page, PAGES);
+    }
+
+    /**
+     * 翻页几何（2026-11-04 全面屏）：原来按「一屏 = 1920」写死，窄长屏视口更高（如 2340）时，
+     * 两页的落点会让地图顶 / 底露出一截空白。改成按实际视口算：第 0 页 = 地图顶贴视口顶，
+     * 最后一页 = 地图底贴视口底，中间均分。视口 1920 时与原来逐字一致（-960 / +960）。
+     */
+    private pageY0(): number {
+        return this.viewH / 2 - CONTENT_H / 2;
+    }
+
+    private pageStride(): number {
+        return PAGES > 1 ? Math.max(1, (CONTENT_H - this.viewH) / (PAGES - 1)) : 1;
     }
 
     /** 吸附动画：420ms easeOutCubic */
     private animateToPage(page: number): void {
         if (!this.content?.isValid) return;
         this.page = Math.max(0, Math.min(PAGES - 1, page));
-        const y = -PAGE_H / 2 + this.page * PAGE_H;
+        const y = this.pageY0() + this.page * this.pageStride();
         tween(this.content).to(SNAP_MS / 1000, { position: new Vec3(0, y, 0) }, { easing: 'backOut' }).start();
         this.hud?.setPager(this.page, PAGES);
     }
@@ -759,22 +774,24 @@ export class MapBootstrap extends Component {
         this.drag = null;
         if (!d) return;
         const projected = this.currentOffset() + d.vel * FLING_PROJECT;
-        this.animateToPage(Math.round(projected / PAGE_H));
+        this.animateToPage(Math.round(projected / this.pageStride()));
     }
 
+    /** 当前翻页偏移：0 = 第 0 页，pageStride × (PAGES-1) = 最后一页 */
     private currentOffset(): number {
-        return (this.content?.isValid ? this.content.position.y : 0) + PAGE_H / 2;
+        return (this.content?.isValid ? this.content.position.y : this.pageY0()) - this.pageY0();
     }
 
     /** 越界橡皮筋 0.32（Web RUBBER） */
     private applyOffset(v: number): void {
         if (!this.content?.isValid) return;
-        const max = (PAGES - 1) * PAGE_H;
+        const stride = this.pageStride();
+        const max = (PAGES - 1) * stride;
         let o = v;
         if (o < 0) o = o * 0.32;
         else if (o > max) o = max + (o - max) * 0.32;
-        this.content.setPosition(0, -PAGE_H / 2 + o);
-        const near = Math.round(o / PAGE_H);
+        this.content.setPosition(0, this.pageY0() + o);
+        const near = Math.round(o / stride);
         if (near !== this.page) { this.page = Math.max(0, Math.min(PAGES - 1, near)); this.hud?.setPager(this.page, PAGES); }
     }
 
@@ -1338,6 +1355,12 @@ export class MapBootstrap extends Component {
         const hud = n.addComponent(HomeHUD);
         this.hud = hud;
         hud.build();
+        // 全面屏：顶栏贴屏幕顶（让开刘海和胶囊），底栏贴屏幕底（让开手势条）。
+        // HUD 坐标是按 1080×1920 写死的（顶栏顶边 28、底栏底边 20），这里算出整组要挪多少
+        const ins = screenInsets(this.screenH);
+        const dyTop = (this.screenH / 2 - topEdge(ins, 28)) - (DESIGN_H / 2 - 28);
+        const dyBottom = (-this.screenH / 2 + bottomEdge(ins, 20)) - (-DESIGN_H / 2 + 20);
+        hud.fitScreen(dyTop, dyBottom);
         hud.onReady({
             onTutorial: () => this.onTutorialTap(),
             onBack: () => { /* Web 的返回圆钮在首页是装饰，不做跳转 */ },

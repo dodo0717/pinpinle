@@ -188,9 +188,9 @@ export class LevelPreview {
   private buildRope(drop: Node): void {
     const rope = new Node('rope');
     rope.layer = Layers.Enum.UI_2D;
-    rope.addComponent(UITransform).setContentSize(ROPE_W, ROPE_H);
-    // 顶到屏幕顶（y=+960），底到牌子上缘再压进 8px
-    rope.setPosition(0, STAGE_H / 2 - ROPE_H / 2, 0);
+    // 顶到屏幕顶，底到牌子上缘再压进 8px；往上多伸 BLEED —— 窄长屏的顶部留边里也看得到绳子
+    rope.addComponent(UITransform).setContentSize(ROPE_W, ROPE_H + BLEED);
+    rope.setPosition(0, STAGE_H / 2 + BLEED - (ROPE_H + BLEED) / 2, 0);
     const s = rope.addComponent(Sprite);
     s.sizeMode = Sprite.SizeMode.CUSTOM;
     s.type = Sprite.Type.SLICED;

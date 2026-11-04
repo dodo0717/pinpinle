@@ -56,6 +56,9 @@ const TUT = { x: CX(818.83, 225), y: CY(154, 84), w: 225, h: 84 };
 const NAV_L = { x: CX(22, 118), y: CY(1582, 118) };
 const NAV_R = { x: CX(940, 118), y: CY(1582, 118) };
 const NAV_SIZE = 118;
+/** 全面屏适配时跟着屏幕顶 / 底一起移的节点（名字见 buildTopbar / buildNav / buildTabbar） */
+const HUD_TOP_GROUP = ['BtnBack', 'TopUser', 'TopStamina', 'BtnTutorial'];
+const HUD_BOTTOM_GROUP = ['TabbarShadow', 'TabbarBody', 'Tabbar', 'NavLeft', 'NavLeftGlow', 'NavRight', 'NavRightGlow'];
 const PAGER_X = CX(964, 98);
 const PAGER_UP_Y = CY(825, 98);
 const PAGER_DOWN_Y = CY(997, 98);
@@ -394,6 +397,21 @@ export class HomeHUD extends Component {
     // 到边界就别再接点击：Web 的 disabled 按钮不响应短按
     this.navLeftV.hit.active = left;
     this.navRightV.hit.active = right;
+  }
+
+  /**
+   * 全面屏适配（2026-11-04）：顶栏一组整体移 dyTop、底栏一组（含换世界箭头）移 dyBottom（Cocos y 向上）。
+   * 位移由 MapBootstrap 按实际屏幕高度与安全区算好传入；翻页圆钮在屏幕中段，不动。只调一次。
+   */
+  fitScreen(dyTop: number, dyBottom: number): void {
+    const move = (n: Node | null | undefined, dy: number): void => {
+      if (!n || !n.isValid || dy === 0) return;
+      const p = n.position;
+      n.setPosition(p.x, p.y + dy, p.z);
+    };
+    for (const name of HUD_TOP_GROUP) move(this.node.getChildByName(name), dyTop);
+    move(this.recoverLabel?.node, dyTop);
+    for (const name of HUD_BOTTOM_GROUP) move(this.node.getChildByName(name), dyBottom);
   }
 
   /** 翻页：当前页高亮、到边界时按钮变淡 */
