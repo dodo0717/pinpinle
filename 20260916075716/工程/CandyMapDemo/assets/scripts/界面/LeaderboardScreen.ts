@@ -35,7 +35,7 @@
 
 import { Node, UITransform, Graphics, Label, Color, Layers, ScrollView, Mask, UIOpacity, Vec2, Sprite } from 'cc';
 import { LEADERBOARD } from '../玩法/text';
-import { mkSprite, setSprite, fitContain, maskStencil, mkFx } from './uiPaint';
+import { mkSprite, setSprite, fitContain, maskStencil, mkFx, fillBleed } from './uiPaint';
 import {
   LEADERBOARD_PAGE_SIZE,
   LEADERBOARD_MAX_LEVEL,
@@ -325,7 +325,9 @@ export class LeaderboardScreen {
     const bg = new Node('bg');
     bg.layer = Layers.Enum.UI_2D;
     bg.addComponent(UITransform).setContentSize(1080, 1920);
-    fillVGrad(bg.addComponent(Graphics), 1080, 1920, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
+    const bgG = bg.addComponent(Graphics);
+    fillVGrad(bgG, 1080, 1920, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
+    fillBleed(bgG, 1080, 1920, SKY_A, SKY_C);   // 窄长屏上下留边也铺成蓝天
     bg.parent = root;
 
     // 顶栏：150×150 返回钮（`leaderboard/back.png` 切图，兜底是棕圆 + ‹）+ 96px 白字描边标题

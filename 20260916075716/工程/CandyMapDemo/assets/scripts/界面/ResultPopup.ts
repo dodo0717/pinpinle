@@ -26,7 +26,7 @@
  */
 
 import { Node, UITransform, Graphics, Label, Color, Layers, tween, Vec3, UIOpacity, Sprite, Vec2 } from 'cc';
-import { mkSprite, setSprite, WHITE, STAGE_W, STAGE_H } from './uiPaint';
+import { mkSprite, setSprite, WHITE, STAGE_W, STAGE_H, BLEED } from './uiPaint';
 import { applyUiFont, applyUiText } from './fontUtil';
 
 export interface ResultButton {
@@ -130,7 +130,7 @@ export class ResultPopup {
     mask.layer = Layers.Enum.UI_2D;
     mask.addComponent(UITransform).setContentSize(STAGE_W, STAGE_H);
     const mg = mask.addComponent(Graphics);
-    mg.rect(-STAGE_W / 2, -STAGE_H / 2, STAGE_W, STAGE_H);
+    mg.rect(-STAGE_W / 2, -STAGE_H / 2 - BLEED, STAGE_W, STAGE_H + BLEED * 2);   // 连窄长屏留边一起压暗
     mg.fillColor = C_MASK;
     mg.fill();
     mask.parent = root;

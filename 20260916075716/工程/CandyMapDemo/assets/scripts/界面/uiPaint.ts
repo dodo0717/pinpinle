@@ -43,6 +43,23 @@ export const SKY_B = new Color(111, 169, 234, 255);  // #6fa9ea（42% 处）
 export const SKY_C = new Color(169, 208, 245, 255);  // #a9d0f5
 
 /**
+ * 舞台外的「出血」高度（2026-11-04）：相机按宽 1080 适配，比 9:16 更窄长的手机上下会多出一截
+ * （如 9:19.5 上下各约 210）。整屏底色与全屏蒙版都往外多铺这么高，留边处不再露出黑色清屏色。
+ * 600 足够覆盖到 9:24 的超长屏。
+ */
+export const BLEED = 600;
+
+/** 在 w×h（居中）区域的上下各补一条 BLEED 高的纯色：上接顶部色，下接底部色 */
+export function fillBleed(g: Graphics, w: number, h: number, top: Color, bot: Color): void {
+  g.fillColor = top;
+  g.rect(-w / 2, h / 2 - 1, w, BLEED + 1);
+  g.fill();
+  g.fillColor = bot;
+  g.rect(-w / 2, -h / 2 - BLEED, w, BLEED + 1);
+  g.fill();
+}
+
+/**
  * 整屏渐变底：`linear-gradient(180deg,#3f83d8 0%,#6fa9ea 42%,#a9d0f5 100%)`。
  *
  * ⚠️ 40 条色带的 `fillVGrad` 铺满 1080×1920 = **整屏色带台阶**（毛边最显眼的一处）→
@@ -55,6 +72,7 @@ export function paintScreenBg(parent: Node, name = 'bg'): Node {
   n.addComponent(UITransform).setContentSize(STAGE_W, STAGE_H);
   const g = n.addComponent(Graphics);
   fillVGrad(g, STAGE_W, STAGE_H, SKY_A, SKY_B, SKY_C, 0.42, 0, 40);
+  fillBleed(g, STAGE_W, STAGE_H, SKY_A, SKY_C);
   n.parent = parent;
   mkSprite(n, 'fx/sky-screen', STAGE_W, STAGE_H);
   return n;

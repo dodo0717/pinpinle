@@ -31,7 +31,7 @@ import { unlockedImageIds, clearedCount } from './meta';
 // 语音用单例：设置页（首页）改的「语音说明」开关要作用到教学里的同一股声音
 import { speech, createSpeech, type GameSpeech } from './speech';
 import { ResultPopup, type ResultButton } from '../界面/ResultPopup';
-import { setSprite } from '../界面/uiPaint';
+import { setSprite, fillBleed } from '../界面/uiPaint';
 import { SpotlightLayer, type SpotlightRect } from './spotlight';
 import { HandHint } from './handHint';
 import {
@@ -1195,6 +1195,8 @@ export class GameBootstrap extends Component {
       g.rect(-DESIGN_W / 2, DESIGN_H / 2 - (i + 1) * sh, DESIGN_W, sh + 0.5);
       g.fill();
     }
+    // 窄长屏上下留边：顶部接 c0、底部接 c2，不露黑色清屏色
+    fillBleed(g, DESIGN_W, DESIGN_H, c0, c2);
     n.setSiblingIndex(0);
   }
 

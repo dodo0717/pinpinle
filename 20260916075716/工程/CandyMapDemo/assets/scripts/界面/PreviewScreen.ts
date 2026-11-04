@@ -10,7 +10,7 @@
 import { Node, UITransform, Graphics, Label, Sprite, SpriteFrame, Color, Layers, resources } from 'cc';
 import { animalOf, IMAGE_MOOD, IMAGE_TEXT_PLACEHOLDER } from '../核心/index';
 import { mkLabel } from './CollectionScreen';
-import { mkSprite, setSprite } from './uiPaint';
+import { mkSprite, setSprite, BLEED } from './uiPaint';
 
 /* ↓↓↓ 常量区（照 `web/index.html:11-15` 的 CSS 变量 + `web/ui.css` 的 `.screen.sheet` 段） ↓↓↓ */
 /** `--ink` #4a3b2a（标题 / 名字 / 普通按钮字） */
@@ -56,7 +56,7 @@ export class PreviewScreen {
 
     // 蒙版（Web `#scrim`）—— 沿用原色，Web 没有给这一层单独规定别的底色
     const bg = root.addComponent(Graphics);
-    bg.rect(-540, -960, 1080, 1920);
+    bg.rect(-540, -960 - BLEED, 1080, 1920 + BLEED * 2);   // 连窄长屏上下留边一起盖住
     bg.fillColor = new Color(28, 24, 22, 230);
     bg.fill();
 

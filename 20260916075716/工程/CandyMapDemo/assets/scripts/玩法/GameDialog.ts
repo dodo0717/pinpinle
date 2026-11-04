@@ -7,6 +7,7 @@
 
 import { _decorator, Component, Node, Graphics, UITransform, Label, Color, Layers, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
 import { applyUiFont } from '../界面/fontUtil';
+import { BLEED } from '../界面/uiPaint';
 const { ccclass } = _decorator;
 
 export interface DialogButton {
@@ -56,7 +57,7 @@ export class GameDialog extends Component {
     mask.addComponent(UITransform).setContentSize(1080, 1920);
     const mg = mask.addComponent(Graphics);
     mg.fillColor = new Color(0, 0, 0, 150);
-    mg.rect(-540, -960, 1080, 1920);
+    mg.rect(-540, -960 - BLEED, 1080, 1920 + BLEED * 2);   // 连窄长屏上下留边一起压暗
     mg.fill();
 
     this.panel = new Node('Panel');

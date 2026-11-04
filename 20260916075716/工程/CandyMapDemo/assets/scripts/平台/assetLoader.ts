@@ -74,6 +74,34 @@ function loadRemoteSpriteFrame(res: ResolvedAsset, cb: (sf: SpriteFrame | null) 
  * @param cb 拿到 SpriteFrame 或 null（null = 失败，调用方负责占位/提示）
  */
 export function loadSpriteFrame(res: ResolvedAsset, cb: (sf: SpriteFrame | null) => void): void {
+  inflight += 1;
+  loadSpriteFrameRaw(res, (sf) => {
+    inflight = Math.max(0, inflight - 1);
+    try { cb(sf); } finally { if (inflight === 0) flushIdle(); }
+  });
+}
+
+/* ------------------------------------------------------------ 在途计数（2026-11-04） */
+/**
+ * 整屏第一次打开时，「加载中」过场要等这一屏发出的切图**全部到手**才收起：
+ * 真机上即使文件已下载到缓存，解码几十张图仍要一两秒，过场先收起就会看到半成品界面。
+ */
+let inflight = 0;
+let idleWaiters: Array<() => void> = [];
+
+function flushIdle(): void {
+  const list = idleWaiters;
+  idleWaiters = [];
+  for (const fn of list) fn();
+}
+
+/** 当前没有在途的贴图加载时回调（已空闲则下一次检查立即回调） */
+export function whenSpritesIdle(cb: () => void): void {
+  if (inflight === 0) { cb(); return; }
+  idleWaiters.push(cb);
+}
+
+function loadSpriteFrameRaw(res: ResolvedAsset, cb: (sf: SpriteFrame | null) => void): void {
   if (res.mode === 'local') {
     resources.load(res.path + '/spriteFrame', SpriteFrame, (err, sf) => {
       if (err || !sf) {

@@ -32,7 +32,7 @@
  */
 
 import { Node, UITransform, Graphics, Label, Color, Layers, UIOpacity, Sprite, tween, Vec2, Vec3 } from 'cc';
-import { mkFx, mkSprite, setSprite } from './uiPaint';
+import { mkFx, mkSprite, setSprite, BLEED } from './uiPaint';
 import { applyUiFont, applyUiText } from './fontUtil';
 
 export type LevelMode = 'normal' | 'nightmare';
@@ -155,7 +155,7 @@ export class LevelPreview {
     mask.layer = Layers.Enum.UI_2D;
     mask.addComponent(UITransform).setContentSize(STAGE_W, STAGE_H);
     const mg = mask.addComponent(Graphics);
-    mg.rect(-STAGE_W / 2, -STAGE_H / 2, STAGE_W, STAGE_H);
+    mg.rect(-STAGE_W / 2, -STAGE_H / 2 - BLEED, STAGE_W, STAGE_H + BLEED * 2);   // 连窄长屏留边一起压暗
     mg.fillColor = C_MASK;
     mg.fill();
     mask.parent = root;

@@ -9,6 +9,8 @@ import { HomeHUD } from '../界面/HomeHUD';
 import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { StartupLoading } from '../界面/StartupLoading';
 import { watchForUpdate } from '../平台/update';
+import { whenSpritesIdle } from '../平台/assetLoader';
+import { fillBleed } from '../界面/uiPaint';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -293,38 +295,54 @@ export class MapBootstrap extends Component {
     /**
      * 打开整屏前，先确认它要用的切图目录都下载完了（2026-11-03，用户要求加「加载中」过场）。
      *
-     * - 已就绪（预下载早就做完 / 第二次打开）→ 直接打开，不出过场；
-     * - 未就绪 → 150ms 后还没好才盖「加载中」（快的时候不闪一下），等齐或最多 8 秒后收起并打开；
-     * - 整屏在过场收起后的**下一帧**再建：建整屏本身也要几百毫秒，先让过场消失、不卡在半透明上。
+     * - 整屏已建过、切图也都在（第二次打开）→ 直接打开，不出过场；
+     * - 首次打开 → 立刻盖「加载中」，切图目录下载完 → 下一帧建整屏 → 等这一屏发出的切图全部解码到手
+     *   （`whenSpritesIdle`）才收起；最多 8 秒。
      */
-    private openWithLoading(key: string, dirs: readonly string[], open: () => void): void {
+    private openWithLoading(key: string, dirs: readonly string[], open: () => void, built: () => boolean): void {
         if (this.pendingOpen) return;
         this.preloadUiAssets();
         const ready = (): boolean => dirs.every((d) => this.uiReady.has(d));
-        if (ready()) { open(); return; }
+        // 建过、切图也都在：直接打开，不出过场
+        if (built() && ready()) { open(); return; }
 
+        // ⚠️ 2026-11-04：真机上「文件已下载」≠「界面能马上出来」—— 首次建整屏 + 解码几十张切图仍要一两秒。
+        //    所以**首次打开一律先盖过场**，等下载完 → 建整屏 → 这一屏的切图全部解码到手，才收起。
         this.pendingOpen = key;
-        let finished = false;
-        const showOverlay = (): void => {
-            if (finished) return;
-            if (!this.loadingOverlay) {
-                this.loadingOverlay = LoadingOverlay.create(this.node, DESIGN_W, this.screenH, MAP.loadingOverlay);
-            }
-            this.loadingOverlay.show();
-        };
-        const done = (): void => {
-            if (finished) return;
-            finished = true;
-            this.unschedule(showOverlay);
-            this.unschedule(onTimeout);
-            this.loadingOverlay?.hide();
-            this.pendingOpen = null;
-            this.scheduleOnce(() => { if (this.node.activeInHierarchy) open(); }, 0);
-        };
-        const onTimeout = (): void => { console.warn('[map] UI 切图等待超时，直接打开: ' + key); done(); };
-        const check = (): void => { if (ready()) done(); else this.uiWaiters.push(check); };
+        if (!this.loadingOverlay) {
+            this.loadingOverlay = LoadingOverlay.create(this.node, DESIGN_W, this.screenH, MAP.loadingOverlay);
+        }
+        const overlay = this.loadingOverlay;
+        overlay.show();
 
-        this.scheduleOnce(showOverlay, 0.15);
+        let stage: 'wait' | 'built' | 'done' = 'wait';
+        const finish = (): void => {
+            if (stage === 'done') return;
+            stage = 'done';
+            this.unschedule(onTimeout);
+            overlay.hide();
+            this.pendingOpen = null;
+        };
+        const buildNow = (): void => {
+            if (stage !== 'wait') return;
+            stage = 'built';
+            if (!this.node.activeInHierarchy) { finish(); return; }
+            open();
+            // 整屏是刚建的，排在过场之上 → 把过场压回最上层，等这一屏的切图都到手
+            overlay.rootNode().setSiblingIndex(this.node.children.length - 1);
+            whenSpritesIdle(() => this.scheduleOnce(finish, 0));
+        };
+        const onTimeout = (): void => {
+            console.warn('[map] 整屏加载等待超时，直接显示: ' + key);
+            if (stage === 'wait') buildNow();
+            finish();
+        };
+        // 过场先渲染一帧再建整屏（建整屏会卡住主线程，不先画出来玩家就看不到过场）
+        const check = (): void => {
+            if (stage !== 'wait') return;
+            if (ready()) this.scheduleOnce(buildNow, 0.05);
+            else this.uiWaiters.push(check);
+        };
         this.scheduleOnce(onTimeout, 8);
         check();
     }
@@ -442,6 +460,8 @@ export class MapBootstrap extends Component {
             g.rect(-halfW, yBot, w, yTop - yBot + 1);
             g.fill();
         }
+        // 窄长屏上下留边：接渐变两端的颜色（2026-11-04，原来露出黑色清屏色）
+        fillBleed(g, w, h, skyColorAt(stops, 0), skyColorAt(stops, 1));
     }
 
     /** 贴顶：inset = 元素顶边到屏幕顶边的距离 + 元素半高 */
@@ -892,9 +912,9 @@ export class MapBootstrap extends Component {
         this.tabIndex = Math.min(Math.max(i, 0), 3);   // 必选其一
         this.hud?.setTab(this.tabIndex);
         // 首次打开时切图可能还在下载 → 先走「加载中」过场（openWithLoading），就绪后再建整屏
-        if (i === 1) this.openWithLoading('leaderboard', UI_DIRS_OF.leaderboard, () => this.showLeaderboardScreen());
-        else if (i === 2) this.openWithLoading('collection', UI_DIRS_OF.collection, () => this.showCollectionScreen());
-        else if (i === 3) this.openWithLoading('settings', UI_DIRS_OF.settings, () => this.showSettingsScreen());
+        if (i === 1) this.openWithLoading('leaderboard', UI_DIRS_OF.leaderboard, () => this.showLeaderboardScreen(), () => !!this.leaderboard);
+        else if (i === 2) this.openWithLoading('collection', UI_DIRS_OF.collection, () => this.showCollectionScreen(), () => !!this.collection);
+        else if (i === 3) this.openWithLoading('settings', UI_DIRS_OF.settings, () => this.showSettingsScreen(), () => !!this.settingsScreen);
     }
 
     /**
@@ -1031,7 +1051,7 @@ export class MapBootstrap extends Component {
                     if (p.voice !== undefined) speech.setEnabled(p.voice);
                     this.settingsScreen.render(GS.meta.settings);
                 },
-                onTutorial: () => this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer()),
+                onTutorial: () => this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer(), () => !!this.drawer),
             });
             this.settingsScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
@@ -1087,7 +1107,7 @@ export class MapBootstrap extends Component {
 
     /** 教学入口：按钮在 HUD 里（体力胶囊正下方，与 Web 同位置），这里只接行为 */
     private onTutorialTap(): void {
-        this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer());
+        this.openWithLoading('tutorial', UI_DIRS_OF.tutorial, () => this.openTutorialDrawer(), () => !!this.drawer);
     }
 
     /**
