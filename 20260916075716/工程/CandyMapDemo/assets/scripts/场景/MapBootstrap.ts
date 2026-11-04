@@ -1,7 +1,7 @@
 import {
   _decorator, Component, Node, Graphics, UITransform, Color, ScrollView, Mask, view, Layers,
   Size, Label, ResolutionPolicy, HorizontalTextAlignment, VerticalTextAlignment, Sprite,
-  SpriteFrame, resources, Font, tween, Vec3, EventTouch, Canvas, Camera,
+  SpriteFrame, resources, Font, tween, Vec3, EventTouch, Canvas, Camera, Texture2D, UIOpacity,
 } from 'cc';
 import { LevelNode } from './LevelNode';
 // 注意：界面 / 玩法 / 核心 是 `scripts/` 下的**兄弟目录**，不是 `场景/` 的子目录
@@ -44,6 +44,8 @@ const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
 /** 进地图后在后台预下载的 UI 切图目录（排行榜 / 图鉴 / 设置 / 教学整屏用到的，合计约 5 MB） */
 const UI_PRELOAD_DIRS = ['ui/fx', 'ui/leaderboard', 'ui/collection', 'ui/settings'];
+/** 后台预热每一步的间隔（秒）：一步只做一件事，避免一次建好几个整屏卡住首页 */
+const WARM_STEP_S = 0.8;
 /** 首屏切图（HomeHUD / LevelNode 里用到的，按源码统计）；底图按当前世界另加，见 firstScreenAssets */
 const FIRST_SCREEN_UI = [
     'map/node/node-todo', 'map/node/node-star1', 'map/node/node-star3',
@@ -229,7 +231,7 @@ export class MapBootstrap extends Component {
         //   ② 再建首页（buildHome，会发出首屏 28 张切图 + 底图请求）、下字体、推进度条，下完淡出。
         // 淡出后才开始后台预下载各整屏切图（见 preloadUiAssets），不和首屏抢带宽。
         StartupLoading.show(this.node, DESIGN_W, this.screenH, this.firstScreenAssets(),
-            () => this.buildHome(), () => this.preloadUiAssets());
+            () => this.buildHome(), () => { this.preloadUiAssets(); this.startWarmup(); });
     }
 
     /** 建首页（原来直接写在 onLoad 里；现在由启动加载页第二阶段调用，避免和加载页背景抢带宽） */
@@ -925,6 +927,16 @@ export class MapBootstrap extends Component {
      *    模拟玩家只有一份成绩 → 只落在当前模式那一列，另一列 0（不按比例拆分数）。
      */
     private showLeaderboardScreen() {
+        const lb = this.ensureLeaderboard();
+        // 默认落在「已解锁到的那一关」：还没打过的关看榜没有意义
+        const level = Math.min(Math.max(1, GS.progress.unlocked), LEVEL_COUNT);
+        lb.render(level, LEVEL_COUNT);
+        this.raiseScreen(lb.rootNode());
+        lb.show();
+    }
+
+    /** 建排行榜整屏（不显示）：首次点页签或后台预热时调用 */
+    private ensureLeaderboard(): LeaderboardScreen {
         if (!this.leaderboard) {
             this.leaderboard = LeaderboardScreen.create(this.node, {
                 onBack: () => this.leaderboard.hide(),
@@ -938,10 +950,7 @@ export class MapBootstrap extends Component {
             });
             this.leaderboard.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
-        // 默认落在「已解锁到的那一关」：还没打过的关看榜没有意义
-        const level = Math.min(Math.max(1, GS.progress.unlocked), LEVEL_COUNT);
-        this.leaderboard.render(level, LEVEL_COUNT);
-        this.leaderboard.show();
+        return this.leaderboard;
     }
 
     /**
@@ -995,6 +1004,28 @@ export class MapBootstrap extends Component {
      * 首次点击才创建：108 张缩略图不该在进地图时就全加载。
      */
     private showCollectionScreen() {
+        const col = this.ensureCollection();
+        this.renderCollection();
+        this.raiseScreen(col.rootNode());
+        col.show();
+    }
+
+    /**
+     * 图鉴重绘：108 格每次都销毁重建很重（真机上就是「点进去卡一下」），
+     * 解锁集合没变就不重绘（滚动位置也随之保留）。
+     */
+    private renderCollection(): void {
+        const ids = unlockedImageIds(GS.progress);
+        const key = ids.join(',');
+        if (key === this.collectionKey) return;
+        this.collectionKey = key;
+        this.collection.render(new Set(ids), COLLECTION_TOTAL);
+    }
+
+    private collectionKey: string | null = null;
+
+    /** 建图鉴 + 大图预览两个整屏（不显示）：首次点页签或后台预热时调用 */
+    private ensureCollection(): CollectionScreen {
         if (!this.collection) {
             this.collection = CollectionScreen.create(this.node, {
                 onBack: () => { this.collection.hide(); this.previewScreen?.hide(); },
@@ -1021,13 +1052,13 @@ export class MapBootstrap extends Component {
             });
             this.previewScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
-        this.collection.render(new Set(unlockedImageIds(GS.progress)), COLLECTION_TOTAL);
-        this.collection.show();
+        return this.collection;
     }
 
     private openPreviewScreen(imageId: number): void {
         if (!this.previewScreen) return;
         this.previewScreen.render(imageId);
+        this.raiseScreen(this.previewScreen.rootNode());
         this.previewScreen.show();
     }
 
@@ -1037,6 +1068,14 @@ export class MapBootstrap extends Component {
      * ⚠️ 重置存档放在整屏底部：整屏没有按钮位给第三级弹窗，仍走 dialog.confirm。
      */
     private showSettingsScreen(): void {
+        const s = this.ensureSettings();
+        s.render(GS.meta.settings);
+        this.raiseScreen(s.rootNode());
+        s.show();
+    }
+
+    /** 建设置整屏（不显示）：首次点页签或后台预热时调用 */
+    private ensureSettings(): SettingsScreen {
         if (!this.settingsScreen) {
             this.settingsScreen = SettingsScreen.create(this.node, {
                 onBack: () => this.settingsScreen.hide(),
@@ -1055,12 +1094,20 @@ export class MapBootstrap extends Component {
             });
             this.settingsScreen.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
-        this.settingsScreen.render(GS.meta.settings);
-        this.settingsScreen.show();
+        return this.settingsScreen;
     }
 
     /** 新手教学抽屉：困难序章要求先完成简单序章（由 setStatus 置灰按钮挡一道） */
     private openTutorialDrawer(): void {
+        const d = this.ensureDrawer();
+        d.setStatus(GS.tutorial.normalCleared, GS.tutorial.nightmareCleared);
+        // 设置页里也能打开抽屉：必须压在设置页之上
+        this.raiseScreen(d.rootNode());
+        d.open();
+    }
+
+    /** 建新手教学抽屉（不显示）：首次打开或后台预热时调用 */
+    private ensureDrawer(): TutorialDrawer {
         if (!this.drawer) {
             this.drawer = TutorialDrawer.create(this.node, {
                 onStartNormal: () => { this.drawer.close(); this.enterTutorial('normal'); },
@@ -1069,8 +1116,103 @@ export class MapBootstrap extends Component {
             });
             this.drawer.rootNode().setSiblingIndex(this.node.children.length - 1);
         }
-        this.drawer.setStatus(GS.tutorial.normalCleared, GS.tutorial.nightmareCleared);
-        this.drawer.open();
+        return this.drawer;
+    }
+
+    /**
+     * 整屏打开前压到最上层，再把弹窗 / 轻提示压回它之上（整屏里的 toast、确认框才看得见）。
+     * 后台预热会提前建好几个整屏，建的先后不再等于打开的先后，所以每次打开都要排一次。
+     */
+    private raiseScreen(root: Node): void {
+        const last = (): number => this.node.children.length - 1;
+        root.setSiblingIndex(last());
+        for (const name of ['Dialog', 'Toast']) {
+            const n = this.node.getChildByName(name);
+            if (n?.isValid) n.setSiblingIndex(last());
+        }
+    }
+
+    /* ================================================================ 后台预热（2026-11-04） */
+    /**
+     * 用户要求：「在首页看十几秒，再第一次点排行榜，直接显示完整页面，不要加载中」；
+     * 「第一次进关卡都会卡一下」。
+     *
+     * 启动加载页淡出后，按顺序**每隔 WARM_STEP_S 做一步**，把首次打开时最重的活提前做完：
+     *   ① 排行榜 / 图鉴 / 设置 / 教学抽屉：切图目录下完后**提前建好整屏**（隐藏），切图顺带解码进缓存；
+     *   ② 当前要玩的那一关的贴纸（6~10 张）先下载 + 解码；
+     *   ③ 对局页 Game 节点透明激活一帧 → 跑掉 GameBootstrap.onLoad（建 HUD / 棋盘宿主 / 弹窗）。
+     * 玩家正在拖地图、或正在打开某个整屏时这一拍跳过，不抢手感。
+     * 之后再点这些页面：`openWithLoading` 看到「已建好 + 切图齐」就直接打开，不出「加载中」。
+     */
+    private warmSteps: Array<() => boolean> = [];
+
+    private startWarmup(): void {
+        this.warmSteps = [
+            () => this.prebuild(UI_DIRS_OF.leaderboard, () => {
+                const level = Math.min(Math.max(1, GS.progress.unlocked), LEVEL_COUNT);
+                this.ensureLeaderboard().render(level, LEVEL_COUNT);
+            }),
+            () => this.prebuild(UI_DIRS_OF.collection, () => { this.ensureCollection(); this.renderCollection(); }),
+            () => this.prebuild(UI_DIRS_OF.settings, () => this.ensureSettings().render(GS.meta.settings)),
+            () => { this.prefetchLevelStickers(GS.progress.unlocked, GS.mode); return true; },
+            () => this.warmGameNode(),
+            () => this.prebuild(UI_DIRS_OF.tutorial, () => this.ensureDrawer()),
+        ];
+        this.schedule(this.warmTick, WARM_STEP_S);
+    }
+
+    private warmTick(): void {
+        if (this.drag || this.pendingOpen) return;
+        const step = this.warmSteps[0];
+        if (!step) { this.unschedule(this.warmTick); return; }
+        // 返回 false = 前置条件未满足（切图还没下完），下一拍再试
+        if (step()) this.warmSteps.shift();
+    }
+
+    /** 切图目录都下完了才建整屏（否则建出来是空壳，等于白建）；建过就跳过 */
+    private prebuild(dirs: readonly string[], build: () => void): boolean {
+        if (!dirs.every((d) => this.uiReady.has(d))) return false;
+        try {
+            build();
+        } catch (e) {
+            console.warn('[map] 后台预热失败（不影响正常打开）', e);
+        }
+        return true;
+    }
+
+    /**
+     * 预下载某关的贴纸：与 `BoardView` 同一个资源键（`stickers/sticker_N/texture`），
+     * 进关时引擎直接命中缓存，不用再等下载 + 解码。
+     */
+    private prefetchLevelStickers(level: number, mode: GameMode): void {
+        const cfg = buildLevelConfigs(mode)[level - 1];
+        if (!cfg) return;
+        for (const id of cfg.imageIds) {
+            resources.load(`stickers/sticker_${id}/texture`, Texture2D, (err) => {
+                if (err) console.warn('[map] 贴纸预下载失败（进关时会再试）: ' + id);
+            });
+        }
+    }
+
+    /**
+     * 对局页预热：Game 节点透明激活一帧，让 GameBootstrap.onLoad 提前跑完，下一帧再关掉。
+     * ⚠️ 存档有问题（被丢弃 / 修复过 / 只能存内存）时不预热：onLoad 里要弹的存档提示得在真正进关时看到。
+     */
+    private warmGameNode(): boolean {
+        const g = this.gameNode?.isValid ? this.gameNode : this.ensureGameNode();
+        if (!g || g.active) return true;
+        const r = GS.readResult;
+        if (r && (r.discarded || r.recovered)) return true;
+        if (GS.save.kind === 'memory') return true;
+        const op = g.getComponent(UIOpacity) ?? g.addComponent(UIOpacity);
+        op.opacity = 0;
+        g.active = true;
+        this.scheduleOnce(() => {
+            // 这一帧里玩家已经进关（地图被隐藏）→ 别把对局页关掉
+            if (g.isValid && this.node.activeInHierarchy) g.active = false;
+            op.opacity = 255;
+        }, 0);
+        return true;
     }
 
     /** 进序章：与 enterLevel 同构，但走 startTutorial（不扣体力 / 不建断点 / 不写进度） */
@@ -1137,7 +1279,10 @@ export class MapBootstrap extends Component {
 
     /** 「开始游戏」→ 吊出关卡详情牌（不再直接进关） */
     private openPreview(level: number): void {
-        this.preview.open(level, (this.diffIndex === 1 ? 'nightmare' : 'normal') as LevelMode);
+        const mode = (this.diffIndex === 1 ? 'nightmare' : 'normal') as LevelMode;
+        // 玩家看吊牌、点 Play 之间通常有一两秒：先把这一关的贴纸下下来
+        this.prefetchLevelStickers(level, mode);
+        this.preview.open(level, mode);
     }
 
     /**
