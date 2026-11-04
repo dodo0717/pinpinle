@@ -59,5 +59,11 @@
         }
       }
     }
+  },
+  "splash-setting": {
+    "logo": {
+      "type": "custom",
+      "image": "project://settings/splash-bg.jpg"
+    }
   }
 }
