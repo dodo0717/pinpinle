@@ -16,7 +16,6 @@
 import { GRID_BY_LEVEL, type GameMode } from './config';
 import type { Cell } from './grid';
 import { STAMINA_MAX, createProgress, type LevelRecord, type ProgressData, type Stamina, INITIAL_UNLOCKED } from './progress';
-import { LEGACY_POINTS_PER_GROUP } from './scoring';
 import { createRetention, type RetentionState } from './retention';
 
 /** 存档格式版本；改动字段含义时必须 +1（旧档会整档作废，见 `parseSave`） */
@@ -121,20 +120,19 @@ export interface LevelSession {
   revivedUsed: boolean;
   swapMisses: number;
   eliminatedOnce: boolean;
-  /** 本局累计排行分（2026-10-27，scoring.ts）；老断点没有 → 按 score × 100 */
-  points: number;
-  /** 上一次消除时的倒计时剩余秒数（速度分基准）；老断点没有 → 按 timeLeft */
-  lastTimeLeft: number;
   /** 最近一次落盘时刻 —— 同时是「离开时刻」的基准，见 `resumeTimeLeft` */
   savedAt: number;
 }
 
 /**
- * 记录里「分」的单位（2026-10-27 评审 P1-1）。
- * 缺这个字段 = 老存档，三个最高分还是组数 → 读档时 × LEGACY_POINTS_PER_GROUP 迁移。
- * 不升 SAVE_VERSION：版本不符会整档作废，迁移只该动分数。
+ * 记录里「分」的单位：**组数**（每消一组 +1，与 main 一致；2026-11-04 从排行分改回）。
+ * 读档时：标记为 `'points'` 的存档（2026-11-03 ~ 11-04 本分支存的，每组 100 + 速度分）→ 三个最高分 ÷100 向下取整；
+ * 没有标记的老档本来就是组数，原样。不升 SAVE_VERSION：版本不符会整档作废，迁移只该动分数。
  */
-export const SCORE_UNIT = 'points';
+export const SCORE_UNIT = 'groups';
+/** 曾经用过的排行分单位标记（只用于读档换算） */
+const LEGACY_POINTS_UNIT = 'points';
+const POINTS_PER_GROUP = 100;
 
 export interface SaveData {
   version: number;
@@ -251,16 +249,16 @@ function boolOr(v: unknown, fb: boolean): boolean {
 
 /**
  * 关卡记录修复：星级 0~3、分数非负（越界即视为损坏，用 0 兜底并记一条）。
- * `scale`：老存档（分数是组数）传 LEGACY_POINTS_PER_GROUP，新存档传 1。
+ * `div`：排行分存档（每组 100 + 速度分）传 100，换回组数（向下取整）；组数存档传 1。
  */
-function sanitizeRecord(raw: unknown, level: number, issues: string[], scale = 1): LevelRecord {
+function sanitizeRecord(raw: unknown, level: number, issues: string[], div = 1): LevelRecord {
   const rec = sanitizeRecordRaw(raw, level, issues);
-  if (scale === 1) return rec;
+  if (div === 1) return rec;
   return {
     stars: rec.stars,
-    personalBest: rec.personalBest * scale,
-    boardBest: rec.boardBest * scale,
-    validBest: rec.validBest * scale,
+    personalBest: Math.floor(rec.personalBest / div),
+    boardBest: Math.floor(rec.boardBest / div),
+    validBest: Math.floor(rec.validBest / div),
   };
 }
 
@@ -296,7 +294,7 @@ function sanitizeRecordRaw(raw: unknown, level: number, issues: string[]): Level
  * ⚠️ `unlocked` 必须夹在 `[1, totalLevels]`：存档被改成 999 之后主界面会显示
  * 「第 999 关」，而关卡数据里根本没有这一关 —— 这种错必须在这里挡掉。
  */
-function sanitizeProgress(raw: unknown, mode: GameMode, limits: SaveLimits, issues: string[], scale = 1): ProgressData {
+function sanitizeProgress(raw: unknown, mode: GameMode, limits: SaveLimits, issues: string[], div = 1): ProgressData {
   const fb = createProgress(mode);
   if (!isObj(raw)) {
     issues.push(`${mode} 进度不是对象，已按新档处理`);
@@ -319,7 +317,7 @@ function sanitizeProgress(raw: unknown, mode: GameMode, limits: SaveLimits, issu
       issues.push(`${mode} 存在越界关卡记录「${key}」，已丢弃`);
       continue;
     }
-    levels[level] = sanitizeRecord(value, level, issues, scale);
+    levels[level] = sanitizeRecord(value, level, issues, div);
   }
 
   // 通关第 L 关必然已解锁第 L+1 关（首次通关即解锁，只增不减），否则把 unlocked 抬上去，
@@ -461,15 +459,7 @@ function sanitizeSession(raw: unknown, limits: SaveLimits, issues: string[]): Le
   const timeLeft = intIn(raw.timeLeft, 0, limits.timeLimit);
   if (timeLeft === null) return drop(`剩余时间非法（${String(raw.timeLeft)}）`);
 
-  // 2026-10-27 排行分：老断点没有这两个字段 → 按组数 ×100、速度基准取当前剩余时间（不白送速度分）
-  const points = raw.points === undefined
-    ? score * LEGACY_POINTS_PER_GROUP
-    : intIn(raw.points, 0, Number.MAX_SAFE_INTEGER);
-  if (points === null) return drop(`排行分非法（${String(raw.points)}）`);
-  const lastTimeLeft = raw.lastTimeLeft === undefined
-    ? timeLeft
-    : intIn(raw.lastTimeLeft, 0, limits.timeLimit);
-  if (lastTimeLeft === null) return drop(`速度分基准非法（${String(raw.lastTimeLeft)}）`);
+  // 排行分时期的断点会多带 points / lastTimeLeft 两个字段：组数口径不用，直接忽略
 
   // ⚠️ `savedAt` 是「离开时刻」的基准：兜底 0 会让恢复时按「已经过去很久」直接扣到 0
   // （本局判负）。对一条损坏的档来说，这比「白送一次暂停」更符合新规则，故保留 0 兜底。
@@ -489,8 +479,6 @@ function sanitizeSession(raw: unknown, limits: SaveLimits, issues: string[]): Le
     revivedUsed: boolOr(raw.revivedUsed, false),
     swapMisses: intIn(raw.swapMisses, 0, 999) ?? 0,
     eliminatedOnce: boolOr(raw.eliminatedOnce, false),
-    points,
-    lastTimeLeft,
     savedAt,
   };
 }
@@ -540,14 +528,13 @@ export function parseSave(raw: unknown, fallback: SaveData, limits: SaveLimits, 
     issues.push(`模式非法（${String(obj.mode)}），已按简单模式处理`);
   }
 
-  // 2026-10-27：没有 scoreUnit 的是老存档，分数是组数 → ×100 迁移（不算「修复」，不记 issue）
-  const legacy = obj.scoreUnit !== SCORE_UNIT;
-  const scale = legacy ? LEGACY_POINTS_PER_GROUP : 1;
+  // 2026-11-04：排行分存档（scoreUnit 'points'）÷100 换回组数；无标记 / 'groups' 原样（不算「修复」，不记 issue）
+  const div = obj.scoreUnit === LEGACY_POINTS_UNIT ? POINTS_PER_GROUP : 1;
 
   const rawProgress = isObj(obj.progress) ? obj.progress : {};
   if (!isObj(obj.progress)) issues.push('进度表不是对象，已按新档处理');
   const progress = {} as Record<GameMode, ProgressData>;
-  for (const m of GAME_MODES) progress[m] = sanitizeProgress(rawProgress[m], m, limits, issues, scale);
+  for (const m of GAME_MODES) progress[m] = sanitizeProgress(rawProgress[m], m, limits, issues, div);
 
   const meta = sanitizeMeta(obj.meta, limits, now, issues);
   const session = sanitizeSession(obj.session, limits, issues);

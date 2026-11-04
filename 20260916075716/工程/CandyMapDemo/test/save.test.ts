@@ -67,8 +67,6 @@ function realSession(level = 1, overrides: Partial<LevelSession> = {}): LevelSes
     revivedUsed: false,
     swapMisses: 0,
     eliminatedOnce: false,
-    points: 0,
-    lastTimeLeft: cfg.timeLimit,
     savedAt: T0,
     ...overrides,
   };
@@ -100,6 +98,22 @@ describe('save —— 往返一致与出厂值', () => {
     assert.equal(result.data.progress.normal.levels[2]?.validBest, 40);
     assert.equal(result.data.progress.normal.levels[3]?.validBest, 9);
     assert.equal(result.recovered, false, '迁移不算修复，不该弹「存档已修复」');
+  });
+
+  it('排行分存档（scoreUnit points）÷100 换回组数；无标记的老档原样（2026-11-04 改回组数）', () => {
+    const raw = JSON.parse(serializeSave(fresh()));
+    assert.equal(raw.scoreUnit, 'groups', '新存档标记为组数');
+    raw.scoreUnit = 'points';
+    raw.progress.normal.levels = { 3: { stars: 3, personalBest: 1170, boardBest: 900, validBest: 900 } };
+    const pts = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.deepEqual(pts.data.progress.normal.levels[3], { stars: 3, personalBest: 11, boardBest: 9, validBest: 9 });
+    assert.equal(pts.data.scoreUnit, 'groups');
+    assert.equal(pts.recovered, false, '换算不算修复');
+
+    delete raw.scoreUnit;
+    raw.progress.normal.levels = { 3: { stars: 3, personalBest: 9, boardBest: 9, validBest: 9 } };
+    const old = parseSave(JSON.stringify(raw), fresh(), LIMITS, T0);
+    assert.equal(old.data.progress.normal.levels[3]?.boardBest, 9, '无标记 = 本来就是组数');
   });
 
   it('老存档没有 adReviveUsed：按 0 迁移，不算修复；非法值按 0 并记一条（2026-10-26 续命额度拆分）', () => {

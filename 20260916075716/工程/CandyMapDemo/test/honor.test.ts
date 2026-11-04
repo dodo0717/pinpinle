@@ -12,7 +12,6 @@ import {
   mockBoardScores,
   mockSplitOf,
   percentileText,
-  pointsOfGroups,
   rankStats,
 } from '../assets/scripts/core/index';
 
@@ -182,11 +181,11 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
   });
 
   it('上榜后总人数 +1，且我出现在榜单里（名次和分数都对得上）', () => {
-    const snap = boardSnapshot(15, LINE, 999999);
+    const snap = boardSnapshot(15, LINE, 999);
     assert.strictEqual(snap.totalPlayers, HONOR_RULE.mockPlayers + 1);
-    assert.strictEqual(snap.myRank, 1, '999999 分必然第一');
+    assert.strictEqual(snap.myRank, 1, '999 分必然第一');
     assert.strictEqual(snap.rows[0]!.mine, true);
-    assert.strictEqual(snap.rows[0]!.score, 999999);
+    assert.strictEqual(snap.rows[0]!.score, 999);
   });
 
   it('榜单按分数降序，名次单调不降', () => {
@@ -209,15 +208,13 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
   it('3★ 上榜：接近天花板 → 超神；贴着 3★ 线的低分 → 优秀（1001 人口径）', () => {
     // 1000 名基石数据下「上榜即超神」不再成立 —— 天梯从天花板（3★线×1.6）往下铺，
     // 贴地板的分数在 1001 人里排 800 名开外，要进前 100 得打到接近天花板。
-    // 2026-11-04 合并：AI 分数与玩家统一成排行分单位（每组 100 + 每组 0~30 速度分）
-    const ceilGroups = LINE.star3 + Math.max(6, Math.round(LINE.star3 * 1.6));
-    const ceiling = pointsOfGroups(ceilGroups) + ceilGroups * 30;
-    const high = honorForLevel({ level: 15, line: LINE, score: ceilGroups, stars: 3, revived: false, boardBest: ceiling });
+    const ceiling = LINE.star3 + Math.max(6, Math.round(LINE.star3 * 1.6));
+    const high = honorForLevel({ level: 15, line: LINE, score: ceiling, stars: 3, revived: false, boardBest: ceiling });
     assert.strictEqual(high.tier, 'god', `天花板 ${ceiling} 分应进前 100 → 超神（实际第 ${high.stats.rank} 名）`);
     assert.strictEqual(high.stats.totalPlayers, HONOR_RULE.mockPlayers + 1, '1000 基石 + 我 = 1001');
     assert.ok(high.stats.rank <= HONOR_RULE.boardRankMax);
 
-    const low = honorForLevel({ level: 15, line: LINE, score: LINE.star3, stars: 3, revived: false, boardBest: pointsOfGroups(LINE.star3) });
+    const low = honorForLevel({ level: 15, line: LINE, score: LINE.star3, stars: 3, revived: false, boardBest: LINE.star3 });
     assert.strictEqual(low.tier, 'pass', '贴 3★ 线的低分在 1001 人里排不进前 100');
     assert.ok(low.stats.rank > 100, `实际名次 ${low.stats.rank}`);
   });
@@ -235,27 +232,26 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
   it('续命局按 1★ 线计分 → 优秀（哪怕实际打出 3★ 的分数）', () => {
     const out = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 0 });
     assert.strictEqual(out.tier, 'pass');
-    assert.strictEqual(out.rankScore, pointsOfGroups(LINE.star1));
+    assert.strictEqual(out.rankScore, LINE.star1);
     assert.strictEqual(out.stats.percentile, 0);
   });
 
   it('重复通关时用「更新后的上榜最高分」排名 —— 不会把自己算成比自己高的人', () => {
     // 历史最高 30 分（榜上第一），本次只打了 9 分：排名仍然按 30 分算，
     // 名次必须是第 1 名，而不是「101 人里第 101 名」。
-    const best = pointsOfGroups(40);   // 历史最高 40 组的排行分，高于全部 AI
-    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: best });
-    assert.strictEqual(out.rankScore, best);
+    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 30 });
+    assert.strictEqual(out.rankScore, 30);
     assert.strictEqual(out.stats.rank, 1);
     assert.strictEqual(out.tier, 'god');
     assert.strictEqual(out.stats.sameCount, 1, '自己那条记录必须落在 sameCount 里');
   });
 
   it('以前上过榜的关，这次续命或只拿 1★/2★ → 优秀（看本局，不看历史，2026-11-04 修）', () => {
-    const best = pointsOfGroups(40);   // 历史上榜分：足以排第 1
+    const best = 30;   // 历史上榜分：足以排第 1
     const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: best });
     assert.strictEqual(revived.tier, 'pass', '续命局不上榜');
     assert.strictEqual(revived.boardBest, 0);
-    assert.strictEqual(revived.rankScore, pointsOfGroups(LINE.star1));
+    assert.strictEqual(revived.rankScore, LINE.star1);
     for (const stars of [1, 2]) {
       const low = honorForLevel({ level: 15, line: LINE, score: LINE.star1, stars, revived: false, boardBest: best });
       assert.strictEqual(low.tier, 'pass', `${stars}★ 不上榜`);

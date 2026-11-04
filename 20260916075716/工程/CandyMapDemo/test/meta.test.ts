@@ -256,10 +256,9 @@ test('百名榜：分数降序、名次升序且唯一、条目名次不超过 1
 });
 
 test('百名榜：我的上榜成绩会并进榜单，并给出我的名次', () => {
-  // 2026-11-04 合并：AI 分数已是排行分单位（每组 100 + 速度分），用一个必然最高的排行分
-  const snap = boardSnapshot(5, LINES, 999999);
+  const snap = boardSnapshot(5, LINES, 999);
   assert.equal(snap.totalPlayers, 1001, '本机上榜后总玩家数 +1（1000 基石 + 我）');
-  assert.equal(snap.myRank, 1, '999999 分必然第一');
+  assert.equal(snap.myRank, 1, '999 分必然第一');
   assert.equal(snap.rows.filter((row) => row.mine).length, 1, '「我」只能出现一次');
 });
 

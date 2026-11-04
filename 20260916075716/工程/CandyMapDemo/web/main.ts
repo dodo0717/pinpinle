@@ -50,11 +50,7 @@ import {
   refundStamina,
   resumeTimeLeft,
   settleLevel,
-  createTally,
-  addElimination,
-  onRevive,
   createRetention,
-  type PointsTally,
   type RetentionState,
   type Cell,
   type GeneratedPool,
@@ -302,8 +298,6 @@ let rng: Rng;
 let cells: CellRef[] = [];
 let cellSize = 120;
 let timeLeft = 180;
-/** 本局排行分计分器（2026-11-03 与 Cocos 端同步接入，核心/scoring.ts）；判星仍看 engine.score（组数） */
-let tally: PointsTally = createTally(timeLeft);
 let started = false;
 let paused = true;
 let busy = false;
@@ -446,8 +440,6 @@ function openSession(cfg: LevelConfig, seed: number): void {
     revivedUsed: false,
     swapMisses: 0,
     eliminatedOnce: false,
-    points: tally.points,
-    lastTimeLeft: tally.lastTimeLeft,
     savedAt: Date.now(),
   };
 }
@@ -475,8 +467,6 @@ function syncSession(): void {
   session.revivedUsed = revivedUsed;
   session.swapMisses = swapMisses;
   session.eliminatedOnce = eliminatedOnce;
-  session.points = tally.points;
-  session.lastTimeLeft = tally.lastTimeLeft;
 }
 
 /** 把一条存档应用回内存（读档 / 重试 / 重置共用） */
@@ -1948,7 +1938,6 @@ function enterLevel(cfg: LevelConfig): void {
   started = false;
   setPaused(true);
   timeLeft = cfg.timeLimit;
-  tally = createTally(timeLeft);
 
   closeDialog();
   reopenDialog = null;
@@ -2655,9 +2644,7 @@ function doMove(anchor: number, target: number): void {
   // 分数差要在移动之前取一份：结算动画里的飘字要说清「加了多少分」
   const scoreBefore = engine.score;
   const outcome = engine.move(anchor, target);
-  // 每消一组记一次排行分（基础 100 + 速度分），飘字显示这一组得了多少
-  const groupsGained = engine.score - scoreBefore;
-  const gained = groupsGained > 0 ? addElimination(tally, timeLeft) : 0;
+  const gained = engine.score - scoreBefore;
 
   if (!outcome.accepted) {
     paintAll();
@@ -3026,7 +3013,6 @@ function onLevelEnd(): void {
   const outcome: LevelOutcome = {
     level: cfg.level,
     score: engine.score,
-    points: tally.points,
     star1: cfg.star1,
     star2: cfg.star2,
     star3: cfg.star3,
@@ -3309,7 +3295,6 @@ function revive(): void {
   pendingOutcome = null;
   const reviveSec = reviveSecondsFor(engine.config.level);
   timeLeft += reviveSec;
-  onRevive(tally, reviveSec);
   finished = false;
   started = true;
   setPaused(false);
@@ -3434,8 +3419,7 @@ function autoOne(): void {
     toast('当前没有可集齐的图（池子异常）');
     return;
   }
-  const groupsGained = engine.score - scoreBefore;
-  const gained = groupsGained > 0 ? addElimination(tally, timeLeft) : 0;
+  const gained = engine.score - scoreBefore;
   busy = true;
   setPaused(true);
   updateHud();
@@ -3587,8 +3571,6 @@ function resumeSession(from: LevelSession, judgeNow = false): void {
   started = from.started;
   setPaused(true);
   timeLeft = resumeTimeLeft(from, now);
-  // 离线流逝的秒数不算进速度分间隔：基准跟着剩余时间一起扣（不超过原基准）
-  tally = { points: from.points, lastTimeLeft: Math.min(from.lastTimeLeft, from.lastTimeLeft - (from.timeLeft - timeLeft)) };
   revived = from.revived;
   revivedUsed = from.revivedUsed;
   swapMisses = from.swapMisses;

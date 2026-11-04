@@ -121,9 +121,8 @@ test('分页：每页 20 名，页码夹在合法区间，尾页只给剩下的�
 });
 
 test('结算跳转定位：「我」所在页算得准，没上榜就回第 1 页', () => {
-  // 真实榜单：一个必然最高的累计分 → 第 1 行 → 第 1 页
-  // （2026-11-04 合并：AI 分数已是排行分单位，66 关累计上限约十几万，原来的 3000 不够）
-  const rows = buildTotalBoard({ simple: 10_000_000, hard: 0 });
+  // 真实榜单：3000 分必进第 1 行（AI 累计分 = 66 关逐关相加，上限约 1056）→ 落在第 1 页
+  const rows = buildTotalBoard({ simple: 3000, hard: 0 });
   assert.equal(pageOfMyRow(rows), 1, '第 1 行就是我 → 第 1 页');
   // 0 分必然垫底（1001 行 / 51 页）→ 我在最后一页，跳转要直接送过去
   assert.equal(pageOfMyRow(buildTotalBoard({ simple: 0, hard: 0 })), 51, '垫底 → 最后一页');

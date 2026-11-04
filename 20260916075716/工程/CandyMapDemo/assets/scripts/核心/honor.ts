@@ -44,7 +44,6 @@
  */
 
 import { Rng } from './rng';
-import { pointsOfGroups } from './scoring';
 import { BOARD_MIN_STARS } from './progress';
 
 /* ------------------------------------------------------------------ 类型与常量 */
@@ -245,10 +244,7 @@ export function mockBoardScores(level: number, line: HonorLines): number[] {
     const t = i / (HONOR_RULE.mockPlayers - 1);
     const curve = Math.pow(1 - t, 1.6);
     const jitter = rng.int(7) - 3;
-    const groups = Math.max(star3, star3 + Math.round(span * curve) + jitter);
-    // 合并 main 时统一单位（2026-11-04）：玩家的最高分已是排行分（每组 100 + 速度分，scoring.ts），
-    // AI 分数也换成同一单位，否则玩家永远第 1 名。组数仍 ≥ 3★ 线，曲线与 1000 人口径不变。
-    out.push(pointsOfGroups(groups) + rng.int(groups * 30 + 1));
+    out.push(Math.max(star3, star3 + Math.round(span * curve) + jitter));
   }
   return out;
 }
@@ -363,8 +359,7 @@ export function honorForLevel(input: HonorInput): HonorOutcome {
   const onBoard = !input.revived && input.stars >= BOARD_MIN_STARS && input.boardBest > 0;
   const scores = mockBoardScores(input.level, input.line);
   const pool = onBoard ? [...scores, input.boardBest] : scores;
-  // 没上榜按 1★ 线计：星线是组数，换成排行分单位再比
-  const rankScore = onBoard ? input.boardBest : pointsOfGroups(input.line.star1);
+  const rankScore = onBoard ? input.boardBest : input.line.star1;
   const stats = rankStats(pool, rankScore);
   return {
     tier: honorOf(stats),

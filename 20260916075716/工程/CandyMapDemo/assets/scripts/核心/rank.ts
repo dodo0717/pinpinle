@@ -20,7 +20,6 @@ import { LEVEL_STAR_LINES, NIGHTMARE_STAR_LINES, TOTAL_LEVELS } from './config';
 import { mockBoardNames } from './honor';
 import { starsFor } from './progress';
 import { Rng } from './rng';
-import { pointsOfGroups } from './scoring';
 
 /**
  * 排行规则版本（2026-10-27 评审 P1-2 冻结）。规则任何改动都 +1，并同步改
@@ -197,13 +196,13 @@ export function mockTotalRivals(): TotalBoardRow[] {
     for (let lv = 1; lv <= reach; lv++) {
       const [s1, s2, s3] = LEVEL_STAR_LINES[lv] ?? [1, 2, 3];
       const sc = Math.max(s1, Math.round(s3 * (0.6 + 0.8 * skill)) + rng.int(3) - 1);
-      // 2026-10-27 排行分：组数 ×100 + 手速越好速度分越多（每组 0~60）
-      simple += pointsOfGroups(sc) + Math.round(sc * 60 * skill * rng.next());
+      // 分数单位是组数（每消一组 +1，与 main 一致）
+      simple += sc;
       stars += starsFor(sc, s1, s2, s3);
       if (skill > 0.6 && rng.next() < 0.5) {
         const [h1, h2, h3] = NIGHTMARE_STAR_LINES[lv] ?? [1, 2, 3];
         const hs = Math.max(h1, Math.round(h3 * (0.7 + 0.6 * skill)));
-        hard += pointsOfGroups(hs) + Math.round(hs * 40 * skill * rng.next());
+        hard += hs;
         stars += starsFor(hs, h1, h2, h3);
       }
     }

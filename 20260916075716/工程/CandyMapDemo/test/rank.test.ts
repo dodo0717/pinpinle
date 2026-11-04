@@ -31,7 +31,7 @@ describe('rank · 总积分与总星数', () => {
 
   it('结算链路：续命局不抬有效分，未续命 1★ 局会抬', () => {
     const line = LEVEL_STAR_LINES[3]!;
-    const o = (score: number, revived: boolean): LevelOutcome => ({ level: 3, score, points: score, star1: line[0], star2: line[1], star3: line[2], revived });
+    const o = (score: number, revived: boolean): LevelOutcome => ({ level: 3, score, star1: line[0], star2: line[1], star3: line[2], revived });
     let r = applySettlement(undefined, o(4, false), settleLevel(o(4, false))!);
     assert.equal(r.validBest, 4);
     r = applySettlement(r, o(20, true), settleLevel(o(20, true), r)!);
@@ -99,7 +99,7 @@ describe('rank · 示例对手', () => {
 
 /* ------------------------------------------------------------------ 关卡榜总分（2026-11-04） */
 import {
-  levelBoardTotal, boardSnapshot, honorForLevel, buildLevelConfigs, pointsOfGroups, createProgress,
+  levelBoardTotal, boardSnapshot, honorForLevel, buildLevelConfigs, createProgress,
 } from '../assets/scripts/核心/index';
 
 describe('rank · 关卡榜总分 = 简单 + 困难上榜分', () => {
@@ -110,17 +110,17 @@ describe('rank · 关卡榜总分 = 简单 + 困难上榜分', () => {
   };
 
   it('只玩一种 = 该模式分；两种都玩 = 相加；都没上榜 = 0', () => {
-    assert.equal(levelBoardTotal(withBoard('normal', 15, 1300), createProgress('nightmare'), 15), 1300);
-    assert.equal(levelBoardTotal(createProgress('normal'), withBoard('nightmare', 15, 1100), 15), 1100);
-    assert.equal(levelBoardTotal(withBoard('normal', 15, 1300), withBoard('nightmare', 15, 1100), 15), 2400);
+    assert.equal(levelBoardTotal(withBoard('normal', 15, 13), createProgress('nightmare'), 15), 13);
+    assert.equal(levelBoardTotal(createProgress('normal'), withBoard('nightmare', 15, 11), 15), 11);
+    assert.equal(levelBoardTotal(withBoard('normal', 15, 13), withBoard('nightmare', 15, 11), 15), 24);
     assert.equal(levelBoardTotal(createProgress('normal'), createProgress('nightmare'), 15), 0);
   });
 
   it('结算弹窗的名次 == 排行榜里我的名次（同一份进度）', () => {
     const c = buildLevelConfigs('normal')[14]!;
     const line = { star1: c.star1, star2: c.star2, star3: c.star3 };
-    const normal = withBoard('normal', 15, pointsOfGroups(c.star3 + 4));
-    const nightmare = withBoard('nightmare', 15, pointsOfGroups(c.star3 + 2));
+    const normal = withBoard('normal', 15, c.star3 + 4);
+    const nightmare = withBoard('nightmare', 15, c.star3 + 2);
     const total = levelBoardTotal(normal, nightmare, 15);
     const settle = honorForLevel({ level: 15, line, score: c.star3, stars: 3, revived: false, boardBest: total });
     const board = boardSnapshot(15, line, total);
