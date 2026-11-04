@@ -4,7 +4,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  rankTotals, totalScore, rankRows, totalBoard, gapToAhead, mockTotalRivals, RANK_RULE,
+  rankTotals, totalScore, rankRows, totalBoard, gapToAhead, mockTotalRivals, RANK_RULE, mockBoardNames,
   applySettlement, settleLevel, LEVEL_STAR_LINES,
   type ProgressData, type LevelOutcome, type TotalBoardRow,
 } from '../assets/scripts/核心/index';
@@ -85,9 +85,9 @@ describe('rank · 距上一名', () => {
 });
 
 describe('rank · 示例对手', () => {
-  it('100 人、确定性、分数与真实星线同量级', () => {
+  it('与模拟玩家同一批人（1000 人基石数据）、确定性、分数与真实星线同量级', () => {
     const a = mockTotalRivals();
-    assert.equal(a.length, 100);
+    assert.equal(a.length, mockBoardNames(1).length);
     assert.equal(mockTotalRivals(), a, '缓存：每次同一批');
     const max = Math.max(...a.map((r) => r.total));
     // 排行分单位（2026-10-27）：40 关 × 3★线 ~9 组 × ~130 分 ≈ 5 万上下

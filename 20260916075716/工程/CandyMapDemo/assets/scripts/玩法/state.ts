@@ -33,7 +33,7 @@ import {
   type Stamina,
 } from '../核心/index';
 import { SaveManager } from './saveManager';
-import { removeSave } from './storage';
+import { readSaveBackup, removeSave } from './storage';
 import {
   AD_STAMINA_DAILY_MAX,
   createMeta,
@@ -82,6 +82,13 @@ class GameState {
   canWrite: () => boolean = () => true;
 
   init(): void {
+    // ⚠️ 幂等：Map / Game 两个启动器都会调这里（GameBootstrap.onLoad 每进一次关卡就执行一次）。
+    // 已初始化时**只补一次落盘，绝不重新读盘** —— 重读会拿磁盘上的旧档覆盖内存里还没落盘的状态
+    // （刚解锁的关、刚改的模式/设置/体力），表现就是「每次进关卡 / 更新后关卡数据被重置」。
+    if (this.save) {
+      this.save.flush();
+      return;
+    }
     this.save = new SaveManager({
       snapshot: () => this.snapshot(),
       canWrite: () => this.canWrite(),
@@ -96,7 +103,29 @@ class GameState {
   load(): SaveReadResult {
     const now = Date.now();
     const fresh = createSaveData('normal', now);
-    const result = parseSave(this.save.read(), fresh, SAVE_LIMITS, now);
+    const raw = this.save.read();
+    let result = parseSave(raw, fresh, SAVE_LIMITS, now);
+
+    // 主档「没了」或「坏了」→ 试上一份备份（`storage.SAVE_BACKUP_KEY`）。
+    // 这是玩家口中「你们又清我数据」的最后一道兜底：
+    //   · 主档为空（宿主抹存储 / 被误删）但备份还在 → 恢复备份，进度最多回退一次落盘；
+    //   · 主档被截断/改坏 → 同上。
+    // 只有**确实存在且能解析**的备份才会被采用，绝不凭空造进度；
+    // 设置页「重置存档」会把备份一起删，所以真重置不会第二天自己长回来。
+    let fromBackup = false;
+    if (result.discarded || !raw || raw.trim() === '') {
+      const bak = readSaveBackup();
+      if (bak && bak.trim() !== '') {
+        const retry = parseSave(bak, fresh, SAVE_LIMITS, now);
+        if (!retry.discarded) {
+          retry.issues.push('主存档缺失或损坏，已从上一份备份恢复');
+          retry.recovered = true;
+          result = retry;
+          fromBackup = true;
+        }
+      }
+    }
+
     this.data = result.data;
     this.meta = metaFromSnapshot(this.data, now);
     this.applyRewardBonus();
@@ -104,6 +133,8 @@ class GameState {
     // 悬空的预扣体力只能在读档这一刻退还：此时没有任何「局内」上下文，
     // 再往后就无法区分「正在进关」和「上次进关时崩了」
     this.refundStamina();
+    // 从备份救回来的档要立刻回填主档，不能只活在内存里（否则再开一次又空了）
+    if (fromBackup) this.save.flush();
     return result;
   }
 

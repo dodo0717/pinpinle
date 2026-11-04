@@ -15,7 +15,7 @@
  */
 
 import { SAVE_DEBOUNCE_MS, serializeSave, type SaveData } from '../核心/index';
-import { readSave, storageKind, writeSave, type StorageKind } from './storage';
+import { readSave, storageKind, writeSave, writeSaveBackup, type StorageKind } from './storage';
 
 export interface SaveManagerOptions {
   /** 取当前完整存档（由 main.ts 从进度 / 体力 / 局内现场组装，读盘时才算） */
@@ -93,7 +93,17 @@ export class SaveManager {
     let ok = false;
     try {
       const raw = serializeSave(data);
+      // 落盘前把「盘上那一份」抄成备份：主档万一被清（宿主抹存储 / 读到空）
+      // 或被写坏，下次启动还能靠它把进度救回来（见 storage.SAVE_BACKUP_KEY）
+      const prev = this.read();
       ok = (this.options.write ?? writeSave)(raw);
+      if (ok && prev && prev.trim() !== '') {
+        try {
+          writeSaveBackup(prev);
+        } catch {
+          /* 备份写不进去只影响兜底能力，不能因此判定主档失败 */
+        }
+      }
     } catch {
       // 序列化本身出错（理论上不会有）也不能把异常抛回业务层
       ok = false;

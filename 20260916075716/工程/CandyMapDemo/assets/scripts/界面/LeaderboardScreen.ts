@@ -45,6 +45,7 @@ import {
   pageCountOf,
   clampPage,
   pageRows,
+  pageOfMyRow,
   type LeaderboardRow,
   type LeaderboardView,
 } from './leaderboardModel';
@@ -596,6 +597,31 @@ export class LeaderboardScreen {
 
   /* ------------------------------------------------------------ 渲染 */
 
+  /**
+   * **外部入口**（结算页「查看排行榜」）：一次到位 —— 切页签 → 定位到指定关 → 翻到「我」所在页。
+   *
+   * 为什么不是「打开后再让调用方点两下」：结算完玩家只想看「我在这关排第几」，
+   * 让他先点关卡榜、再翻 30 页找自己，等于没有入口。
+   *
+   * @param tab      页签（结算一律传 `'level'` —— 结算算的是关卡名次，不是总分）
+   * @param level    关卡（传当前这一关）
+   * @param focusMine 是否翻到「我」所在页（我未上榜时自动回第 1 页，见 `pageOfMyRow`）
+   */
+  openAt(tab: 'total' | 'level', level: number, focusMine = true): void {
+    this.setTab(tab);            // 同页签时内部直接 return，不清页；下面的 render 会重刷
+    this.render(level);
+    if (tab === 'level' && focusMine) {
+      const rows = this.currentRows();
+      const page = pageOfMyRow(rows);
+      if (page !== this.page) {
+        this.page = page;
+        this.renderRows(rows);
+        this.renderPager(rows.length);
+      }
+    }
+    this.show();
+  }
+
   /** 切到某一关并重绘（`maxLevel` 省略时用核心层的关卡上限） */
   render(level: number, maxLevel: number = this.maxLevel): void {
     this.maxLevel = Math.max(1, maxLevel);
@@ -643,7 +669,8 @@ export class LeaderboardScreen {
       if (r.mine) {
         return { ...r, simple: view.myScores.simple, hard: view.myScores.hard, total: view.myScores.simple + view.myScores.hard };
       }
-      return { ...r, ...mockRowScores(r.score, view.mode) };
+      // AI 角色：简单 = 本关总分 × 60%~80%（确定性随机），困难 = 总分 − 简单分
+      return { ...r, ...mockRowScores(this.curLevel, r.name, r.score) };
     });
   }
 

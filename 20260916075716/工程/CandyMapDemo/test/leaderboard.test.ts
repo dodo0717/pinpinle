@@ -18,6 +18,7 @@ import {
   pageCountOf,
   clampPage,
   pageRows,
+  pageOfMyRow,
 } from '../assets/scripts/界面/leaderboardModel';
 import { LEADERBOARD } from '../assets/scripts/玩法/text';
 
@@ -46,18 +47,25 @@ test('「挑战本关」状态机：通关即可挑战，置灰必须说清原�
   assert.equal(skipped.hint, LEADERBOARD.challengeUnavailable(7));
 });
 
-test('模拟玩家的两列分数：只落当前模式那一列，绝不按比例拆', () => {
-  const normal = mockRowScores(23, 'normal');
-  assert.deepEqual(normal, { simple: 23, hard: 0, total: 23 });
+test('AI 角色的两列分数：简单 = 总分 × 60%~80%，困难 = 总分 − 简单分', () => {
+  const row = mockRowScores(15, '软糯布丁', 30);
+  assert.equal(row.total, 30);
+  assert.equal(row.simple + row.hard, 30, '两列必须等于总分');
+  const ratio = (row.simple / 30) * 100;
+  // 四舍五入允许 ±0.5 分的边界偏差
+  assert.ok(ratio >= 60 - 100 / 30 && ratio <= 80 + 100 / 30, `简单占比 ${ratio.toFixed(1)}% 不在 60%~80%`);
+  assert.ok(row.hard > 0, '困难分必须 > 0（剩下的都算困难）');
 
-  const nightmare = mockRowScores(23, 'nightmare');
-  assert.deepEqual(nightmare, { simple: 0, hard: 23, total: 23 });
+  // 确定性：同一关同一角色每次一样，换个角色/关会变
+  assert.deepEqual(mockRowScores(15, '软糯布丁', 30), row);
+  const others = ['元气团子', '星星汤圆', '柠檬果冻', '奶盖花卷'].map((n) => mockRowScores(15, n, 30).simple);
+  assert.ok(new Set(others).size >= 2, '不同角色的拆分不该完全一样');
 });
 
-test('总分榜：101 行（100 模拟 + 我），名次连续且我的分是真实值不拆分', () => {
+test('总分榜：1001 行（1000 模拟 + 我），名次连续且我的分是真实值不拆分', () => {
   const rows = buildTotalBoard({ simple: 120, hard: 30 });
 
-  assert.equal(rows.length, 101, '100 名模拟玩家 + 本机 1 人');
+  assert.equal(rows.length, 1001, '1000 名模拟玩家（基石数据） + 本机 1 人');
   rows.forEach((r, i) => assert.equal(r.rank, i + 1, '名次必须连续'));
 
   const mine = rows.filter((r) => r.mine);
@@ -71,6 +79,17 @@ test('总分榜：101 行（100 模拟 + 我），名次连续且我的分是真
   for (let i = 1; i < rows.length; i++) {
     assert.ok((rows[i - 1]!.total ?? 0) >= (rows[i]!.total ?? 0), `第 ${i} 行破坏了降序`);
   }
+
+  // AI 口径（2026-11-03）：66 关逐关累加，每关按 60%~80% 拆，所以两列都 > 0 且求和自洽
+  const others = rows.filter((r) => !r.mine);
+  for (const r of others) {
+    assert.equal(r.total, (r.simple ?? 0) + (r.hard ?? 0), `${r.name} 的总分不等于简单+困难`);
+    assert.ok((r.simple ?? 0) > 0, `${r.name} 的简单分必须 > 0`);
+    assert.ok((r.hard ?? 0) > 0, `${r.name} 的困难分必须 > 0（剩下的都算困难）`);
+    // 简单占比整体也落在 60%~80%（66 关累加后比例仍应在此区间内附近）
+    const ratio = ((r.simple ?? 0) / (r.total ?? 1)) * 100;
+    assert.ok(ratio >= 55 && ratio <= 85, `${r.name} 的简单占比 ${ratio.toFixed(1)}% 跑出 60%~80% 太远`);
+  }
 });
 
 test('总分榜是确定性的：同一份输入每次打开都一样（本地 mock，无后端）', () => {
@@ -81,14 +100,15 @@ test('总分榜是确定性的：同一份输入每次打开都一样（本地 m
 
 test('分页：每页 20 名，页码夹在合法区间，尾页只给剩下的行', () => {
   const rows = buildTotalBoard({ simple: 0, hard: 0 });
-  assert.equal(pageCountOf(rows.length), 6, '101 行 → 6 页');
+  // 1001 行 → ceil(1001/20) = 51 页
+  assert.equal(pageCountOf(rows.length), 51, '1001 行 → 51 页');
 
   assert.equal(clampPage(0, rows.length), 1, '页码下限 1');
-  assert.equal(clampPage(99, rows.length), 6, '页码上限 = 总页数');
+  assert.equal(clampPage(99, rows.length), 51, '页码上限 = 总页数');
   assert.equal(pageCountOf(0), 1, '空榜也至少算 1 页');
 
   assert.equal(pageRows(rows, 1).length, 20);
-  assert.equal(pageRows(rows, 6).length, 1, '最后一页只剩 1 行');
+  assert.equal(pageRows(rows, 51).length, 1, '最后一页只剩 1 行');
   // 越界页码被夹住，不会取到空数组之外的东西（空榜时返回空）
   assert.equal(pageRows([], 3).length, 0);
   // 分页不重不漏：逐页拼回去等于全量
@@ -98,6 +118,27 @@ test('分页：每页 20 名，页码夹在合法区间，尾页只给剩下的�
   }
   assert.equal(all.length, rows.length);
   assert.equal(all[0], `1-${rows[0]!.name}`);
+});
+
+test('结算跳转定位：「我」所在页算得准，没上榜就回第 1 页', () => {
+  // 真实榜单：一个必然最高的累计分 → 第 1 行 → 第 1 页
+  // （2026-11-04 合并：AI 分数已是排行分单位，66 关累计上限约十几万，原来的 3000 不够）
+  const rows = buildTotalBoard({ simple: 10_000_000, hard: 0 });
+  assert.equal(pageOfMyRow(rows), 1, '第 1 行就是我 → 第 1 页');
+  // 0 分必然垫底（1001 行 / 51 页）→ 我在最后一页，跳转要直接送过去
+  assert.equal(pageOfMyRow(buildTotalBoard({ simple: 0, hard: 0 })), 51, '垫底 → 最后一页');
+
+  // 造一个「我在第 3 页第 5 行」的榜（第 45 行）
+  const fake = Array.from({ length: 60 }, (_, i) => ({ mine: i === 44 }));
+  assert.equal(pageOfMyRow(fake), 3, '第 45 行 → 第 3 页');
+
+  // 我在最后一行（页码正好等于总页数，不能越界成 4）
+  const tail = Array.from({ length: 40 }, (_, i) => ({ mine: i === 39 }));
+  assert.equal(pageOfMyRow(tail), 2, '第 40 行 → 第 2 页');
+
+  // 榜里根本没有我（例如名次 > 100 不在百强行里）→ 回第 1 页，不能停在空页
+  assert.equal(pageOfMyRow([{ mine: false }, { mine: false }]), 1);
+  assert.equal(pageOfMyRow([]), 1, '空榜也返回第 1 页');
 });
 
 test('头像配色按昵称哈希稳定取一种（同一玩家每次一样）', () => {

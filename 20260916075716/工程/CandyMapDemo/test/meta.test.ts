@@ -12,7 +12,7 @@
  *   - 百名榜的模拟玩家必须**确定性**（同一关两次一致）、恰好 100 名、
  *     且分数全部 ≥ 本关 3★ 线（1★ / 2★ 与续命局根本不上榜）。
  *
- * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/核心/honor.ts`
+ * ⚠️ 2026-09-12：榜单数据源从 `web/ui/leaderboard.ts` 搬到了 `assets/scripts/core/honor.ts`
  * （`boardSnapshot` / `mockBoardScores`），界面模块不再自己造数据 —— 所以下面的用例
  * 改成直接核对 core 层，界面层只保留「挑战本关」状态机。
  */
@@ -34,7 +34,7 @@ import {
   mockBoardNames,
   mockBoardScores,
   type LevelOutcome,
-} from '../assets/scripts/核心/index.ts';
+} from '../assets/scripts/core/index.ts';
 import {
   AD_STAMINA_DAILY_MAX,
   STAMINA_RECOVER_MS,
@@ -217,11 +217,11 @@ test('模拟玩家：同一关两次生成的名单与分数完全一致（确�
   assert.deepEqual(mockBoardNames(7), mockBoardNames(7));
 });
 
-test('模拟玩家硬约束：恰好 100 名、昵称不重复、分数全部 ≥ 本关 3★ 线', () => {
+test('模拟玩家硬约束：恰好 1000 名（基石数据）、昵称不重复、分数全部 ≥ 本关 3★ 线', () => {
   const scores = mockBoardScores(5, LINES);
   const names = mockBoardNames(5);
-  assert.equal(scores.length, 100, '模拟玩家必须是 100 名');
-  assert.equal(new Set(names).size, 100, '100 个昵称必须互不重复');
+  assert.equal(scores.length, 1000, '模拟玩家必须是 1000 名（2026-11-03 由 100 扩到 1000）');
+  assert.equal(new Set(names).size, 1000, '1000 个昵称必须互不重复');
   const lowest = Math.min(...scores);
   assert.ok(lowest >= LINES.star3, `最低分 ${lowest} 不应低于 3★ 线 ${LINES.star3}`);
   assert.ok(
@@ -232,7 +232,7 @@ test('模拟玩家硬约束：恰好 100 名、昵称不重复、分数全部 �
 
 test('百名榜：分数降序、名次升序且唯一、条目名次不超过 100（第 100 名可并列）', () => {
   const snap = boardSnapshot(5, LINES, 0);
-  assert.equal(snap.totalPlayers, 100, '没上榜时总玩家数就是 100 名模拟玩家');
+  assert.equal(snap.totalPlayers, 1000, '没上榜时总玩家数就是 1000 名模拟玩家');
   assert.ok(snap.rows.length > 0, '榜单不该为空');
   for (let i = 1; i < snap.rows.length; i++) {
     assert.ok((snap.rows[i]?.score ?? 0) <= (snap.rows[i - 1]?.score ?? 0), '榜单必须按分数降序');
@@ -256,9 +256,10 @@ test('百名榜：分数降序、名次升序且唯一、条目名次不超过 1
 });
 
 test('百名榜：我的上榜成绩会并进榜单，并给出我的名次', () => {
-  const snap = boardSnapshot(5, LINES, 99999);
-  assert.equal(snap.totalPlayers, 101, '本机上榜后总玩家数 +1');
-  assert.equal(snap.myRank, 1, '99999 分必然第一');
+  // 2026-11-04 合并：AI 分数已是排行分单位（每组 100 + 速度分），用一个必然最高的排行分
+  const snap = boardSnapshot(5, LINES, 999999);
+  assert.equal(snap.totalPlayers, 1001, '本机上榜后总玩家数 +1（1000 基石 + 我）');
+  assert.equal(snap.myRank, 1, '999999 分必然第一');
   assert.equal(snap.rows.filter((row) => row.mine).length, 1, '「我」只能出现一次');
 });
 
@@ -272,7 +273,6 @@ function progressWithStars(stars: number[]): ReturnType<typeof createProgress> {
     const outcome: LevelOutcome = {
       level,
       score: want * 10,
-      points: want * 1000,
       star1: 10,
       star2: 20,
       star3: 30,

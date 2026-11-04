@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  AI_SCORE_MAX_LEVEL,
   HONOR_RULE,
   TOTAL_LEVELS,
   boardSnapshot,
+  hasAiScores,
   honorForLevel,
   honorOf,
   mockBoardNames,
   mockBoardScores,
+  mockSplitOf,
   percentileText,
   pointsOfGroups,
   rankStats,
-} from '../assets/scripts/核心/index';
+} from '../assets/scripts/core/index';
 
 /** 第 15 关的真实星线 */
 const LINE = { star1: 5, star2: 7, star3: 9 };
@@ -74,31 +77,43 @@ describe('M9 · 三档判定（§三 / §四）', () => {
     percentile,
   });
 
-  it('超神：名次 ≤ 10（人少时保底）或在前 1%', () => {
-    assert.strictEqual(honorOf(stats(5, 1, 100)), 'god');
-    assert.strictEqual(honorOf(stats(101, 10, 0)), 'god');
-    assert.strictEqual(honorOf(stats(5000, 50, 0)), 'god', '5000 人的前 1% = 前 50 名');
-    assert.strictEqual(honorOf(stats(5000, 51, 0)), 'king');
+  it('进了百强 → 超神', () => {
+    assert.strictEqual(honorOf(stats(101, 1, 100)), 'god');
+    assert.strictEqual(honorOf(stats(101, 100, 1)), 'god');
+    assert.strictEqual(honorOf(stats(9999, 100, 99)), 'god');
   });
 
-  it('王者：名次在前 10%', () => {
-    assert.strictEqual(honorOf(stats(101, 11, 0)), 'king', '101 人的前 10% 向上取整 = 前 11 名');
-    assert.strictEqual(honorOf(stats(101, 12, 0)), 'pass');
-    assert.strictEqual(honorOf(stats(1000, 100, 0)), 'king');
-    assert.strictEqual(honorOf(stats(1000, 101, 0)), 'pass');
+  it('总玩家数 ≤ 100 时**不启用**超神档，直接看百分比', () => {
+    assert.strictEqual(honorOf(stats(100, 1, 100)), 'king');
+    assert.strictEqual(honorOf(stats(50, 1, 100)), 'king');
   });
 
-  it('王者档在小池子里也可达（旧规则下 101 人时不可达）', () => {
-    const tiers = new Set<string>();
-    for (let rank = 1; rank <= 300; rank++) tiers.add(honorOf(stats(300, rank, 0)));
-    assert.deepStrictEqual([...tiers].sort(), ['god', 'king', 'pass']);
+  it('没进百强但百分比 ≥ 90% → 王者', () => {
+    assert.strictEqual(honorOf(stats(1001, 101, 90)), 'king');
+    assert.strictEqual(honorOf(stats(2000, 150, 95.5)), 'king');
+  });
+
+  it('其余都是优秀', () => {
+    assert.strictEqual(honorOf(stats(2000, 150, 89.9)), 'pass');
+    assert.strictEqual(honorOf(stats(101, 101, 0)), 'pass');
+  });
+
+  it('1001 人池子（1000 基石 + 我）里王者档刚好可达：卡在第 101 名', () => {
+    // 名次 > 100 意味着至少 100 人比你高 → percentile ≤ (N-101)/(N-1)。
+    // N = 1001 时上界正好 90%：第 101 名（100 人比你高、孤立无并列）恰好卡在 90% → 王者；
+    // 第 102 名百分比就掉到 89.9% → 优秀。也就是说 1001 人口径下「王者」= 刚好卡在百强门外那一名，
+    // 这是数值门槛的必然（策划要放宽就改 HONOR_RULE.kingPercentile，不是改代码）。
+    assert.strictEqual(honorOf(stats(1001, 101, 90)), 'king', '第 101 名（90%）应是王者');
+    assert.strictEqual(honorOf(stats(1001, 102, 89.9)), 'pass', '第 102 名（89.9%）应是优秀');
+    // 第 100 名以内仍是超神（总人数 > 100 且名次 ≤ 100）
+    assert.strictEqual(honorOf(stats(1001, 100, 90.1)), 'god');
   });
 });
 
-describe('M9 · 灰盒数据源（100 名模拟玩家）', () => {
+describe('M9 · 灰盒数据源（1000 名模拟玩家，基石数据）', () => {
   it('模拟分数全部 ≥ 本关 3★ 线，且人数固定', () => {
-    // 末关用 TOTAL_LEVELS 派生，不写死 60（关卡会继续扩充）
-    for (const level of [1, 15, 35, TOTAL_LEVELS]) {
+    // 只到 AI_SCORE_MAX_LEVEL（66 关）：更后面的关卡按用户口径不配置 AI 分数
+    for (const level of [1, 15, 35, AI_SCORE_MAX_LEVEL]) {
       const scores = mockBoardScores(level, LINE);
       assert.strictEqual(scores.length, HONOR_RULE.mockPlayers);
       assert.ok(scores.every((s) => s >= LINE.star3), `第${level}关出现低于 3★ 线的分数`);
@@ -116,6 +131,47 @@ describe('M9 · 灰盒数据源（100 名模拟玩家）', () => {
   });
 });
 
+describe('M9 · AI 分数口径（2026-11-03 用户定稿）', () => {
+  it(`只配置到第 ${AI_SCORE_MAX_LEVEL} 关，之后不再造 AI 分数`, () => {
+    assert.strictEqual(AI_SCORE_MAX_LEVEL, 66);
+    assert.strictEqual(hasAiScores(AI_SCORE_MAX_LEVEL), true);
+    assert.strictEqual(hasAiScores(AI_SCORE_MAX_LEVEL + 1), false);
+    assert.strictEqual(mockBoardScores(AI_SCORE_MAX_LEVEL, LINE).length, HONOR_RULE.mockPlayers);
+    assert.strictEqual(mockBoardScores(AI_SCORE_MAX_LEVEL + 1, LINE).length, 0, '67 关起没有 AI');
+    assert.strictEqual(mockBoardScores(TOTAL_LEVELS, LINE).length, 0, '末关也没有 AI');
+  });
+
+  it('第 67 关起榜单只有本机：没上榜 = 空榜，上榜 = 第 1 名', () => {
+    const empty = boardSnapshot(AI_SCORE_MAX_LEVEL + 1, LINE, 0);
+    assert.strictEqual(empty.totalPlayers, 0);
+    assert.strictEqual(empty.rows.length, 0);
+    assert.strictEqual(empty.myRank, null);
+
+    const alone = boardSnapshot(AI_SCORE_MAX_LEVEL + 1, LINE, 12);
+    assert.strictEqual(alone.totalPlayers, 1);
+    assert.strictEqual(alone.myRank, 1);
+    assert.deepStrictEqual(alone.rows.map((r) => [r.rank, r.mine]), [[1, true]]);
+  });
+
+  it('简单分占 60%~80%，困难分 = 总分 − 简单分（两列都 > 0 且求和自洽）', () => {
+    for (const total of [5, 9, 12, 18, 30, 47]) {
+      for (const name of ['软糯布丁', '元气团子', '星星汤圆', '柠檬果冻']) {
+        const split = mockSplitOf(15, name, total);
+        const ratio = (split.simple / total) * 100;
+        assert.ok(ratio >= 60 - 100 / total && ratio <= 80 + 100 / total, `${name}@${total} 比例 ${ratio.toFixed(1)}%`);
+        assert.strictEqual(split.simple + split.hard, total, '两列必须等于总分');
+        assert.ok(split.simple > 0 && split.hard > 0, '两列都必须 > 0');
+        assert.strictEqual(mockSplitOf(15, name, total).simple, split.simple, '同一角色同一关必须稳定');
+      }
+    }
+    // 不同角色 / 不同关的比例不该完全一样（随机确实在起作用）
+    const ratios = new Set(
+      ['软糯布丁', '元气团子', '星星汤圆', '柠檬果冻', '奶盖花卷', '樱桃蛋糕'].map((n) => mockSplitOf(15, n, 30).simple),
+    );
+    assert.ok(ratios.size >= 2, `6 个角色只落到 ${ratios.size} 种拆分，随机性不足`);
+  });
+});
+
 describe('M9 · 百名榜（排行榜页数据）', () => {
   it('没上榜时榜单只有模拟玩家，我的名次是 null', () => {
     const snap = boardSnapshot(15, LINE, 0);
@@ -126,11 +182,11 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
   });
 
   it('上榜后总人数 +1，且我出现在榜单里（名次和分数都对得上）', () => {
-    const snap = boardSnapshot(15, LINE, 99999);
+    const snap = boardSnapshot(15, LINE, 999999);
     assert.strictEqual(snap.totalPlayers, HONOR_RULE.mockPlayers + 1);
-    assert.strictEqual(snap.myRank, 1, '99999 分必然第一');
+    assert.strictEqual(snap.myRank, 1, '999999 分必然第一');
     assert.strictEqual(snap.rows[0]!.mine, true);
-    assert.strictEqual(snap.rows[0]!.score, 99999);
+    assert.strictEqual(snap.rows[0]!.score, 999999);
   });
 
   it('榜单按分数降序，名次单调不降', () => {
@@ -150,17 +206,20 @@ describe('M9 · 百名榜（排行榜页数据）', () => {
 });
 
 describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
-  it('3★ 上榜但分数贴着 3★ 线 → 优秀（新规：只够线不再白送超神）', () => {
-    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 9 });
-    assert.strictEqual(out.tier, 'pass');
-    assert.strictEqual(out.stats.totalPlayers, 101);
-    assert.strictEqual(out.rankScore, 9);
-  });
+  it('3★ 上榜：接近天花板 → 超神；贴着 3★ 线的低分 → 优秀（1001 人口径）', () => {
+    // 1000 名基石数据下「上榜即超神」不再成立 —— 天梯从天花板（3★线×1.6）往下铺，
+    // 贴地板的分数在 1001 人里排 800 名开外，要进前 100 得打到接近天花板。
+    // 2026-11-04 合并：AI 分数与玩家统一成排行分单位（每组 100 + 每组 0~30 速度分）
+    const ceilGroups = LINE.star3 + Math.max(6, Math.round(LINE.star3 * 1.6));
+    const ceiling = pointsOfGroups(ceilGroups) + ceilGroups * 30;
+    const high = honorForLevel({ level: 15, line: LINE, score: ceilGroups, stars: 3, revived: false, boardBest: ceiling });
+    assert.strictEqual(high.tier, 'god', `天花板 ${ceiling} 分应进前 100 → 超神（实际第 ${high.stats.rank} 名）`);
+    assert.strictEqual(high.stats.totalPlayers, HONOR_RULE.mockPlayers + 1, '1000 基石 + 我 = 1001');
+    assert.ok(high.stats.rank <= HONOR_RULE.boardRankMax);
 
-  it('3★ 上榜且名次靠前 → 超神 / 王者按名次占比', () => {
-    const top = honorForLevel({ level: 15, line: LINE, score: 99, stars: 3, revived: false, boardBest: 99999 });
-    assert.strictEqual(top.stats.rank, 1);
-    assert.strictEqual(top.tier, 'god');
+    const low = honorForLevel({ level: 15, line: LINE, score: LINE.star3, stars: 3, revived: false, boardBest: pointsOfGroups(LINE.star3) });
+    assert.strictEqual(low.tier, 'pass', '贴 3★ 线的低分在 1001 人里排不进前 100');
+    assert.ok(low.stats.rank > 100, `实际名次 ${low.stats.rank}`);
   });
 
   it('1★ / 2★ 不上榜 → 优秀（百分比 0）', () => {
@@ -180,22 +239,12 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
     assert.strictEqual(out.stats.percentile, 0);
   });
 
-  it('历史上过榜，但本局续命 / 只拿 1★ → 仍是优秀，不能沿用历史榜分判超神', () => {
-    const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: 99999 });
-    assert.strictEqual(revived.tier, 'pass');
-    assert.strictEqual(revived.rankScore, pointsOfGroups(LINE.star1));
-    assert.strictEqual(revived.boardBest, 0);
-
-    const oneStar = honorForLevel({ level: 15, line: LINE, score: 5, stars: 1, revived: false, boardBest: 99999 });
-    assert.strictEqual(oneStar.tier, 'pass');
-    assert.strictEqual(oneStar.rankScore, pointsOfGroups(LINE.star1));
-  });
-
   it('重复通关时用「更新后的上榜最高分」排名 —— 不会把自己算成比自己高的人', () => {
     // 历史最高 30 分（榜上第一），本次只打了 9 分：排名仍然按 30 分算，
     // 名次必须是第 1 名，而不是「101 人里第 101 名」。
-    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: 99999 });
-    assert.strictEqual(out.rankScore, 99999);
+    const best = pointsOfGroups(40);   // 历史最高 40 组的排行分，高于全部 AI
+    const out = honorForLevel({ level: 15, line: LINE, score: 9, stars: 3, revived: false, boardBest: best });
+    assert.strictEqual(out.rankScore, best);
     assert.strictEqual(out.stats.rank, 1);
     assert.strictEqual(out.tier, 'god');
     assert.strictEqual(out.stats.sameCount, 1, '自己那条记录必须落在 sameCount 里');
