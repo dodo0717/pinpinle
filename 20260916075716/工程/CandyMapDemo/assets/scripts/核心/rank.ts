@@ -46,6 +46,16 @@ export function validBestOf(rec: LevelRecord): number {
   return Math.max(0, rec.validBest || 0);
 }
 
+/**
+ * 某关的**关卡榜总分** = 简单上榜分 + 困难上榜分（没玩 / 没到 3★ 的那一档算 0）。
+ *
+ * AI 分数是「简单 + 困难」的总分（honor.ts `mockSplitOf`），所以排行榜与结算弹窗都必须拿这个数去排，
+ * 两处名次才是同一个数（2026-11-04：原来结算只用当前模式的分，同一关结算第 684 名、排行榜第 103 名）。
+ */
+export function levelBoardTotal(normal: ProgressData, nightmare: ProgressData, level: number): number {
+  return Math.max(0, recordOf(normal, level).boardBest) + Math.max(0, recordOf(nightmare, level).boardBest);
+}
+
 /** 总积分 = 简单 + ⌊困难 × 1.5⌋ */
 export function totalScore(simple: number, hard: number): number {
   return simple + Math.floor(hard * RANK_RULE.hardWeight);

@@ -33,7 +33,7 @@ import {
   adDenyText, playAd, setMenuShare, setPlatformToast, shareCard, startTracking,
 } from '../玩法/platformBridge';
 import { unlockedImageIds, clearedCount, totalStars, COLLECTION_TOTAL } from '../玩法/meta';
-import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, type GameMode, type LevelStatus, TOTAL_LEVELS } from '../核心/index';
+import { levelStatus, recordOf, buildLevelConfigs, boardSnapshot, levelBoardTotal, type GameMode, type LevelStatus, TOTAL_LEVELS } from '../核心/index';
 // 世界表 / 路中线全部在 worlds.ts（15 世界 × 12 关 = 180 关），本文件只按结果摆节点
 import { WORLDS, levelsOfWorld, roadPoint, worldIndexOf, worldArtAsset } from './worlds';
 // 底图固定走本地 resources（Web 口径：`/web/art/map-v2/*.jpg` 是静态本地图）
@@ -1091,7 +1091,8 @@ export class MapBootstrap extends Component {
         // 两套模式各自的**上榜分**（没玩 / 没到 3★ = 0），合计才是这一关的总分
         const simpleBoard = recordOf(GS.data.progress.normal, level).boardBest;
         const hardBoard = recordOf(GS.data.progress.nightmare, level).boardBest;
-        const levelTotal = simpleBoard + hardBoard;
+        // 与结算弹窗同一个算法（核心/rank.ts levelBoardTotal），两处名次才是同一个数
+        const levelTotal = levelBoardTotal(GS.data.progress.normal, GS.data.progress.nightmare, level);
         const board = boardSnapshot(level, line, levelTotal);
         return {
             level,

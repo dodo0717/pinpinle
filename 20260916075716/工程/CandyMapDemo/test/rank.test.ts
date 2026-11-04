@@ -96,3 +96,34 @@ describe('rank · 示例对手', () => {
     assert.ok(a.every((r) => r.stars <= RANK_RULE.maxStars));
   });
 });
+
+/* ------------------------------------------------------------------ 关卡榜总分（2026-11-04） */
+import {
+  levelBoardTotal, boardSnapshot, honorForLevel, buildLevelConfigs, pointsOfGroups, createProgress,
+} from '../assets/scripts/核心/index';
+
+describe('rank · 关卡榜总分 = 简单 + 困难上榜分', () => {
+  const withBoard = (mode: 'normal' | 'nightmare', level: number, board: number): ProgressData => {
+    const p = createProgress(mode);
+    p.levels[level] = { stars: board > 0 ? 3 : 1, personalBest: board, boardBest: board, validBest: board };
+    return p;
+  };
+
+  it('只玩一种 = 该模式分；两种都玩 = 相加；都没上榜 = 0', () => {
+    assert.equal(levelBoardTotal(withBoard('normal', 15, 1300), createProgress('nightmare'), 15), 1300);
+    assert.equal(levelBoardTotal(createProgress('normal'), withBoard('nightmare', 15, 1100), 15), 1100);
+    assert.equal(levelBoardTotal(withBoard('normal', 15, 1300), withBoard('nightmare', 15, 1100), 15), 2400);
+    assert.equal(levelBoardTotal(createProgress('normal'), createProgress('nightmare'), 15), 0);
+  });
+
+  it('结算弹窗的名次 == 排行榜里我的名次（同一份进度）', () => {
+    const c = buildLevelConfigs('normal')[14]!;
+    const line = { star1: c.star1, star2: c.star2, star3: c.star3 };
+    const normal = withBoard('normal', 15, pointsOfGroups(c.star3 + 4));
+    const nightmare = withBoard('nightmare', 15, pointsOfGroups(c.star3 + 2));
+    const total = levelBoardTotal(normal, nightmare, 15);
+    const settle = honorForLevel({ level: 15, line, score: c.star3, stars: 3, revived: false, boardBest: total });
+    const board = boardSnapshot(15, line, total);
+    assert.equal(settle.stats.rank, board.myRank);
+  });
+});

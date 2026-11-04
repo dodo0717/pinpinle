@@ -39,6 +39,7 @@ import {
   createSaveData,
   findHintCells,
   honorForLevel,
+  levelBoardTotal,
   imageOf,
   levelStatus,
   type LevelStatus,
@@ -3147,7 +3148,10 @@ function showHonorDialog(outcome: LevelOutcome, stars: number): void {
     score: outcome.score,
     stars,
     revived: outcome.revived,
-    boardBest: recordOf(progressByMode[mode], level).boardBest,
+    // 名次用「简单 + 困难」关卡总分（与排行榜同一算法，2026-11-04）；本局没上榜时仍传 0
+    boardBest: recordOf(progressByMode[mode], level).boardBest > 0
+      ? levelBoardTotal(progressByMode.normal, progressByMode.nightmare, level)
+      : 0,
   });
   const tier = honor.tier;
 
@@ -3383,7 +3387,8 @@ function leaderboardView(level: number): LeaderboardView {
   // 榜单的「简单/困难」两列只能取这两个真值，不能由单个分数按比例拆
   const simpleBest = recordOf(progressByMode.normal, level).personalBest;
   const hardBest = recordOf(progressByMode.nightmare, level).personalBest;
-  const board = boardSnapshot(level, starLineOf(level), rec.boardBest);
+  // AI 分数是「简单 + 困难」总分 → 我的名次也按两套上榜分之和排（与结算弹窗同一算法）
+  const board = boardSnapshot(level, starLineOf(level), levelBoardTotal(progressByMode.normal, progressByMode.nightmare, level));
 
   return {
     level,

@@ -41,7 +41,7 @@ import {
 } from './tutorial';
 import {
   PuzzleEngine, Grid, Rng, buildLevelConfigs, computeMergeDisplay, clampShift, findHintCells,
-  settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot,
+  settleLevel, commitSettlement, recordOf, resumeTimeLeft, honorForLevel, boardSnapshot, levelBoardTotal,
   TOTAL_LEVELS, reviveSecondsFor, createTally, addElimination, onRevive,
   type MoveOutcome, type ResolveStages, type LevelOutcome, type LevelSettlement, type PointsTally,
   type LevelConfig, type LevelSession, type Cell, type ProgressData, type GameMode,
@@ -871,7 +871,11 @@ export class GameBootstrap extends Component {
       this.attempts.delete(this.levelIndex);
       this.audio.play('win');
       this.announceUnlocks(next);
-      this.showHonorDialog(outcome, settlement, after.boardBest);
+      // 排名用「简单 + 困难」关卡总分（与排行榜同一算法，2026-11-04）；本模式取刚更新过的进度
+      const normal = GS.mode === 'normal' ? next : GS.progressOf('normal');
+      const nightmare = GS.mode === 'nightmare' ? next : GS.progressOf('nightmare');
+      const rankTotal = levelBoardTotal(normal, nightmare, this.levelIndex);
+      this.showHonorDialog(outcome, settlement, after.boardBest, rankTotal);
     } else {
       this.audio.play('fail');
       this.showFailDialog(outcome);
@@ -889,14 +893,19 @@ export class GameBootstrap extends Component {
   }
 
   /** 荣誉弹窗三档（超神 / 王者 / 优秀） */
-  private showHonorDialog(outcome: LevelOutcome, settlement: LevelSettlement, boardBest: number): void {
+  /**
+   * @param boardBest 当前模式的上榜最高分（吊牌提示 / 「查看排行榜」按钮用）
+   * @param rankTotal 关卡榜总分 = 简单 + 困难上榜分（名次 / 档位用，与排行榜同口径）
+   */
+  private showHonorDialog(outcome: LevelOutcome, settlement: LevelSettlement, boardBest: number, rankTotal: number = boardBest): void {
     const honor = honorForLevel({
       level: this.levelIndex,
       line: { star1: this.cfg.star1, star2: this.cfg.star2, star3: this.cfg.star3 },
       score: outcome.score,
       stars: settlement.stars,
       revived: outcome.revived,
-      boardBest,
+      // 本局没上榜（续命 / <3★）时 honorForLevel 自己按 1★ 线计，这里只管给对总分
+      boardBest: boardBest > 0 ? rankTotal : 0,
     });
 
     const hero = honor.tier === 'god' ? '🏆' : honor.tier === 'king' ? '👑' : '🎉';
