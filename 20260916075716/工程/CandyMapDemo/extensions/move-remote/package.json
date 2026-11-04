@@ -1,0 +1,12 @@
+{
+  "package_version": 2,
+  "version": "1.0.0",
+  "name": "move-remote",
+  "title": "构建后移走 remote/",
+  "description": "微信小游戏构建完成后，把构建目录里的 remote/ 移到 build/_remote-uploaded/<构建目录名>，开发者工具可直接上传（不再超 4MB）",
+  "author": "pinpinle",
+  "editor": ">=3.8.0",
+  "contributions": {
+    "builder": "./dist/builder.js"
+  }
+}
