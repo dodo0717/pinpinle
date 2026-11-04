@@ -319,6 +319,14 @@ export const MAP = {
   loadingOverlay: '加载中…',
 } as const;
 
+/** 新版本提示（`平台/update.ts`，微信系统弹窗，用系统字体） */
+export const UPDATE = {
+  title: '发现新版本',
+  content: '新版本已经准备好，重启一下就能体验～',
+  confirm: '立即重启',
+  cancel: '稍后',
+} as const;
+
 /** 启动加载页（2026-11-03 从小游戏线移植到 Cocos 线，`界面/StartupLoading.ts`） */
 export const LOADING = {
   pct: (n: number): string => `${n}%`,

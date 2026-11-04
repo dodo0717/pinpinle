@@ -8,6 +8,7 @@ import { LevelNode } from './LevelNode';
 import { HomeHUD } from '../界面/HomeHUD';
 import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { StartupLoading } from '../界面/StartupLoading';
+import { watchForUpdate } from '../平台/update';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -23,7 +24,7 @@ import { speech } from '../玩法/speech';
 import { GameDialog } from '../玩法/GameDialog';
 import { ToastLayer } from '../玩法/toast';
 import { GS } from '../玩法/state';
-import { HOME, ADS, SHARE, COLLECTION, SETTINGS, TUTORIAL, MAP } from '../玩法/text';
+import { HOME, ADS, SHARE, COLLECTION, SETTINGS, TUTORIAL, MAP, UPDATE } from '../玩法/text';
 import { STAMINA_PER_AD } from '../平台/ads';
 import {
   adDenyText, playAd, setMenuShare, setPlatformToast, shareCard, startTracking,
@@ -219,6 +220,8 @@ export class MapBootstrap extends Component {
         // 顶栏跟着体力/倒计时走：体力变化由 GS 通知，恢复倒计时由每秒心跳推进（hud 未建时 refreshTopbar 自己跳过）
         GS.onMetaChange(() => this.refreshTopbar());
         this.schedule(this.onTick, 1);
+        // 发布新版后，老用户这次打开就能切到新版（新包下完弹确认框）；非小游戏宿主里什么都不做
+        watchForUpdate(UPDATE);
         // 启动加载页分两阶段（2026-11-03，修「一片黄、快到 100% 才出背景」）：
         //   ① 只下加载页自己的三张图 → 玩家第一眼看到完整加载页；
         //   ② 再建首页（buildHome，会发出首屏 28 张切图 + 底图请求）、下字体、推进度条，下完淡出。
