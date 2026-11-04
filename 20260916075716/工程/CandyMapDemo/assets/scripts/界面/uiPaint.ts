@@ -22,7 +22,7 @@
  * 颜色一律来自 `web/art/**` 切图的**真实像素采样**（`node tools/art-samples.mjs`），不靠肉眼估。
  */
 
-import { Node, UITransform, Graphics, Label, Sprite, Color, Layers } from 'cc';
+import { Node, UITransform, Graphics, Label, Sprite, Color, Layers, type SpriteFrame } from 'cc';
 import { resolveAsset } from '../平台/assetSource';
 import { loadSpriteFrame } from '../平台/assetLoader';
 
@@ -190,10 +190,33 @@ export function maskStencil(mask: unknown, node: Node): Graphics {
  */
 export function setSprite(sp: Sprite, res: string): void {
   const name = res.startsWith('ui/') ? res.slice(3) : res;
+  // ⚠️ 2026-11-04：拿到过的切图直接同步挂上。原来每次都走一遍异步 load —— 真机上即使已缓存，
+  //    回调也要排队一两秒：排行榜每次重建领奖台都先露出空杯（奖杯里的人脸在 cup-*.png 里），
+  //    PLAY 吊牌切难度时胶囊底图一片空白。
+  const hit = sfCache.get(name);
+  if (hit && (hit as { isValid?: boolean }).isValid !== false) { sp.spriteFrame = hit; return; }
   loadSpriteFrame(resolveAsset('ui', name, 'png'), (sf) => {
+    if (sf) sfCache.set(name, sf);
     if (!sf || !sp.node || !sp.node.isValid) return;
     sp.spriteFrame = sf;
   });
+}
+
+/** 已加载的 UI 切图（键 = 不含 `ui/` 的资源名）。持有引用即可，resources.load 的资源不会被自动释放 */
+const sfCache = new Map<string, SpriteFrame>();
+
+/** 后台预热：把一批切图提前加载进缓存（之后 setSprite 同步命中）；全部结束后回调 */
+export function warmUiSprites(names: readonly string[], done?: () => void): void {
+  let left = names.length;
+  if (left === 0) { done?.(); return; }
+  for (const raw of names) {
+    const name = raw.startsWith('ui/') ? raw.slice(3) : raw;
+    if (sfCache.has(name)) { if (--left === 0) done?.(); continue; }
+    loadSpriteFrame(resolveAsset('ui', name, 'png'), (sf) => {
+      if (sf) sfCache.set(name, sf);
+      if (--left === 0) done?.();
+    });
+  }
 }
 
 /**

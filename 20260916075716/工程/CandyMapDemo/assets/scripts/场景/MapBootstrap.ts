@@ -10,7 +10,7 @@ import { LoadingOverlay } from '../界面/LoadingOverlay';
 import { StartupLoading } from '../界面/StartupLoading';
 import { watchForUpdate } from '../平台/update';
 import { whenSpritesIdle } from '../平台/assetLoader';
-import { fillBleed } from '../界面/uiPaint';
+import { fillBleed, warmUiSprites } from '../界面/uiPaint';
 import { LevelPreview, type LevelMode } from '../界面/LevelPreview';
 import { CollectionScreen } from '../界面/CollectionScreen';
 import { PreviewScreen } from '../界面/PreviewScreen';
@@ -44,6 +44,21 @@ const MAP_H = 3840;            // 每个世界一张底图 1080×3840（手机 2
 const LEVEL_COUNT = TOTAL_LEVELS;   // 180 关（核心层 TOTAL_LEVELS，地图按世界分段渲染）
 /** 进地图后在后台预下载的 UI 切图目录（排行榜 / 图鉴 / 设置 / 教学整屏用到的，合计约 5 MB） */
 const UI_PRELOAD_DIRS = ['ui/fx', 'ui/leaderboard', 'ui/collection', 'ui/settings'];
+/** PLAY 吊牌用到的切图（`界面/LevelPreview.ts`）：进首页就缓存 */
+const LEVEL_PREVIEW_SPRITES = [
+    'fx/card-lp', 'fx/shadow-card-lp', 'fx/lp-rope', 'fx/lp-close',
+    'fx/mode-on', 'fx/mode-off', 'fx/mode-lock', 'fx/btn-play',
+];
+/** 排行榜用到的切图（`界面/LeaderboardScreen.ts`）：领奖台奖杯（人脸画在 cup-*.png 里）/ 头像 / 奖牌等 */
+const LEADERBOARD_SPRITES = [
+    'leaderboard/cup-gold', 'leaderboard/cup-silver', 'leaderboard/cup-bronze',
+    'leaderboard/podium-red', 'leaderboard/podium-orange',
+    'leaderboard/avatar-1', 'leaderboard/avatar-2', 'leaderboard/avatar-3',
+    'leaderboard/medal-1', 'leaderboard/medal-2', 'leaderboard/medal-3', 'leaderboard/medal-4',
+    'leaderboard/ribbon-blue', 'leaderboard/ribbon-gold', 'leaderboard/ribbon-green',
+    'leaderboard/row', 'leaderboard/row-mine', 'leaderboard/star', 'leaderboard/header',
+    'leaderboard/tab-on', 'leaderboard/tab-off', 'leaderboard/back', 'leaderboard/frame',
+];
 /** 后台预热每一步的间隔（秒）：一步只做一件事，避免一次建好几个整屏卡住首页 */
 const WARM_STEP_S = 0.8;
 /** 首屏切图（HomeHUD / LevelNode 里用到的，按源码统计）；底图按当前世界另加，见 firstScreenAssets */
@@ -231,7 +246,12 @@ export class MapBootstrap extends Component {
         //   ② 再建首页（buildHome，会发出首屏 28 张切图 + 底图请求）、下字体、推进度条，下完淡出。
         // 淡出后才开始后台预下载各整屏切图（见 preloadUiAssets），不和首屏抢带宽。
         StartupLoading.show(this.node, DESIGN_W, this.screenH, this.firstScreenAssets(),
-            () => this.buildHome(), () => { this.preloadUiAssets(); this.startWarmup(); });
+            () => this.buildHome(), () => {
+                // PLAY 吊牌最常用、切图又小：进首页立刻缓存，第一次点关卡珠时难度胶囊不再空白
+                warmUiSprites(LEVEL_PREVIEW_SPRITES);
+                this.preloadUiAssets();
+                this.startWarmup();
+            });
     }
 
     /** 建首页（原来直接写在 onLoad 里；现在由启动加载页第二阶段调用，避免和加载页背景抢带宽） */
@@ -908,6 +928,15 @@ export class MapBootstrap extends Component {
         return GS.mode === 'nightmare' && recordOf(GS.progressOf('normal'), level).stars < 3;
     }
 
+    /**
+     * 从排行榜 / 图鉴 / 设置整屏返回首页：底栏高亮回到「首页」（2026-11-04 修：
+     * 原来只收起整屏、没改页签，返回后底栏还亮着「排行榜」）。
+     */
+    private backToHomeTab(): void {
+        this.tabIndex = 0;
+        this.hud?.setTab(0);
+    }
+
     // ========== 底部导航：非首页的 3 个页以面板形式弹出 ==========
     /** 页签顺序与 Web 一致：0 首页 / 1 排行榜 / 2 图鉴 / 3 设置 */
     private setTab(i: number) {
@@ -939,9 +968,9 @@ export class MapBootstrap extends Component {
     private ensureLeaderboard(): LeaderboardScreen {
         if (!this.leaderboard) {
             this.leaderboard = LeaderboardScreen.create(this.node, {
-                onBack: () => this.leaderboard.hide(),
+                onBack: () => { this.leaderboard.hide(); this.backToHomeTab(); },
                 // 「挑战本关」= 收起整屏 + 吊出关卡牌（Web 版同口径：先回主页再开吊牌，让玩家选模式）
-                onChallenge: (level) => { this.leaderboard.hide(); this.openPreview(level); },
+                onChallenge: (level) => { this.leaderboard.hide(); this.backToHomeTab(); this.openPreview(level); },
                 view: (level) => this.leaderboardView(level),
                 myTotals: () => ({ simple: this.totalScoreOf('normal'), hard: this.totalScoreOf('nightmare') }),
                 // 累计星数 = 两套模式之和（与图鉴「每 10 星解锁一张」同一口径）
@@ -1028,7 +1057,7 @@ export class MapBootstrap extends Component {
     private ensureCollection(): CollectionScreen {
         if (!this.collection) {
             this.collection = CollectionScreen.create(this.node, {
-                onBack: () => { this.collection.hide(); this.previewScreen?.hide(); },
+                onBack: () => { this.collection.hide(); this.previewScreen?.hide(); this.backToHomeTab(); },
                 onOpen: (imageId) => this.openPreviewScreen(imageId),
                 onLockedTip: () => this.toast.show(COLLECTION.lockedToast, 1800),
             });
@@ -1078,7 +1107,7 @@ export class MapBootstrap extends Component {
     private ensureSettings(): SettingsScreen {
         if (!this.settingsScreen) {
             this.settingsScreen = SettingsScreen.create(this.node, {
-                onBack: () => this.settingsScreen.hide(),
+                onBack: () => { this.settingsScreen.hide(); this.backToHomeTab(); },
                 onChange: (p) => {
                     if (p.sound !== undefined) GS.setSound(p.sound);
                     if (p.bgm !== undefined) GS.setBgm(p.bgm);
@@ -1148,6 +1177,8 @@ export class MapBootstrap extends Component {
 
     private startWarmup(): void {
         this.warmSteps = [
+            // 排行榜切图全部缓存：翻页 / 换榜 / 再次打开会重建领奖台和榜单行，命中缓存才能同步挂上
+            () => this.prebuild(UI_DIRS_OF.leaderboard, () => warmUiSprites(LEADERBOARD_SPRITES)),
             () => this.prebuild(UI_DIRS_OF.leaderboard, () => {
                 const level = Math.min(Math.max(1, GS.progress.unlocked), LEVEL_COUNT);
                 this.ensureLeaderboard().render(level, LEVEL_COUNT);

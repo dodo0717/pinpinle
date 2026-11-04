@@ -16,6 +16,15 @@
 
 ## 近期更新（2026-10-21 ~ 22）
 
+- **2026-11-04（修真机三处）**：
+  - **排行榜每次进去奖杯先空一两秒**（人脸画在 `cup-*.png` 里）、**PLAY 吊牌难度胶囊第一次空白**：
+    `uiPaint.setSprite` 原来每次都走异步 load，真机上即使已缓存回调也要排队。新增切图缓存 `sfCache`：
+    加载过的切图同步挂上；新增 `warmUiSprites()` 预加载。进首页立刻缓存 PLAY 吊牌 8 张（`LEVEL_PREVIEW_SPRITES`），
+    后台预热第一步缓存排行榜 23 张（`LEADERBOARD_SPRITES`：奖杯 / 底座 / 头像 / 奖牌 / 彩带 / 行底等）。
+  - **从排行榜返回首页，底栏仍高亮「排行榜」**：排行榜 / 图鉴 / 设置的返回、排行榜「挑战本关」都加
+    `backToHomeTab()`，底栏回到「首页」。
+  - 单测 281/281、tsc 0 错。**待真机确认。**
+
 - **2026-11-04（新增 Creator 构建插件 `extensions/move-remote`）**：微信小游戏构建完成后（`onAfterBuild`），
   自动把 `build/wechatgame-NNN/remote` 移到 `build/_remote-uploaded/wechatgame-NNN`，构建目录直接可上传，
   不再报「源码包超出最大限制 4MB」。先改名（被占用时重试 4 次），仍失败则「复制 → 核对文件数与字节 → 删原目录」；
