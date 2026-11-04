@@ -249,4 +249,19 @@ describe('M9 · 结算荣誉结论（§四 边界情况）', () => {
     assert.strictEqual(out.tier, 'god');
     assert.strictEqual(out.stats.sameCount, 1, '自己那条记录必须落在 sameCount 里');
   });
+
+  it('以前上过榜的关，这次续命或只拿 1★/2★ → 优秀（看本局，不看历史，2026-11-04 修）', () => {
+    const best = pointsOfGroups(40);   // 历史上榜分：足以排第 1
+    const revived = honorForLevel({ level: 15, line: LINE, score: 12, stars: 1, revived: true, boardBest: best });
+    assert.strictEqual(revived.tier, 'pass', '续命局不上榜');
+    assert.strictEqual(revived.boardBest, 0);
+    assert.strictEqual(revived.rankScore, pointsOfGroups(LINE.star1));
+    for (const stars of [1, 2]) {
+      const low = honorForLevel({ level: 15, line: LINE, score: LINE.star1, stars, revived: false, boardBest: best });
+      assert.strictEqual(low.tier, 'pass', `${stars}★ 不上榜`);
+    }
+    // 本局 3★ 且没续命 → 仍按历史最高分排名
+    const ok = honorForLevel({ level: 15, line: LINE, score: LINE.star3, stars: 3, revived: false, boardBest: best });
+    assert.strictEqual(ok.tier, 'god');
+  });
 });
